@@ -1,0 +1,24 @@
+# Python runtime
+__pycache__/
+*.py[cod]
+
+# Local diagnostics and temporary files
+game_core/测试反馈/
+game_core/_rollback_backup_v67/
+game_core/_dbg*
+game_core/diff_report.txt
+
+# Reference AI not part of this repository
+game_core/参考AI/
+
+# Old release snapshots
+game_core/RELEASE-*/
+
+# Local test pages and backups
+game_core/test_*.html
+game_core/debug_classy.html
+game_core/original_backup.html
+
+# OS files
+.DS_Store
+Thumbs.db

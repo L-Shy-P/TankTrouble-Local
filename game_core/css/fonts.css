@@ -1,0 +1,13 @@
+/* Local fonts - fallback to system fonts */
+@font-face {
+    font-family: 'TankTrouble';
+    src: local('Arial');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Commodore';
+    src: local('Arial');
+    font-weight: normal;
+    font-style: normal;
+}

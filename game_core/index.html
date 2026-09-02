@@ -1,0 +1,566 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<script>
+// ===== 早期注入：全局变量 + CSS（必须在JS文件加载前执行）=====
+var g_users=[];
+var g_guests=[];
+var g_initialHighestGmLevel=null;
+var g_initialHighestGmUser="";
+var g_initialAdminRoles=[];
+var g_mpServers={"id":["1"],"name":["Local"],"url":["ws://127.0.0.1:8000"]};
+var g_initialTab="game";
+var g_initialData={};
+var g_initialPremiumPresent=false;
+var g_initialAchievementUnlocks=[];
+var PhaserGlobal={};
+var g_stripeKey="";
+var g_clientId="local_client_" + Date.now();
+var g_url=function(url){return url;};
+var g_version="RELEASE-2026-05-11-01";
+var WebFont = { load: function(config) { if (config && config.active) setTimeout(config.active, 100); } };
+var adBreak = adConfig = function(o) {};
+var adsbygoogle = window.adsbygoogle || [];
+
+// CSS注入 - 布局修复 + 隐藏多余元素
+(function() {
+    var s = document.createElement('style');
+    s.textContent = [
+        '#mainContent { width: calc(100% - 20px) !important; margin: 0 auto !important; }',
+        '#content { width: 100% !important; max-width: 940px !important; margin: 0 auto !important; }',
+        '#secondaryContent, #tertiaryContent { display: none !important; }',
+        '#leftBanner, #rightBanner, #topBanner { display: none !important; }',
+        '#messagesSnippet, .messagesSnippet, #messages { display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; }',
+        '#scrapyardSnippet, .scrapyardSnippet, #scrapyard { display: none !important; visibility: hidden !important; }',
+        '#playerPanel { min-height: 120px !important; }',
+        '#header { position: relative !important; z-index: 100 !important; }',
+        '#shopTab, #newsTab, #forumTab { display: none !important; }',
+        '.loginOverlay, .signUpOverlay { display: none !important; }'
+    ].join('\n');
+    document.head.appendChild(s);
+})();
+
+// 全局错误拦截
+window.addEventListener('error', function(e) {
+    var msg = e.message || '';
+    if (msg.indexOf('retire') !== -1 || msg.indexOf("Cannot read properties of null") !== -1) {
+        e.preventDefault();
+        return true;
+    }
+});
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=0">
+
+    <title>TankTrouble Online Multiplayer Tank Game</title>
+
+    <link rel="icon" href="assets/8df14eb4e8559a35141bca6e52f78bc5.ico">
+    <link rel="mask-icon" href="assets/910b60c778c56e968da26353ed851ed1.svg" color="#427fff">
+
+    <link rel="stylesheet" href="css/jquery/jquery-ui.css">
+
+    <link rel="stylesheet" type="text/css" href="css/82a2c76aac7a8a584f7c1e9aad894166.css"/>
+    <link rel="stylesheet" type="text/css" href="css/training_mode.css?v=12"/>
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    <script src="js/jquery/jquery-1.11.2.min.js"></script>
+    <script src="js/jquery/jquery-ui.min.js"></script>
+    
+    <script src="//ajax.googleapis.com/ajax/libs/webfont/1.6.16/webfont.js"></script>
+    
+    
+
+    
+    <script>window.adsbygoogle=window.adsbygoogle||[];var adBreak=adConfig=function(o){adsbygoogle.push(o);}</script>
+
+    <script src="js/607acab337020559e729d8cec7fbfa61.js"></script><script>eval(mod_pagespeed_aMt5zfvuLK);</script>
+    <script>eval(mod_pagespeed_SX1BB2qLtG);</script>
+    <script>eval(mod_pagespeed_xjMxtD4O8$);</script>
+    <script>eval(mod_pagespeed_s_QSR86cWy);</script>
+    <script src="js/b7a8786b282d9fef7d7a342c2c6af318.js"></script><script>eval(mod_pagespeed_mZQc46rcC3);</script>
+    <script>eval(mod_pagespeed_YZ0qfMTdEl);</script>
+    <script>eval(mod_pagespeed_HVxe73JEcE);</script>
+    <script>eval(mod_pagespeed_EfP9jAIRlC);</script>
+    <script>eval(mod_pagespeed_WJBPi6ijdU);</script>
+    <script src="js/a7fee23e6028c42f5cff266b14e321b9.js"></script><script>eval(mod_pagespeed_IGVmYRn0t9);</script>
+    <script>eval(mod_pagespeed_O97denPfM1);</script>
+    <script>eval(mod_pagespeed_pZ21K_FpIT);</script>
+    <script>eval(mod_pagespeed_$WVB0halyu);</script>
+    <script src="js/2e2acf87850d72356447904f0853591b.js"></script>
+    <script src="js/75c76f1d382639f5dc22fe467491448c.js"></script>
+    <script src="js/331410676c3f057f97b9aecddab6f83c.js"></script>
+    <script src="js/2447836189d5d507684d35ce6d47c626.js"></script>
+    <script src="js/f1a5ef972c273fb89a098cb50b0f22e7.js"></script>
+    <script src="js/7b14393e80b1dbeae87764ff18856cd3.js"></script>
+    <script src="js/086de1525eb001b80ff841bd4997f44f.js"></script><script>eval(mod_pagespeed_GkPla_6BoF);</script>
+    <script>eval(mod_pagespeed_Snt$zVpTdl);</script>
+    <script>eval(mod_pagespeed_9I_6tfH1B_);</script>
+    <script>eval(mod_pagespeed_kzSUyqwfO6);</script>
+    <script>eval(mod_pagespeed_$W6JSxhTxh);</script>
+    <script>eval(mod_pagespeed_JwPDurXW1e);</script>
+    <script src="js/d77238a2c8f986766482baa44d92d96f.js"></script><script>eval(mod_pagespeed_VLRTKl$wlP);</script>
+    <script>eval(mod_pagespeed_DZed_dKql8);</script>
+    <script>eval(mod_pagespeed_QBPUEGTY5B);</script>
+    <script>eval(mod_pagespeed_ZXS2nWNLVA);</script>
+
+    
+    <script>eval(mod_pagespeed_Fq9_mLe2ei);</script>
+    <script>eval(mod_pagespeed_rhBAk6WaMw);</script>
+    <script>eval(mod_pagespeed_NSKsbJaJTE);</script>
+    <script>eval(mod_pagespeed_BCF43vpDvo);</script>
+    <script src="js/1fc948972897c5a096239b2e7cf96f25.js"></script><script>eval(mod_pagespeed_8JuTc3yG2r);</script>
+    <script>eval(mod_pagespeed_EX1X2z$7mH);</script>
+    <script>eval(mod_pagespeed_Hp61vOafai);</script>
+    <script>eval(mod_pagespeed_x5WaBflFjQ);</script>
+    <script>eval(mod_pagespeed_5C63NAeVp9);</script>
+    <script>eval(mod_pagespeed_KQPnN13PdF);</script>
+    <script>eval(mod_pagespeed_GDmNkeoqp4);</script>
+    <script>eval(mod_pagespeed_TMaH4M8x4l);</script>
+    <script>eval(mod_pagespeed_WSFuSDywq4);</script>
+    <script>eval(mod_pagespeed_7JQn8KIyBE);</script>
+    <script src="js/c63a12f565cbe572da765cffb6e799cc.js"></script><script>eval(mod_pagespeed_UVjCNPnI35);</script>
+    <script>eval(mod_pagespeed_eJ6gTqwUtB);</script>
+    <script>eval(mod_pagespeed_06lPo0ygsS);</script>
+    <script>eval(mod_pagespeed_dqokOrJEWe);</script>
+    <script>eval(mod_pagespeed_SwLZ4daVrD);</script>
+    <script>eval(mod_pagespeed_V6l5fzG1p1);</script>
+    <script>eval(mod_pagespeed_heJ9S1eE4P);</script>
+    <script>eval(mod_pagespeed_U5A9TUODGA);</script>
+    <script>eval(mod_pagespeed_iEnRWfbMq_);</script>
+    <script>eval(mod_pagespeed_suLCpMry2J);</script>
+    <script>eval(mod_pagespeed__c$htsnnLF);</script>
+    <script>eval(mod_pagespeed_469Rr1R3Mp);</script>
+    <script>eval(mod_pagespeed_FBaSXgC90o);</script>
+    <script>eval(mod_pagespeed_L19BzWS1ma);</script>
+    <script>eval(mod_pagespeed_ThtYPixYYP);</script>
+    <script src="js/3d5f98a4952a4fdd5e39b46544196ec3.js"></script>
+    <script src="js/72ec8ebb83f13159b067977210415d77.js"></script>
+    <script src="js/59a50fe458b92aef8abf7578413046ca.js"></script><script>eval(mod_pagespeed_UHMKqNKcZt);</script>
+    <script>eval(mod_pagespeed_5tvjXVSDk1);</script>
+    <script>eval(mod_pagespeed_8Y03TViF72);</script>
+    <script>eval(mod_pagespeed_0E7bkIJw55);</script>
+    <script>eval(mod_pagespeed_I0eunHn5vp);</script>
+    <script src="js/867a252fbfd5fc7a9c88af54bd2e2369.js"></script><script>eval(mod_pagespeed_c3ldAxU0yu);</script>
+    <script>eval(mod_pagespeed_3gBG6j_ynN);</script>
+
+    <script>eval(mod_pagespeed_8ZLL4egB3t);</script>
+    <script>eval(mod_pagespeed_OgHmRWJo_l);</script>
+    <script>eval(mod_pagespeed_MBE1wwyl1F);</script>
+    <script>eval(mod_pagespeed_w0GEg06GzI);</script>
+    <script>eval(mod_pagespeed_uUkZFAvzwy);</script>
+    <script>eval(mod_pagespeed_kYHH7zDrVt);</script>
+    <script>eval(mod_pagespeed_BExLLiWzUj);</script>
+    <script>eval(mod_pagespeed_HUqS2ObX$1);</script>
+    <script src="js/2f3a156711ef2e78a65a4fa143a72ef3.js"></script><script>eval(mod_pagespeed_1ZBwXFw5Nd);</script>
+    <script>eval(mod_pagespeed_rPxwulw8v3);</script>
+    <script>eval(mod_pagespeed_dsqA0XIveU);</script>
+    <script>eval(mod_pagespeed_ltrZqp6WuL);</script>
+    <script>eval(mod_pagespeed_Qz$7dc_$jD);</script>
+    <script>eval(mod_pagespeed_cMTSdo68j$);</script>
+    <script src="js/3a79df058474520174ba630148dd7670.js"></script><script>eval(mod_pagespeed_tIVTOE92Rc);</script>
+    <script>eval(mod_pagespeed_jljZwdo3ox);</script>
+    <script>eval(mod_pagespeed_1Oy3m_rYXQ);</script>
+    <script>eval(mod_pagespeed_lTdvtJtL7Z);</script>
+    <script>eval(mod_pagespeed_URV14bziBS);</script>
+    <script>eval(mod_pagespeed_lMIbGcvcz1);</script>
+    <script>eval(mod_pagespeed_haV8oUQHPI);</script>
+    <script>eval(mod_pagespeed_C5EbbT6JMx);</script>
+    <script>eval(mod_pagespeed_neWnzg_XR5);</script>
+    <script>eval(mod_pagespeed_w_9b8$cqu2);</script>
+    <script>eval(mod_pagespeed_wE7wy18YiK);</script>
+    <script>eval(mod_pagespeed_FlBKghSJoC);</script>
+    <script src="js/9110da2a9aca881c9fe10480df0bb31e.js"></script><script>eval(mod_pagespeed_ZhoGoqvKqa);</script>
+    <script>eval(mod_pagespeed_8qNPlZBD5O);</script>
+    <script>eval(mod_pagespeed_o88JCZOg0u);</script>
+    <script>eval(mod_pagespeed_0Nq$gWN$Ld);</script>
+    <script>eval(mod_pagespeed_DnBPQET44S);</script>
+    <script>eval(mod_pagespeed_2e711_QaL_);</script>
+    <script>eval(mod_pagespeed_Euu_dnGyab);</script>
+    <script>eval(mod_pagespeed_8Q92rMSqr_);</script>
+    <script>eval(mod_pagespeed_CXpeTAmE1X);</script>
+    <script>eval(mod_pagespeed_p8mF25h92g);</script>
+
+    <script src="js/43493a35a135e98726f408249a9c3d60.js"></script><script>eval(mod_pagespeed_2gLwt5UIol);</script>
+    <script>eval(mod_pagespeed_aManz0kejO);</script>
+    <script>eval(mod_pagespeed_QpsA3oJCNG);</script>
+    <script>eval(mod_pagespeed_me2KLD0PXW);</script>
+    <script>eval(mod_pagespeed_Da21AwrhzQ);</script>
+    <script>eval(mod_pagespeed_bc7S99_DNH);</script>
+    <script>eval(mod_pagespeed_Y0giCvaxBk);</script>
+    <script src="js/c97de7607d684bf7551ce6a273f293d5.js"></script><script>eval(mod_pagespeed_CMfuz$Z$HE);</script>
+    <script>eval(mod_pagespeed_QFvaD4LG4R);</script>
+    <script>eval(mod_pagespeed_Vfpfz1oBUq);</script>
+    <script>eval(mod_pagespeed_tHAQO7K0ir);</script>
+    <script>eval(mod_pagespeed_YFgGVSSgZl);</script>
+    <script>eval(mod_pagespeed_bzxuTnQ$Ax);</script>
+    <script src="js/1e50ed926459b8a1c14e8e1341a1657b.js"></script>
+    <script src="js/5be42e11d6691d06b9f96c52b78ea1d0.js"></script><script>eval(mod_pagespeed_F4RQqPOXv5);</script>
+    <script>eval(mod_pagespeed_0bhWgrRnIf);</script>
+
+    <script>eval(mod_pagespeed_cr8V1dlOAM);</script>
+    <script>eval(mod_pagespeed_UJ8Fh98n1L);</script>
+    <script>eval(mod_pagespeed_ryWrRgzifQ);</script>
+    <script>eval(mod_pagespeed_e7OT661b4m);</script>
+    <script>eval(mod_pagespeed_HQRCmZ2GAe);</script>
+    <script src="js/b714588dc4621fe104113111ba90b1a7.js"></script><script>eval(mod_pagespeed_QSIkKJ9Ibg);</script>
+    <script>eval(mod_pagespeed_olugIbrdm1);</script>
+    <script>eval(mod_pagespeed__SHLt6ORr2);</script>
+    <script>eval(mod_pagespeed_VzkWDWFkhF);</script>
+    <script>eval(mod_pagespeed_ptn2KSlyQc);</script>
+    <script src="js/418577fd210ad079ea3d1e5e04050fe0.js"></script><script>eval(mod_pagespeed_VI12w_Iz$t);</script>
+    <script>eval(mod_pagespeed_r5EGRP_7Fx);</script>
+    <script>eval(mod_pagespeed_7QSuUJMZhy);</script>
+    <script>eval(mod_pagespeed_RKlY0ZGK8J);</script>
+    <script>eval(mod_pagespeed_dGyZuESDZs);</script>
+    <script>eval(mod_pagespeed_2JVNd1yayj);</script>
+    <script>eval(mod_pagespeed_GC_88EFqdY);</script>
+    <script src="js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js"></script><script>eval(mod_pagespeed_LWHBMg$_Wt);</script>
+    <script>eval(mod_pagespeed_lR_z52Jey$);</script>
+    <script>eval(mod_pagespeed_93jKy9n3BX);</script>
+    <script>eval(mod_pagespeed_1OUufxbMVA);</script>
+    <script>eval(mod_pagespeed_pKutW_I9jc);</script>
+    <script>eval(mod_pagespeed_GOP7EMyZcC);</script>
+    <script>eval(mod_pagespeed_hLb$6yXsH2);</script>
+    <script>eval(mod_pagespeed_O4pz$rWM7c);</script>
+    <script>eval(mod_pagespeed_uHKEgFwrQO);</script>
+    <script>eval(mod_pagespeed_qOrPsSxKjM);</script>
+    <script>eval(mod_pagespeed_JJ72nYKMKm);</script>
+    <script>eval(mod_pagespeed_lx6CB753vx);</script>
+    <script>eval(mod_pagespeed_Q5PRTdPVbX);</script>
+    <script>eval(mod_pagespeed_aFmlYn9h52);</script>
+    <script>eval(mod_pagespeed_wRILt5E9np);</script>
+    <script>eval(mod_pagespeed__N$mC0g9zP);</script>
+    <script>eval(mod_pagespeed_oRs9x_pR10);</script>
+    <script>eval(mod_pagespeed_JEKXsHXpWq);</script>
+    <script>eval(mod_pagespeed_IxtVmpEvvL);</script>
+    <script>eval(mod_pagespeed_UK7GaLqjDD);</script>
+    <script>eval(mod_pagespeed_uB8FXDh9ti);</script>
+    <script>eval(mod_pagespeed_JAQVEhX2da);</script>
+    <script>eval(mod_pagespeed_rMlnoZi2PL);</script>
+    <script>eval(mod_pagespeed_SY_gfvNoE4);</script>
+    <script>eval(mod_pagespeed_UNx5CWwSiL);</script>
+    <script>eval(mod_pagespeed_3ZAz1y77W5);</script>
+    <script>eval(mod_pagespeed_3ssszwzjfn);</script>
+    <script>eval(mod_pagespeed_$yG8gTdm4I);</script>
+    <script>eval(mod_pagespeed_vMFjez2G49);</script>
+    <script>eval(mod_pagespeed_CznuLrIvDR);</script>
+    <script>eval(mod_pagespeed_DLjaoBm7xK);</script>
+    <script>eval(mod_pagespeed_PopfRtPDPO);</script>
+    <script>eval(mod_pagespeed_Wn_CeqVflF);</script>
+    <script>eval(mod_pagespeed_KT8Sulotdp);</script>
+    <script>eval(mod_pagespeed_fDvVRRI9k6);</script>
+    <script>eval(mod_pagespeed_9UPnysmx04);</script>
+    <script>eval(mod_pagespeed_1yzjiW1Rbw);</script>
+    <script src="js/ce217c9b090cc73ce0e1faa13d20ca15.js"></script><script>eval(mod_pagespeed_EFNP63Mha9);</script>
+    <script>eval(mod_pagespeed_OOrBUBOSq8);</script>
+    <script src="js/82e43ebfcdffdaf490dbe79c9c119d29.js"></script>
+    <script src="js/46989e393ad0e356ac8a0c6c53b362f9.js"></script><script>eval(mod_pagespeed_nX3ZtydlAi);</script>
+    <script>eval(mod_pagespeed_UdgrXtAdyl);</script>
+    <script>eval(mod_pagespeed_t0IZE_Ys8n);</script>
+    <script>eval(mod_pagespeed_kmtLBegs0J);</script>
+    <script>eval(mod_pagespeed_YQrbXpZlH3);</script>
+    <script>eval(mod_pagespeed_Uxl8ZqUNsB);</script>
+    <script>eval(mod_pagespeed_SxtyvktlQm);</script>
+    <script>eval(mod_pagespeed_1dDcbFaVed);</script>
+    <script>eval(mod_pagespeed_WK9_Nf2LGD);</script>
+    <script>eval(mod_pagespeed_RuBkZIyxcP);</script>
+    <script>eval(mod_pagespeed_m0zAXsiFsM);</script>
+    <script>eval(mod_pagespeed_5K3LgCBYnX);</script>
+    <script>eval(mod_pagespeed_hdsWTefD$A);</script>
+    <script>eval(mod_pagespeed_5eaYBBHm1g);</script>
+    <script>eval(mod_pagespeed_mD$phh7K21);</script>
+    <script src="js/886d0eb67c4552b1a7ded075a1e79dba.js"></script><script>eval(mod_pagespeed_2NuY_qy_TQ);</script>
+    <script>eval(mod_pagespeed_6kOSxM34TA);</script>
+    <script>eval(mod_pagespeed_vGdzmAzTQK);</script>
+    <script>eval(mod_pagespeed_y2QR8CcGHV);</script>
+    <script>eval(mod_pagespeed_cYR1NzCoAV);</script>
+    <script>eval(mod_pagespeed_uCqQsNaD2D);</script>
+    <script>eval(mod_pagespeed_5Vsfnv_H0R);</script>
+    <script>eval(mod_pagespeed_7MTiPMJXFt);</script>
+    <script>eval(mod_pagespeed_bGDaOyZ7jr);</script>
+    <script>eval(mod_pagespeed_RXSE$QzyOy);</script>
+    <script>eval(mod_pagespeed_AuPE2UsYID);</script>
+    <script>eval(mod_pagespeed_De6xEy4KNZ);</script>
+    <script>eval(mod_pagespeed_chPxs6Rgus);</script>
+    <script>eval(mod_pagespeed_KGqlLQmKZ2);</script>
+    <script>eval(mod_pagespeed_4EbyzQEPMZ);</script>
+    <script>eval(mod_pagespeed_udrMh7fT6c);</script>
+    <script>eval(mod_pagespeed_dAr8bBwYh8);</script>
+    <script>eval(mod_pagespeed_SfFGdaFZ9T);</script>
+    <script>eval(mod_pagespeed_59Szc4zpqF);</script>
+    <script>eval(mod_pagespeed_7fovWD7x2r);</script>
+    <script>eval(mod_pagespeed_u5AjHSUvwA);</script>
+    <script>eval(mod_pagespeed_XNo2r2E50X);</script>
+    <script>eval(mod_pagespeed_nxYo9BRnOM);</script>
+    <script>eval(mod_pagespeed_6pVhQ67zju);</script>
+    <script>eval(mod_pagespeed_g7lKtZeUqw);</script>
+    <script>eval(mod_pagespeed_5wXPIU1MDl);</script>
+    <script>eval(mod_pagespeed_CHQJfi9PtS);</script>
+    <script>eval(mod_pagespeed_oZJxXh2yVG);</script>
+    <script>eval(mod_pagespeed_I5PIMP4ssE);</script>
+    <script>eval(mod_pagespeed_kQ7sHAp6HZ);</script>
+    <script>eval(mod_pagespeed_vzfgi$h4D7);</script>
+    <script>eval(mod_pagespeed_HDqtiIq0tw);</script>
+    <script>eval(mod_pagespeed_jyCaOo5oXa);</script>
+    <script>eval(mod_pagespeed_eltTEyYaLk);</script>
+    <script>eval(mod_pagespeed_D7JwVxr2d9);</script>
+    <script>eval(mod_pagespeed_aRTP9NP77R);</script>
+    <script>eval(mod_pagespeed_eluDq71bQy);</script>
+    <script>eval(mod_pagespeed_YkC0bcneeJ);</script>
+    <script>eval(mod_pagespeed_TR5Mvfvls5);</script>
+    <script>eval(mod_pagespeed_7Dy3w1RmfD);</script>
+    <script src="js/54518faa8d672020d7af8ed7c353bc1b.js"></script><script>eval(mod_pagespeed_mvV$YlbuFi);</script>
+    <script>eval(mod_pagespeed_gu$QIHj82E);</script>
+    <script>eval(mod_pagespeed_xywxvvdPhk);</script>
+    <script>eval(mod_pagespeed_$iM3wULier);</script>
+    <script>eval(mod_pagespeed_4zGFwIAG46);</script>
+    <script>eval(mod_pagespeed_Y8aBoOJ4BB);</script>
+    <script>eval(mod_pagespeed_ZmyhytsRS$);</script>
+    <script>eval(mod_pagespeed_0OkNbxg80c);</script>
+    <script>eval(mod_pagespeed_xREWAtg1qK);</script>
+    <script>eval(mod_pagespeed_UcVXnFM6ri);</script>
+    <script>eval(mod_pagespeed_scNj$1hB$t);</script>
+    <script>eval(mod_pagespeed_EuktDW$3sO);</script>
+    <script>eval(mod_pagespeed_jeWFJRd9lT);</script>
+    <script>eval(mod_pagespeed_sKrFN0jniu);</script>
+    <script>eval(mod_pagespeed_wnEiM2$Zjx);</script>
+    <script>eval(mod_pagespeed_sj5GuqW2_p);</script>
+    <script>eval(mod_pagespeed_eXJEQcjJ0i);</script>
+    <script>eval(mod_pagespeed_OBAtZrHMUT);</script>
+    <script>eval(mod_pagespeed_kYYsyf9EXh);</script>
+    <script>eval(mod_pagespeed_cWYHZpMBEb);</script>
+    <script>eval(mod_pagespeed_u4hZ_tCBXY);</script>
+    <script>eval(mod_pagespeed_$a5$J8TEoH);</script>
+    <script>eval(mod_pagespeed_DOO2X9v2Z1);</script>
+    <script>eval(mod_pagespeed_ikmhuVRcZP);</script>
+    <script>eval(mod_pagespeed_6kViSTRi1p);</script>
+    <script>eval(mod_pagespeed_0PewI1a4wI);</script>
+    <script>eval(mod_pagespeed_8EUVkhfjuL);</script>
+    <script>eval(mod_pagespeed_O0zN_PF7N1);</script>
+    <script>eval(mod_pagespeed_7vAEiuknOJ);</script>
+    <script src="js/5b69cfb31c3adc4ccd413cbeead0663c.js"></script><script>eval(mod_pagespeed_AnJvKIxLY$);</script>
+    <script>eval(mod_pagespeed_tjvCFwSawu);</script>
+    <script>eval(mod_pagespeed_yn3b9X4$VY);</script>
+    <script src="js/1a7d9526adb744d2d7d7905ca7b0b97d.js"></script><script>eval(mod_pagespeed_laBCZPm_Wj);</script>
+    <script>eval(mod_pagespeed_7Ze3B1MwmJ);</script>
+    <script>eval(mod_pagespeed_LtUxsBD48y);</script>
+    <script>eval(mod_pagespeed_dkkemTL4l_);</script>
+
+    <script>eval(mod_pagespeed_prDDghWRuT);</script>
+    <script>eval(mod_pagespeed_Ki5npHqp1q);</script>
+    <script>eval(mod_pagespeed_SvmSf4H1Q$);</script>
+    <script src="js/d74220c6a9e90b365895dce678d9f486.js"></script><script>eval(mod_pagespeed_AOYyxXTwwG);</script>
+    <script>eval(mod_pagespeed_rqRBnph$e0);</script>
+    <script>eval(mod_pagespeed_o$qznGxvUc);</script>
+    <script>eval(mod_pagespeed_l_wB2uyy3p);</script>
+    <script>eval(mod_pagespeed_iko71NYZ9J);</script>
+    <script>eval(mod_pagespeed_w33w9CStgK);</script>
+    <script>eval(mod_pagespeed_F6akXxDaV8);</script>
+    <script>eval(mod_pagespeed_PqDzHtdt59);</script>
+    <script>eval(mod_pagespeed_Xb4iGdkQ4R);</script>
+
+    <script>eval(mod_pagespeed_t99V2LabPW);</script>
+    <script>eval(mod_pagespeed_sJvmQu4OPR);</script>
+    <script src="js/f93b3bcaa2769ca3fdeac324ba72f029.js"></script><script>eval(mod_pagespeed_0fmoNmW4z_);</script>
+    <script>eval(mod_pagespeed_TDYEr39tDM);</script>
+
+    <script>eval(mod_pagespeed_XQ1vwvDhvo);</script>
+    <script>eval(mod_pagespeed_NtPQhoAWBe);</script>
+    <script>eval(mod_pagespeed_0aS112jWC2);</script>
+    <script>eval(mod_pagespeed_2vMVB8O6gH);</script>
+    <script>eval(mod_pagespeed_PWESbMrUp3);</script>
+    <script>eval(mod_pagespeed_LMmvyBFKcy);</script>
+    <script>eval(mod_pagespeed_FUFv5wYAmT);</script>
+    <script>eval(mod_pagespeed_y85FVlo_Rn);</script>
+    <script>eval(mod_pagespeed_Eae2Lhp0Lv);</script>
+    <script>eval(mod_pagespeed_1BzgFFFMSW);</script>
+    <script>eval(mod_pagespeed_Ci89qhlqHc);</script>
+
+    <script>eval(mod_pagespeed_d1YqhxxRSU);</script>
+    <script>eval(mod_pagespeed_JuPdbo7iAS);</script>
+    <script src="js/ef8d3106f4d7e5651aa5ca311f9bc584.js"></script><script>eval(mod_pagespeed_en1t9Wb6VV);</script>
+    <script>eval(mod_pagespeed_B7Epj03s7f);</script>
+    <script src="js/797722a577a2434caf0d387feddd3494.js"></script>
+    <script src="js/23c2e62d6899ce9fc5de2c001bae4e44.js"></script><script>eval(mod_pagespeed_1uGfOPYf4z);</script>
+    <script>eval(mod_pagespeed_Kuvuk_G5fh);</script>
+    <script>eval(mod_pagespeed_4ctM6jdoqc);</script>
+    <script>eval(mod_pagespeed_wgOBott8Gn);</script>
+    <script>eval(mod_pagespeed_CiA7sQ1QSu);</script>
+    <script>eval(mod_pagespeed_JB7VR_Cidn);</script>
+    <script>eval(mod_pagespeed_W43XCSr4SL);</script>
+    <script>eval(mod_pagespeed_KvUO05so2F);</script>
+    <script>eval(mod_pagespeed_kOhxwMHuku);</script>
+    <script>eval(mod_pagespeed_qSZXmSYDiS);</script>
+    <script>eval(mod_pagespeed_0W3ZwuomLy);</script>
+    <script>eval(mod_pagespeed_O0ZDuy8KZ4);</script>
+    <script>eval(mod_pagespeed_jS92QI3Otq);</script>
+    <script>eval(mod_pagespeed_U518qD$sGB);</script>
+    <script>eval(mod_pagespeed_41VmDTVDw_);</script>
+    <script>eval(mod_pagespeed_dBhftGq0Lu);</script>
+    <script>eval(mod_pagespeed_2VuPvm9iwQ);</script>
+    <script>eval(mod_pagespeed_IpiWUeO6sr);</script>
+    <script>eval(mod_pagespeed_aYurNuzPLz);</script>
+    <script>eval(mod_pagespeed_HwVGJaL7Ov);</script>
+    <script>eval(mod_pagespeed_s1gkz2CjKF);</script>
+    <script src="js/864cf6b1309228642d16cdcd9855b177.js"></script><script>eval(mod_pagespeed_p_HDs5mNgM);</script>
+    <script>eval(mod_pagespeed_lrivRpjTyS);</script>
+    <script>eval(mod_pagespeed__y9C56JOTr);</script>
+    <script>eval(mod_pagespeed_CfbC48IfSd);</script>
+    <script>eval(mod_pagespeed_aj9oQh17TT);</script>
+    <script>eval(mod_pagespeed_AwGKpq0EfC);</script>
+    <script>eval(mod_pagespeed_rQSP78FOnx);</script>
+    <script>eval(mod_pagespeed_YJsZmGgLqD);</script>
+    <script>eval(mod_pagespeed_t_H5tkvrij);</script>
+    <script>eval(mod_pagespeed_N1fRLiNJ2g);</script>
+    <script>eval(mod_pagespeed_hrypUoxd1T);</script>
+    <script>eval(mod_pagespeed_dvxfz6pnv9);</script>
+    <script>eval(mod_pagespeed_iqzZgR1H50);</script>
+    <script>eval(mod_pagespeed_9GQvIL1w8Q);</script>
+    <script>eval(mod_pagespeed_fAw7kHfIoB);</script>
+    <script>eval(mod_pagespeed_p3cdFbJl$t);</script>
+    <script>eval(mod_pagespeed_v4cc5Q9TOz);</script>
+    <script>eval(mod_pagespeed_QtQI8eTFIH);</script>
+    <script>eval(mod_pagespeed_XsuWsJ1M1x);</script>
+    <script>eval(mod_pagespeed_073SHYAK21);</script>
+    <script>eval(mod_pagespeed_ZBua4ZLkgt);</script>
+    <script>eval(mod_pagespeed_u3w6sagh_T);</script>
+    <script>eval(mod_pagespeed_0cK8dTexaw);</script>
+    <script>eval(mod_pagespeed_Mz3$LL58DL);</script>
+    <script>eval(mod_pagespeed_oh2RjxKG6u);</script>
+    <script>eval(mod_pagespeed_Opakt$3Oav);</script>
+    <script src="js/6d40a06d829cb5a74add5eb9ab382a0f.js"></script><script>eval(mod_pagespeed_38egWNBu8H);</script>
+    <script>eval(mod_pagespeed_z6nur3XT6S);</script>
+    <script>eval(mod_pagespeed_j0DA1_ixxg);</script>
+    <script>eval(mod_pagespeed_gVExPIhq5A);</script>
+    <script>eval(mod_pagespeed_ZIis$fuKnf);</script>
+    <script>eval(mod_pagespeed_qbTUMsSR2Z);</script>
+    <script>eval(mod_pagespeed_vHX4FozJB_);</script>
+    <script>eval(mod_pagespeed_eyfP2v4BDU);</script>
+    <script>eval(mod_pagespeed_x19erGusCf);</script>
+    <script>eval(mod_pagespeed_3sYrJetaGy);</script>
+
+    <script>eval(mod_pagespeed_e$pLphGJGg);</script>
+    <script>eval(mod_pagespeed_5aWLjP0sY2);</script>
+    <script>eval(mod_pagespeed_g0RE_vkniZ);</script>
+    <script>eval(mod_pagespeed_7wLlPLTUWs);</script>
+    <script>eval(mod_pagespeed_X0NI9oudlW);</script>
+    <script src="js/24ee03f7f1fb5ae9bc17300f8a1a846b.js"></script><script>eval(mod_pagespeed_P4aGWihtRo);</script>
+    <script>eval(mod_pagespeed_nzUYo4M2Ol);</script>
+    <script>eval(mod_pagespeed_BsAVmsFMks);</script>
+    <script>eval(mod_pagespeed_GSQ79AHpFQ);</script>
+    <script>eval(mod_pagespeed_AQltGfTV06);</script>
+    <script>eval(mod_pagespeed__p6q_4N18D);</script>
+    <script>eval(mod_pagespeed_ioy7xDsPHV);</script>
+    <script>eval(mod_pagespeed_ARsUXlfLEt);</script>
+    <script>eval(mod_pagespeed_s21W0GAXrH);</script>
+    <script>eval(mod_pagespeed_n5W6xFODlv);</script>
+    <script>eval(mod_pagespeed_Uq$MGF6pE1);</script>
+</head>
+<body>
+<div id="header">
+    <div id="topBanner"></div>
+    <div id="navigation">
+        <div class="shadow"></div>
+        <div id="gameTab" class="tab selected"><img class="selected" src="assets/images/header/tab1Selected.png" srcset="assets/images/header/tab1Selected@2x.png 2x"/><img class="deselected" src="assets/images/header/tab1.png" srcset="assets/images/header/tab1@2x.png 2x"/>
+        </div>
+        <div class="shadow"></div>
+    </div>
+</div>
+<div id="contentWrapper">
+    <div id="content">
+        <div id="mainContent"><div id="game">
+    <!-- Phaser canvas will be inserted here -->
+</div>
+<div id="playerPanel">
+    <!-- Player panel will be inserted here -->
+</div><span id="version" class="note">RELEASE-2026-05-11-01</span></div>
+    </div>
+</div>
+<!-- TT AI MODS：必须在全部游戏脚本加载后再注入，否则会被 eval 覆盖 -->
+<script src="js/ai_strength_config.js"></script>
+<script src="js/ai_tactics.js"></script>
+<script src="js/vantage_sandbox.js?v=27"></script>
+<script src="js/vantage_scoring.js?v=29"></script>
+<script src="js/vantage_tree.js?v=76"></script>
+<script src="js/ai_dodge_debug.js"></script>
+<script src="js/ai_vantage.js?v=7"></script>
+<script src="js/vantage_testbench.js?v=51"></script>
+<script src="js/local_patch.js?v=2"></script>
+<script src="js/training_mode.js?v=48"></script>
+<script src="js/vantage_training_bench.js?v=14"></script>
+<script>
+(function() {
+    'use strict';
+
+    var _origMain = window.main;
+
+    window.main = function() {
+        if (window.TankTroubleLocalPatch) {
+            TankTroubleLocalPatch.applyAjaxPatch();
+            TankTroubleLocalPatch.applyDeferredPatches();
+        }
+        if (typeof TankTroubleAITactics !== 'undefined') {
+            TankTroubleAITactics.install();
+        }
+
+        if (typeof TankTrouble !== 'undefined') {
+            if (TankTrouble.LoginOverlay) TankTrouble.LoginOverlay.show = function() {};
+            if (TankTrouble.SignUpOverlay) TankTrouble.SignUpOverlay.show = function() {};
+            if (TankTrouble.Scrapyard) TankTrouble.Scrapyard.init = function() {};
+            if (TankTrouble.Messages) TankTrouble.Messages.init = function() {};
+            if (TankTrouble.Statistics) TankTrouble.Statistics.init = function() {};
+        }
+
+        if (typeof Content !== 'undefined' && Content.navigateToTab) {
+            var _origNavigateToTab = Content.navigateToTab;
+            Content.navigateToTab = function(tab, path, data) {
+                if (tab === 'game') _origNavigateToTab.call(Content, tab, path, data);
+            };
+        }
+
+        if (_origMain) _origMain.call(window);
+
+        setTimeout(function() {
+            $('#messagesSnippet, .messagesSnippet').hide();
+            $('#scrapyardSnippet, .scrapyardSnippet').hide();
+            $('#shopTab, #newsTab, #forumTab').hide();
+            $('#version').hide();
+        }, 500);
+    };
+
+    $(function() {
+        if (typeof TankTroubleAITactics !== 'undefined') {
+            TankTroubleAITactics.install();
+        }
+        if (window.TankTroubleLocalPatch) {
+            TankTroubleLocalPatch.applyDeferredPatches();
+        }
+        try { main(); } catch (e) { console.error('[Local Patch] main() error:', e); }
+        if (typeof load_red_infiltration === 'function') {
+            try { load_red_infiltration(); } catch (e) {}
+        }
+    });
+})();
+</script>
+</body>
+</html>
