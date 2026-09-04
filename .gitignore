@@ -22,3 +22,6 @@ game_core/original_backup.html
 # OS files
 .DS_Store
 Thumbs.db
+
+# Rust build output (local only)
+game_core/rust/vantage_core/target/
