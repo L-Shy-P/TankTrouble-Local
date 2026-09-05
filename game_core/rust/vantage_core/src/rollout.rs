@@ -17,7 +17,7 @@ pub const MAX_FRAMES: usize = 75;
 pub const MAX_SAMPLES: usize = MAX_FRAMES + 1;
 pub const MAX_WALLS: usize = 1024;
 pub const MAX_WALL_VERTS: usize = 8;
-pub const MAX_BULLETS: usize = 64;
+pub const MAX_BULLETS: usize = 256;
 
 // Collision categories, same values as the game's Constants.COLLISION_CATEGORIES.
 pub const CATEGORY_TANK: u16 = 0x1;
@@ -606,8 +606,10 @@ fn validate_input(input: &RolloutInput) -> Result<(), String> {
         {
             return Err(format!("bullet {} has NaN", i));
         }
-        if b.radius <= 0.0 {
-            return Err(format!("bullet {} has non-positive radius", i));
+        // Laser projectiles have radius 0.0 in the game; allow the degenerate
+        // point circle exactly like JS `b2CircleShape(0)`.
+        if b.radius < 0.0 {
+            return Err(format!("bullet {} has negative radius", i));
         }
     }
     Ok(())

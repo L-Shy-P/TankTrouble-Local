@@ -23,7 +23,7 @@ pub extern "C" fn vt_version() -> u32 {
 ///
 /// All geometry/velocities are `f64` (JS numbers are doubles). Fixed limits:
 /// ops <= 9, durationFrames <= 75 (samples = durationFrames + 1), walls <=
-/// 1024, 3..8 vertices per wall, bullets <= 64.
+/// 1024, 3..8 vertices per wall, bullets <= 256 (0-radius laser allowed).
 ///
 /// Output layout (all caller-owned):
 /// - `out_x`, `out_y`, `out_rot`: candidate-major, index
@@ -480,7 +480,8 @@ pub extern "C" fn vt_rescore_nodes(
                 } else {
                     None
                 };
-                if bullet_radius_slice[ti] <= 0.0 || bullet_radius_slice[ti].is_nan() {
+                // Laser radius 0.0 is legal in the game.
+                if bullet_radius_slice[ti] < 0.0 || bullet_radius_slice[ti].is_nan() {
                     return 0;
                 }
                 threats.push(RescoreThreatInput {

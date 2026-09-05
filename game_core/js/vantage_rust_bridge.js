@@ -80,7 +80,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=4';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -202,8 +202,8 @@
                 if (!Array.isArray(bullets)) {
                     throw badInput('bullets must be an array');
                 }
-                if (bullets.length > 64) {
-                    throw badInput('bulletCount must be <= 64');
+                if (bullets.length > 256) {
+                    throw badInput('bulletCount must be <= 256');
                 }
 
                 var opCount = ops.length;
@@ -628,8 +628,9 @@
                     if (!isFinite(spd) || !isFinite(ao) || !isFinite(rad) || !isFinite(life)) {
                         throw badInput('threats[' + i + '] has non-finite numeric fields');
                     }
-                    if (rad <= 0) {
-                        throw badInput('threats[' + i + '].bulletRadius must be > 0');
+                    // Laser projectiles use radius 0.0.
+                    if (rad < 0) {
+                        throw badInput('threats[' + i + '].bulletRadius must be >= 0');
                     }
                 }
 
@@ -1162,6 +1163,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v3 ABI: vt_rollout_batch + vt_rescore_nodes available, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v4: v3 ABI + 256-bullet and 0-radius laser support, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);
