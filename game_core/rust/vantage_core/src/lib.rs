@@ -6,6 +6,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 pub mod scoring;
+pub mod tree;
 
 /// Fixed ABI version.
 #[no_mangle]
