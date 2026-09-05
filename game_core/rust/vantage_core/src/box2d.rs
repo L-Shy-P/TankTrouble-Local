@@ -8,6 +8,7 @@
 #![allow(clippy::needless_return)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::approx_constant)]
+#![allow(clippy::never_loop)]
 
 use std::f64::consts::PI;
 
@@ -46,11 +47,25 @@ pub const SHAPE_CIRCLE: i32 = 0;
 pub const SHAPE_POLYGON: i32 = 1;
 
 // Body flags, matching `Box2D.Dynamics.b2Body.e_*`.
+const BODY_E_ISLAND_FLAG: u32 = 1;
 const BODY_E_AWAKE_FLAG: u32 = 2;
 const BODY_E_ALLOW_SLEEP_FLAG: u32 = 4;
 const BODY_E_BULLET_FLAG: u32 = 8;
 const BODY_E_FIXED_ROTATION_FLAG: u32 = 16;
 const BODY_E_ACTIVE_FLAG: u32 = 32;
+
+// Contact flags, matching `Box2D.Dynamics.Contacts.b2Contact.e_*`.
+const CONTACT_E_SENSOR_FLAG: u32 = 1;
+const CONTACT_E_CONTINUOUS_FLAG: u32 = 2;
+const CONTACT_E_ISLAND_FLAG: u32 = 4;
+const CONTACT_E_TOI_FLAG: u32 = 8;
+const CONTACT_E_TOUCHING_FLAG: u32 = 16;
+const CONTACT_E_ENABLED_FLAG: u32 = 32;
+
+// Separation function types, matching `Box2D.Collision.b2SeparationFunction.e_*`.
+const SEP_E_POINTS: i32 = 1;
+const SEP_E_FACE_A: i32 = 2;
+const SEP_E_FACE_B: i32 = 4;
 
 // ---------------------------------------------------------------------------
 // b2Vec2 / b2Mat22 / b2Transform / b2Sweep
@@ -243,6 +258,26 @@ impl Sweep {
         xf.position.x -= xf.r.col1.x * self.local_center.x + xf.r.col2.x * self.local_center.y;
         xf.position.y -= xf.r.col1.y * self.local_center.x + xf.r.col2.y * self.local_center.y;
     }
+
+    pub fn set(&mut self, other: &Sweep) {
+        self.local_center = other.local_center;
+        self.c0 = other.c0;
+        self.c = other.c;
+        self.a0 = other.a0;
+        self.a = other.a;
+        self.t0 = other.t0;
+    }
+
+    /// JS `b2Sweep.Advance`.
+    pub fn advance(&mut self, alpha: f64) {
+        if self.t0 < alpha && 1.0 - self.t0 > JS_NUMBER_MIN_VALUE {
+            let k = (alpha - self.t0) / (1.0 - self.t0);
+            self.c0.x = (1.0 - k) * self.c0.x + k * self.c.x;
+            self.c0.y = (1.0 - k) * self.c0.y + k * self.c.y;
+            self.a0 = (1.0 - k) * self.a0 + k * self.a;
+            self.t0 = alpha;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +394,34 @@ fn b2_clamp(v: f64, lo: f64, hi: f64) -> f64 {
     } else {
         v
     }
+}
+
+#[inline]
+fn b2_abs(v: f64) -> f64 {
+    if v > 0.0 {
+        v
+    } else {
+        -v
+    }
+}
+
+#[inline]
+fn b2_max(a: f64, b: f64) -> f64 {
+    if a > b {
+        a
+    } else {
+        b
+    }
+}
+
+#[inline]
+fn b2_cross_fv(s: f64, a: &Vec2) -> Vec2 {
+    Vec2::new(-s * a.y, s * a.x)
+}
+
+#[inline]
+fn b2_neg(v: &Vec2) -> Vec2 {
+    Vec2::new(-v.x, -v.y)
 }
 
 #[inline]
@@ -573,6 +636,753 @@ impl Shape {
     }
 }
 
+// ---------------------------------------------------------------------------
+// b2DistanceProxy (translated from JS `w = b2DistanceProxy`)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct DistanceProxy {
+    vertices: Vec<Vec2>,
+    count: usize,
+    radius: f64,
+}
+
+impl DistanceProxy {
+    fn new() -> Self {
+        Self {
+            vertices: Vec::new(),
+            count: 0,
+            radius: 0.0,
+        }
+    }
+
+    /// JS `w.prototype.Set`.
+    fn set(&mut self, shape: &Shape) {
+        match shape {
+            Shape::Circle(c) => {
+                self.vertices = vec![c.center];
+                self.count = 1;
+                self.radius = c.radius;
+            }
+            Shape::Polygon(p) => {
+                self.vertices = p.vertices.clone();
+                self.count = self.vertices.len();
+                self.radius = p.radius;
+            }
+        }
+    }
+
+    /// JS `w.prototype.GetSupport`.
+    fn get_support(&self, d: &Vec2) -> usize {
+        let mut index = 0usize;
+        let mut best = self.vertices[0].x * d.x + self.vertices[0].y * d.y;
+        for i in 1..self.count {
+            let val = self.vertices[i].x * d.x + self.vertices[i].y * d.y;
+            if val > best {
+                index = i;
+                best = val;
+            }
+        }
+        index
+    }
+
+    /// JS `w.prototype.GetSupportVertex`.
+    fn get_support_vertex(&self, d: &Vec2) -> Vec2 {
+        let index = self.get_support(d);
+        self.vertices[index]
+    }
+
+    /// JS `w.prototype.GetVertexCount`.
+    #[allow(dead_code)]
+    fn get_vertex_count(&self) -> usize {
+        self.count
+    }
+
+    /// JS `w.prototype.GetVertex`.
+    fn get_vertex(&self, index: usize) -> Vec2 {
+        self.vertices[index]
+    }
+}
+
+// ---------------------------------------------------------------------------
+// b2SimplexVertex / b2SimplexCache / b2Simplex
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug)]
+struct SimplexVertex {
+    w_a: Vec2,
+    w_b: Vec2,
+    w: Vec2,
+    a: f64,
+    index_a: usize,
+    index_b: usize,
+}
+
+impl SimplexVertex {
+    fn new() -> Self {
+        Self {
+            w_a: Vec2::ZERO,
+            w_b: Vec2::ZERO,
+            w: Vec2::ZERO,
+            a: 0.0,
+            index_a: 0,
+            index_b: 0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SimplexCache {
+    metric: f64,
+    count: usize,
+    index_a: [usize; 3],
+    index_b: [usize; 3],
+}
+
+impl SimplexCache {
+    fn new() -> Self {
+        Self {
+            metric: 0.0,
+            count: 0,
+            index_a: [0; 3],
+            index_b: [0; 3],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Simplex {
+    vertices: [SimplexVertex; 3],
+    count: usize,
+}
+
+impl Simplex {
+    fn new() -> Self {
+        Self {
+            vertices: [
+                SimplexVertex::new(),
+                SimplexVertex::new(),
+                SimplexVertex::new(),
+            ],
+            count: 0,
+        }
+    }
+
+    /// JS `j.prototype.ReadCache`.
+    fn read_cache(
+        &mut self,
+        cache: &SimplexCache,
+        proxy_a: &DistanceProxy,
+        xf_a: &Transform,
+        proxy_b: &DistanceProxy,
+        xf_b: &Transform,
+    ) {
+        self.count = cache.count;
+        for i in 0..self.count {
+            let a = &mut self.vertices[i];
+            a.index_a = cache.index_a[i];
+            a.index_b = cache.index_b[i];
+            let va = proxy_a.get_vertex(a.index_a);
+            let vb = proxy_b.get_vertex(a.index_b);
+            a.w_a = b2_mul_x(xf_a, &va);
+            a.w_b = b2_mul_x(xf_b, &vb);
+            a.w = b2_sub_vv(&a.w_b, &a.w_a);
+            a.a = 0.0;
+        }
+        if self.count > 1 {
+            let metric = cache.metric;
+            let m = self.get_metric();
+            if m < 0.5 * metric || 2.0 * metric < m || m < JS_NUMBER_MIN_VALUE {
+                self.count = 0;
+            }
+        }
+        if self.count == 0 {
+            let a = &mut self.vertices[0];
+            a.index_a = 0;
+            a.index_b = 0;
+            let va = proxy_a.get_vertex(0);
+            let vb = proxy_b.get_vertex(0);
+            a.w_a = b2_mul_x(xf_a, &va);
+            a.w_b = b2_mul_x(xf_b, &vb);
+            a.w = b2_sub_vv(&a.w_b, &a.w_a);
+            a.a = 0.0;
+            self.count = 1;
+        }
+    }
+
+    /// JS `j.prototype.WriteCache`.
+    fn write_cache(&self, cache: &mut SimplexCache) {
+        cache.metric = self.get_metric();
+        cache.count = self.count;
+        for i in 0..self.count {
+            cache.index_a[i] = self.vertices[i].index_a;
+            cache.index_b[i] = self.vertices[i].index_b;
+        }
+    }
+
+    /// JS `j.prototype.GetSearchDirection`.
+    fn get_search_direction(&self) -> Vec2 {
+        match self.count {
+            1 => b2_neg(&self.vertices[0].w),
+            2 => {
+                let d = b2_sub_vv(&self.vertices[1].w, &self.vertices[0].w);
+                let neg_w1 = b2_neg(&self.vertices[0].w);
+                if b2_cross_vv(&d, &neg_w1) > 0.0 {
+                    b2_cross_fv(1.0, &d)
+                } else {
+                    b2_cross_vf(&d, 1.0)
+                }
+            }
+            _ => Vec2::ZERO,
+        }
+    }
+
+    /// JS `j.prototype.GetClosestPoint`.
+    fn get_closest_point(&self) -> Vec2 {
+        match self.count {
+            1 => self.vertices[0].w,
+            2 => b2_add_vv(
+                &b2_mul_fv(self.vertices[0].a, &self.vertices[0].w),
+                &b2_mul_fv(self.vertices[1].a, &self.vertices[1].w),
+            ),
+            _ => Vec2::ZERO,
+        }
+    }
+
+    /// JS `j.prototype.GetWitnessPoints`.
+    fn get_witness_points(&self, point_a: &mut Vec2, point_b: &mut Vec2) {
+        match self.count {
+            1 => {
+                *point_a = self.vertices[0].w_a;
+                *point_b = self.vertices[0].w_b;
+            }
+            2 => {
+                *point_a = b2_add_vv(
+                    &b2_mul_fv(self.vertices[0].a, &self.vertices[0].w_a),
+                    &b2_mul_fv(self.vertices[1].a, &self.vertices[1].w_a),
+                );
+                *point_b = b2_add_vv(
+                    &b2_mul_fv(self.vertices[0].a, &self.vertices[0].w_b),
+                    &b2_mul_fv(self.vertices[1].a, &self.vertices[1].w_b),
+                );
+            }
+            3 => {
+                let p = b2_add_vv(
+                    &b2_add_vv(
+                        &b2_mul_fv(self.vertices[0].a, &self.vertices[0].w_a),
+                        &b2_mul_fv(self.vertices[1].a, &self.vertices[1].w_a),
+                    ),
+                    &b2_mul_fv(self.vertices[2].a, &self.vertices[2].w_a),
+                );
+                *point_a = p;
+                *point_b = p;
+            }
+            _ => {}
+        }
+    }
+
+    /// JS `j.prototype.GetMetric`.
+    fn get_metric(&self) -> f64 {
+        match self.count {
+            1 => 0.0,
+            2 => b2_sub_vv(&self.vertices[0].w, &self.vertices[1].w).length(),
+            3 => b2_cross_vv(
+                &b2_sub_vv(&self.vertices[1].w, &self.vertices[0].w),
+                &b2_sub_vv(&self.vertices[2].w, &self.vertices[0].w),
+            ),
+            _ => 0.0,
+        }
+    }
+
+    /// JS `j.prototype.Solve2`.
+    fn solve2(&mut self) {
+        let w1 = self.vertices[0].w;
+        let w2 = self.vertices[1].w;
+        let d = b2_sub_vv(&w2, &w1);
+        let h = -(w1.x * d.x + w1.y * d.y);
+        if h <= 0.0 {
+            self.vertices[0].a = 1.0;
+            self.count = 1;
+            return;
+        }
+        let o = w2.x * d.x + w2.y * d.y;
+        if o <= 0.0 {
+            self.vertices[1].a = 1.0;
+            self.count = 1;
+            self.vertices[0] = self.vertices[1];
+            return;
+        }
+        let r = 1.0 / (o + h);
+        self.vertices[0].a = o * r;
+        self.vertices[1].a = h * r;
+        self.count = 2;
+    }
+
+    /// JS `j.prototype.Solve3`.
+    fn solve3(&mut self) {
+        let w1 = self.vertices[0].w;
+        let w2 = self.vertices[1].w;
+        let w3 = self.vertices[2].w;
+        let d12 = b2_sub_vv(&w2, &w1);
+        let dot12_1 = b2_dot(&w1, &d12);
+        let dot12_2 = b2_dot(&w2, &d12);
+        let u = -dot12_1;
+        let d13 = b2_sub_vv(&w3, &w1);
+        let dot13_1 = b2_dot(&w1, &d13);
+        let dot13_3 = b2_dot(&w3, &d13);
+        let a = -dot13_1;
+        let d32 = b2_sub_vv(&w3, &w2);
+        let dot32_2 = b2_dot(&w2, &d32);
+        let dot32_3 = b2_dot(&w3, &d32);
+        let dd = -dot32_2;
+        let l = b2_cross_vv(&d12, &d13);
+        let w = l * b2_cross_vv(&w2, &w3);
+        let d = l * b2_cross_vv(&w3, &w1);
+        let b = l * b2_cross_vv(&w1, &w2);
+
+        if u <= 0.0 && a <= 0.0 {
+            self.vertices[0].a = 1.0;
+            self.count = 1;
+            return;
+        }
+        if dot12_2 > 0.0 && u > 0.0 && b <= 0.0 {
+            let m = 1.0 / (dot12_2 + u);
+            self.vertices[0].a = dot12_2 * m;
+            self.vertices[1].a = u * m;
+            self.count = 2;
+            return;
+        }
+        if dot13_3 > 0.0 && a > 0.0 && d <= 0.0 {
+            let m = 1.0 / (dot13_3 + a);
+            self.vertices[0].a = dot13_3 * m;
+            self.vertices[2].a = a * m;
+            self.count = 2;
+            self.vertices[1] = self.vertices[2];
+            return;
+        }
+        if dot12_2 <= 0.0 && dd <= 0.0 {
+            self.vertices[1].a = 1.0;
+            self.count = 1;
+            self.vertices[0] = self.vertices[1];
+            return;
+        }
+        if dot13_3 <= 0.0 && dot32_3 <= 0.0 {
+            self.vertices[2].a = 1.0;
+            self.count = 1;
+            self.vertices[0] = self.vertices[2];
+            return;
+        }
+        if dot32_3 > 0.0 && dd > 0.0 && w <= 0.0 {
+            let k = 1.0 / (dot32_3 + dd);
+            self.vertices[1].a = dot32_3 * k;
+            self.vertices[2].a = dd * k;
+            self.count = 2;
+            self.vertices[0] = self.vertices[2];
+            return;
+        }
+        let n = 1.0 / (w + d + b);
+        self.vertices[0].a = w * n;
+        self.vertices[1].a = d * n;
+        self.vertices[2].a = b * n;
+        self.count = 3;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// b2Distance (GJK distance)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct DistanceInput {
+    proxy_a: DistanceProxy,
+    proxy_b: DistanceProxy,
+    transform_a: Transform,
+    transform_b: Transform,
+    use_radii: bool,
+}
+
+impl DistanceInput {
+    fn new() -> Self {
+        Self {
+            proxy_a: DistanceProxy::new(),
+            proxy_b: DistanceProxy::new(),
+            transform_a: Transform::identity(),
+            transform_b: Transform::identity(),
+            use_radii: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DistanceOutput {
+    point_a: Vec2,
+    point_b: Vec2,
+    distance: f64,
+    iterations: i32,
+}
+
+impl DistanceOutput {
+    fn new() -> Self {
+        Self {
+            point_a: Vec2::ZERO,
+            point_b: Vec2::ZERO,
+            distance: 0.0,
+            iterations: 0,
+        }
+    }
+}
+
+/// JS `B.Distance` (b2Distance.Distance).
+fn b2_distance(output: &mut DistanceOutput, cache: &mut SimplexCache, input: &DistanceInput) {
+    let proxy_a = &input.proxy_a;
+    let proxy_b = &input.proxy_b;
+    let xf_a = &input.transform_a;
+    let xf_b = &input.transform_b;
+
+    let mut simplex = Simplex::new();
+    simplex.read_cache(cache, proxy_a, xf_a, proxy_b, xf_b);
+
+    let mut save_a = [0usize; 3];
+    let mut save_b = [0usize; 3];
+    let mut gjk_iter = 0i32;
+
+    while gjk_iter < 20 {
+        for i in 0..simplex.count {
+            save_a[i] = simplex.vertices[i].index_a;
+            save_b[i] = simplex.vertices[i].index_b;
+        }
+
+        match simplex.count {
+            1 => {}
+            2 => simplex.solve2(),
+            3 => simplex.solve3(),
+            _ => {}
+        }
+
+        if simplex.count == 3 {
+            break;
+        }
+
+        // JS calls `c.GetClosestPoint().LengthSquared()` here as a no-op.
+        let _ = simplex.get_closest_point().length_squared();
+
+        let search_dir = simplex.get_search_direction();
+        if search_dir.length_squared() < JS_NUMBER_MIN_VALUE * JS_NUMBER_MIN_VALUE {
+            break;
+        }
+
+        let idx = simplex.count;
+        let neg_dir = b2_neg(&search_dir);
+        let dir_a = b2_mul_tmv(&xf_a.r, &neg_dir);
+        simplex.vertices[idx].index_a = proxy_a.get_support(&dir_a);
+        simplex.vertices[idx].w_a =
+            b2_mul_x(xf_a, &proxy_a.get_vertex(simplex.vertices[idx].index_a));
+
+        let dir_b = b2_mul_tmv(&xf_b.r, &search_dir);
+        simplex.vertices[idx].index_b = proxy_b.get_support(&dir_b);
+        simplex.vertices[idx].w_b =
+            b2_mul_x(xf_b, &proxy_b.get_vertex(simplex.vertices[idx].index_b));
+        simplex.vertices[idx].w = b2_sub_vv(&simplex.vertices[idx].w_b, &simplex.vertices[idx].w_a);
+
+        gjk_iter += 1;
+
+        let mut duplicate = false;
+        for i in 0..simplex.count {
+            if simplex.vertices[idx].index_a == save_a[i]
+                && simplex.vertices[idx].index_b == save_b[i]
+            {
+                duplicate = true;
+                break;
+            }
+        }
+        if duplicate {
+            break;
+        }
+        simplex.count += 1;
+    }
+
+    simplex.get_witness_points(&mut output.point_a, &mut output.point_b);
+    output.distance = b2_sub_vv(&output.point_a, &output.point_b).length();
+    output.iterations = gjk_iter;
+    simplex.write_cache(cache);
+
+    if input.use_radii {
+        let radius_a = proxy_a.radius;
+        let radius_b = proxy_b.radius;
+        if output.distance > radius_a + radius_b && output.distance > JS_NUMBER_MIN_VALUE {
+            output.distance -= radius_a + radius_b;
+            let mut p = b2_sub_vv(&output.point_b, &output.point_a);
+            p.normalize();
+            output.point_a.x += radius_a * p.x;
+            output.point_a.y += radius_a * p.y;
+            output.point_b.x -= radius_b * p.x;
+            output.point_b.y -= radius_b * p.y;
+        } else {
+            let c = Vec2::new(
+                0.5 * (output.point_a.x + output.point_b.x),
+                0.5 * (output.point_a.y + output.point_b.y),
+            );
+            output.point_a = c;
+            output.point_b = c;
+            output.distance = 0.0;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// b2SeparationFunction
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct SeparationFunction {
+    proxy_a: DistanceProxy,
+    proxy_b: DistanceProxy,
+    local_point: Vec2,
+    axis: Vec2,
+    type_: i32,
+}
+
+impl SeparationFunction {
+    fn new() -> Self {
+        Self {
+            proxy_a: DistanceProxy::new(),
+            proxy_b: DistanceProxy::new(),
+            local_point: Vec2::ZERO,
+            axis: Vec2::ZERO,
+            type_: 0,
+        }
+    }
+
+    /// JS `g.prototype.Initialize`.  The JS source has the literal condition
+    /// `t.indexA[0] == t.indexA[0]` (always true) before the `e_faceB`
+    /// branch, which makes the later edge-edge `else` branch unreachable.
+    /// We reproduce that exact control flow here.
+    fn initialize(
+        &mut self,
+        cache: &SimplexCache,
+        proxy_a: &DistanceProxy,
+        xf_a: &Transform,
+        proxy_b: &DistanceProxy,
+        xf_b: &Transform,
+    ) {
+        self.proxy_a = proxy_a.clone();
+        self.proxy_b = proxy_b.clone();
+
+        let count = cache.count;
+        if count == 1 {
+            self.type_ = SEP_E_POINTS;
+            let f = proxy_a.get_vertex(cache.index_a[0]);
+            let a = proxy_b.get_vertex(cache.index_b[0]);
+            let pa = b2_mul_x(xf_a, &f);
+            let pb = b2_mul_x(xf_b, &a);
+            self.axis = b2_sub_vv(&pb, &pa);
+            self.axis.normalize();
+        } else if cache.index_b[0] == cache.index_b[1] {
+            self.type_ = SEP_E_FACE_A;
+            let e = proxy_a.get_vertex(cache.index_a[0]);
+            let c = proxy_a.get_vertex(cache.index_a[1]);
+            let a = proxy_b.get_vertex(cache.index_b[0]);
+            self.local_point = Vec2::new(0.5 * (e.x + c.x), 0.5 * (e.y + c.y));
+            self.axis = b2_cross_vf(&b2_sub_vv(&c, &e), 1.0);
+            self.axis.normalize();
+
+            let axis_world = b2_mul_mv(&xf_a.r, &self.axis);
+            let pa = b2_mul_x(xf_a, &self.local_point);
+            let pb = b2_mul_x(xf_b, &a);
+            let n = (pb.x - pa.x) * axis_world.x + (pb.y - pa.y) * axis_world.y;
+            if n < 0.0 {
+                self.axis.x = -self.axis.x;
+                self.axis.y = -self.axis.y;
+            }
+        } else {
+            // JS: `else if (t.indexA[0] == t.indexA[0])` -- always true.
+            self.type_ = SEP_E_FACE_B;
+            let v = proxy_b.get_vertex(cache.index_b[0]);
+            let x = proxy_b.get_vertex(cache.index_b[1]);
+            let f = proxy_a.get_vertex(cache.index_a[0]);
+            self.local_point = Vec2::new(0.5 * (v.x + x.x), 0.5 * (v.y + x.y));
+            self.axis = b2_cross_vf(&b2_sub_vv(&x, &v), 1.0);
+            self.axis.normalize();
+
+            let axis_world = b2_mul_mv(&xf_b.r, &self.axis);
+            let pb = b2_mul_x(xf_b, &self.local_point);
+            let pa = b2_mul_x(xf_a, &f);
+            let n = (pa.x - pb.x) * axis_world.x + (pa.y - pb.y) * axis_world.y;
+            if n < 0.0 {
+                self.axis.x = -self.axis.x;
+                self.axis.y = -self.axis.y;
+            }
+        }
+    }
+
+    /// JS `g.prototype.Evaluate`.
+    fn evaluate(&self, xf_a: &Transform, xf_b: &Transform) -> f64 {
+        match self.type_ {
+            SEP_E_POINTS => {
+                let s = b2_mul_tmv(&xf_a.r, &self.axis);
+                let o = b2_mul_tmv(&xf_b.r, &b2_neg(&self.axis));
+                let r = self.proxy_a.get_support_vertex(&s);
+                let u = self.proxy_b.get_support_vertex(&o);
+                let f = b2_mul_x(xf_a, &r);
+                let e = b2_mul_x(xf_b, &u);
+                (e.x - f.x) * self.axis.x + (e.y - f.y) * self.axis.y
+            }
+            SEP_E_FACE_A => {
+                let c = b2_mul_mv(&xf_a.r, &self.axis);
+                let f = b2_mul_x(xf_a, &self.local_point);
+                let o = b2_mul_tmv(&xf_b.r, &b2_neg(&c));
+                let u = self.proxy_b.get_support_vertex(&o);
+                let e = b2_mul_x(xf_b, &u);
+                (e.x - f.x) * c.x + (e.y - f.y) * c.y
+            }
+            SEP_E_FACE_B => {
+                let c = b2_mul_mv(&xf_b.r, &self.axis);
+                let e = b2_mul_x(xf_b, &self.local_point);
+                let s = b2_mul_tmv(&xf_a.r, &b2_neg(&c));
+                let r = self.proxy_a.get_support_vertex(&s);
+                let f = b2_mul_x(xf_a, &r);
+                (f.x - e.x) * c.x + (f.y - e.y) * c.y
+            }
+            _ => 0.0,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// b2TimeOfImpact
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct ToiInput {
+    proxy_a: DistanceProxy,
+    proxy_b: DistanceProxy,
+    sweep_a: Sweep,
+    sweep_b: Sweep,
+    tolerance: f64,
+}
+
+impl ToiInput {
+    fn new() -> Self {
+        Self {
+            proxy_a: DistanceProxy::new(),
+            proxy_b: DistanceProxy::new(),
+            sweep_a: Sweep::new(),
+            sweep_b: Sweep::new(),
+            tolerance: 0.0,
+        }
+    }
+}
+
+/// JS `E.TimeOfImpact` (b2TimeOfImpact.TimeOfImpact).
+fn b2_time_of_impact(input: &ToiInput) -> f64 {
+    let proxy_a = &input.proxy_a;
+    let proxy_b = &input.proxy_b;
+    let sweep_a = &input.sweep_a;
+    let sweep_b = &input.sweep_b;
+    let total_radius = proxy_a.radius + proxy_b.radius;
+    let tolerance = input.tolerance;
+
+    let mut alpha = 0.0f64;
+    let mut iter = 0i32;
+    let mut target = 0.0f64;
+
+    let mut cache = SimplexCache::new();
+    let mut distance_input = DistanceInput::new();
+    distance_input.use_radii = false;
+    let mut xf_a = Transform::identity();
+    let mut xf_b = Transform::identity();
+    let mut fcn = SeparationFunction::new();
+    let mut distance_output = DistanceOutput::new();
+
+    loop {
+        sweep_a.get_transform(&mut xf_a, alpha);
+        sweep_b.get_transform(&mut xf_b, alpha);
+        distance_input.proxy_a = proxy_a.clone();
+        distance_input.proxy_b = proxy_b.clone();
+        distance_input.transform_a = xf_a;
+        distance_input.transform_b = xf_b;
+        b2_distance(&mut distance_output, &mut cache, &distance_input);
+
+        if distance_output.distance <= 0.0 {
+            alpha = 1.0;
+            break;
+        }
+
+        fcn.initialize(&cache, proxy_a, &xf_a, proxy_b, &xf_b);
+        let separation = fcn.evaluate(&xf_a, &xf_b);
+        if separation <= 0.0 {
+            alpha = 1.0;
+            break;
+        }
+
+        if iter == 0 {
+            target = if separation > total_radius {
+                b2_max(total_radius - tolerance, 0.75 * total_radius)
+            } else {
+                b2_max(separation - tolerance, 0.02 * separation)
+            };
+        }
+
+        if separation - target < 0.5 * tolerance {
+            if iter == 0 {
+                alpha = 1.0;
+            }
+            break;
+        }
+
+        let mut x = alpha;
+        let mut lower = alpha;
+        let mut upper = 1.0;
+        let mut lower_val = separation;
+
+        sweep_a.get_transform(&mut xf_a, 1.0);
+        sweep_b.get_transform(&mut xf_b, 1.0);
+        let mut upper_val = fcn.evaluate(&xf_a, &xf_b);
+        if upper_val >= target {
+            alpha = 1.0;
+            break;
+        }
+
+        let mut root_iter = 0i32;
+        loop {
+            let t = if (root_iter & 1) == 1 {
+                lower + (target - lower_val) * (upper - lower) / (upper_val - lower_val)
+            } else {
+                0.5 * (lower + upper)
+            };
+            sweep_a.get_transform(&mut xf_a, t);
+            sweep_b.get_transform(&mut xf_b, t);
+            let m = fcn.evaluate(&xf_a, &xf_b);
+            if b2_abs(m - target) < 0.025 * tolerance {
+                x = t;
+                break;
+            }
+            if m > target {
+                lower = t;
+                lower_val = m;
+            } else {
+                upper = t;
+                upper_val = m;
+            }
+            root_iter += 1;
+            if root_iter == 50 {
+                break;
+            }
+        }
+
+        if x < (1.0 + 100.0 * JS_NUMBER_MIN_VALUE) * alpha {
+            break;
+        }
+
+        alpha = x;
+        iter += 1;
+        if iter == 1000 {
+            break;
+        }
+    }
+
+    alpha
+}
 // ---------------------------------------------------------------------------
 // Contact ID / manifold / world manifold
 // ---------------------------------------------------------------------------
@@ -1273,6 +2083,22 @@ impl Body {
         self.xf.position.x = self.sweep.c.x - (r.col1.x * lc.x + r.col2.x * lc.y);
         self.xf.position.y = self.sweep.c.y - (r.col1.y * lc.x + r.col2.y * lc.y);
     }
+
+    /// JS `b2Body.Advance`.
+    pub fn advance(&mut self, alpha: f64) {
+        self.sweep.advance(alpha);
+        self.sweep.c = self.sweep.c0;
+        self.sweep.a = self.sweep.a0;
+        self.synchronize_transform();
+    }
+
+    pub fn set_awake(&mut self, awake: bool) {
+        if awake {
+            self.flags |= BODY_E_AWAKE_FLAG;
+        } else {
+            self.flags &= !BODY_E_AWAKE_FLAG;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1285,18 +2111,57 @@ struct Contact {
     fixture_b: FixtureId,
     manifold: Manifold,
     old_manifold: Manifold,
-    touching: bool,
+    flags: u32,
+    toi: f64,
 }
 
 impl Contact {
-    fn new(fixture_a: FixtureId, fixture_b: FixtureId) -> Self {
+    /// JS `b2Contact.Reset` simplified for the Rust world's flat contact
+    /// list.  Continuous if either body is not dynamic OR either body is a
+    /// bullet; sensor if either fixture is a sensor.
+    fn new(
+        fixture_a: FixtureId,
+        fixture_b: FixtureId,
+        fixtures: &[Fixture],
+        bodies: &[Body],
+    ) -> Self {
+        let mut flags = CONTACT_E_ENABLED_FLAG;
+        if fixtures[fixture_a].is_sensor || fixtures[fixture_b].is_sensor {
+            flags |= CONTACT_E_SENSOR_FLAG;
+        }
+        let body_a = fixtures[fixture_a].body;
+        let body_b = fixtures[fixture_b].body;
+        if bodies[body_a].body_type != B2_DYNAMIC_BODY
+            || bodies[body_a].is_bullet()
+            || bodies[body_b].body_type != B2_DYNAMIC_BODY
+            || bodies[body_b].is_bullet()
+        {
+            flags |= CONTACT_E_CONTINUOUS_FLAG;
+        }
         Self {
             fixture_a,
             fixture_b,
             manifold: Manifold::new(),
             old_manifold: Manifold::new(),
-            touching: false,
+            flags,
+            toi: 0.0,
         }
+    }
+
+    fn is_sensor(&self) -> bool {
+        self.flags & CONTACT_E_SENSOR_FLAG != 0
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.flags & CONTACT_E_ENABLED_FLAG != 0
+    }
+
+    fn is_continuous(&self) -> bool {
+        self.flags & CONTACT_E_CONTINUOUS_FLAG != 0
+    }
+
+    fn is_touching(&self) -> bool {
+        self.flags & CONTACT_E_TOUCHING_FLAG != 0
     }
 }
 
@@ -1578,6 +2443,9 @@ impl World {
 
 impl World {
     pub fn step(&mut self, dt: f64, velocity_iterations: u32, position_iterations: u32) {
+        // JS `b2World.Step`: new fixtures -> FindNewContacts, Collide,
+        // Solve, SolveTOI, then inv_dt0.  Our O(n^2) broadphase needs
+        // fixture AABBs refreshed before use, so we update them first.
         self.update_fixture_aabbs();
         if self.new_fixtures {
             self.find_new_contacts();
@@ -1597,19 +2465,32 @@ impl World {
 
         if dt > 0.0 {
             self.solve(&step);
-            self.inv_dt0 = step.inv_dt;
+
+            // End of JS `b2World.Solve`: SynchronizeFixtures + FindNewContacts.
             self.update_fixture_aabbs();
             self.find_new_contacts();
+
+            self.solve_toi(&step);
+
+            self.inv_dt0 = step.inv_dt;
         }
     }
 
+    /// JS fixture AABBs are broad-phase AABBs that cover the swept path
+    /// (start-of-step transform and current transform).  We reproduce that
+    /// with `b2Fixture.Synchronize`: combine(AABB(xf0), AABB(xf)).
     fn update_fixture_aabbs(&mut self) {
         let n = self.fixtures.len();
         for i in 0..n {
             let body_id = self.fixtures[i].body;
-            let xf = self.bodies[body_id].xf;
-            let aabb = self.fixtures[i].shape.compute_aabb(&xf);
-            self.fixtures[i].aabb = aabb;
+            let body = &self.bodies[body_id];
+            let mut xf0 = Transform::identity();
+            body.sweep.get_transform(&mut xf0, 0.0);
+            let aabb0 = self.fixtures[i].shape.compute_aabb(&xf0);
+            let aabb1 = self.fixtures[i].shape.compute_aabb(&body.xf);
+            let mut combined = AABB::new();
+            combined.combine(&aabb0, &aabb1);
+            self.fixtures[i].aabb = combined;
         }
     }
 
@@ -1645,7 +2526,8 @@ impl World {
                 {
                     continue;
                 }
-                self.contacts.push(Contact::new(fa, fb));
+                self.contacts
+                    .push(Contact::new(fa, fb, &self.fixtures, &self.bodies));
             }
         }
     }
@@ -1673,43 +2555,394 @@ impl World {
     }
 
     fn update_contact(&mut self, contact_idx: usize) {
+        // JS `b2Contact.Update` for our flat contact list (no listener, no
+        // contact edges).  The manifold swap matches JS exactly; sensor and
+        // continuous flags follow the same conditions.
         let fa = self.contacts[contact_idx].fixture_a;
         let fb = self.contacts[contact_idx].fixture_b;
-
-        let (shape_a, xf_a, shape_b, xf_b);
-        {
-            let fixture_a = &self.fixtures[fa];
-            let body_a = fixture_a.body;
-            shape_a = fixture_a.shape.clone();
-            xf_a = self.bodies[body_a].xf;
-            let fixture_b = &self.fixtures[fb];
-            let body_b = fixture_b.body;
-            shape_b = fixture_b.shape.clone();
-            xf_b = self.bodies[body_b].xf;
-        }
+        let body_a = self.fixtures[fa].body;
+        let body_b = self.fixtures[fb].body;
+        let body_a_type = self.bodies[body_a].body_type;
+        let body_b_type = self.bodies[body_b].body_type;
+        let body_a_bullet = self.bodies[body_a].is_bullet();
+        let body_b_bullet = self.bodies[body_b].is_bullet();
+        let aabb_overlap = self.fixtures[fa].aabb.test_overlap(&self.fixtures[fb].aabb);
 
         let contact = &mut self.contacts[contact_idx];
         let mut old = Manifold::new();
         std::mem::swap(&mut contact.manifold, &mut old);
         contact.old_manifold = old.clone();
+        contact.flags |= CONTACT_E_ENABLED_FLAG;
 
-        evaluate_manifold(&shape_a, &xf_a, &shape_b, &xf_b, &mut contact.manifold);
+        let touching_before = contact.flags & CONTACT_E_TOUCHING_FLAG != 0;
+        let sensor = contact.flags & CONTACT_E_SENSOR_FLAG != 0;
+        let mut touching = false;
 
-        for i in 0..contact.manifold.point_count {
-            contact.manifold.points[i].normal_impulse = 0.0;
-            contact.manifold.points[i].tangent_impulse = 0.0;
-            let new_id = contact.manifold.points[i].id.key;
-            for j in 0..contact.old_manifold.point_count {
-                if contact.old_manifold.points[j].id.key == new_id {
-                    contact.manifold.points[i].normal_impulse =
-                        contact.old_manifold.points[j].normal_impulse;
-                    contact.manifold.points[i].tangent_impulse =
-                        contact.old_manifold.points[j].tangent_impulse;
-                    break;
+        if sensor {
+            // Simplified shape-overlap test: our subset supports polygon/
+            // circle pairs, so evaluating the manifold is equivalent to
+            // `b2Collision.TestOverlap` for those pairs.
+            if aabb_overlap {
+                let shape_a = self.fixtures[fa].shape.clone();
+                let xf_a = self.bodies[body_a].xf;
+                let shape_b = self.fixtures[fb].shape.clone();
+                let xf_b = self.bodies[body_b].xf;
+                let mut overlap_manifold = Manifold::new();
+                evaluate_manifold(&shape_a, &xf_a, &shape_b, &xf_b, &mut overlap_manifold);
+                touching = overlap_manifold.point_count > 0;
+            }
+            contact.manifold.point_count = 0;
+        } else {
+            if body_a_type != B2_DYNAMIC_BODY
+                || body_a_bullet
+                || body_b_type != B2_DYNAMIC_BODY
+                || body_b_bullet
+            {
+                contact.flags |= CONTACT_E_CONTINUOUS_FLAG;
+            } else {
+                contact.flags &= !CONTACT_E_CONTINUOUS_FLAG;
+            }
+
+            if aabb_overlap {
+                let shape_a = self.fixtures[fa].shape.clone();
+                let xf_a = self.bodies[body_a].xf;
+                let shape_b = self.fixtures[fb].shape.clone();
+                let xf_b = self.bodies[body_b].xf;
+                evaluate_manifold(&shape_a, &xf_a, &shape_b, &xf_b, &mut contact.manifold);
+                touching = contact.manifold.point_count > 0;
+
+                for i in 0..contact.manifold.point_count {
+                    contact.manifold.points[i].normal_impulse = 0.0;
+                    contact.manifold.points[i].tangent_impulse = 0.0;
+                    let new_id = contact.manifold.points[i].id.key;
+                    for j in 0..contact.old_manifold.point_count {
+                        if contact.old_manifold.points[j].id.key == new_id {
+                            contact.manifold.points[i].normal_impulse =
+                                contact.old_manifold.points[j].normal_impulse;
+                            contact.manifold.points[i].tangent_impulse =
+                                contact.old_manifold.points[j].tangent_impulse;
+                            break;
+                        }
+                    }
                 }
+            } else {
+                contact.manifold.point_count = 0;
+            }
+
+            if touching != touching_before {
+                self.bodies[body_a].set_awake(true);
+                self.bodies[body_b].set_awake(true);
             }
         }
-        contact.touching = contact.manifold.point_count > 0;
+
+        if touching {
+            contact.flags |= CONTACT_E_TOUCHING_FLAG;
+        } else {
+            contact.flags &= !CONTACT_E_TOUCHING_FLAG;
+        }
+    }
+
+    /// JS `b2Contact.ComputeTOI` with `b2_linearSlop` tolerance.
+    fn compute_toi(&self, contact_idx: usize) -> f64 {
+        let contact = &self.contacts[contact_idx];
+        let fixture_a = &self.fixtures[contact.fixture_a];
+        let fixture_b = &self.fixtures[contact.fixture_b];
+        let body_a = fixture_a.body;
+        let body_b = fixture_b.body;
+
+        let mut input = ToiInput::new();
+        input.proxy_a.set(&fixture_a.shape);
+        input.proxy_b.set(&fixture_b.shape);
+        input.sweep_a = self.bodies[body_a].sweep;
+        input.sweep_b = self.bodies[body_b].sweep;
+        input.tolerance = B2_LINEAR_SLOP;
+        b2_time_of_impact(&input)
+    }
+}
+
+impl World {
+    /// Simplified JS `b2Island.SolveTOI` for our island (no joints).
+    ///
+    /// JS does NOT call `InitVelocityConstraints` in `b2Island.SolveTOI`;
+    /// the contact solver keeps the manifold impulses loaded by
+    /// `b2ContactSolver.Initialize` and solves velocity from there.  We
+    /// reproduce that by building constraints (which copies manifold
+    /// impulses) and deliberately skipping `init_velocity_constraints`.
+    /// JS also does not call `FinalizeVelocityConstraints`, so manifold
+    /// impulses are left untouched here.
+    fn solve_toi_island(
+        &mut self,
+        step: &TimeStep,
+        body_ids: &[BodyId],
+        contact_indices: &[usize],
+    ) {
+        let mut constraints: Vec<(usize, ContactConstraint)> = Vec::new();
+        for &ci in contact_indices {
+            if self.contacts[ci].manifold.point_count == 0 {
+                continue;
+            }
+            let constraint = self.build_constraint(ci);
+            constraints.push((ci, constraint));
+        }
+
+        let mut vels: Vec<BodyVelocity> = self
+            .bodies
+            .iter()
+            .map(|b| BodyVelocity {
+                v: b.linear_velocity,
+                w: b.angular_velocity,
+                inv_mass: b.inv_mass,
+                inv_i: b.inv_i,
+            })
+            .collect();
+
+        // Intentionally no `init_velocity_constraints` (see above).
+        for _ in 0..step.velocity_iterations {
+            solve_velocity_constraints(&mut vels, &mut constraints);
+        }
+
+        for (idx, body) in self.bodies.iter_mut().enumerate() {
+            body.linear_velocity = vels[idx].v;
+            body.angular_velocity = vels[idx].w;
+        }
+
+        // JS integrates positions for every non-static body in the island.
+        for &body_id in body_ids {
+            let body = &mut self.bodies[body_id];
+            if body.body_type == B2_STATIC_BODY {
+                continue;
+            }
+            let mut v = body.linear_velocity;
+            let mut w = body.angular_velocity;
+            let dt_vx = step.dt * v.x;
+            let dt_vy = step.dt * v.y;
+            if dt_vx * dt_vx + dt_vy * dt_vy > B2_MAX_TRANSLATION_SQUARED {
+                let len = v.normalize();
+                v.x *= B2_MAX_TRANSLATION * step.inv_dt;
+                v.y *= B2_MAX_TRANSLATION * step.inv_dt;
+                let _ = len;
+            }
+            let dt_w = step.dt * w;
+            if dt_w * dt_w > B2_MAX_ROTATION_SQUARED {
+                if w < 0.0 {
+                    w = -B2_MAX_ROTATION * step.inv_dt;
+                } else {
+                    w = B2_MAX_ROTATION * step.inv_dt;
+                }
+            }
+            body.sweep.c0 = body.sweep.c;
+            body.sweep.a0 = body.sweep.a;
+            body.sweep.c.x += step.dt * v.x;
+            body.sweep.c.y += step.dt * v.y;
+            body.sweep.a += step.dt * w;
+            body.linear_velocity = v;
+            body.angular_velocity = w;
+            body.synchronize_transform();
+        }
+
+        // JS `b2Island.SolveTOI` uses baumgarte 0.75 here.
+        for _ in 0..step.position_iterations {
+            let contacts_ok = self.solve_position_constraints(&constraints, 0.75);
+            if contacts_ok {
+                break;
+            }
+        }
+    }
+
+    /// Simplified JS `b2World.SolveTOI`.  Our world has no joints, so the
+    /// island is the BFS reachable set of touching contacts, exactly like the
+    /// JS body/contact-edge BFS but using the flat `contacts` list.
+    fn solve_toi(&mut self, step: &TimeStep) {
+        for body in self.bodies.iter_mut() {
+            body.flags &= !BODY_E_ISLAND_FLAG;
+            body.sweep.t0 = 0.0;
+        }
+        for contact in self.contacts.iter_mut() {
+            contact.flags &= !(CONTACT_E_TOI_FLAG | CONTACT_E_ISLAND_FLAG);
+        }
+
+        loop {
+            let mut selected: Option<usize> = None;
+            let mut min_toi = 1.0f64;
+
+            for ci in 0..self.contacts.len() {
+                let c = &self.contacts[ci];
+                if c.is_sensor() || !c.is_enabled() || !c.is_continuous() {
+                    continue;
+                }
+
+                let mut b_toi;
+                if c.flags & CONTACT_E_TOI_FLAG != 0 {
+                    b_toi = c.toi;
+                } else {
+                    let fa = c.fixture_a;
+                    let fb = c.fixture_b;
+                    let body_a_id = self.fixtures[fa].body;
+                    let body_b_id = self.fixtures[fb].body;
+                    let body_a = &self.bodies[body_a_id];
+                    let body_b = &self.bodies[body_b_id];
+                    let a_eligible = body_a.body_type == B2_DYNAMIC_BODY && body_a.is_awake();
+                    let b_eligible = body_b.body_type == B2_DYNAMIC_BODY && body_b.is_awake();
+                    if !(a_eligible || b_eligible) {
+                        continue;
+                    }
+
+                    let t0_a = body_a.sweep.t0;
+                    let t0_b = body_b.sweep.t0;
+                    let mut d = t0_a;
+                    if t0_a < t0_b {
+                        d = t0_b;
+                        self.bodies[body_a_id].sweep.advance(d);
+                    } else if t0_b < t0_a {
+                        d = t0_a;
+                        self.bodies[body_b_id].sweep.advance(d);
+                    }
+
+                    b_toi = self.compute_toi(ci);
+                    if b_toi > 0.0 && b_toi < 1.0 {
+                        b_toi = (1.0 - b_toi) * d + b_toi;
+                        if b_toi > 1.0 {
+                            b_toi = 1.0;
+                        }
+                    }
+
+                    let c = &mut self.contacts[ci];
+                    c.toi = b_toi;
+                    c.flags |= CONTACT_E_TOI_FLAG;
+                }
+
+                if JS_NUMBER_MIN_VALUE < b_toi && b_toi < min_toi {
+                    selected = Some(ci);
+                    min_toi = b_toi;
+                }
+            }
+
+            if selected.is_none() || 1.0 - 100.0 * JS_NUMBER_MIN_VALUE < min_toi {
+                break;
+            }
+
+            let ci = selected.unwrap();
+            let fa = self.contacts[ci].fixture_a;
+            let fb = self.contacts[ci].fixture_b;
+            let body_a_id = self.fixtures[fa].body;
+            let body_b_id = self.fixtures[fb].body;
+
+            let backup_a = self.bodies[body_a_id].sweep;
+            let backup_b = self.bodies[body_b_id].sweep;
+
+            self.bodies[body_a_id].advance(min_toi);
+            self.bodies[body_b_id].advance(min_toi);
+
+            self.update_contact(ci);
+            self.contacts[ci].flags &= !CONTACT_E_TOI_FLAG;
+
+            let sensor = self.contacts[ci].is_sensor();
+            let enabled = self.contacts[ci].is_enabled();
+            let touching = self.contacts[ci].is_touching();
+
+            if !sensor && enabled {
+                if touching {
+                    let primary = if self.bodies[body_a_id].body_type != B2_DYNAMIC_BODY {
+                        body_b_id
+                    } else {
+                        body_a_id
+                    };
+
+                    let mut queue = vec![primary];
+                    self.bodies[primary].flags |= BODY_E_ISLAND_FLAG;
+                    let mut island_bodies: Vec<BodyId> = Vec::new();
+                    let mut island_contacts: Vec<usize> = Vec::new();
+                    let mut head = 0usize;
+
+                    while head < queue.len() {
+                        let body_id = queue[head];
+                        head += 1;
+                        island_bodies.push(body_id);
+
+                        if !self.bodies[body_id].is_awake() {
+                            self.bodies[body_id].set_awake(true);
+                        }
+                        let is_dynamic = self.bodies[body_id].body_type == B2_DYNAMIC_BODY;
+                        if !is_dynamic {
+                            continue;
+                        }
+
+                        for cj in 0..self.contacts.len() {
+                            let c = &self.contacts[cj];
+                            if c.flags & CONTACT_E_ISLAND_FLAG != 0
+                                || c.is_sensor()
+                                || !c.is_enabled()
+                                || !c.is_touching()
+                            {
+                                continue;
+                            }
+                            let c_fa = c.fixture_a;
+                            let c_fb = c.fixture_b;
+                            let c_body_a = self.fixtures[c_fa].body;
+                            let c_body_b = self.fixtures[c_fb].body;
+                            let other = if c_body_a == body_id {
+                                c_body_b
+                            } else if c_body_b == body_id {
+                                c_body_a
+                            } else {
+                                continue;
+                            };
+
+                            island_contacts.push(cj);
+                            self.contacts[cj].flags |= CONTACT_E_ISLAND_FLAG;
+
+                            if self.bodies[other].flags & BODY_E_ISLAND_FLAG == 0 {
+                                if self.bodies[other].body_type != B2_STATIC_BODY {
+                                    self.bodies[other].advance(min_toi);
+                                    self.bodies[other].set_awake(true);
+                                }
+                                queue.push(other);
+                                self.bodies[other].flags |= BODY_E_ISLAND_FLAG;
+                            }
+                        }
+                    }
+
+                    let sub_dt = (1.0 - min_toi) * step.dt;
+                    let sub_step = TimeStep {
+                        dt: sub_dt,
+                        inv_dt: 1.0 / sub_dt,
+                        velocity_iterations: step.velocity_iterations,
+                        position_iterations: step.position_iterations,
+                        warm_starting: false,
+                        dt_ratio: 0.0,
+                    };
+                    self.solve_toi_island(&sub_step, &island_bodies, &island_contacts);
+
+                    for &body_id in &island_bodies {
+                        let body = &mut self.bodies[body_id];
+                        body.flags &= !BODY_E_ISLAND_FLAG;
+                        if body.is_awake() && body.body_type == B2_DYNAMIC_BODY {
+                            for cj in 0..self.contacts.len() {
+                                let c = &mut self.contacts[cj];
+                                let c_fa = c.fixture_a;
+                                let c_fb = c.fixture_b;
+                                let c_body_a = self.fixtures[c_fa].body;
+                                let c_body_b = self.fixtures[c_fb].body;
+                                if c_body_a == body_id || c_body_b == body_id {
+                                    c.flags &= !CONTACT_E_TOI_FLAG;
+                                }
+                            }
+                        }
+                    }
+                    for &cj in &island_contacts {
+                        self.contacts[cj].flags &= !(CONTACT_E_TOI_FLAG | CONTACT_E_ISLAND_FLAG);
+                    }
+
+                    self.update_fixture_aabbs();
+                    self.find_new_contacts();
+                }
+            } else {
+                self.bodies[body_a_id].sweep.set(&backup_a);
+                self.bodies[body_b_id].sweep.set(&backup_b);
+                self.bodies[body_a_id].synchronize_transform();
+                self.bodies[body_b_id].synchronize_transform();
+            }
+        }
     }
 }
 
@@ -1844,7 +3077,7 @@ impl World {
 
         // Position iterations.
         for _ in 0..step.position_iterations {
-            let contacts_ok = self.solve_position_constraints(&constraints);
+            let contacts_ok = self.solve_position_constraints(&constraints, B2_CONTACT_BAUMGARTE);
             if contacts_ok {
                 break;
             }
@@ -2155,7 +3388,11 @@ fn solve_velocity_constraints(
 }
 
 impl World {
-    fn solve_position_constraints(&mut self, constraints: &[(usize, ContactConstraint)]) -> bool {
+    fn solve_position_constraints(
+        &mut self,
+        constraints: &[(usize, ContactConstraint)],
+        baumgarte: f64,
+    ) -> bool {
         let mut min_separation = 0.0f64;
         for (_, c) in constraints.iter() {
             let body_a = c.body_a;
@@ -2173,7 +3410,7 @@ impl World {
                 min_separation = min_separation.min(separation);
 
                 let impulse = b2_clamp(
-                    B2_CONTACT_BAUMGARTE * (separation + B2_LINEAR_SLOP),
+                    baumgarte * (separation + B2_LINEAR_SLOP),
                     -B2_MAX_LINEAR_CORRECTION,
                     0.0,
                 );
@@ -2390,5 +3627,115 @@ mod tests {
         assert!(x + 0.8 <= 10.0 + 1e-6, "circle penetrated wall: x={}", x);
         let (vx, _vy) = world.body_linear_velocity(body);
         assert!(vx <= 0.1, "circle kept penetrating velocity: vx={}", vx);
+    }
+
+    fn distance_between_boxes(cx_a: f64, cy_a: f64, cx_b: f64, cy_b: f64) -> (f64, DistanceOutput) {
+        let shape_a = Shape::Polygon(PolygonShape::set_as_box(1.0, 1.0));
+        let shape_b = Shape::Polygon(PolygonShape::set_as_box(1.0, 1.0));
+        let mut proxy_a = DistanceProxy::new();
+        let mut proxy_b = DistanceProxy::new();
+        proxy_a.set(&shape_a);
+        proxy_b.set(&shape_b);
+        let mut input = DistanceInput::new();
+        input.proxy_a = proxy_a;
+        input.proxy_b = proxy_b;
+        input.transform_a = Transform {
+            position: Vec2::new(cx_a, cy_a),
+            r: Mat22::identity(),
+        };
+        input.transform_b = Transform {
+            position: Vec2::new(cx_b, cy_b),
+            r: Mat22::identity(),
+        };
+        input.use_radii = false;
+        let mut cache = SimplexCache::new();
+        let mut output = DistanceOutput::new();
+        b2_distance(&mut output, &mut cache, &input);
+        (cache.metric, output)
+    }
+
+    #[test]
+    fn b2_distance_separated_polygons() {
+        let (_metric, output) = distance_between_boxes(0.0, 0.0, 3.0, 0.0);
+        assert!(
+            (output.distance - 1.0).abs() < 1e-12,
+            "expected gap 1.0, got {}",
+            output.distance
+        );
+    }
+
+    #[test]
+    fn b2_distance_overlapping_polygons() {
+        let (_metric, output) = distance_between_boxes(0.0, 0.0, 0.5, 0.0);
+        assert!(
+            output.distance < 1e-12,
+            "expected overlap distance 0, got {}",
+            output.distance
+        );
+    }
+
+    #[test]
+    fn b2_time_of_impact_box_into_thin_wall() {
+        let shape_a = Shape::Polygon(PolygonShape::set_as_box(0.5, 0.5));
+        let shape_b = Shape::Polygon(PolygonShape::set_as_box(3.0, 0.05));
+        let mut input = ToiInput::new();
+        input.proxy_a.set(&shape_a);
+        input.proxy_b.set(&shape_b);
+        input.sweep_a.local_center = Vec2::ZERO;
+        input.sweep_a.c0 = Vec2::new(0.0, 2.0);
+        input.sweep_a.c = Vec2::new(0.0, -0.2);
+        input.sweep_a.a0 = 0.0;
+        input.sweep_a.a = 0.0;
+        input.sweep_a.t0 = 0.0;
+        input.sweep_b.local_center = Vec2::ZERO;
+        input.sweep_b.c0 = Vec2::new(0.0, 0.0);
+        input.sweep_b.c = Vec2::new(0.0, 0.0);
+        input.sweep_b.a0 = 0.0;
+        input.sweep_b.a = 0.0;
+        input.sweep_b.t0 = 0.0;
+        input.tolerance = B2_LINEAR_SLOP;
+        let toi = b2_time_of_impact(&input);
+        // A bottom starts at 1.5 and ends at -0.7; wall top is 0.05, so the
+        // exact contact time is (1.5 - 0.05) / (2.0 - (-0.2)) = 1.45 / 2.2.
+        let expected = 1.45 / 2.2;
+        assert!(
+            toi > 0.0 && toi < 1.0,
+            "expected a mid-step TOI, got {}",
+            toi
+        );
+        assert!(
+            (toi - expected).abs() < 0.05,
+            "expected TOI near {}, got {}",
+            expected,
+            toi
+        );
+    }
+
+    #[test]
+    fn ccd_smoke_bullet_circle_does_not_tunnel_through_thin_wall() {
+        let mut world = World::new((0.0, 0.0), true);
+        // Wall: half extents (3, 0.05), so its top face is y = 2.05.
+        static_box(&mut world, (10.0, 2.0), 3.0, 0.05);
+        let mut bd = BodyDef::new();
+        bd.body_type = B2_DYNAMIC_BODY;
+        bd.position = Vec2::new(10.0, 10.0);
+        bd.linear_velocity = Vec2::new(0.0, -80.0);
+        bd.bullet = true;
+        let body = Body::create(&mut world, bd);
+        let mut fd = FixtureDef::new();
+        fd.shape = Some(Shape::Circle(CircleShape::new(0.25)));
+        fd.density = 1.0;
+        fd.friction = 0.3;
+        Body::create_fixture(&mut world, body, fd);
+
+        for _ in 0..30 {
+            world.step(1.0 / 60.0, 10, 10);
+        }
+        let (_x, y) = world.body_position(body);
+        assert!(
+            y - 0.25 >= 2.05 - 1e-6,
+            "bullet circle tunnelled through thin wall: center y={}",
+            y
+        );
     }
 }

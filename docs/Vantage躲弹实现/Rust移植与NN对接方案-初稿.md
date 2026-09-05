@@ -387,3 +387,11 @@ C. JS 精确物理 + Rust 树/评分/NN
 结果：`node rust/diff_box2d.js` 自由/无碰撞场景 **75/75 帧位置误差 0.0、角度误差 0.0，DIFF TEST PASSED**。
 
 注意：当前差分场景未发生碰撞。子代理额外自测矩形撞墙场景，因未实现 `SolveTOI/CCD`，撞击帧附近最大位置误差约 0.0475m。要达到碰撞轨迹 1e-6 级，必须补 `b2TimeOfImpact / GJK / b2SeparationFunction / SolveTOI`。
+
+
+## 十五、第五波：CCD 连续碰撞检测移植（已完成）
+
+- `box2d.rs` 新增 `b2DistanceProxy`、`b2Simplex`、`b2Distance`、`b2SeparationFunction`、`b2TimeOfImpact`，逐行对齐游戏 JS Box2D（含 `indexA[0]==indexA[0]` 恒真分支、`Number.MIN_VALUE` 比较、TOI 根搜索 50 次/外层 1000 次上限）。
+- 世界侧补齐 `Body.Advance`、接触 sensor/continuous/touching/toi 标志、`Contact::ComputeTOI` 与 `World::solve_toi`；`World::step` 按 JS 顺序 collide→solve→solve_toi→inv_dt0。
+- `diff_box2d.js` 扩展为 5 个场景：自由矩形、子弹矩形撞墙、子弹圆撞墙、子弹圆贴墙滑行、高速子弹圆穿薄墙；`box2d_trace.rs` 支持 `scenes` 数组与 `shape`/`radius`/`bullet`。
+- 差分结果：5/5 场景全部 PASS，位置/角度最大误差 0.0（1e-6 阈值）。

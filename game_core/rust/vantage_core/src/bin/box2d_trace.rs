@@ -7,7 +7,7 @@ use std::env;
 use std::fs;
 use std::process;
 
-use vantage_core::box2d::{Body, BodyDef, FixtureDef, PolygonShape, Shape, World};
+use vantage_core::box2d::{Body, BodyDef, CircleShape, FixtureDef, PolygonShape, Shape, World};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Json {
@@ -284,6 +284,27 @@ fn get_num<'a>(obj: &'a BTreeMap<String, Json>, key: &str) -> Result<f64, String
     )
 }
 
+fn get_opt_num(obj: &BTreeMap<String, Json>, key: &str, default: f64) -> f64 {
+    match obj.get(key) {
+        Some(Json::Number(n)) => *n,
+        _ => default,
+    }
+}
+
+fn get_opt_bool(obj: &BTreeMap<String, Json>, key: &str, default: bool) -> bool {
+    match obj.get(key) {
+        Some(Json::Bool(b)) => *b,
+        _ => default,
+    }
+}
+
+fn get_opt_string(obj: &BTreeMap<String, Json>, key: &str, default: &str) -> String {
+    match obj.get(key) {
+        Some(Json::String(s)) => s.clone(),
+        _ => default.to_string(),
+    }
+}
+
 struct Scene {
     walls: Vec<(f64, f64, f64, f64)>, // cx, cy, half_w, half_h
     tank: TankScene,
@@ -300,8 +321,11 @@ struct TankScene {
     vx: f64,
     vy: f64,
     angular_velocity: f64,
+    shape: String,
+    radius: f64,
     half_width: f64,
     half_height: f64,
+    bullet: bool,
     friction: f64,
     restitution: f64,
     density: f64,
@@ -320,6 +344,7 @@ fn parse_scene(json: &Json) -> Result<Scene, String> {
         walls.push((cx, cy, hw, hh));
     }
     let tank_obj = as_object(root.get("tank").ok_or("missing field tank")?, "tank")?;
+    let shape = get_opt_string(tank_obj, "shape", "rectangle");
     let tank = TankScene {
         x: get_num(tank_obj, "x")?,
         y: get_num(tank_obj, "y")?,
@@ -327,11 +352,14 @@ fn parse_scene(json: &Json) -> Result<Scene, String> {
         vx: get_num(tank_obj, "vx")?,
         vy: get_num(tank_obj, "vy")?,
         angular_velocity: get_num(tank_obj, "angularVelocity")?,
-        half_width: get_num(tank_obj, "halfWidth")?,
-        half_height: get_num(tank_obj, "halfHeight")?,
+        radius: get_opt_num(tank_obj, "radius", 0.0),
+        half_width: get_opt_num(tank_obj, "halfWidth", 0.0),
+        half_height: get_opt_num(tank_obj, "halfHeight", 0.0),
+        bullet: get_opt_bool(tank_obj, "bullet", false),
         friction: get_num(tank_obj, "friction")?,
         restitution: get_num(tank_obj, "restitution")?,
         density: get_num(tank_obj, "density")?,
+        shape,
     };
     let steps = as_usize(root.get("steps").ok_or("missing field steps")?, "steps")?;
     let dt = get_num(root, "dt")?;
@@ -356,50 +384,22 @@ fn parse_scene(json: &Json) -> Result<Scene, String> {
     })
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("usage: box2d_trace <scene.json>");
-        process::exit(2);
-    }
-    let path = &args[1];
-    let bytes = match fs::read(path) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("failed to read {}: {}", path, e);
-            process::exit(2);
-        }
-    };
-    let json = match JsonParser::new(&bytes).parse() {
-        Ok(j) => j,
-        Err(e) => {
-            eprintln!("failed to parse {}: {}", path, e);
-            process::exit(2);
-        }
-    };
-    let scene = match parse_scene(&json) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("invalid scene: {}", e);
-            process::exit(2);
-        }
-    };
-
+fn run_scene(scene: &Scene) -> Result<String, String> {
     let mut world = World::new((0.0, 0.0), true);
 
     // Static walls.
-    for (cx, cy, hw, hh) in scene.walls {
+    for (cx, cy, hw, hh) in &scene.walls {
         let mut bd = BodyDef::new();
-        bd.position.x = cx;
-        bd.position.y = cy;
+        bd.position.x = *cx;
+        bd.position.y = *cy;
         let wall = Body::create(&mut world, bd);
         let mut fd = FixtureDef::new();
-        fd.shape = Some(Shape::Polygon(PolygonShape::set_as_box(hw, hh)));
+        fd.shape = Some(Shape::Polygon(PolygonShape::set_as_box(*hw, *hh)));
         fd.friction = 0.3;
         Body::create_fixture(&mut world, wall, fd);
     }
 
-    // Tank simplified as a dynamic rectangle.
+    // Dynamic body (rectangle or circle).
     let mut bd = BodyDef::new();
     bd.body_type = vantage_core::box2d::B2_DYNAMIC_BODY;
     bd.position.x = scene.tank.x;
@@ -408,12 +408,23 @@ fn main() {
     bd.linear_velocity.x = scene.tank.vx;
     bd.linear_velocity.y = scene.tank.vy;
     bd.angular_velocity = scene.tank.angular_velocity;
+    bd.bullet = scene.tank.bullet;
     let tank = Body::create(&mut world, bd);
     let mut fd = FixtureDef::new();
-    fd.shape = Some(Shape::Polygon(PolygonShape::set_as_box(
-        scene.tank.half_width,
-        scene.tank.half_height,
-    )));
+    if scene.tank.shape == "circle" {
+        if scene.tank.radius <= 0.0 {
+            return Err("circle shape requires radius > 0".to_string());
+        }
+        fd.shape = Some(Shape::Circle(CircleShape::new(scene.tank.radius)));
+    } else {
+        if scene.tank.half_width <= 0.0 || scene.tank.half_height <= 0.0 {
+            return Err("rectangle shape requires halfWidth > 0 and halfHeight > 0".to_string());
+        }
+        fd.shape = Some(Shape::Polygon(PolygonShape::set_as_box(
+            scene.tank.half_width,
+            scene.tank.half_height,
+        )));
+    }
     fd.friction = scene.tank.friction;
     fd.restitution = scene.tank.restitution;
     fd.density = scene.tank.density;
@@ -439,7 +450,83 @@ fn main() {
         ));
     }
     frames.push(']');
-    println!("{}", frames);
+    Ok(frames)
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("usage: box2d_trace <scene.json>");
+        process::exit(2);
+    }
+    let path = &args[1];
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("failed to read {}: {}", path, e);
+            process::exit(2);
+        }
+    };
+    let json = match JsonParser::new(&bytes).parse() {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("failed to parse {}: {}", path, e);
+            process::exit(2);
+        }
+    };
+
+    // Top-level `scenes` array prints an array of trajectories; otherwise
+    // keep the original single-scene JSON shape working.
+    let root = match as_object(&json, "root") {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("invalid scene: {}", e);
+            process::exit(2);
+        }
+    };
+
+    let mut outputs: Vec<String> = Vec::new();
+    if let Some(scenes_json) = root.get("scenes") {
+        let scenes_json = match as_array(scenes_json, "scenes") {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("invalid scene: {}", e);
+                process::exit(2);
+            }
+        };
+        for (i, s) in scenes_json.iter().enumerate() {
+            let scene = match parse_scene(s) {
+                Ok(sc) => sc,
+                Err(e) => {
+                    eprintln!("invalid scene {}: {}", i, e);
+                    process::exit(2);
+                }
+            };
+            match run_scene(&scene) {
+                Ok(t) => outputs.push(t),
+                Err(e) => {
+                    eprintln!("failed to run scene {}: {}", i, e);
+                    process::exit(2);
+                }
+            }
+        }
+        println!("[{}]", outputs.join(","));
+    } else {
+        let scene = match parse_scene(&json) {
+            Ok(sc) => sc,
+            Err(e) => {
+                eprintln!("invalid scene: {}", e);
+                process::exit(2);
+            }
+        };
+        match run_scene(&scene) {
+            Ok(t) => println!("{}", t),
+            Err(e) => {
+                eprintln!("failed to run scene: {}", e);
+                process::exit(2);
+            }
+        }
+    }
 }
 
 fn json_number(v: f64) -> String {
