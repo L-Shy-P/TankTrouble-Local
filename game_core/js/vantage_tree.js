@@ -31,6 +31,10 @@
  * 2026-08-23 v57（弹簧绳默认关 + 无子弹不预测）：
  *   弹簧绳修复后暂默认关闭；growStep 在无威胁时不延伸不切片，
  *   首次提交仍可建立根层 9 候选并选静止。
+ * 2026-09-05 v69（Rust 最小决策实验开关）：
+ *   TREE_DEFAULTS.rustMinimalEnabled=false；setRustMinimalEnabled 可切换；
+ *   attachResults 在开关开启且 WASM 就绪时用 VantageRustBridge.minimalDecide
+ *   选 next；失败自动回退 JS 选路。
  * 2026-08-23 v68（语义回退到 v52 强基线 + 保留融合死亡权威）：
  *   ① 撤销 v54 以后的惰性金线/金线外更新/复杂回退改动，恢复正常 growStep；
  *   ② 新弹恢复全树 reroute，但逐层用 scorePaths 融合世界重算；
@@ -253,6 +257,7 @@
     var EVAL_FRAMES = 75;           // 评估深度（默认 75=1.5s；面板滑块可调 1~300）
     var _lanePenaltyRatio = 0;      // v47：树内车道压分开关状态（跨树保持）
     var _springRopeEnabled = false; // v57：弹簧绳修复后暂默认关，面板可开
+    var _rustMinimalEnabled = false; // v69：Rust 最小决策实验开关（默认关）
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -273,6 +278,7 @@
         lanePenaltyRatio: 0,              // v47：树内车道压分默认关；setLaneEnabled
                                           // 会把 0/0.5 写入 tree.cfg。
         springRopeEnabled: false,         // v57：弹簧绳修复后暂默认关；setSpringRopeEnabled
+        rustMinimalEnabled: false,         // v69：Rust 最小决策选择 next；默认关。
                                           // 会写入 tree.cfg。
         alignPosTol: 0.5,                 // 段末软对齐提示阈值（米）
         alignRotTol: 5 * Math.PI / 180,   // 段末软对齐提示阈值（弧度）
@@ -609,6 +615,7 @@
         };
         tree.cfg.lanePenaltyRatio = _lanePenaltyRatio;   // v47：跨树保持开关状态
         tree.cfg.springRopeEnabled = _springRopeEnabled; // v53：跨树保持弹簧绳开关状态
+        tree.cfg.rustMinimalEnabled = _rustMinimalEnabled; // v69：Rust 最小决策
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
         tree.root.id = 0;
@@ -2027,6 +2034,53 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     /**
+     * v69：Rust 最小决策实验。使用 VantageRustBridge.minimalDecide 对
+     * 当前最新 9 候选的 75 帧评分做选择；只决定 next，不改变候选节点。
+     * WASM 未就绪/关闭/出错时返回 null，由 JS 既有选择继续工作。
+     */
+    function tryRustMinimalSelect(tree, newKids, results) {
+        if (!tree || !tree.cfg || !tree.cfg.rustMinimalEnabled) return null;
+        if (!newKids || !results || newKids.length !== results.length || !results.length) return null;
+        if (typeof global === 'undefined' || !global.VantageRustBridge) return null;
+        var bridge = global.VantageRustBridge;
+        if (!bridge.isAvailable || !bridge.isAvailable()) return null;
+        if (!bridge.minimalDecide || typeof bridge.minimalDecide !== 'function') return null;
+
+        var ops = VantageSandbox.OPERATIONS || [];
+        var candidates = [];
+        var i, r;
+        for (i = 0; i < results.length; i++) {
+            r = results[i];
+            if (!r) return null;
+            candidates.push({
+                opName: (ops[i] && ops[i].name) || ('op' + i),
+                totalScore: (typeof r.totalScore === 'number') ? r.totalScore : 0,
+                dead: !!r.dead,
+                deathFrame: (typeof r.deathFrame === 'number') ? r.deathFrame : -1,
+                perFrameScores: r.perFrameScores || []
+            });
+        }
+        var decision = null;
+        try {
+            decision = bridge.minimalDecide(candidates, {
+                epsilon: tree.cfg.epsilon,
+                tMin: tree.cfg.tMin,
+                tMax: tree.cfg.tMax
+            });
+        } catch (eRust) {
+            if (global.console && console.warn) {
+                console.warn('[VantageTree] Rust 最小决策失败，回退 JS:', eRust);
+            }
+            return null;
+        }
+        if (!decision || decision.ok !== true ||
+            typeof decision.selectedIndex !== 'number') return null;
+        var idx = decision.selectedIndex;
+        if (idx < 0 || idx >= newKids.length) return null;
+        return { kid: newKids[idx], decision: decision };
+    }
+
+    /**
      * 展开叶子（全建 9 候选）：根子层/建树第一层用——下段提交的比较集。
      * @returns {number} 新增节点数（0=失败/上限）
      */
@@ -2047,10 +2101,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             kid.dataVersion = 0;
             newKids.push(kid);
         }
-        // v52：最新 9 个叶子按“75 帧全累积总分”自然比较选 next；
-        // 不比较祖先历史累计，只看每个候选自己未来 75 帧的总分。
-        var bestKid = pickBestChildByRolloutTotal(newKids);
-        leaf.next = bestKid;
+        // v69：开启 Rust 最小决策时，next 由 WASM 选择；
+        // 否则继续 v52 JS 自然比较。Rust 失败自动回退。
+        var rustPick = tryRustMinimalSelect(tree, newKids, results);
+        if (rustPick) {
+            leaf.next = rustPick.kid;
+            recordStructure(tree, 'rust-minimal-select',
+                'n' + (leaf.id || '?') + ' next→n' + (rustPick.kid.id || '?') +
+                ' seg=' + (rustPick.decision.segmentFrames || 0));
+        } else {
+            // v52：最新 9 个叶子按“75 帧全累积总分”自然比较选 next；
+            // 不比较祖先历史累计，只看每个候选自己未来 75 帧的总分。
+            leaf.next = pickBestChildByRolloutTotal(newKids);
+        }
         leaf.probe = probe;   // 段长探测结果留档（渲染/调参）
         tree.stats.expands++;
         return results.length;
@@ -3692,6 +3755,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _springRopeEnabled;
     }
 
+    /** v69：Rust 最小决策实验开关；跨树保持，并同步当前活树。 */
+    function setRustMinimalEnabled(v) {
+        _rustMinimalEnabled = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.rustMinimalEnabled = _rustMinimalEnabled;
+        return _rustMinimalEnabled;
+    }
+
     // ============================================================
     // 导出（03 七节接口契约）
     // ============================================================
@@ -3720,6 +3790,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setEvalFrames: setEvalFrames,
         setLaneEnabled: setLaneEnabled,
         setSpringRopeEnabled: setSpringRopeEnabled,
+        setRustMinimalEnabled: setRustMinimalEnabled,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
         threatCoarseBox: threatCoarseBox,
@@ -3747,5 +3818,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v68：v52语义回退 + 全树融合reroute）');
+    console.log('[Vantage Tree] 模块已加载（段制 v69：v68语义 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);
