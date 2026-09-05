@@ -1,6 +1,10 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-05 v71（新弹全树重路由增加无损时空粗过滤）：
+ *   只对“新弹轨迹 × 节点完整 rollout 包围盒”重叠的节点重评分；
+ *   4m 余量覆盖死亡/遮蔽(3.06m)/车道(3.5m)全部影响半径，
+ *   未重叠节点直接刷新签名，跳过 Rust/JS 重算。
  * 2026-09-05 v70（Rust vt_rescore_nodes 增量层刷新）：
  *   refreshFusedLayer 先尝试 adapter.rescoreTankSamples（仅 Rust 物理开关
  *   开启、非弹簧绳、且 stale 节点已有有效 rolloutSamples 时）；成功则
@@ -934,9 +938,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var absBase = rootAbsT || 0;
         var box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, t0: absBase + (th.anchorOffset || 0), t1: 0 };
         var arr = th.track && th.track.length ? th.track : (th.path || []);
-        var step = Math.max(1, Math.floor(arr.length / 24));
         var i, p;
-        for (i = 0; i < arr.length; i += step) {
+        for (i = 0; i < arr.length; i++) {
             p = arr[i];
             if (!p || p.alive === false) break;
             if (p.x < box.minX) box.minX = p.x;
@@ -1157,6 +1160,82 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 这样新弹一出现 AI 就能在下一次提交换操作（恢复老版预判反应），
      * 而树结构仍按“提前死亡才剪枝”的局部失效规则走。
      */
+    /** v71：节点完整 rollout 包围盒（75 帧评分口径，不是只覆盖当前段）。 */
+    function nodeScoringCoarseBox(tree, node) {
+        var box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity,
+            t0: tree.rootAbsT + (node.rolloutStartT || 0), t1: 0 };
+        var samples = node.rolloutSamples || [];
+        if (!samples.length) return box;
+        var maxK = samples.length - 1;
+        var k, s;
+        for (k = 0; k <= maxK; k++) {
+            s = samples[k];
+            if (!s) continue;
+            if (s.x < box.minX) box.minX = s.x;
+            if (s.x > box.maxX) box.maxX = s.x;
+            if (s.y < box.minY) box.minY = s.y;
+            if (s.y > box.maxY) box.maxY = s.y;
+        }
+        box.t1 = box.t0 + maxK * FRAME_DT;
+        return box;
+    }
+
+    /**
+     * v71：节点是否可能被后补新弹影响（评分或死亡）。
+     * CONTACT_MARGIN=4m 覆盖死亡/遮蔽(3.06m)/车道(3.5m)全部影响半径。
+     * 没有 pending 新弹时返回 true，保持旧刷新语义。
+     */
+    function nodePossiblyAffectedByPending(tree, node, pending, boxes) {
+        if (!pending || !pending.length || !boxes || !boxes.length) return true;
+        var nb = nodeScoringCoarseBox(tree, node);
+        if (!(nb.minX < Infinity)) return false;
+        for (var bi = 0; bi < boxes.length; bi++) {
+            if (!boxesOverlap(nb, boxes[bi], CONTACT_MARGIN)) continue;
+            var p0 = threatStartPoint(pending[bi]);
+            if (p0 && bulletCannotReach(pending[bi], p0, nb)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * v71：节点 stale 是否只可能由“当前 pending 新弹”引起。
+     * 只要旧签名里有任何当前已消失的弹，就禁止粗滤跳过（弹消失会增分，
+     * 粗盒不重叠也不能跳）。同样，新增签名里若存在非 pending 弹，也保守
+     * 不跳。这样粗过滤在增/删混合场景下仍然无损。
+     */
+    function nodeStaleOnlyByPending(oldSig, newSig, pending) {
+        if (!pending || !pending.length) return false;
+        var oldIds = oldSig ? oldSig.split(',') : [];
+        var newIds = newSig ? newSig.split(',') : [];
+        var oldSet = {}, newSet = {}, pendingSet = {};
+        var i, id;
+        for (i = 0; i < oldIds.length; i++) oldSet[oldIds[i]] = true;
+        for (i = 0; i < newIds.length; i++) newSet[newIds[i]] = true;
+        for (i = 0; i < pending.length; i++) {
+            id = pending[i] && pending[i].id;
+            if (id !== undefined && id !== null) pendingSet[String(id)] = true;
+        }
+        for (i = 0; i < oldIds.length; i++) {
+            if (!newSet[oldIds[i]]) return false;   // 有弹消失
+        }
+        for (i = 0; i < newIds.length; i++) {
+            if (!oldSet[newIds[i]] && !pendingSet[newIds[i]]) return false;
+        }
+        return true;
+    }
+
+    /** v71：构建当前后补新弹的粗包围盒（与 invalidateStaleNodes 同口径）。 */
+    function pendingThreatCoarseBoxes(tree) {
+        var pending = tree._pendingThreats || [];
+        var boxes = [];
+        for (var i = 0; i < pending.length; i++) {
+            var tb = threatCoarseBox(pending[i], tree.rootAbsT);
+            if (tb.minX < Infinity) boxes.push(tb);
+        }
+        return { pending: pending, boxes: boxes };
+    }
+
     /** v70：判断操作是否会产生位移/旋转（与评分模块口径一致）。 */
     function isMovingInputs(inputs) {
         return !!(inputs && (inputs.forward || inputs.back || inputs.left || inputs.right));
@@ -1219,10 +1298,22 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var stale = [];
         var ops = [];
         var i, c;
+        var pendingFilter = pendingThreatCoarseBoxes(tree);
         for (i = 0; i < parent.children.length; i++) {
             c = parent.children[i];
             if (!isOptionalNode(c)) continue;
             if (!nodeIsStale(adapter, c, tree.threats || [])) continue;
+            var staleNewSig = nodeWindowSig(adapter, c, tree.threats || []);
+            if (nodeStaleOnlyByPending(c.freshSig || '', staleNewSig,
+                    pendingFilter.pending) &&
+                    !nodePossiblyAffectedByPending(tree, c,
+                        pendingFilter.pending, pendingFilter.boxes)) {
+                // v71 无损跳过：新弹在时空粗盒上不可能影响该节点。
+                // 刷新签名，避免下一 tick 重复判定同一节点。
+                c.freshSig = staleNewSig;
+                tree.stats.filteredStaleSkip = (tree.stats.filteredStaleSkip || 0) + 1;
+                continue;
+            }
             stale.push(c);
             ops.push({ name: c.opName || '?', inputs: c.inputs });
         }
@@ -3886,5 +3977,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v70：v68语义 + Rust增量层刷新 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v71：v68语义 + 新弹粗过滤 + Rust增量层刷新 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);
