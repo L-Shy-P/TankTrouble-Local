@@ -113,6 +113,14 @@ function loadBox2D() {
   vm.runInContext(src, ctx, { filename: jsPath });
   const Box2D = sandbox.Box2D;
   if (!Box2D) throw new Error('Box2D was not defined after loading the JS file');
+
+  // The real game applies these overrides in B2DUtils
+  // (game_core/js/b714588dc4621fe104113111ba90b1a7.js). The Rust port now
+  // uses the same values; the JS side of this differential must too.
+  Box2D.Common.b2Settings.b2_maxTranslation = 8.0;
+  Box2D.Common.b2Settings.b2_maxTranslationSquared = 64.0;
+  Box2D.Common.b2Settings.b2_velocityThreshold = 0.0;
+
   return Box2D;
 }
 

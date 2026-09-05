@@ -19,14 +19,22 @@ use std::f64::consts::PI;
 pub const B2_LINEAR_SLOP: f64 = 0.005;
 pub const B2_ANGULAR_SLOP: f64 = 2.0 / 180.0 * PI;
 pub const B2_POLYGON_RADIUS: f64 = 2.0 * B2_LINEAR_SLOP;
+pub const B2_AABB_EXTENSION: f64 = 0.1;
+pub const B2_AABB_MULTIPLIER: f64 = 2.0;
 pub const B2_MAX_MANIFOLD_POINTS: usize = 2;
-pub const B2_MAX_TRANSLATION: f64 = 2.0;
+// Game overrides (applied by the game's B2DUtils module, see
+// game_core/js/b714588dc4621fe104113111ba90b1a7.js, `mod_pagespeed__SHLt6ORr2`):
+//   Box2D.Common.b2Settings.b2_maxTranslation = 8.0
+//   Box2D.Common.b2Settings.b2_maxTranslationSquared = 64.0
+//   Box2D.Common.b2Settings.b2_velocityThreshold = 0.0
+// The Rust port must use the same values or fused-batch trajectories diverge.
+pub const B2_MAX_TRANSLATION: f64 = 8.0;
 pub const B2_MAX_TRANSLATION_SQUARED: f64 = B2_MAX_TRANSLATION * B2_MAX_TRANSLATION;
 pub const B2_MAX_ROTATION: f64 = 0.5 * PI;
 pub const B2_MAX_ROTATION_SQUARED: f64 = B2_MAX_ROTATION * B2_MAX_ROTATION;
 pub const B2_CONTACT_BAUMGARTE: f64 = 0.2;
 pub const B2_MAX_LINEAR_CORRECTION: f64 = 0.2;
-pub const B2_VELOCITY_THRESHOLD: f64 = 1.0;
+pub const B2_VELOCITY_THRESHOLD: f64 = 0.0;
 
 /// JS `Number.MIN_VALUE` (smallest positive subnormal).  The JS code compares
 /// squared lengths against this in several places.
@@ -45,6 +53,17 @@ pub const MANIFOLD_E_FACE_B: i32 = 4;
 // Shape types, matching `Box2D.Collision.Shapes.b2Shape.e_*`.
 pub const SHAPE_CIRCLE: i32 = 0;
 pub const SHAPE_POLYGON: i32 = 1;
+
+/// Fixture role discriminator for the rollout batch.  `op_index` is the fused
+/// candidate op index (0..8) carried on the sensor fixture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FixtureKind {
+    Wall,
+    TankSolid,
+    TankSensor { op_index: u8 },
+    Bullet,
+    Other,
+}
 
 // Body flags, matching `Box2D.Dynamics.b2Body.e_*`.
 const BODY_E_ISLAND_FLAG: u32 = 1;
@@ -1047,7 +1066,8 @@ fn b2_distance(output: &mut DistanceOutput, cache: &mut SimplexCache, input: &Di
     let mut gjk_iter = 0i32;
 
     while gjk_iter < 20 {
-        for i in 0..simplex.count {
+        let old_count = simplex.count;
+        for i in 0..old_count {
             save_a[i] = simplex.vertices[i].index_a;
             save_b[i] = simplex.vertices[i].index_b;
         }
@@ -1087,7 +1107,7 @@ fn b2_distance(output: &mut DistanceOutput, cache: &mut SimplexCache, input: &Di
         gjk_iter += 1;
 
         let mut duplicate = false;
-        for i in 0..simplex.count {
+        for i in 0..old_count {
             if simplex.vertices[idx].index_a == save_a[i]
                 && simplex.vertices[idx].index_b == save_b[i]
             {
@@ -1319,7 +1339,8 @@ fn b2_time_of_impact(input: &ToiInput) -> f64 {
             target = if separation > total_radius {
                 b2_max(total_radius - tolerance, 0.75 * total_radius)
             } else {
-                b2_max(separation - tolerance, 0.02 * separation)
+                // JS uses `0.02 * totalRadius` here, NOT `0.02 * separation`.
+                b2_max(separation - tolerance, 0.02 * total_radius)
             };
         }
 
@@ -2007,6 +2028,12 @@ pub struct FixtureDef {
     pub restitution: f64,
     pub density: f64,
     pub is_sensor: bool,
+    /// Box2D filter category bits (`b2FilterData.categoryBits`).
+    pub category_bits: u16,
+    /// Box2D filter mask bits (`b2FilterData.maskBits`).
+    pub mask_bits: u16,
+    /// Fixture role used by the rollout batch.
+    pub kind: FixtureKind,
 }
 
 impl Default for FixtureDef {
@@ -2017,6 +2044,9 @@ impl Default for FixtureDef {
             restitution: 0.0,
             density: 0.0,
             is_sensor: false,
+            category_bits: 1,
+            mask_bits: 0xFFFF,
+            kind: FixtureKind::Other,
         }
     }
 }
@@ -2034,8 +2064,12 @@ pub struct Fixture {
     pub restitution: f64,
     pub density: f64,
     pub is_sensor: bool,
+    pub category_bits: u16,
+    pub mask_bits: u16,
+    pub kind: FixtureKind,
     pub body: BodyId,
     pub aabb: AABB,
+    pub fat_aabb: AABB,
 }
 
 #[derive(Debug)]
@@ -2106,9 +2140,9 @@ impl Body {
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
-struct Contact {
-    fixture_a: FixtureId,
-    fixture_b: FixtureId,
+pub struct Contact {
+    pub fixture_a: FixtureId,
+    pub fixture_b: FixtureId,
     manifold: Manifold,
     old_manifold: Manifold,
     flags: u32,
@@ -2160,7 +2194,7 @@ impl Contact {
         self.flags & CONTACT_E_CONTINUOUS_FLAG != 0
     }
 
-    fn is_touching(&self) -> bool {
+    pub fn is_touching(&self) -> bool {
         self.flags & CONTACT_E_TOUCHING_FLAG != 0
     }
 }
@@ -2337,6 +2371,16 @@ impl World {
             .expect("FixtureDef.shape must be set before creating a fixture");
         let xf = self.bodies[body_id].xf;
         let aabb = shape.compute_aabb(&xf);
+        let fat_aabb = AABB {
+            lower_bound: Vec2::new(
+                aabb.lower_bound.x - B2_AABB_EXTENSION,
+                aabb.lower_bound.y - B2_AABB_EXTENSION,
+            ),
+            upper_bound: Vec2::new(
+                aabb.upper_bound.x + B2_AABB_EXTENSION,
+                aabb.upper_bound.y + B2_AABB_EXTENSION,
+            ),
+        };
         let fixture_id = self.fixtures.len();
         self.fixtures.push(Fixture {
             shape,
@@ -2344,8 +2388,12 @@ impl World {
             restitution: def.restitution,
             density: def.density,
             is_sensor: def.is_sensor,
+            category_bits: def.category_bits,
+            mask_bits: def.mask_bits,
+            kind: def.kind,
             body: body_id,
             aabb,
+            fat_aabb,
         });
         self.bodies[body_id].fixture_ids.push(fixture_id);
         if def.density > 0.0 {
@@ -2439,6 +2487,97 @@ impl World {
             self.bodies[body].angular_velocity = w;
         }
     }
+
+    pub fn set_body_awake(&mut self, body: BodyId, awake: bool) {
+        self.bodies[body].set_awake(awake);
+    }
+
+    pub fn set_active(&mut self, body_id: BodyId, active: bool) {
+        let fixture_ids = self.bodies[body_id].fixture_ids.clone();
+        let body = &mut self.bodies[body_id];
+        if active {
+            if !body.is_active() {
+                body.flags |= BODY_E_ACTIVE_FLAG;
+                // JS SetActive(true) creates a fresh broad-phase proxy for
+                // every fixture: exact AABB + b2_aabbExtension only.
+                let xf = body.xf;
+                for fid in fixture_ids {
+                    let aabb = self.fixtures[fid].shape.compute_aabb(&xf);
+                    self.fixtures[fid].aabb = aabb;
+                    self.fixtures[fid].fat_aabb = AABB {
+                        lower_bound: Vec2::new(
+                            aabb.lower_bound.x - B2_AABB_EXTENSION,
+                            aabb.lower_bound.y - B2_AABB_EXTENSION,
+                        ),
+                        upper_bound: Vec2::new(
+                            aabb.upper_bound.x + B2_AABB_EXTENSION,
+                            aabb.upper_bound.y + B2_AABB_EXTENSION,
+                        ),
+                    };
+                }
+                self.new_fixtures = true;
+            }
+        } else if body.is_active() {
+            body.flags &= !BODY_E_ACTIVE_FLAG;
+            body.flags &= !BODY_E_ISLAND_FLAG;
+            let mut remove = Vec::new();
+            for (idx, c) in self.contacts.iter().enumerate() {
+                let c_body_a = self.fixtures[c.fixture_a].body;
+                let c_body_b = self.fixtures[c.fixture_b].body;
+                if c_body_a == body_id || c_body_b == body_id {
+                    remove.push(idx);
+                }
+            }
+            for idx in remove.into_iter().rev() {
+                self.contacts.remove(idx);
+            }
+        }
+    }
+
+    pub fn body_is_active(&self, body: BodyId) -> bool {
+        self.bodies[body].is_active()
+    }
+
+    pub fn set_position_and_angle(&mut self, body_id: BodyId, x: f64, y: f64, angle: f64) {
+        {
+            let body = &mut self.bodies[body_id];
+            body.xf.r.set(angle);
+            body.xf.position.set(x, y);
+            let r = body.xf.r;
+            let lc = body.sweep.local_center;
+            body.sweep.c.x = r.col1.x * lc.x + r.col2.x * lc.y + body.xf.position.x;
+            body.sweep.c.y = r.col1.y * lc.x + r.col2.y * lc.y + body.xf.position.y;
+            body.sweep.c0 = body.sweep.c;
+            body.sweep.a0 = angle;
+            body.sweep.a = angle;
+        }
+        self.update_fixture_aabbs();
+        self.new_fixtures = true;
+    }
+
+    pub fn fixture_kind(&self, fixture: FixtureId) -> &FixtureKind {
+        &self.fixtures[fixture].kind
+    }
+
+    pub fn fixture_category_bits(&self, fixture: FixtureId) -> u16 {
+        self.fixtures[fixture].category_bits
+    }
+
+    pub fn fixture_mask_bits(&self, fixture: FixtureId) -> u16 {
+        self.fixtures[fixture].mask_bits
+    }
+
+    pub fn fixture_body(&self, fixture: FixtureId) -> BodyId {
+        self.fixtures[fixture].body
+    }
+
+    pub fn contacts(&self) -> &[Contact] {
+        &self.contacts
+    }
+
+    pub fn body_count(&self) -> usize {
+        self.bodies.len()
+    }
 }
 
 impl World {
@@ -2490,17 +2629,45 @@ impl World {
             let aabb1 = self.fixtures[i].shape.compute_aabb(&body.xf);
             let mut combined = AABB::new();
             combined.combine(&aabb0, &aabb1);
+            let old_fat = self.fixtures[i].fat_aabb;
+            if old_fat.contains(&combined) {
+                self.fixtures[i].aabb = combined;
+                continue;
+            }
+            let disp_x = body.xf.position.x - xf0.position.x;
+            let disp_y = body.xf.position.y - xf0.position.y;
+            let ext_x = B2_AABB_EXTENSION + B2_AABB_MULTIPLIER * disp_x.abs();
+            let ext_y = B2_AABB_EXTENSION + B2_AABB_MULTIPLIER * disp_y.abs();
+            self.fixtures[i].fat_aabb = AABB {
+                lower_bound: Vec2::new(
+                    combined.lower_bound.x - ext_x,
+                    combined.lower_bound.y - ext_y,
+                ),
+                upper_bound: Vec2::new(
+                    combined.upper_bound.x + ext_x,
+                    combined.upper_bound.y + ext_y,
+                ),
+            };
             self.fixtures[i].aabb = combined;
         }
     }
 
-    fn should_collide(&self, body_a: BodyId, body_b: BodyId) -> bool {
+    fn should_collide(&self, fixture_a: FixtureId, fixture_b: FixtureId) -> bool {
+        let fa = &self.fixtures[fixture_a];
+        let fb = &self.fixtures[fixture_b];
+        let body_a = fa.body;
+        let body_b = fb.body;
+        if !self.bodies[body_a].is_active() || !self.bodies[body_b].is_active() {
+            return false;
+        }
         if self.bodies[body_a].body_type != B2_DYNAMIC_BODY
             && self.bodies[body_b].body_type != B2_DYNAMIC_BODY
         {
             return false;
         }
-        true
+        // Box2D b2ContactFilter.ShouldCollide: the pair collides only when both
+        // (categoryA & maskB) and (categoryB & maskA) are non-zero.
+        (fa.category_bits & fb.mask_bits) != 0 && (fb.category_bits & fa.mask_bits) != 0
     }
 
     fn find_new_contacts(&mut self) {
@@ -2510,12 +2677,13 @@ impl World {
                 if self.fixtures[i].body == self.fixtures[j].body {
                     continue;
                 }
-                let body_a = self.fixtures[i].body;
-                let body_b = self.fixtures[j].body;
-                if !self.should_collide(body_a, body_b) {
+                if !self.should_collide(i, j) {
                     continue;
                 }
-                if !self.fixtures[i].aabb.test_overlap(&self.fixtures[j].aabb) {
+                if !self.fixtures[i]
+                    .fat_aabb
+                    .test_overlap(&self.fixtures[j].fat_aabb)
+                {
                     continue;
                 }
                 let (fa, fb) = orient_pair(i, j, &self.fixtures);
@@ -2537,13 +2705,14 @@ impl World {
         for idx in 0..self.contacts.len() {
             let fa = self.contacts[idx].fixture_a;
             let fb = self.contacts[idx].fixture_b;
-            let body_a = self.fixtures[fa].body;
-            let body_b = self.fixtures[fb].body;
-            if !self.should_collide(body_a, body_b) {
+            if !self.should_collide(fa, fb) {
                 remove.push(idx);
                 continue;
             }
-            if !self.fixtures[fa].aabb.test_overlap(&self.fixtures[fb].aabb) {
+            if !self.fixtures[fa]
+                .fat_aabb
+                .test_overlap(&self.fixtures[fb].fat_aabb)
+            {
                 remove.push(idx);
                 continue;
             }
@@ -2709,7 +2878,7 @@ impl World {
         // JS integrates positions for every non-static body in the island.
         for &body_id in body_ids {
             let body = &mut self.bodies[body_id];
-            if body.body_type == B2_STATIC_BODY {
+            if body.body_type == B2_STATIC_BODY || !body.is_active() {
                 continue;
             }
             let mut v = body.linear_velocity;
@@ -2781,8 +2950,12 @@ impl World {
                     let body_b_id = self.fixtures[fb].body;
                     let body_a = &self.bodies[body_a_id];
                     let body_b = &self.bodies[body_b_id];
-                    let a_eligible = body_a.body_type == B2_DYNAMIC_BODY && body_a.is_awake();
-                    let b_eligible = body_b.body_type == B2_DYNAMIC_BODY && body_b.is_awake();
+                    let a_eligible = body_a.body_type == B2_DYNAMIC_BODY
+                        && body_a.is_awake()
+                        && body_a.is_active();
+                    let b_eligible = body_b.body_type == B2_DYNAMIC_BODY
+                        && body_b.is_awake()
+                        && body_b.is_active();
                     if !(a_eligible || b_eligible) {
                         continue;
                     }
@@ -2867,7 +3040,7 @@ impl World {
                             continue;
                         }
 
-                        for cj in 0..self.contacts.len() {
+                        for cj in (0..self.contacts.len()).rev() {
                             let c = &self.contacts[cj];
                             if c.flags & CONTACT_E_ISLAND_FLAG != 0
                                 || c.is_sensor()
@@ -2892,7 +3065,9 @@ impl World {
                             self.contacts[cj].flags |= CONTACT_E_ISLAND_FLAG;
 
                             if self.bodies[other].flags & BODY_E_ISLAND_FLAG == 0 {
-                                if self.bodies[other].body_type != B2_STATIC_BODY {
+                                if self.bodies[other].body_type != B2_STATIC_BODY
+                                    && self.bodies[other].is_active()
+                                {
                                     self.bodies[other].advance(min_toi);
                                     self.bodies[other].set_awake(true);
                                 }
@@ -2949,6 +3124,14 @@ impl World {
 fn orient_pair(i: FixtureId, j: FixtureId, fixtures: &[Fixture]) -> (FixtureId, FixtureId) {
     let type_i = fixtures[i].shape.get_type();
     let type_j = fixtures[j].shape.get_type();
+    let kind_i = &fixtures[i].kind;
+    let kind_j = &fixtures[j].kind;
+    if matches!(kind_i, FixtureKind::Wall) && matches!(kind_j, FixtureKind::TankSolid) {
+        return (j, i);
+    }
+    if matches!(kind_i, FixtureKind::TankSolid) && matches!(kind_j, FixtureKind::Wall) {
+        return (i, j);
+    }
     if type_i == SHAPE_POLYGON && type_j == SHAPE_CIRCLE {
         (i, j)
     } else if type_i == SHAPE_CIRCLE && type_j == SHAPE_POLYGON {
@@ -2987,7 +3170,7 @@ impl World {
     fn solve(&mut self, step: &TimeStep) {
         // Integrate forces and damping (exact JS b2Island.Solve order).
         for body in self.bodies.iter_mut() {
-            if body.body_type == B2_DYNAMIC_BODY {
+            if body.body_type == B2_DYNAMIC_BODY && body.is_active() {
                 body.linear_velocity.x += step.dt * (self.gravity.x + body.inv_mass * body.force.x);
                 body.linear_velocity.y += step.dt * (self.gravity.y + body.inv_mass * body.force.y);
                 body.angular_velocity += step.dt * body.inv_i * body.torque;
@@ -3044,7 +3227,7 @@ impl World {
 
         // Integrate positions.
         for body in self.bodies.iter_mut() {
-            if body.body_type == B2_STATIC_BODY {
+            if body.body_type == B2_STATIC_BODY || !body.is_active() {
                 continue;
             }
             let mut v = body.linear_velocity;
@@ -3736,6 +3919,48 @@ mod tests {
             y - 0.25 >= 2.05 - 1e-6,
             "bullet circle tunnelled through thin wall: center y={}",
             y
+        );
+    }
+
+    #[test]
+    fn toi_target_uses_fraction_of_total_radius() {
+        // Regression for the JS quirk in `b2TimeOfImpact.TimeOfImpact`:
+        // the target in the non-penetrating branch is `0.02 * totalRadius`,
+        // not `0.02 * separation`.  A rotated tank backing into the bottom
+        // wall would otherwise diverge from the game's JS Box2D by ~7.5e-6 m.
+        let mut proxy_a = DistanceProxy::new();
+        proxy_a.set(&Shape::Polygon(PolygonShape::set_as_box(1.5, 2.0)));
+        let mut proxy_b = DistanceProxy::new();
+        proxy_b.set(&Shape::Polygon(
+            PolygonShape::from_vertices(&[(40.4, 29.6), (40.4, 30.4), (-0.4, 30.4), (-0.4, 29.6)])
+                .unwrap(),
+        ));
+
+        let mut input = ToiInput::new();
+        input.proxy_a = proxy_a;
+        input.proxy_b = proxy_b;
+        input.sweep_a.local_center = Vec2::ZERO;
+        input.sweep_a.c0 = Vec2::new(25.62012862129403, 27.59090774980337);
+        input.sweep_a.c = Vec2::new(25.604423677323105, 27.712939455528947);
+        input.sweep_a.a0 = 0.0028396472838894374;
+        input.sweep_a.a = -0.0788243479598754;
+        input.sweep_a.t0 = 0.0;
+        input.sweep_b.local_center = Vec2::ZERO;
+        input.sweep_b.c0 = Vec2::ZERO;
+        input.sweep_b.c = Vec2::ZERO;
+        input.sweep_b.a0 = 0.0;
+        input.sweep_b.a = 0.0;
+        input.sweep_b.t0 = 0.0;
+        input.tolerance = B2_LINEAR_SLOP;
+
+        let toi = b2_time_of_impact(&input);
+        // Exact JS reference value from the game's own Box2D.
+        let js_reference = 0.05382813798764888;
+        assert!(
+            (toi - js_reference).abs() < 1e-15,
+            "TOI {} differs from JS reference {}",
+            toi,
+            js_reference
         );
     }
 }

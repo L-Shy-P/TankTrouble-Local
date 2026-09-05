@@ -395,3 +395,11 @@ C. JS 精确物理 + Rust 树/评分/NN
 - 世界侧补齐 `Body.Advance`、接触 sensor/continuous/touching/toi 标志、`Contact::ComputeTOI` 与 `World::solve_toi`；`World::step` 按 JS 顺序 collide→solve→solve_toi→inv_dt0。
 - `diff_box2d.js` 扩展为 5 个场景：自由矩形、子弹矩形撞墙、子弹圆撞墙、子弹圆贴墙滑行、高速子弹圆穿薄墙；`box2d_trace.rs` 支持 `scenes` 数组与 `shape`/`radius`/`bullet`。
 - 差分结果：5/5 场景全部 PASS，位置/角度最大误差 0.0（1e-6 阈值）。
+
+## 十六、第六波 6a：Rust 9×75 融合 rollout 批处理核心（已完成）
+
+- 新增 `rollout.rs` + `vt_rollout_batch`（ABI v2，f64 全量、cacheId 按 AI 隔离缓存、1024 墙多边形/64 弹上限），持久化融合世界：墙、9 个候选坦克（base + bullet turret 实体夹具 + 同形传感器）、子弹槽池、跨调用 warm-starting/接触冲量，完全对齐 JS `simulateFusedBatch`。
+- `box2d.rs` 补齐游戏真实设置（maxTranslation=8 / velocityThreshold=0）、夹具 category/mask 过滤、fat AABB 宽相位、SetActive/SetPositionAndAngle、TOI island 的 active/接触顺序；GJK duplicate-support 按 JS 捕获 `old_count`；`orient_pair` 固定 tank-solid×wall 顺序。
+- `rollout_trace.rs` + `diff_rollout.js`：在 Node vm 中加载真实 Box2D/Constants/B2DUtils/ai_tactics/vantage_sandbox，与真实 `adapter.simulateTankBatch` 逐 op、逐帧、逐 deathFrame 对比，7 个场景（含持久 warm-start 和旋转坦克撞底墙）位置 1e-9、角度 1e-9、死亡帧完全一致。
+- 踩坑：JS `b2TimeOfImpact` 在 separation<=totalRadius 分支的目标值是 `0.02 * totalRadius`，不是 `0.02 * separation`；Rust 首版抄错导致旋转坦克撞墙场景最大误差 7.5e-6m。已修正并新增单元回归测试。
+- `cargo test` 60 passed；`node rust/diff_box2d.js`、`node rust/diff_rollout.js` PASS；wasm32 release 构建通过。

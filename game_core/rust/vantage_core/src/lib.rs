@@ -7,13 +7,219 @@
 
 pub mod box2d;
 pub mod minimal;
+pub mod rollout;
 pub mod scoring;
 pub mod tree;
 
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
-    1
+    2
+}
+
+/// Flat-buffer fused rollout batch ABI.
+///
+/// All geometry/velocities are `f64` (JS numbers are doubles). Fixed limits:
+/// ops <= 9, durationFrames <= 75 (samples = durationFrames + 1), walls <=
+/// 1024, 3..8 vertices per wall, bullets <= 64.
+///
+/// Output layout (all caller-owned):
+/// - `out_x`, `out_y`, `out_rot`: candidate-major, index
+///   `op_index * (duration_frames + 1) + frame`.
+/// - `out_dead`, `out_death_frame`: one element per op.
+///
+/// `cache_id` keys the persistent fused world (JS `_fusedCache` is keyed by
+/// maze + aiId; pass a stable per-AI id from JS). Walls with the same
+/// signature and the same `cache_id` reuse one world and its warm-starting
+/// state; a different `cache_id` gets an independent world.
+///
+/// Returns 1 on success, 0 on bad input (null pointer, invalid length, or a
+/// panic caught inside the rollout).
+#[no_mangle]
+pub extern "C" fn vt_rollout_batch(
+    cache_id: u64,
+    start_x: f64,
+    start_y: f64,
+    start_rot: f64,
+    op_speed: *const f64,
+    op_rot_speed: *const f64,
+    op_count: u32,
+    wall_vert_counts: *const u32,
+    wall_verts: *const f64,
+    wall_count: u32,
+    bullet_x: *const f64,
+    bullet_y: *const f64,
+    bullet_vx: *const f64,
+    bullet_vy: *const f64,
+    bullet_radius: *const f64,
+    bullet_life_left: *const f64,
+    bullet_active: *const u8,
+    bullet_count: u32,
+    duration_frames: u32,
+    out_x: *mut f64,
+    out_y: *mut f64,
+    out_rot: *mut f64,
+    out_dead: *mut u8,
+    out_death_frame: *mut i32,
+) -> i32 {
+    use rollout::{
+        BulletInput, OpInput, RolloutCache, RolloutInput, StartPose, WallPoly, MAX_BULLETS,
+        MAX_FRAMES, MAX_OPS, MAX_WALLS,
+    };
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if op_count == 0 || op_count > MAX_OPS as u32 {
+            return 0;
+        }
+        if duration_frames > MAX_FRAMES as u32 {
+            return 0;
+        }
+        if wall_count > MAX_WALLS as u32 {
+            return 0;
+        }
+        if bullet_count > MAX_BULLETS as u32 {
+            return 0;
+        }
+        if op_speed.is_null()
+            || op_rot_speed.is_null()
+            || wall_vert_counts.is_null()
+            || wall_verts.is_null()
+            || bullet_x.is_null()
+            || bullet_y.is_null()
+            || bullet_vx.is_null()
+            || bullet_vy.is_null()
+            || bullet_radius.is_null()
+            || bullet_life_left.is_null()
+            || bullet_active.is_null()
+            || out_x.is_null()
+            || out_y.is_null()
+            || out_rot.is_null()
+            || out_dead.is_null()
+            || out_death_frame.is_null()
+        {
+            return 0;
+        }
+
+        let op_count_u = op_count as usize;
+        let wall_count_u = wall_count as usize;
+        let bullet_count_u = bullet_count as usize;
+        let duration_u = duration_frames as usize;
+        let sample_stride = duration_u + 1;
+
+        let op_speed_slice = unsafe { std::slice::from_raw_parts(op_speed, op_count_u) };
+        let op_rot_speed_slice = unsafe { std::slice::from_raw_parts(op_rot_speed, op_count_u) };
+
+        // Read wall vertex counts and validate before summing.
+        let wall_vert_counts_slice =
+            unsafe { std::slice::from_raw_parts(wall_vert_counts, wall_count_u) };
+        let mut total_wall_verts = 0usize;
+        for &c in wall_vert_counts_slice {
+            if c < 3 || c as usize > 8 {
+                return 0;
+            }
+            total_wall_verts += c as usize;
+            if total_wall_verts > MAX_WALLS * 8 {
+                return 0;
+            }
+        }
+        let wall_verts_slice =
+            unsafe { std::slice::from_raw_parts(wall_verts, total_wall_verts * 2) };
+
+        let bullet_x_slice = unsafe { std::slice::from_raw_parts(bullet_x, bullet_count_u) };
+        let bullet_y_slice = unsafe { std::slice::from_raw_parts(bullet_y, bullet_count_u) };
+        let bullet_vx_slice = unsafe { std::slice::from_raw_parts(bullet_vx, bullet_count_u) };
+        let bullet_vy_slice = unsafe { std::slice::from_raw_parts(bullet_vy, bullet_count_u) };
+        let bullet_radius_slice =
+            unsafe { std::slice::from_raw_parts(bullet_radius, bullet_count_u) };
+        let bullet_life_left_slice =
+            unsafe { std::slice::from_raw_parts(bullet_life_left, bullet_count_u) };
+        let bullet_active_slice =
+            unsafe { std::slice::from_raw_parts(bullet_active, bullet_count_u) };
+
+        let mut walls = Vec::with_capacity(wall_count_u);
+        let mut offset = 0usize;
+        for &vc in wall_vert_counts_slice {
+            let mut verts = Vec::with_capacity(vc as usize);
+            for _ in 0..vc {
+                verts.push((wall_verts_slice[offset], wall_verts_slice[offset + 1]));
+                offset += 2;
+            }
+            walls.push(WallPoly { vertices: verts });
+        }
+
+        let ops: Vec<OpInput> = (0..op_count_u)
+            .map(|i| OpInput {
+                speed: op_speed_slice[i],
+                rotation_speed: op_rot_speed_slice[i],
+            })
+            .collect();
+
+        let bullets: Vec<BulletInput> = (0..bullet_count_u)
+            .map(|i| BulletInput {
+                x: bullet_x_slice[i],
+                y: bullet_y_slice[i],
+                vx: bullet_vx_slice[i],
+                vy: bullet_vy_slice[i],
+                radius: bullet_radius_slice[i],
+                life_left: bullet_life_left_slice[i],
+                active: bullet_active_slice[i] != 0,
+            })
+            .collect();
+
+        let input = RolloutInput {
+            start_pose: StartPose {
+                x: start_x,
+                y: start_y,
+                rot: start_rot,
+            },
+            ops,
+            duration_frames,
+            walls,
+            bullets,
+            cache_id,
+        };
+
+        static CACHES: std::sync::OnceLock<
+            std::sync::Mutex<std::collections::HashMap<u64, RolloutCache>>,
+        > = std::sync::OnceLock::new();
+        let mut caches_guard = CACHES
+            .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let cache = caches_guard.entry(cache_id).or_default();
+        let output = match rollout::run_rollout_batch(cache, &input) {
+            Ok(o) => o,
+            Err(_) => return 0,
+        };
+
+        let out_x_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_x, op_count_u * sample_stride) };
+        let out_y_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_y, op_count_u * sample_stride) };
+        let out_rot_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_rot, op_count_u * sample_stride) };
+        let out_dead_slice = unsafe { std::slice::from_raw_parts_mut(out_dead, op_count_u) };
+        let out_death_frame_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_death_frame, op_count_u) };
+
+        for op in 0..op_count_u {
+            let samples = &output.samples[op];
+            for (frame, sample) in samples.iter().enumerate() {
+                let idx = op * sample_stride + frame;
+                out_x_slice[idx] = sample.x;
+                out_y_slice[idx] = sample.y;
+                out_rot_slice[idx] = sample.rot;
+            }
+            out_dead_slice[op] = if output.dead[op] { 1 } else { 0 };
+            out_death_frame_slice[op] = output.death_frame[op];
+        }
+        1
+    }));
+
+    match result {
+        Ok(v) => v,
+        Err(_) => 0,
+    }
 }
 
 /// Axis-aligned wall rectangle, same coordinate and shape as the C ABI
@@ -361,7 +567,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 1);
+        assert_eq!(vt_version(), 2);
     }
 
     #[test]
