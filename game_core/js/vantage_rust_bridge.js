@@ -2,10 +2,11 @@
 /**
  * VantageRustBridge — read-only bridge to the vantage_core WASM sidecar.
  *
- * Phase 1 only exposes:
+ * Exposes:
  *   - version()
  *   - buildWallRects(...)
  *   - sweepDangerFrames(...)
+ *   - minimalDecide(...)
  *
  * It is intentionally NOT auto-initialized and does not modify any existing
  * Vantage module. Call `await VantageRustBridge.init()` from a manual test.
@@ -105,7 +106,8 @@
                 }
                 if (typeof this._exports.vt_version !== 'function' ||
                     typeof this._exports.vt_build_wall_rects !== 'function' ||
-                    typeof this._exports.vt_sweep_danger_frames !== 'function') {
+                    typeof this._exports.vt_sweep_danger_frames !== 'function' ||
+                    typeof this._exports.vt_minimal_decide !== 'function') {
                     throw new Error('vantage_core.wasm is missing required vt_* exports');
                 }
 
@@ -221,9 +223,14 @@
                 var nodeFrames = nodeSamples.length;
                 var bulletFrames = bulletTrack.length;
 
-                // Node inputs: x/y/rot as three contiguous f32 arrays.
-                var nodeBytes = nodeFrames * 3 * 4;
-                var nodeBase = this._allocBytes(nodeBytes);
+                // One contiguous block: node x/y/rot, bullet x/y/vx/vy,
+                // bullet alive flags, and output danger flags. All views are
+                // created from the final buffer after the single allocation,
+                // so no later _allocBytes call can detach them.
+                var blockBytes = nodeFrames * 12 + bulletFrames * 16 + bulletFrames + nodeFrames;
+                var blockBase = this._allocBytes(blockBytes);
+
+                var nodeBase = blockBase;
                 var nodeX = new Float32Array(this._memory.buffer, nodeBase, nodeFrames);
                 var nodeY = new Float32Array(this._memory.buffer, nodeBase + nodeFrames * 4, nodeFrames);
                 var nodeRot = new Float32Array(this._memory.buffer, nodeBase + nodeFrames * 8, nodeFrames);
@@ -239,10 +246,7 @@
                     nodeRot[k] = Number(nr) || 0;
                 }
 
-                // Bullet inputs: x/y/vx/vy as four contiguous f32 arrays,
-                // then alive as a u8 array.
-                var bulletBytes = bulletFrames * 16 + bulletFrames;
-                var bulletBase = this._allocBytes(bulletBytes);
+                var bulletBase = nodeBase + nodeFrames * 12;
                 var bulletX = new Float32Array(this._memory.buffer, bulletBase, bulletFrames);
                 var bulletY = new Float32Array(this._memory.buffer, bulletBase + bulletFrames * 4, bulletFrames);
                 var bulletVx = new Float32Array(this._memory.buffer, bulletBase + bulletFrames * 8, bulletFrames);
@@ -262,8 +266,7 @@
                     bulletAlive[b] = bt.alive === 0 || bt.alive === false ? 0 : 1;
                 }
 
-                var flagsBytes = nodeFrames;
-                var flagsBase = this._allocBytes(flagsBytes);
+                var flagsBase = bulletBase + bulletFrames * 16 + bulletFrames;
                 var flags = new Uint8Array(this._memory.buffer, flagsBase, nodeFrames);
                 flags.fill(0);
 
@@ -286,20 +289,137 @@
                     flagsBase
                 );
 
+                // Read output flags from a fresh view, so this stays correct
+                // even if the Rust side ever allocates during the call.
+                var outFlags = new Uint8Array(this._memory.buffer, flagsBase, nodeFrames);
                 return {
                     ok: true,
                     dangerCount: dangerCount,
-                    flags: flags.slice()
+                    flags: outFlags.slice()
+                };
+            } catch (e) {
+                return failure(e);
+            }
+        },
+        /**
+         * Minimal pure-computation decision for the 9-operation, 75-frame
+         * rollout scoring array. Death data is supplied by the caller; the
+         * Rust sidecar only performs probeSegment / buildCandidate /
+         * pickBestChildByRolloutTotal and never decides death itself.
+         *
+         * @param {Array<{opName:string,totalScore:number,dead:boolean,deathFrame:number,perFrameScores:Array<number>}>} candidates
+         *   Exactly 9 candidates, in VantageSandbox.OPERATIONS order.
+         * @param {{epsilon?:number,tMin?:number,tMax?:number}} [options]
+         * @returns {{ok:true,selectedIndex:number,segmentFrames:number}|{ok:false,error:string}}
+         */
+        minimalDecide: function (candidates, options) {
+            try {
+                this._ensureReady();
+                if (!Array.isArray(candidates) || candidates.length !== 9) {
+                    throw new Error('candidates must be an array of exactly 9 operation score objects');
+                }
+
+                options = options || {};
+                var epsilon = Number(options.epsilon !== undefined ? options.epsilon : Math.PI * Math.PI);
+                var tMin = Number(options.tMin !== undefined ? options.tMin : 3);
+                var tMax = Number(options.tMax !== undefined ? options.tMax : 30);
+                tMin = Math.max(0, Math.floor(tMin)) >>> 0;
+                tMax = Math.max(0, Math.floor(tMax)) >>> 0;
+                if (tMax < tMin) {
+                    throw new Error('tMax must be >= tMin');
+                }
+
+                var FRAMES = 75;
+                var count = candidates.length;
+                var i, k;
+
+                // Allocate one contiguous block, then create every view from
+                // the final buffer. Creating views after the single growth
+                // avoids the detached-buffer pitfall of grow-after-view.
+                var align8 = function (n) {
+                    return (n + 7) & ~7;
+                };
+                var totalBytes = count * 8;
+                var deadBytes = count;
+                var deathBytes = count * 8;
+                var pfsBytes = count * FRAMES * 8;
+                var blockBytes = totalBytes + align8(deadBytes) + deathBytes + pfsBytes + 8;
+
+                var base = this._allocBytes(blockBytes);
+                var off = base;
+                var totals = new Float64Array(this._memory.buffer, off, count);
+                off += totalBytes;
+                var deadFlags = new Uint8Array(this._memory.buffer, off, count);
+                off += align8(deadBytes);
+                var deathFrames = new BigInt64Array(this._memory.buffer, off, count);
+                off += deathBytes;
+                var flatScores = new Float64Array(this._memory.buffer, off, count * FRAMES);
+                off += pfsBytes;
+                var outBase = off;
+
+                for (i = 0; i < count; i++) {
+                    var c = candidates[i];
+                    if (!c || typeof c !== 'object') {
+                        throw new Error('candidates[' + i + '] is not an object');
+                    }
+                    totals[i] = Number(c.totalScore);
+                    if (!isFinite(totals[i])) totals[i] = 0;
+                    deadFlags[i] = c.dead ? 1 : 0;
+
+                    var df = (c.deathFrame === undefined || c.deathFrame === null) ? -1 : Number(c.deathFrame);
+                    if (!isFinite(df)) df = -1;
+                    deathFrames[i] = BigInt(Math.round(df));
+
+                    var pfs = c.perFrameScores;
+                    if (!pfs || typeof pfs.length !== 'number') {
+                        throw new Error('candidates[' + i + '].perFrameScores is not array-like');
+                    }
+                    for (k = 0; k < FRAMES; k++) {
+                        var v = k < pfs.length ? Number(pfs[k]) : 0;
+                        if (!isFinite(v)) v = 0;
+                        flatScores[i * FRAMES + k] = v;
+                    }
+                }
+
+                var ok = this._exports.vt_minimal_decide(
+                    base,
+                    base + totalBytes,
+                    base + totalBytes + align8(deadBytes),
+                    base + totalBytes + align8(deadBytes) + deathBytes,
+                    count,
+                    FRAMES,
+                    epsilon,
+                    tMin,
+                    tMax,
+                    outBase,
+                    outBase + 4
+                );
+                if (ok !== 1) {
+                    throw new Error('vt_minimal_decide returned failure (' + ok + ')');
+                }
+
+                // The Rust call may grow wasm memory while building its own
+                // temporary Vecs, which detaches any pre-call JS typed-array
+                // views. Create fresh views after the call and read the
+                // outputs from the final buffer.
+                var outSelected = new Int32Array(this._memory.buffer, outBase, 1);
+                var outSegment = new Int32Array(this._memory.buffer, outBase + 4, 1);
+
+                return {
+                    ok: true,
+                    selectedIndex: outSelected[0],
+                    segmentFrames: outSegment[0]
                 };
             } catch (e) {
                 return failure(e);
             }
         }
+
     };
 
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (phase 1, not auto-init)');
+        console.log('[VantageRustBridge] loaded (minimal phase, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);

@@ -310,11 +310,12 @@ NN 的“死亡判断”不是权威，游戏融合世界才是。
    - Node/Tree、probeSegment、9 候选、next、subtreeBest、
      commit、grow、retreat；reserve/reuse 未实现；
    - 用固定 rollout 快照做确定性测试，cargo test 37 passed。
-3. **无 NN AI 最小跑通 + 游戏对接（主人确认 C 方案，先最简版）**
+3. **无 NN AI 最小跑通 + 游戏对接（已完成，待推送）**
    - 只保留：评分、probeSegment 选段长、9 候选选最佳、最简单回退；
    - Rust headless CLI 读 JSON 候选快照并输出决策；
    - JS bridge 暴露 probeSegment / chooseBest，不替换现有树；
    - 死亡权威仍由 JS 融合世界确认；
+   - minimal_decide / vantage_headless / JS bridge 最小闭环已通过 cargo test 46、headless 示例与 Node smoke；
    - 跑通后再补完整版树，最后再上 NN。
 
 原则：

@@ -5,6 +5,7 @@
 
 #![allow(clippy::missing_safety_doc)]
 
+pub mod minimal;
 pub mod scoring;
 pub mod tree;
 
@@ -257,6 +258,81 @@ pub extern "C" fn vt_sweep_danger_frames(
     danger_count
 }
 
+/// Minimal closed-loop decision bridge for the 9-operation, 75-frame
+/// rollout scoring array.
+///
+/// All arrays are caller-owned flat buffers:
+/// - `total_scores`, `dead_flags`, `death_frames`: one element per candidate
+/// - `per_frame_scores`: candidate-major, `frames_per_candidate` values each
+/// - `candidate_count` and `frames_per_candidate` are validated and must be
+///   [`minimal::C_ABI_CANDIDATE_COUNT`] and [`minimal::C_ABI_FRAMES`].
+///
+/// `out_selected_index` and `out_segment_frames` receive the selected op index
+/// and the selected candidate's actual segment length. Returns 1 on success,
+/// 0 on any null pointer / length / decision error. This function never
+/// allocates cross-language memory and never unwinds a panic into WASM.
+#[no_mangle]
+pub extern "C" fn vt_minimal_decide(
+    total_scores: *const f64,
+    dead_flags: *const u8,
+    death_frames: *const i64,
+    per_frame_scores: *const f64,
+    candidate_count: u32,
+    frames_per_candidate: u32,
+    epsilon: f64,
+    t_min: u32,
+    t_max: u32,
+    out_selected_index: *mut i32,
+    out_segment_frames: *mut i32,
+) -> i32 {
+    use minimal::{minimal_decide, CandidateInput, C_ABI_CANDIDATE_COUNT, C_ABI_FRAMES};
+
+    if candidate_count as usize != C_ABI_CANDIDATE_COUNT
+        || frames_per_candidate as usize != C_ABI_FRAMES
+    {
+        return 0;
+    }
+    if total_scores.is_null()
+        || dead_flags.is_null()
+        || death_frames.is_null()
+        || per_frame_scores.is_null()
+        || out_selected_index.is_null()
+        || out_segment_frames.is_null()
+    {
+        return 0;
+    }
+
+    let count = C_ABI_CANDIDATE_COUNT;
+    let frames = C_ABI_FRAMES;
+
+    let total_scores = unsafe { std::slice::from_raw_parts(total_scores, count) };
+    let dead_flags = unsafe { std::slice::from_raw_parts(dead_flags, count) };
+    let death_frames = unsafe { std::slice::from_raw_parts(death_frames, count) };
+    let per_frame_scores = unsafe { std::slice::from_raw_parts(per_frame_scores, count * frames) };
+
+    let candidates: Vec<CandidateInput> = (0..count)
+        .map(|i| {
+            let base = i * frames;
+            CandidateInput {
+                op_name: minimal::operation_name_for_index(i).to_string(),
+                total_score: total_scores[i],
+                dead: dead_flags[i] != 0,
+                death_frame: death_frames[i],
+                per_frame_scores: per_frame_scores[base..base + frames].to_vec(),
+            }
+        })
+        .collect();
+
+    match minimal_decide(&candidates, epsilon, t_min as usize, t_max as usize) {
+        Some(decision) => unsafe {
+            *out_selected_index = decision.selected_index as i32;
+            *out_segment_frames = decision.segment_frames as i32;
+            1
+        },
+        None => 0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,6 +361,80 @@ mod tests {
     #[test]
     fn test_version() {
         assert_eq!(vt_version(), 1);
+    }
+
+    #[test]
+    fn test_vt_minimal_decide_writes_outputs() {
+        let mut totals = [100.0f64; 9];
+        totals[1] = 200.0;
+        let dead = [0u8; 9];
+        let death = [-1i64; 9];
+        let pfs = [1.0f64; 9 * 75];
+        let mut selected = -1i32;
+        let mut segment = -1i32;
+
+        let ok = vt_minimal_decide(
+            totals.as_ptr(),
+            dead.as_ptr(),
+            death.as_ptr(),
+            pfs.as_ptr(),
+            9,
+            75,
+            9.869604401089358,
+            3,
+            30,
+            &mut selected,
+            &mut segment,
+        );
+        assert_eq!(ok, 1);
+        assert_eq!(selected, 1);
+        assert_eq!(segment, 30);
+    }
+
+    #[test]
+    fn test_vt_minimal_decide_rejects_bad_lengths_or_null() {
+        let totals = [100.0f64; 9];
+        let dead = [0u8; 9];
+        let death = [-1i64; 9];
+        let pfs = [1.0f64; 9 * 75];
+        let mut selected = -1i32;
+        let mut segment = -1i32;
+
+        // Wrong candidate count.
+        assert_eq!(
+            vt_minimal_decide(
+                totals.as_ptr(),
+                dead.as_ptr(),
+                death.as_ptr(),
+                pfs.as_ptr(),
+                8,
+                75,
+                9.869604401089358,
+                3,
+                30,
+                &mut selected,
+                &mut segment
+            ),
+            0
+        );
+
+        // Null output pointer.
+        assert_eq!(
+            vt_minimal_decide(
+                totals.as_ptr(),
+                dead.as_ptr(),
+                death.as_ptr(),
+                pfs.as_ptr(),
+                9,
+                75,
+                9.869604401089358,
+                3,
+                30,
+                std::ptr::null_mut(),
+                &mut segment
+            ),
+            0
+        );
     }
 
     #[test]
