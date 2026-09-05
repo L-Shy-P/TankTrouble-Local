@@ -303,9 +303,9 @@ NN 的“死亡判断”不是权威，游戏融合世界才是。
 
 分三波，禁止跨波提前改接口：
 
-1. **Rust 评分/几何核心**
+1. **Rust 评分/几何核心（已完成并推送 92f77ca）**
    - 遮蔽角精确解析、车道压分、弹簧绳墙距、单帧评分；
-   - 对照 JS `vantage_scoring.js` 做数值测试。
+   - 对照 JS `vantage_scoring.js` 做数值测试；cargo test 26 passed。
 2. **Rust 预测树**
    - Node/Tree、probeSegment、9 候选、next、subtreeBest、
      commit、grow、retreat、reserve/reuse；
