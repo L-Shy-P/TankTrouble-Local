@@ -368,3 +368,18 @@ C. JS 精确物理 + Rust 树/评分/NN
 - 同一操作分别用 Rust Rapier2d 与 JS 融合世界预测 75 帧；
 - 统计位置/角度误差分布；
 - 误差可接受才继续，否则回到 C。
+
+## 十四、第四波：Box2D 最小子集移植（主人确认 A 方案）
+
+只移植 Vantage 预测用到的物理功能：
+
+1. Vec2 / Mat22 / Transform；
+2. World 与 Step（0.02s、10 velocity / 10 position iterations、gravity=0）；
+3. Body / Fixture / 静态墙 body；
+4. PolygonShape 与 CircleShape；
+5. polygon-polygon、circle-polygon 接触生成与求解器；
+6. 坦克 body 速度/角速度驱动；
+7. 不移植：joint、sensor、tank-tank collision、护盾、陷阱。
+
+黄金数据来源：`game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js`（游戏同款 Box2D JS）。
+差分测试：同一场景分别由 JS Box2D 与 Rust Box2D 跑 75 帧，逐帧比较位置/角度/弹位。
