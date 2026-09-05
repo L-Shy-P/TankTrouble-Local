@@ -5,6 +5,7 @@
 
 #![allow(clippy::missing_safety_doc)]
 
+pub mod box2d;
 pub mod minimal;
 pub mod scoring;
 pub mod tree;
