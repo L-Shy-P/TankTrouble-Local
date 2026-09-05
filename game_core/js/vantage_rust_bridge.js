@@ -5,6 +5,7 @@
  * Exposes:
  *   - version()
  *   - rolloutBatch(...)         (ABI v2: vt_rollout_batch)
+ *   - rescoreNodes(...)         (ABI v3: vt_rescore_nodes)
  *   - buildWallRects(...)
  *   - sweepDangerFrames(...)
  *   - minimalDecide(...)
@@ -107,6 +108,7 @@
                 }
                 if (typeof this._exports.vt_version !== 'function' ||
                     typeof this._exports.vt_rollout_batch !== 'function' ||
+                    typeof this._exports.vt_rescore_nodes !== 'function' ||
                     typeof this._exports.vt_build_wall_rects !== 'function' ||
                     typeof this._exports.vt_sweep_danger_frames !== 'function' ||
                     typeof this._exports.vt_minimal_decide !== 'function') {
@@ -420,6 +422,459 @@
         },
 
         /**
+         * Incremental rescore + death-verification batch over stored rollout
+         * samples (ABI v3).
+         *
+         * JS API:
+         *   input = {
+         *     cacheId: <integer 0..2^32-1>,
+         *     walls: [{verts:[[x,y],...]}],       // 0..1024 walls, 3..8 verts
+         *     nodes: [{samples:[{x,y,rot}...], moving:bool, startT:number,
+         *              frames:int}],              // 1..64 nodes, 2..76 samples
+         *     threats: [{track:[{x,y,alive}...]?, path:[[x,y]...]?,
+         *                speed, anchorOffset, bulletRadius, lifeLeftSeconds}],
+         *     cfg: {deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
+         *           lanePenaltyRatio, springRopeEnabled}
+         *   }
+         * returns {ok:true,nodes:[{perFrameScores:[...],totalScore,
+         *          deathFrame,verifiedFrames,ok}]} or {ok:false,error:string}.
+         * Input validation violations throw.
+         *
+         * Tank trajectories are NOT re-simulated: samples are the
+         * already-stored rolloutSamples (node-major).  The Rust side scores
+         * them as a pure function of the stored trajectory and verifies only
+         * coarse-filter-danger frames in the dedicated fused verification
+         * world.  perFrameScores are trimmed to the actual scored length
+         * (deathFrame, or min(frames, sampleCount-1) when no death).
+         */
+        rescoreNodes: function (input) {
+            try {
+                this._ensureReady();
+                var badInput = function (msg) { var e = new Error(msg); e._isValidationError = true; return e; };
+                if (!input || typeof input !== 'object') {
+                    throw badInput('input is required');
+                }
+
+                var cacheId = input.cacheId;
+                if (typeof cacheId !== 'number' || !Number.isInteger(cacheId) ||
+                        cacheId < 0 || cacheId > 0xFFFFFFFF) {
+                    throw badInput('cacheId must be an integer in [0, 2^32-1]');
+                }
+
+                var nodes = input.nodes;
+                if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 64) {
+                    throw badInput('nodes must be an array of 1..64 entries');
+                }
+
+                var walls = input.walls;
+                if (!Array.isArray(walls)) {
+                    throw badInput('walls must be an array');
+                }
+                if (walls.length > 1024) {
+                    throw badInput('wallCount must be <= 1024');
+                }
+
+                var threats = input.threats;
+                if (!Array.isArray(threats)) {
+                    throw badInput('threats must be an array');
+                }
+                if (threats.length > 64) {
+                    throw badInput('threatCount must be <= 64');
+                }
+
+                var cfg = input.cfg;
+                if (!cfg || typeof cfg !== 'object') {
+                    throw badInput('cfg is required');
+                }
+
+                var nodeCount = nodes.length;
+                var wallCount = walls.length;
+                var threatCount = threats.length;
+                var i, k;
+
+                // Validate nodes and compute node-major sample totals.
+                var sampleCounts = [];
+                var nodeFrames = [];
+                var nodeStartT = [];
+                var nodeMoving = [];
+                var totalSamples = 0;
+                for (i = 0; i < nodeCount; i++) {
+                    var node = nodes[i];
+                    if (!node || typeof node !== 'object') {
+                        throw badInput('nodes[' + i + '] is not an object');
+                    }
+                    if (!Array.isArray(node.samples)) {
+                        throw badInput('nodes[' + i + '].samples must be an array');
+                    }
+                    var sc = node.samples.length;
+                    if (sc < 2 || sc > 76) {
+                        throw badInput('nodes[' + i + '].samples must have 2..76 samples');
+                    }
+                    sampleCounts.push(sc);
+                    totalSamples += sc;
+                    if (typeof node.moving !== 'boolean') {
+                        throw badInput('nodes[' + i + '].moving must be a boolean');
+                    }
+                    nodeMoving.push(node.moving ? 1 : 0);
+                    var st = Number(node.startT);
+                    if (!isFinite(st)) {
+                        throw badInput('nodes[' + i + '].startT must be a finite number');
+                    }
+                    nodeStartT.push(st);
+                    var fr = node.frames;
+                    if (typeof fr !== 'number' || !Number.isInteger(fr) || fr < 1 || fr > 75) {
+                        throw badInput('nodes[' + i + '].frames must be an integer in [1, 75]');
+                    }
+                    nodeFrames.push(fr);
+                    for (k = 0; k < sc; k++) {
+                        var s = node.samples[k];
+                        var sx = s && typeof s === 'object' ? (s.x !== undefined ? s.x : s[0]) : s;
+                        var sy = s && typeof s === 'object' ? (s.y !== undefined ? s.y : s[1]) : s;
+                        var srot = s && typeof s === 'object' ? (s.rot !== undefined ? s.rot : s[2]) : 0;
+                        if (!isFinite(Number(sx)) || !isFinite(Number(sy)) || !isFinite(Number(srot))) {
+                            throw badInput('nodes[' + i + '].samples[' + k + '] must be finite');
+                        }
+                    }
+                }
+
+                // Validate walls.
+                var totalWallVerts = 0;
+                for (i = 0; i < wallCount; i++) {
+                    var wall = walls[i];
+                    if (!wall || !Array.isArray(wall.verts)) {
+                        throw badInput('walls[' + i + '].verts must be an array');
+                    }
+                    var vc = wall.verts.length;
+                    if (vc < 3 || vc > 8) {
+                        throw badInput('walls[' + i + '].verts must have 3..8 vertices');
+                    }
+                    totalWallVerts += vc;
+                    if (totalWallVerts > 8192) {
+                        throw badInput('total wall vertices must be <= 8192');
+                    }
+                    for (k = 0; k < vc; k++) {
+                        var wv = wall.verts[k];
+                        if (!wv || typeof wv !== 'object') {
+                            throw badInput('walls[' + i + '].verts[' + k + '] is not a point');
+                        }
+                        if (!isFinite(Number(wv.x !== undefined ? wv.x : wv[0])) ||
+                                !isFinite(Number(wv.y !== undefined ? wv.y : wv[1]))) {
+                            throw badInput('walls[' + i + '].verts[' + k + '] must be finite');
+                        }
+                    }
+                }
+
+                // Validate threats.
+                var trackCounts = [];
+                var pathCounts = [];
+                var totalTrack = 0;
+                var totalPath = 0;
+                for (i = 0; i < threatCount; i++) {
+                    var th = threats[i];
+                    if (!th || typeof th !== 'object') {
+                        throw badInput('threats[' + i + '] is not an object');
+                    }
+                    var tc = 0;
+                    if (th.track !== undefined && th.track !== null) {
+                        if (!Array.isArray(th.track)) {
+                            throw badInput('threats[' + i + '].track must be an array');
+                        }
+                        tc = th.track.length;
+                        if (tc > 4096) {
+                            throw badInput('threats[' + i + '].track must have <= 4096 points');
+                        }
+                        for (k = 0; k < tc; k++) {
+                            var tf = th.track[k];
+                            if (!tf || typeof tf !== 'object') {
+                                throw badInput('threats[' + i + '].track[' + k + '] is not a point');
+                            }
+                            if (!isFinite(Number(tf.x !== undefined ? tf.x : tf[0])) ||
+                                    !isFinite(Number(tf.y !== undefined ? tf.y : tf[1]))) {
+                                throw badInput('threats[' + i + '].track[' + k + '] must be finite');
+                            }
+                        }
+                    }
+                    var pc = 0;
+                    if (th.path !== undefined && th.path !== null) {
+                        if (!Array.isArray(th.path)) {
+                            throw badInput('threats[' + i + '].path must be an array');
+                        }
+                        pc = th.path.length;
+                        if (pc > 4096) {
+                            throw badInput('threats[' + i + '].path must have <= 4096 points');
+                        }
+                        for (k = 0; k < pc; k++) {
+                            var pp = th.path[k];
+                            if (!pp || typeof pp !== 'object') {
+                                throw badInput('threats[' + i + '].path[' + k + '] is not a point');
+                            }
+                            if (!isFinite(Number(pp.x !== undefined ? pp.x : pp[0])) ||
+                                    !isFinite(Number(pp.y !== undefined ? pp.y : pp[1]))) {
+                                throw badInput('threats[' + i + '].path[' + k + '] must be finite');
+                            }
+                        }
+                    }
+                    trackCounts.push(tc);
+                    pathCounts.push(pc);
+                    totalTrack += tc;
+                    totalPath += pc;
+                    if (totalTrack > 64 * 4096 || totalPath > 64 * 4096) {
+                        throw badInput('total threat track/path points out of range');
+                    }
+                    var spd = Number(th.speed !== undefined ? th.speed : 0);
+                    var ao = Number(th.anchorOffset !== undefined ? th.anchorOffset : 0);
+                    var rad = Number(th.bulletRadius !== undefined ? th.bulletRadius : 0.25);
+                    var life = Number(th.lifeLeftSeconds !== undefined ? th.lifeLeftSeconds : 10);
+                    if (!isFinite(spd) || !isFinite(ao) || !isFinite(rad) || !isFinite(life)) {
+                        throw badInput('threats[' + i + '] has non-finite numeric fields');
+                    }
+                    if (rad <= 0) {
+                        throw badInput('threats[' + i + '].bulletRadius must be > 0');
+                    }
+                }
+
+                var deathPenalty = Number(cfg.deathPenalty !== undefined ? cfg.deathPenalty : 0);
+                var stuckPenalty = Number(cfg.stuckPenalty !== undefined ? cfg.stuckPenalty : 4.0);
+                var stuckDistEps = Number(cfg.stuckDistEps !== undefined ? cfg.stuckDistEps : 0.05);
+                var stuckRotEps = Number(cfg.stuckRotEps !== undefined ? cfg.stuckRotEps : 0.05);
+                var lanePenaltyRatio = Number(cfg.lanePenaltyRatio !== undefined ? cfg.lanePenaltyRatio : 0);
+                if (!isFinite(deathPenalty) || !isFinite(stuckPenalty) ||
+                        !isFinite(stuckDistEps) || !isFinite(stuckRotEps) ||
+                        !isFinite(lanePenaltyRatio)) {
+                    throw badInput('cfg has non-finite numeric fields');
+                }
+                var springRopeEnabled = cfg.springRopeEnabled ? 1 : 0;
+
+                var align8 = function (n) { return (n + 7) & ~7; };
+                var align4 = function (n) { return (n + 3) & ~3; };
+
+                var sampleCountsBytes = Math.max(1, nodeCount) * 4;
+                var samplesXBytes = Math.max(1, totalSamples) * 8;
+                var samplesYBytes = Math.max(1, totalSamples) * 8;
+                var samplesRotBytes = Math.max(1, totalSamples) * 8;
+                var startTBytes = Math.max(1, nodeCount) * 8;
+                var movingBytes = Math.max(1, nodeCount);
+                var framesBytes = Math.max(1, nodeCount) * 4;
+                var wallCountsBytes = Math.max(1, wallCount) * 4;
+                var wallVertsBytes = Math.max(1, totalWallVerts * 2) * 8;
+                var trackCountsBytes = Math.max(1, threatCount) * 4;
+                var trackXBytes = Math.max(1, totalTrack) * 8;
+                var trackYBytes = Math.max(1, totalTrack) * 8;
+                var trackAliveBytes = Math.max(1, totalTrack);
+                var pathCountsBytes = Math.max(1, threatCount) * 4;
+                var pathXBytes = Math.max(1, totalPath) * 8;
+                var pathYBytes = Math.max(1, totalPath) * 8;
+                var anchorOffsetBytes = Math.max(1, threatCount) * 8;
+                var speedBytes = Math.max(1, threatCount) * 8;
+                var bulletRadiusBytes = Math.max(1, threatCount) * 8;
+                var lifeLeftBytes = Math.max(1, threatCount) * 8;
+                var outPfsBytes = nodeCount * 75 * 8;
+                var outTotalBytes = nodeCount * 8;
+                var outDeathBytes = nodeCount * 4;
+                var outVerifiedBytes = nodeCount * 4;
+                var outOkBytes = nodeCount;
+
+                var off = 0;
+                var sampleCountsBase = off; off += sampleCountsBytes;
+                off = align8(off);
+                var samplesXBase = off; off += samplesXBytes;
+                var samplesYBase = off; off += samplesYBytes;
+                var samplesRotBase = off; off += samplesRotBytes;
+                var startTBase = off; off += startTBytes;
+                var movingBase = off; off += movingBytes;
+                off = align4(off);
+                var framesBase = off; off += framesBytes;
+                var wallCountsBase = off; off += wallCountsBytes;
+                off = align8(off);
+                var wallVertsBase = off; off += wallVertsBytes;
+                off = align4(off);
+                var trackCountsBase = off; off += trackCountsBytes;
+                off = align8(off);
+                var trackXBase = off; off += trackXBytes;
+                var trackYBase = off; off += trackYBytes;
+                var trackAliveBase = off; off += trackAliveBytes;
+                off = align4(off);
+                var pathCountsBase = off; off += pathCountsBytes;
+                off = align8(off);
+                var pathXBase = off; off += pathXBytes;
+                var pathYBase = off; off += pathYBytes;
+                var anchorOffsetBase = off; off += anchorOffsetBytes;
+                var speedBase = off; off += speedBytes;
+                var bulletRadiusBase = off; off += bulletRadiusBytes;
+                var lifeLeftBase = off; off += lifeLeftBytes;
+                var outPfsBase = off; off += outPfsBytes;
+                var outTotalBase = off; off += outTotalBytes;
+                var outDeathBase = off; off += outDeathBytes;
+                var outVerifiedBase = off; off += outVerifiedBytes;
+                var outOkBase = off; off += outOkBytes;
+
+                var blockBytes = off;
+                var base = this._allocBytes(blockBytes);
+                sampleCountsBase += base;
+                samplesXBase += base;
+                samplesYBase += base;
+                samplesRotBase += base;
+                startTBase += base;
+                movingBase += base;
+                framesBase += base;
+                wallCountsBase += base;
+                wallVertsBase += base;
+                trackCountsBase += base;
+                trackXBase += base;
+                trackYBase += base;
+                trackAliveBase += base;
+                pathCountsBase += base;
+                pathXBase += base;
+                pathYBase += base;
+                anchorOffsetBase += base;
+                speedBase += base;
+                bulletRadiusBase += base;
+                lifeLeftBase += base;
+                outPfsBase += base;
+                outTotalBase += base;
+                outDeathBase += base;
+                outVerifiedBase += base;
+                outOkBase += base;
+
+                // Input views are created from the final buffer immediately
+                // after the single allocation.
+                var sampleCountsView = new Uint32Array(this._memory.buffer, sampleCountsBase, nodeCount);
+                var samplesX = new Float64Array(this._memory.buffer, samplesXBase, totalSamples);
+                var samplesY = new Float64Array(this._memory.buffer, samplesYBase, totalSamples);
+                var samplesRot = new Float64Array(this._memory.buffer, samplesRotBase, totalSamples);
+                var startT = new Float64Array(this._memory.buffer, startTBase, nodeCount);
+                var moving = new Uint8Array(this._memory.buffer, movingBase, nodeCount);
+                var frames = new Uint32Array(this._memory.buffer, framesBase, nodeCount);
+
+                var sOff = 0;
+                for (i = 0; i < nodeCount; i++) {
+                    sampleCountsView[i] = sampleCounts[i];
+                    startT[i] = nodeStartT[i];
+                    moving[i] = nodeMoving[i];
+                    frames[i] = nodeFrames[i];
+                    for (k = 0; k < sampleCounts[i]; k++) {
+                        var ns = nodes[i].samples[k];
+                        var nx = ns && typeof ns === 'object' ? (ns.x !== undefined ? ns.x : ns[0]) : ns;
+                        var ny = ns && typeof ns === 'object' ? (ns.y !== undefined ? ns.y : ns[1]) : ns;
+                        var nr = ns && typeof ns === 'object' ? (ns.rot !== undefined ? ns.rot : ns[2]) : 0;
+                        samplesX[sOff] = Number(nx);
+                        samplesY[sOff] = Number(ny);
+                        samplesRot[sOff] = Number(nr);
+                        sOff++;
+                    }
+                }
+
+                if (wallCount > 0) {
+                    var wallCounts = new Uint32Array(this._memory.buffer, wallCountsBase, wallCount);
+                    var wallVerts = new Float64Array(this._memory.buffer, wallVertsBase, totalWallVerts * 2);
+                    var wOff = 0;
+                    for (i = 0; i < wallCount; i++) {
+                        var w = walls[i];
+                        wallCounts[i] = w.verts.length;
+                        for (k = 0; k < w.verts.length; k++) {
+                            var wpt = w.verts[k];
+                            wallVerts[wOff++] = Number(wpt.x !== undefined ? wpt.x : wpt[0]);
+                            wallVerts[wOff++] = Number(wpt.y !== undefined ? wpt.y : wpt[1]);
+                        }
+                    }
+                }
+
+                if (threatCount > 0) {
+                    var trackCountsView = new Uint32Array(this._memory.buffer, trackCountsBase, threatCount);
+                    var pathCountsView = new Uint32Array(this._memory.buffer, pathCountsBase, threatCount);
+                    var trackX = new Float64Array(this._memory.buffer, trackXBase, totalTrack);
+                    var trackY = new Float64Array(this._memory.buffer, trackYBase, totalTrack);
+                    var trackAlive = new Uint8Array(this._memory.buffer, trackAliveBase, totalTrack);
+                    var pathX = new Float64Array(this._memory.buffer, pathXBase, totalPath);
+                    var pathY = new Float64Array(this._memory.buffer, pathYBase, totalPath);
+                    var anchorOffset = new Float64Array(this._memory.buffer, anchorOffsetBase, threatCount);
+                    var speed = new Float64Array(this._memory.buffer, speedBase, threatCount);
+                    var bulletRadius = new Float64Array(this._memory.buffer, bulletRadiusBase, threatCount);
+                    var lifeLeft = new Float64Array(this._memory.buffer, lifeLeftBase, threatCount);
+
+                    var tOff = 0;
+                    var pOff = 0;
+                    for (i = 0; i < threatCount; i++) {
+                        var th2 = threats[i];
+                        trackCountsView[i] = trackCounts[i];
+                        pathCountsView[i] = pathCounts[i];
+                        for (k = 0; k < trackCounts[i]; k++) {
+                            var tf2 = th2.track[k];
+                            trackX[tOff] = Number(tf2.x !== undefined ? tf2.x : tf2[0]);
+                            trackY[tOff] = Number(tf2.y !== undefined ? tf2.y : tf2[1]);
+                            trackAlive[tOff] = (tf2.alive === false) ? 0 : 1;
+                            tOff++;
+                        }
+                        for (k = 0; k < pathCounts[i]; k++) {
+                            var pp2 = th2.path[k];
+                            pathX[pOff] = Number(pp2.x !== undefined ? pp2.x : pp2[0]);
+                            pathY[pOff] = Number(pp2.y !== undefined ? pp2.y : pp2[1]);
+                            pOff++;
+                        }
+                        anchorOffset[i] = Number(th2.anchorOffset !== undefined ? th2.anchorOffset : 0);
+                        speed[i] = Number(th2.speed !== undefined ? th2.speed : 0);
+                        bulletRadius[i] = Number(th2.bulletRadius !== undefined ? th2.bulletRadius : 0.25);
+                        lifeLeft[i] = Number(th2.lifeLeftSeconds !== undefined ? th2.lifeLeftSeconds : 10);
+                    }
+                }
+
+                // cacheId is a u64 in the C ABI; raw wasm exports expose that
+                // as an i64 parameter, so JS must pass a BigInt here.
+                var ret = this._exports.vt_rescore_nodes(
+                    BigInt(cacheId),
+                    nodeCount,
+                    sampleCountsBase, samplesXBase, samplesYBase, samplesRotBase,
+                    startTBase, movingBase, framesBase,
+                    wallCountsBase, wallVertsBase, wallCount,
+                    threatCount,
+                    trackCountsBase, trackXBase, trackYBase, trackAliveBase,
+                    pathCountsBase, pathXBase, pathYBase,
+                    anchorOffsetBase, speedBase, bulletRadiusBase, lifeLeftBase,
+                    deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
+                    lanePenaltyRatio, springRopeEnabled,
+                    outPfsBase, outTotalBase, outDeathBase, outVerifiedBase, outOkBase
+                );
+                if (ret !== 1) {
+                    throw new Error('vt_rescore_nodes returned failure (' + ret + ')');
+                }
+
+                // Recreate output views from the final buffer after the wasm
+                // call; Rust may allocate and grow memory while running.
+                var outPfs = new Float64Array(this._memory.buffer, outPfsBase, nodeCount * 75);
+                var outTotal = new Float64Array(this._memory.buffer, outTotalBase, nodeCount);
+                var outDeath = new Int32Array(this._memory.buffer, outDeathBase, nodeCount);
+                var outVerified = new Uint32Array(this._memory.buffer, outVerifiedBase, nodeCount);
+                var outOk = new Uint8Array(this._memory.buffer, outOkBase, nodeCount);
+
+                var outNodes = [];
+                for (i = 0; i < nodeCount; i++) {
+                    var df = outDeath[i];
+                    var actualFrames = df > 0 ? df : Math.min(nodeFrames[i], sampleCounts[i] - 1);
+                    var pfs = [];
+                    var pfsBaseIdx = i * 75;
+                    for (k = 0; k < actualFrames; k++) {
+                        pfs.push(outPfs[pfsBaseIdx + k]);
+                    }
+                    outNodes.push({
+                        perFrameScores: pfs,
+                        totalScore: outTotal[i],
+                        deathFrame: df,
+                        verifiedFrames: outVerified[i],
+                        ok: outOk[i] !== 0
+                    });
+                }
+
+                return {
+                    ok: true,
+                    nodes: outNodes
+                };
+            } catch (e) {
+                if (e && e._isValidationError) throw e;
+                return failure(e);
+            }
+        },
+
+        /**
          * Build wall rects from maze tiles.
          *
          * @param {Array<number>|Uint8Array} tiles width*height*3 bytes,
@@ -707,6 +1162,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v2 ABI: vt_rollout_batch available, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v3 ABI: vt_rollout_batch + vt_rescore_nodes available, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);

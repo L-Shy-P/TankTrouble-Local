@@ -1,6 +1,11 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-05 v70（Rust vt_rescore_nodes 增量层刷新）：
+ *   refreshFusedLayer 先尝试 adapter.rescoreTankSamples（仅 Rust 物理开关
+ *   开启、非弹簧绳、且 stale 节点已有有效 rolloutSamples 时）；成功则
+ *   用存储样本重评分，不再重跑坦克物理；失败/不可用回退原 scorePaths。
+ *
  * 2026-08-23 v52（75帧全累积总分选路 + next 重定向 + 新弹全局 reroute）：
  *   ① 最新一层选路改按节点自身 75 帧全累积总分（rolloutTotal）自然比较，
  *      不再用“本段平均分”；软死仍自然参与，死亡帧停算。
@@ -1152,6 +1157,60 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 这样新弹一出现 AI 就能在下一次提交换操作（恢复老版预判反应），
      * 而树结构仍按“提前死亡才剪枝”的局部失效规则走。
      */
+    /** v70：判断操作是否会产生位移/旋转（与评分模块口径一致）。 */
+    function isMovingInputs(inputs) {
+        return !!(inputs && (inputs.forward || inputs.back || inputs.left || inputs.right));
+    }
+
+    /**
+     * v70：尝试用 Rust vt_rescore_nodes 重算一父层 stale 候选。
+     * 仅在适配器提供 rescoreTankSamples、未启用弹簧绳、且所有 stale 节点
+     * 都有有效 rolloutSamples 时返回结果；任何不可用都返回 null，
+     * 由 refreshFusedLayer 回退原 VantageScoring.scorePaths。
+     */
+    function tryRustRescoreLayer(tree, adapter, stale) {
+        if (!adapter || typeof adapter.rescoreTankSamples !== 'function') return null;
+        if (!tree || (tree.cfg && tree.cfg.springRopeEnabled === true)) return null;
+        if (!stale || !stale.length) return null;
+
+        var nodes = [];
+        var i, c, k, s;
+        for (i = 0; i < stale.length; i++) {
+            c = stale[i];
+            if (!c || !Array.isArray(c.rolloutSamples) ||
+                    c.rolloutSamples.length < 2 || c.rolloutSamples.length > 76) {
+                return null;
+            }
+            for (k = 0; k < c.rolloutSamples.length; k++) {
+                s = c.rolloutSamples[k];
+                if (!s || typeof s !== 'object' ||
+                        !isFinite(Number(s.x)) || !isFinite(Number(s.y)) ||
+                        !isFinite(Number(s.rot))) {
+                    return null;
+                }
+            }
+            nodes.push({
+                samples: c.rolloutSamples,
+                moving: isMovingInputs(c.inputs),
+                startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
+                frames: EVAL_FRAMES
+            });
+        }
+
+        var results;
+        try {
+            results = adapter.rescoreTankSamples(
+                nodes,
+                tree.threats || [],
+                treeScoringCfg(tree)
+            );
+        } catch (eRustLayer) {
+            results = null;
+        }
+        if (!results || results.length !== stale.length) return null;
+        return { results: results, usedRust: true };
+    }
+
     /** v68：用融合世界重算一父层 stale 候选；返回更新数。 */
     function refreshFusedLayer(tree, adapter, parent) {
         if (!tree || !parent || !parent.children || !parent.children.length) return 0;
@@ -1169,18 +1228,23 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         if (!stale.length) return 0;
 
+        var rustLayer = tryRustRescoreLayer(tree, adapter, stale);
         var results = null;
-        try {
-            results = VantageScoring.scorePaths(
-                adapter,
-                parent.simState,
-                ops,
-                EVAL_FRAMES,
-                tree.threats || [],
-                treeScoringCfg(tree)
-            );
-        } catch (eLayer) {
-            results = null;
+        if (rustLayer) {
+            results = rustLayer.results;
+        } else {
+            try {
+                results = VantageScoring.scorePaths(
+                    adapter,
+                    parent.simState,
+                    ops,
+                    EVAL_FRAMES,
+                    tree.threats || [],
+                    treeScoringCfg(tree)
+                );
+            } catch (eLayer) {
+                results = null;
+            }
         }
         if (!results || results.length !== stale.length) return 0;
 
@@ -1206,6 +1270,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
         }
         if (updated) backpropBest(parent);
+        if (rustLayer) {
+            recordStructure(tree, 'rust-rescore-layer',
+                'stale=' + stale.length + ' updated=' + updated);
+        }
         return updated;
     }
 
@@ -3818,5 +3886,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v69：v68语义 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v70：v68语义 + Rust增量层刷新 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);

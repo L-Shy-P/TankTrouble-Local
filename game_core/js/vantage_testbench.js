@@ -10,6 +10,10 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
+ * 2026-09-05 v54（Rust 物理开关也启用增量层刷新）：
+ *   开启“Rust物理”后，树 stale 层刷新还会优先走
+ *   VantageSandbox.rescoreTankSamples（vt_rescore_nodes，ABI v3），
+ *   对已有 rolloutSamples 重评分 + 融合验证，不再重跑坦克物理。
  * 2026-09-05 v53（Rust 物理预测实验开关）：
  *   state.exp.rustPhysics 默认 false；面板实验区新增“Rust物理”；
  *   开启时初始化 VantageRustBridge 并调用
@@ -55,7 +59,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v53';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v54';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2195,7 +2199,9 @@
             updatePanel();
             return;
         }
-        // —— v53 Rust 物理预测开关（配合 VantageSandbox v28 / Rust ABI v2）——
+        // —— v54 Rust 物理预测开关（配合 VantageSandbox v30 / Rust ABI v2+v3）——
+        // 开启后树 rollouts 走 vt_rollout_batch 预测，stale 层刷新还会优先走
+        // vt_rescore_nodes（adapter.rescoreTankSamples）增量重评分。
         if (act === 'exp-rustPhysics') {
             state.exp.rustPhysics = srcEl.checked;
             if (typeof VantageSandbox !== 'undefined') {
@@ -2894,7 +2900,7 @@
         try { VantageTree.setSpringRopeEnabled(state.exp.springRope); } catch (eSpringInit) {}
         try { VantageTree.setRustMinimalEnabled(state.exp.rustMinimal); } catch (eRustMinInit) {}
     }
-    // v53：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
+    // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
     if (typeof VantageSandbox !== 'undefined') {
         try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysInit) {}
     }

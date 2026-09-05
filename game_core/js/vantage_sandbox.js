@@ -30,6 +30,10 @@
  * 2026-08-23 v27（弹道模拟提前停）：
  *   simulateBulletTracks 在所有被模拟子弹都已 active=false 后直接 break，
  *   不再空转 Box2D Step；混弹时由寿命最长的弹决定继续。
+ * 2026-09-05 v30（Rust vt_rescore_nodes 增量层刷新接入）：
+ *   adapter.rescoreTankSamples(nodes, threats, cfg) 通过 VantageRustBridge
+ *   .rescoreNodes（ABI v3）对已有 rolloutSamples 重评分 + 融合验证；
+ *   仅在 Rust 物理开关开启、融合世界存在且桥就绪时启用，否则返回 null。
  * 2026-09-05 v29（修复 cloneFusedShape 多边形接口：GetVertices，不是 GetVertex；
  *   该异常此前被 scorePaths 静默吞掉，导致融合世界实际从未生效）：
  * 2026-09-05 v28（Rust 融合 rollouts opt-in）：
@@ -1472,6 +1476,109 @@
             },
 
             /**
+             * v30：Rust vt_rescore_nodes 增量层刷新（ABI v3）。
+             * 对树节点已存储的 rolloutSamples 做纯函数重评分 + 融合传感器/
+             * CCD 死亡验证，不重新模拟坦克物理。仅在 Rust 物理开关开启、
+             * 融合世界存在且 Rust 桥就绪时启用；任何失败都返回 null，
+             * 由树回退 VantageScoring.scorePaths（JS 融合路径）。
+             */
+            rescoreTankSamples: function(nodes, threats, cfg) {
+                if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
+                if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
+                if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 64) return null;
+                if (!Array.isArray(threats)) return null;
+
+                var fc = getFusedWorld(gameController, aiId);
+                if (!fc || !fc.wallShapes) return null;
+
+                var bridgeThreats = [];
+                var ti, tfi, pi;
+                for (ti = 0; ti < threats.length; ti++) {
+                    var th = threats[ti];
+                    if (!th) return null;
+                    var bth = {
+                        speed: th.speed || 0,
+                        anchorOffset: th.anchorOffset || 0,
+                        bulletRadius: 0.25,
+                        lifeLeftSeconds: 10
+                    };
+                    if (th.track) {
+                        if (!Array.isArray(th.track)) return null;
+                        bth.track = [];
+                        for (tfi = 0; tfi < th.track.length; tfi++) {
+                            var f = th.track[tfi];
+                            if (!f) return null;
+                            bth.track.push({ x: f.x, y: f.y, alive: f.alive !== false });
+                        }
+                    }
+                    if (th.path) {
+                        if (!Array.isArray(th.path)) return null;
+                        bth.path = [];
+                        for (pi = 0; pi < th.path.length; pi++) {
+                            var p = th.path[pi];
+                            if (!p) return null;
+                            bth.path.push({ x: p.x, y: p.y });
+                        }
+                    }
+                    var projectiles = gameController.getProjectiles();
+                    var prj = projectiles ? projectiles[th.id] : null;
+                    if (prj) {
+                        try {
+                            var prb = prj.getB2DBody ? prj.getB2DBody() : null;
+                            var shape = prb ? prb.GetFixtureList().GetShape() : null;
+                            if (shape && typeof shape.m_radius === 'number') {
+                                bth.bulletRadius = shape.m_radius;
+                            }
+                        } catch (eRadius) {}
+                        if (typeof prj.lifetime === 'number' && typeof prj.getTimeAlive === 'function') {
+                            bth.lifeLeftSeconds = Math.max(0, prj.lifetime - prj.getTimeAlive());
+                        }
+                    }
+                    bridgeThreats.push(bth);
+                }
+
+                var bridgeResult;
+                try {
+                    bridgeResult = global.VantageRustBridge.rescoreNodes({
+                        cacheId: hashAiIdForRustCache(aiId),
+                        walls: fc.wallShapes,
+                        nodes: nodes,
+                        threats: bridgeThreats,
+                        cfg: cfg || {}
+                    });
+                } catch (eRescore) {
+                    console.warn('[VantageSandbox] Rust 增量重评分调用失败，回退 JS 融合路径:', eRescore);
+                    return null;
+                }
+                if (!bridgeResult || bridgeResult.ok !== true ||
+                        !bridgeResult.nodes ||
+                        bridgeResult.nodes.length !== nodes.length) {
+                    console.warn('[VantageSandbox] Rust 增量重评分结果无效，回退 JS 融合路径');
+                    return null;
+                }
+
+                var mapped = [];
+                for (var ni = 0; ni < nodes.length; ni++) {
+                    var rn = bridgeResult.nodes[ni];
+                    if (!rn || rn.ok !== true) {
+                        console.warn('[VantageSandbox] Rust 增量重评分节点 ' + ni + ' 需要回退，改用 JS 融合路径');
+                        return null;
+                    }
+                    var pfs = rn.perFrameScores || [];
+                    var frameCount = pfs.length;
+                    mapped.push({
+                        samples: nodes[ni].samples,
+                        dead: rn.deathFrame > 0,
+                        deathFrame: rn.deathFrame,
+                        perFrameScores: pfs.slice(0, frameCount),
+                        totalScore: rn.totalScore,
+                        frameCount: frameCount
+                    });
+                }
+                return mapped;
+            },
+
+            /**
              * @param {Object} projectile - 游戏子弹对象
              * @param {number} bounces - 最大反弹次数
              * @param {number} maxLen - 最大路径长度（米）
@@ -1640,6 +1747,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v29：修复多边形 clone 接口 + Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
+    console.log('[Vantage Sandbox] 模块已加载（v30：Rust 增量层刷新 rescoreTankSamples + Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
 
 })(typeof window !== 'undefined' ? window : this);

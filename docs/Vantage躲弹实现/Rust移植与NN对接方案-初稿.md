@@ -428,3 +428,11 @@ C. JS 精确物理 + Rust 树/评分/NN
 - `diff_rescore.js` 7 场景全 PASS（逐帧分数 1e-9、total 1e-9、deathFrame 精确、warm 持久一致、spring unsupported 预期）。
 - 性能：9 nodes×76 samples×(1/8 threats) 原生 CLI 0.314ms / 0.736ms。
 - `cargo test` 69 passed；diff_rollout / diff_rollout_bridge 仍 PASS；wasm32 release 构建通过（7b 接线时再发布 wasm）。
+
+## 二十、第七波 7b：v68 全量刷新改走存储轨迹增量评分（已完成接线）
+
+- `VantageRustBridge` v3 新增 `rescoreNodes`（ABI v3，平铺缓冲区）；`VantageSandbox` v30 新增 `adapter.rescoreTankSamples`。
+- `VantageTree` v70：`refreshFusedLayer` 先尝试 Rust 增量层刷新；仅当 Rust 物理开关开启、非弹簧绳、节点已有有效 `rolloutSamples` 时使用，失败/不支持回退原 `scorePaths`。v68 全量语义不变。
+- 新差分 `diff_rescore_bridge.js`：真实 wasm 桥 + 真实 sandbox，逐帧分数 1e-9、总分 1e-9、deathFrame 精确、warm 持久一致、弹簧绳预期回退。
+- 版本：sandbox v30 / bridge v3 / tree v70 / testbench v54；wasm 已重编（~174KB，ABI v3）。
+- 实测 Node VM：`rescoreTankSamples` 9节点×76样本×1威胁 约 **2.35ms**，JS 融合重算 约 **17.7ms**（约 7.5 倍）。待浏览器实测 v68 全树刷新效果。
