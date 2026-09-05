@@ -19,7 +19,7 @@ pub const RESCORE_DT: f64 = 0.02;
 pub const DANGER_MARGIN: f64 = 0.15;
 
 /// Maximum number of nodes accepted by the C ABI.
-pub const MAX_RESCORE_NODES: usize = 64;
+pub const MAX_RESCORE_NODES: usize = 512;
 /// Maximum number of stored samples per node (75 frames + 1).
 pub const MAX_RESCORE_SAMPLES: usize = 76;
 /// Maximum number of scored frames per node.

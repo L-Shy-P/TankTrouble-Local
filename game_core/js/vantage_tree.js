@@ -1,6 +1,9 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-05 v72（v68 多层 Rust 重评分合并为一次 WASM 调用）：
+ *   tryRustRescoreBatch 收集所有受影响父层节点后按 512 分块，
+ *   一次/少数几次调用 rescoreTankSamples；失败回退逐层刷新。
  * 2026-09-05 v71（新弹全树重路由增加无损时空粗过滤）：
  *   只对“新弹轨迹 × 节点完整 rollout 包围盒”重叠的节点重评分；
  *   4m 余量覆盖死亡/遮蔽(3.06m)/车道(3.5m)全部影响半径，
@@ -1290,11 +1293,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return { results: results, usedRust: true };
     }
 
-    /** v68：用融合世界重算一父层 stale 候选；返回更新数。 */
-    function refreshFusedLayer(tree, adapter, parent) {
-        if (!tree || !parent || !parent.children || !parent.children.length) return 0;
-        if (!adapter || !VantageScoring || !VantageScoring.scorePaths || !parent.simState) return 0;
-
+    /** v71：收集一父层需要重算的 stale 候选（含无损粗过滤）。 */
+    function collectStaleForLayer(tree, adapter, parent) {
         var stale = [];
         var ops = [];
         var i, c;
@@ -1308,8 +1308,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     pendingFilter.pending) &&
                     !nodePossiblyAffectedByPending(tree, c,
                         pendingFilter.pending, pendingFilter.boxes)) {
-                // v71 无损跳过：新弹在时空粗盒上不可能影响该节点。
-                // 刷新签名，避免下一 tick 重复判定同一节点。
                 c.freshSig = staleNewSig;
                 tree.stats.filteredStaleSkip = (tree.stats.filteredStaleSkip || 0) + 1;
                 continue;
@@ -1317,6 +1315,45 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             stale.push(c);
             ops.push({ name: c.opName || '?', inputs: c.inputs });
         }
+        return { stale: stale, ops: ops };
+    }
+
+    /** v70：把已算好的 results 写回一父层候选节点；返回更新数。 */
+    function applyLayerResults(tree, adapter, parent, stale, results) {
+        if (!results || results.length !== stale.length) return 0;
+        var updated = 0;
+        for (var i = 0; i < stale.length; i++) {
+            var c = stale[i];
+            var r = results[i];
+            if (!r) continue;
+            var oldFd = c.fullDeathFrame;
+            if (r.samples && r.samples.length) c.rolloutSamples = r.samples;
+            applyRolloutScore(tree, c, r);
+            c.scoreCache = null;
+            c.freshSig = nodeWindowSig(adapter, c, tree.threats || []);
+            c.deathAuthority = 'fused';
+            c.dataVersion++;
+            updated++;
+            if (c.fullDeathFrame !== oldFd) {
+                recordStructure(tree, 'death-update-audit',
+                    'n' + c.id + ' fd ' + oldFd + '→' + c.fullDeathFrame);
+                tree.diag.deathAudit = tree.diag.deathAudit || [];
+                tree.diag.deathAudit.push({ t: _timeAcc, detail: 'n' + c.id + ' fd ' + oldFd + '→' + c.fullDeathFrame });
+                if (tree.diag.deathAudit.length > 100) tree.diag.deathAudit.shift();
+            }
+        }
+        if (updated) backpropBest(parent);
+        return updated;
+    }
+
+    /** v68：用融合世界重算一父层 stale 候选；返回更新数。 */
+    function refreshFusedLayer(tree, adapter, parent) {
+        if (!tree || !parent || !parent.children || !parent.children.length) return 0;
+        if (!adapter || !VantageScoring || !VantageScoring.scorePaths || !parent.simState) return 0;
+
+        var collected = collectStaleForLayer(tree, adapter, parent);
+        var stale = collected.stale;
+        var ops = collected.ops;
         if (!stale.length) return 0;
 
         var rustLayer = tryRustRescoreLayer(tree, adapter, stale);
@@ -1337,35 +1374,82 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 results = null;
             }
         }
-        if (!results || results.length !== stale.length) return 0;
-
-        var updated = 0;
-        for (i = 0; i < stale.length; i++) {
-            c = stale[i];
-            var r = results[i];
-            if (!r) continue;
-            var oldFd = c.fullDeathFrame;
-            if (r.samples && r.samples.length) c.rolloutSamples = r.samples;
-            applyRolloutScore(tree, c, r);
-            c.scoreCache = null;
-            c.freshSig = nodeWindowSig(adapter, c, tree.threats || []);
-            c.deathAuthority = 'fused';
-            c.dataVersion++;
-            updated++;
-            if (c.fullDeathFrame !== oldFd) {
-                recordStructure(tree, 'death-update-audit',
-                    'n' + c.id + ' fd ' + oldFd + '→' + c.fullDeathFrame);
-                tree.diag.deathAudit = tree.diag.deathAudit || [];
-                tree.diag.deathAudit.push({ t: _timeAcc, detail: 'n' + c.id + ' fd ' + oldFd + '→' + c.fullDeathFrame });
-                if (tree.diag.deathAudit.length > 100) tree.diag.deathAudit.shift();
-            }
-        }
-        if (updated) backpropBest(parent);
+        var updated = applyLayerResults(tree, adapter, parent, stale, results);
         if (rustLayer) {
             recordStructure(tree, 'rust-rescore-layer',
                 'stale=' + stale.length + ' updated=' + updated);
         }
         return updated;
+    }
+
+    /**
+     * v72：把 v68 全树所有受影响父层合并成一次（或少数几次）
+     * vt_rescore_nodes 调用。
+     */
+    function tryRustRescoreBatch(tree, adapter, parents) {
+        if (!tree || !adapter || typeof adapter.rescoreTankSamples !== 'function') return null;
+        if (tree.cfg && tree.cfg.springRopeEnabled === true) return null;
+        if (!parents || !parents.length) return { used: true, updated: 0 };
+
+        var jobs = [];
+        var allNodes = [];
+        var i, j, k, c, s;
+        for (i = 0; i < parents.length; i++) {
+            var parent = parents[i];
+            if (!parent || parent.invalid || parent.exhausted) continue;
+            var collected = collectStaleForLayer(tree, adapter, parent);
+            if (!collected.stale.length) continue;
+            for (j = 0; j < collected.stale.length; j++) {
+                c = collected.stale[j];
+                if (!c || !Array.isArray(c.rolloutSamples) ||
+                        c.rolloutSamples.length < 2 || c.rolloutSamples.length > 76) {
+                    return null;
+                }
+                for (k = 0; k < c.rolloutSamples.length; k++) {
+                    s = c.rolloutSamples[k];
+                    if (!s || typeof s !== 'object' ||
+                            !isFinite(Number(s.x)) || !isFinite(Number(s.y)) ||
+                            !isFinite(Number(s.rot))) {
+                        return null;
+                    }
+                }
+                allNodes.push({
+                    samples: c.rolloutSamples,
+                    moving: isMovingInputs(c.inputs),
+                    startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
+                    frames: EVAL_FRAMES
+                });
+            }
+            jobs.push({ parent: parent, stale: collected.stale, offset: allNodes.length - collected.stale.length });
+        }
+        if (!jobs.length) return { used: true, updated: 0 };
+
+        var cfg = treeScoringCfg(tree);
+        var threats = tree.threats || [];
+        var allResults = [];
+        var CHUNK = 512;
+        for (var start = 0; start < allNodes.length; start += CHUNK) {
+            var chunk = allNodes.slice(start, start + CHUNK);
+            var chunkResults;
+            try {
+                chunkResults = adapter.rescoreTankSamples(chunk, threats, cfg);
+            } catch (eBatch) {
+                return null;
+            }
+            if (!chunkResults || chunkResults.length !== chunk.length) return null;
+            allResults = allResults.concat(chunkResults);
+        }
+        if (allResults.length !== allNodes.length) return null;
+
+        var updated = 0;
+        for (i = 0; i < jobs.length; i++) {
+            var job = jobs[i];
+            var jobResults = allResults.slice(job.offset, job.offset + job.stale.length);
+            updated += applyLayerResults(tree, adapter, job.parent, job.stale, jobResults);
+        }
+        recordStructure(tree, 'rust-rescore-batch',
+            'parents=' + jobs.length + ' nodes=' + allNodes.length + ' updated=' + updated);
+        return { used: true, updated: updated };
     }
 
     /** v68：当前提交层重评分。只做本层，不做惰性链。 */
@@ -1428,10 +1512,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         })(tree.root);
 
         var rescored = 0, i, p;
-        for (i = 0; i < parents.length; i++) {
-            p = parents[i];
-            if (!p || p.invalid || p.exhausted) continue;
-            rescored += refreshFusedLayer(tree, adapter, p);
+        var rustBatch = tryRustRescoreBatch(tree, adapter, parents);
+        if (rustBatch && rustBatch.used) {
+            rescored = rustBatch.updated;
+        } else {
+            for (i = 0; i < parents.length; i++) {
+                p = parents[i];
+                if (!p || p.invalid || p.exhausted) continue;
+                rescored += refreshFusedLayer(tree, adapter, p);
+            }
         }
 
         // 重新收集活动父层，统一重选 next。
@@ -3977,5 +4066,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v71：v68语义 + 新弹粗过滤 + Rust增量层刷新 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v72：v68语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);

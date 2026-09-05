@@ -450,3 +450,9 @@ C. JS 精确物理 + Rust 树/评分/NN
 - 增删混合安全：只有旧签名与当前签名的差异全部落在 `_pendingThreats` 内才允许跳过；只要存在弹消失（删弹会增分）就回退全量刷新，保证无损。
 - threat/node 粗盒改为逐点遍历，消除采样漏界风险。
 - 目标：双管连发时每颗新弹只触碰其弹道附近的少量节点，打破“刷新工作随新弹累积”的尖峰。
+
+## 二十三、第七波 7d：v68 多层合并为一次 WASM 调用
+
+- `vt_rescore_nodes` node 上限 64→512；bridge v5 / testbench v55。
+- Tree v72 新增 `tryRustRescoreBatch`：先收集全树所有受影响父层的 stale 节点，按 512 分块，一次/少数几次调用 `adapter.rescoreTankSamples`，再把结果按父层切回写节点。墙/威胁轨迹拷贝与 JS↔WASM 边界开销从每层一次降为每批一次。
+- 任一节点无效或 Rust 失败时整批回退原逐层刷新，语义与 v68 完全一致。

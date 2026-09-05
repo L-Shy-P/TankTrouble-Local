@@ -227,7 +227,7 @@ pub extern "C" fn vt_rollout_batch(
 /// Flat-buffer incremental rescore + death-verification ABI (v3).
 ///
 /// See `rescore.rs` for the pure struct definitions.  All geometry is `f64`.
-/// Fixed limits: nodes <= 64, samples per node <= 76, scored frames <= 75,
+/// Fixed limits: nodes <= 512, samples per node <= 76, scored frames <= 75,
 /// threats <= 64, track/path points per threat <= 4096, walls <= 1024.
 ///
 /// The tank trajectories are NOT re-simulated: `samples_x/y/rot` are the

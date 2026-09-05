@@ -80,7 +80,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=4';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=5';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -462,7 +462,7 @@
                 }
 
                 var nodes = input.nodes;
-                if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 64) {
+                if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 512) {
                     throw badInput('nodes must be an array of 1..64 entries');
                 }
 
@@ -1163,6 +1163,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v4: v3 ABI + 256-bullet and 0-radius laser support, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v5: v3 ABI + 512-node rescore batching, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);

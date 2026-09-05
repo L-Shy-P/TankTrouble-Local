@@ -1485,7 +1485,7 @@
             rescoreTankSamples: function(nodes, threats, cfg) {
                 if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
                 if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
-                if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 64) return null;
+                if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 512) return null;
                 if (!Array.isArray(threats)) return null;
 
                 var fc = getFusedWorld(gameController, aiId);
