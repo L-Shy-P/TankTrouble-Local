@@ -10,6 +10,11 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
+ * 2026-09-05 v53（Rust 物理预测实验开关）：
+ *   state.exp.rustPhysics 默认 false；面板实验区新增“Rust物理”；
+ *   开启时初始化 VantageRustBridge 并调用
+ *   VantageSandbox.setRustPhysicsEnabled(true)，树 rollouts 可走
+ *   vt_rollout_batch 预测；关闭时回退 JS 融合世界。
  * 2026-09-05 v52（Rust 最小决策实验开关）：
  *   state.exp.rustMinimal 默认 false；面板实验区新增“Rust最小”；
  *   开启时 VantageTree.setRustMinimalEnabled(true) 并初始化
@@ -50,7 +55,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v52';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v53';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -99,7 +104,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2024,6 +2029,7 @@
             '<label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-lane"> 车道压分(轨迹评分)</label> ' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-springRope"> 弹簧绳</label> ' +
             '<label style="cursor:pointer;color:#89b4fa;margin-left:8px"><input type="checkbox" data-act="exp-rustMinimal"> Rust最小</label> ' +
+            '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-rustPhysics"> Rust物理</label> ' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
         _expCtrl = {
@@ -2032,6 +2038,7 @@
             lane: expRow.querySelector('[data-act="exp-lane"]'),
             springRope: expRow.querySelector('[data-act="exp-springRope"]'),
             rustMinimal: expRow.querySelector('[data-act="exp-rustMinimal"]'),
+            rustPhysics: expRow.querySelector('[data-act="exp-rustPhysics"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
         };
@@ -2169,7 +2176,7 @@
             state.exp.springRope = srcEl.checked;
             if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
         if (typeof VantageTree !== 'undefined') VantageTree.setRustMinimalEnabled(state.exp.rustMinimal);
-        if (state.exp.rustMinimal && typeof VantageRustBridge !== 'undefined') {
+        if ((state.exp.rustMinimal || state.exp.rustPhysics) && typeof VantageRustBridge !== 'undefined') {
             VantageRustBridge.init().catch(function(e) { console.warn('[Testbench] Rust init:', e); });
         }
             if (state.paused) { runNineOps(); renderViz(); }
@@ -2180,7 +2187,21 @@
         if (act === 'exp-rustMinimal') {
             state.exp.rustMinimal = srcEl.checked;
             if (typeof VantageTree !== 'undefined') VantageTree.setRustMinimalEnabled(state.exp.rustMinimal);
-            if (state.exp.rustMinimal && typeof VantageRustBridge !== 'undefined') {
+            if ((state.exp.rustMinimal || state.exp.rustPhysics) && typeof VantageRustBridge !== 'undefined') {
+                VantageRustBridge.init().catch(function(e) {
+                    console.warn('[Testbench] VantageRustBridge init failed:', e);
+                });
+            }
+            updatePanel();
+            return;
+        }
+        // —— v53 Rust 物理预测开关（配合 VantageSandbox v28 / Rust ABI v2）——
+        if (act === 'exp-rustPhysics') {
+            state.exp.rustPhysics = srcEl.checked;
+            if (typeof VantageSandbox !== 'undefined') {
+                try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhys) {}
+            }
+            if (state.exp.rustPhysics && typeof VantageRustBridge !== 'undefined') {
                 VantageRustBridge.init().catch(function(e) {
                     console.warn('[Testbench] VantageRustBridge init failed:', e);
                 });
@@ -2427,9 +2448,13 @@
         if (_expCtrl.lane && _expCtrl.lane.checked !== state.exp.lane) _expCtrl.lane.checked = state.exp.lane;
         if (_expCtrl.springRope && _expCtrl.springRope.checked !== state.exp.springRope) _expCtrl.springRope.checked = state.exp.springRope;
         if (_expCtrl.rustMinimal && _expCtrl.rustMinimal.checked !== state.exp.rustMinimal) _expCtrl.rustMinimal.checked = state.exp.rustMinimal;
+        if (_expCtrl.rustPhysics && _expCtrl.rustPhysics.checked !== state.exp.rustPhysics) _expCtrl.rustPhysics.checked = state.exp.rustPhysics;
         // v47/v49：UI 与树配置保持一致；初始化/同步时都同步一次。
         if (typeof VantageTree !== 'undefined') VantageTree.setLaneEnabled(state.exp.lane);
         if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
+        if (typeof VantageSandbox !== 'undefined') {
+            try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
+        }
         if (_expCtrl.slider && parseInt(_expCtrl.slider.value, 10) !== state.exp.evalFrames) {
             _expCtrl.slider.value = String(state.exp.evalFrames);
         }
@@ -2868,6 +2893,15 @@
         try { VantageTree.setLaneEnabled(state.exp.lane); } catch (eLaneInit) {}
         try { VantageTree.setSpringRopeEnabled(state.exp.springRope); } catch (eSpringInit) {}
         try { VantageTree.setRustMinimalEnabled(state.exp.rustMinimal); } catch (eRustMinInit) {}
+    }
+    // v53：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
+    if (typeof VantageSandbox !== 'undefined') {
+        try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysInit) {}
+    }
+    if ((state.exp.rustMinimal || state.exp.rustPhysics) && typeof VantageRustBridge !== 'undefined') {
+        VantageRustBridge.init().catch(function(e) {
+            console.warn('[Testbench] VantageRustBridge init failed:', e);
+        });
     }
 
     console.log('[Testbench] Vantage 调试工作台 ' + TB_VERSION +

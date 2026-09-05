@@ -403,3 +403,11 @@ C. JS 精确物理 + Rust 树/评分/NN
 - `rollout_trace.rs` + `diff_rollout.js`：在 Node vm 中加载真实 Box2D/Constants/B2DUtils/ai_tactics/vantage_sandbox，与真实 `adapter.simulateTankBatch` 逐 op、逐帧、逐 deathFrame 对比，7 个场景（含持久 warm-start 和旋转坦克撞底墙）位置 1e-9、角度 1e-9、死亡帧完全一致。
 - 踩坑：JS `b2TimeOfImpact` 在 separation<=totalRadius 分支的目标值是 `0.02 * totalRadius`，不是 `0.02 * separation`；Rust 首版抄错导致旋转坦克撞墙场景最大误差 7.5e-6m。已修正并新增单元回归测试。
 - `cargo test` 60 passed；`node rust/diff_box2d.js`、`node rust/diff_rollout.js` PASS；wasm32 release 构建通过。
+
+## 十七、第六波 6b：Rust 物理 opt-in 接入游戏（已完成核心接线）
+
+- `VantageRustBridge.rolloutBatch` 封装 `vt_rollout_batch`（单块内存、8 字节对齐、输出视图调用后重建；cacheId 由 aiId FNV-1a 生成）。
+- `VantageSandbox` v28：`setRustPhysicsEnabled(true)` 后 `adapter.simulateTankBatch` 优先走 Rust；先调用 0 帧 `simulateFusedBatch` 复用游戏真实子弹放置/槽位逻辑，墙多边形取自融合世界缓存，Rust 只做预测；失败/无效一律回退 JS 融合世界。
+- 试验工作台 v53 新增“Rust物理”复选框（默认关）；index.html 版本号同步（sandbox v28 / bridge v2 / testbench v53）；wasm 已重编（28KB→124KB）。
+- 新增 `diff_rollout_bridge.js`：真实 vm 加载 sandbox+wasm，对同一场次分别走 JS 融合世界与 Rust opt-in 路径，9op×76 样本 + 死亡帧逐项对比，含第二次持久 warm 调用，位置/角度 1e-9 PASS。
+- 验证：cargo test 60 passed；diff_box2d / diff_rollout / diff_rollout_bridge 全部 PASS；node --check 通过；wasm32 release 构建通过。

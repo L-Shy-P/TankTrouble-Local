@@ -30,6 +30,9 @@
  * 2026-08-23 v27（弹道模拟提前停）：
  *   simulateBulletTracks 在所有被模拟子弹都已 active=false 后直接 break，
  *   不再空转 Box2D Step；混弹时由寿命最长的弹决定继续。
+ * 2026-09-05 v28（Rust 融合 rollouts opt-in）：
+ *   VantageSandbox.setRustPhysicsEnabled(true) 后，adapter.simulateTankBatch
+ *   优先走 vt_rollout_batch（ABI v2）预测；JS 融合世界仍是死亡权威与回退。
  * 2026-08-23 v24（恢复单世界融合死亡权威：共享子弹 + 传感器 + CCD）：
  *   融合世界重新放入子弹体，子弹半径从真实 projectile fixture 读取；
  *   tGlobal=0 用真实位姿/速度，tGlobal>0 从 track/path 取位姿并差分取速度；
@@ -559,6 +562,9 @@
     // 速度，子弹半径从真实 projectile fixture 读取。bullet-only 轨迹世界
     // 仍保留，只用于轨迹/威胁/车道查询。
     var FUSED_ENABLED = true;
+    // v28：Rust 融合 rollouts 为 opt-in 物理预测，默认关闭；JS 融合世界仍是
+    // 死亡权威与回退路径。Rust 只做预测，不在任何地方改判真实死亡。
+    var RUST_PHYSICS_ENABLED = false;
 
     function setFusedEnabled(v) {
         FUSED_ENABLED = !!v;
@@ -567,6 +573,14 @@
 
     function fusedEnabled() {
         return FUSED_ENABLED;
+    }
+
+    function setRustPhysicsEnabled(v) {
+        RUST_PHYSICS_ENABLED = !!v;
+    }
+
+    function rustPhysicsEnabled() {
+        return RUST_PHYSICS_ENABLED;
     }
 
     /** 复制一个同形状的夹具形状（传感器夹具与原始夹具完全同形）。 */
@@ -644,6 +658,34 @@
             Box2D.Common.Math.b2Vec2.Make(0, 0), true);
         B2DUtils.createMaze(world, maze);
 
+        // v28：为 Rust 融合 rollouts 提取墙多边形。本 Box2D 修订的 body/
+        // fixture 链表是前插的，所以收集后 reverse 回创建顺序（与
+        // diff_rollout.js 的 extractWallPolygons 完全一致）。
+        var wallShapes = [];
+        var wallBody = world.GetBodyList();
+        while (wallBody) {
+            var wallFixture = wallBody.GetFixtureList();
+            while (wallFixture) {
+                var wfd = wallFixture.GetFilterData();
+                if ((wfd.categoryBits & Constants.COLLISION_CATEGORIES.MAZE) !== 0) {
+                    var wshape = wallFixture.GetShape();
+                    if (wshape && wshape.m_vertexCount &&
+                            (typeof wshape.GetType !== 'function' ||
+                             wshape.GetType() === Box2D.Collision.Shapes.b2Shape.e_polygonShape)) {
+                        var verts = [];
+                        for (var wvi = 0; wvi < wshape.m_vertexCount; wvi++) {
+                            var wv = wshape.m_vertices[wvi];
+                            verts.push({ x: wv.x, y: wv.y });
+                        }
+                        wallShapes.push({ verts: verts });
+                    }
+                }
+                wallFixture = wallFixture.GetNext();
+            }
+            wallBody = wallBody.GetNext();
+        }
+        wallShapes.reverse();
+
         var candidates = [];
         for (var i = 0; i < OPERATIONS.length; i++) {
             candidates.push(createFusedCandidateBody(world, me, i));
@@ -654,7 +696,8 @@
             world: world,
             candidates: candidates,
             bulletSlots: [],
-            round: 0
+            round: 0,
+            wallShapes: wallShapes
         };
         return _fusedCache;
     }
@@ -694,6 +737,151 @@
                 fc.bulletSlots[i].body.SetActive(false);
             }
         }
+    }
+
+    /**
+     * v28：把 aiId 哈希成 32 位无符号整数，作为 Rust 持久融合世界缓存键。
+     * FNV-1a。
+     */
+    function hashAiIdForRustCache(aiId) {
+        var h = 0x811c9dc5;
+        var s = String(aiId);
+        for (var i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h = (h * 0x01000193) >>> 0;
+        }
+        return h >>> 0;
+    }
+
+    /**
+     * v28：与 simulateFusedBatch 完全一致的速度/角速度计算，但只借用 me
+     * 实例计算一轮，不写候选体。锁定坦克 => 速度与角速度都为 0。
+     */
+    function computeRustOperationSpeeds(me, operations, locked) {
+        var speeds = [];
+        var rotationSpeeds = [];
+        var snapFwd = me.forward, snapBack = me.back,
+            snapLeft = me.left, snapRight = me.right,
+            snapSpeed = me.speed, snapRotSpd = me.rotationSpeed;
+
+        for (var i = 0; i < operations.length; i++) {
+            me.forward = !!operations[i].inputs.forward;
+            me.back = !!operations[i].inputs.back;
+            me.left = !!operations[i].inputs.left;
+            me.right = !!operations[i].inputs.right;
+            if (locked) {
+                speeds.push(0);
+                rotationSpeeds.push(0);
+            } else {
+                if (typeof me._computeSpeed === 'function') {
+                    me._computeSpeed();
+                } else {
+                    me.speed = (me.forward ? 15.95 : 0) + (me.back ? -12.8 : 0);
+                }
+                if (typeof me._computeRotationSpeed === 'function') {
+                    me._computeRotationSpeed();
+                } else {
+                    me.rotationSpeed = (me.left ? -5.0 : 0) + (me.right ? 5.0 : 0);
+                }
+                speeds.push(me.speed);
+                rotationSpeeds.push(me.rotationSpeed);
+            }
+        }
+
+        me.forward = snapFwd; me.back = snapBack;
+        me.left = snapLeft; me.right = snapRight;
+        me.speed = snapSpeed; me.rotationSpeed = snapRotSpd;
+
+        return { speeds: speeds, rotationSpeeds: rotationSpeeds };
+    }
+
+    /**
+     * v28：Rust 融合 rollouts 批量预测。仅当试验开关、融合世界、Rust 桥
+     * 都就绪且 durationFrames <= 75 时启用。先调用 simulateFusedBatch(0帧)
+     * 复用游戏真实的子弹放置/槽位逻辑（只记录起点，不 Step 世界），再把
+     * 墙多边形/起点/操作速度/子弹输入交给 vt_rollout_batch。
+     */
+    function simulateRustBatch(gameController, aiId, operations, durationFrames, opt) {
+        if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
+        if (durationFrames > 75) return null;
+        if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
+
+        var fc = getFusedWorld(gameController, aiId);
+        if (!fc) return null;
+
+        var fused = simulateFusedBatch(gameController, aiId, operations, 0, opt);
+        if (!fused || fused.length !== operations.length) return null;
+
+        var me = gameController.getTank(aiId);
+        if (!me || !me.getB2DBody || !me.getB2DBody()) return null;
+
+        var bullets = [];
+        for (var bi = 0; bi < fc.bulletSlots.length; bi++) {
+            var slot = fc.bulletSlots[bi];
+            if (slot.lastRound !== fc.round || !slot.body || !slot.body.IsActive() || !slot.active) continue;
+            var bpos = slot.body.GetPosition();
+            var bvel = slot.body.GetLinearVelocity();
+            bullets.push({
+                x: bpos.x,
+                y: bpos.y,
+                vx: bvel.x,
+                vy: bvel.y,
+                radius: slot.radius,
+                lifeLeft: slot.lifeLeft,
+                active: true
+            });
+        }
+
+        var opCalc = computeRustOperationSpeeds(me, operations, !!me.locked);
+        var rustOps = [];
+        for (var oi = 0; oi < operations.length; oi++) {
+            rustOps.push({
+                speed: opCalc.speeds[oi],
+                rotationSpeed: opCalc.rotationSpeeds[oi]
+            });
+        }
+
+        var bridgeResult;
+        try {
+            bridgeResult = global.VantageRustBridge.rolloutBatch({
+                cacheId: hashAiIdForRustCache(aiId),
+                startPose: opt.startPose,
+                ops: rustOps,
+                walls: fc.wallShapes,
+                bullets: bullets,
+                frames: durationFrames
+            });
+        } catch (eBridge) {
+            console.warn('[VantageSandbox] Rust 物理预测调用失败，回退融合世界:', eBridge);
+            return null;
+        }
+
+        if (bridgeResult.ok !== true || !bridgeResult.samples ||
+                bridgeResult.samples.length !== operations.length ||
+                !bridgeResult.dead || !bridgeResult.deathFrame ||
+                bridgeResult.dead.length !== operations.length ||
+                bridgeResult.deathFrame.length !== operations.length) {
+            console.warn('[VantageSandbox] Rust 物理预测结果无效，回退融合世界');
+            return null;
+        }
+        for (var si = 0; si < bridgeResult.samples.length; si++) {
+            if (!bridgeResult.samples[si] ||
+                    bridgeResult.samples[si].length !== durationFrames + 1) {
+                console.warn('[VantageSandbox] Rust 物理预测样本数不匹配，回退融合世界');
+                return null;
+            }
+        }
+
+        return bridgeResult.samples.map(function (samples, idx) {
+            return {
+                samples: samples.map(function (s, frame) {
+                    return { t: frame * 0.02, x: s.x, y: s.y, rot: s.rot };
+                }),
+                hitWall: false,
+                dead: !!bridgeResult.dead[idx],
+                deathFrame: bridgeResult.deathFrame[idx]
+            };
+        });
     }
 
     /**
@@ -1264,6 +1452,14 @@
             simulateTankBatch: function(state, operations, durationFrames, opt) {
                 opt = opt || {};
                 if (!opt.startPose) opt.startPose = state;
+                if (RUST_PHYSICS_ENABLED) {
+                    try {
+                        var rustBatch = simulateRustBatch(gameController, aiId, operations, durationFrames, opt);
+                        if (rustBatch) return rustBatch;
+                    } catch (eRust) {
+                        console.warn('[VantageSandbox] Rust 物理预测失败，回退融合世界:', eRust);
+                    }
+                }
                 return simulateFusedBatch(gameController, aiId, operations, durationFrames, opt);
             },
 
@@ -1431,9 +1627,11 @@
         OPERATIONS: OPERATIONS,
         buildConstants: buildConstants,
         fusedEnabled: fusedEnabled,
-        setFusedEnabled: setFusedEnabled
+        setFusedEnabled: setFusedEnabled,
+        rustPhysicsEnabled: rustPhysicsEnabled,
+        setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v27：弹道模拟提前停 + 融合死亡权威 + done/停用弹排除）');
+    console.log('[Vantage Sandbox] 模块已加载（v28：Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
 
 })(typeof window !== 'undefined' ? window : this);
