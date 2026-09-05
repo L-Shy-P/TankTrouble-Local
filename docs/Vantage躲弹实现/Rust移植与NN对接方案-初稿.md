@@ -298,3 +298,25 @@ NN 的“死亡判断”不是权威，游戏融合世界才是。
 - NN 如何处理树的全部工作，单独成下一份设计讨论。
 - 第一阶段已完成：vantage_core v1（version/wall rects/sweep danger frames/WASM/JS bridge）。
 
+
+## 十一、全移植实施计划（无 NN，2026-09-05）
+
+分三波，禁止跨波提前改接口：
+
+1. **Rust 评分/几何核心**
+   - 遮蔽角精确解析、车道压分、弹簧绳墙距、单帧评分；
+   - 对照 JS `vantage_scoring.js` 做数值测试。
+2. **Rust 预测树**
+   - Node/Tree、probeSegment、9 候选、next、subtreeBest、
+     commit、grow、retreat、reserve/reuse；
+   - 用固定 rollout 快照做确定性测试。
+3. **无 NN AI 跑通 + 游戏对接**
+   - Rust headless 决策循环；
+   - JS 桥只负责输入快照/输出决策；
+   - 死亡权威仍由 JS 融合世界确认。
+
+原则：
+- Rust 不实现第二套物理；
+- Rust 不做精确死亡判定；
+- 每个模块必须有与 JS 行为一致的测试；
+- JS 现有逻辑在全部替换完成前保持可回退。

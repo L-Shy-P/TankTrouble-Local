@@ -5,10 +5,111 @@
 
 #![allow(clippy::missing_safety_doc)]
 
+pub mod scoring;
+
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
     1
+}
+
+/// Axis-aligned wall rectangle, same coordinate and shape as the C ABI
+/// `vt_build_wall_rects` output records.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rect {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
+impl Rect {
+    pub fn new(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
+        Self {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
+    }
+}
+
+/// Internal wall-rectangle builder shared by the C ABI and `scoring`.
+///
+/// Generates rectangles in exactly the order `vt_build_wall_rects` has always
+/// emitted them: top walls, left walls (i outer, j inner), then bottom boundary
+/// (last row, i ascending), then right boundary (last column, j ascending).
+pub(crate) fn build_wall_rects_vec(
+    tiles: &[u8],
+    width: u32,
+    height: u32,
+    tile_size: f32,
+    wall_width: f32,
+) -> Vec<Rect> {
+    let hw = wall_width * 0.5;
+    let height_u = height as usize;
+    let mut rects = Vec::new();
+
+    let mut i = 0u32;
+    while i < width {
+        let mut j = 0u32;
+        while j < height {
+            let idx = (i as usize * height_u + j as usize) * 3;
+
+            if tiles[idx + 1] == 1 {
+                rects.push(Rect::new(
+                    i as f32 * tile_size - hw,
+                    j as f32 * tile_size - hw,
+                    (i + 1) as f32 * tile_size + hw,
+                    j as f32 * tile_size + hw,
+                ));
+            }
+            if tiles[idx + 2] == 1 {
+                rects.push(Rect::new(
+                    i as f32 * tile_size - hw,
+                    j as f32 * tile_size - hw,
+                    i as f32 * tile_size + hw,
+                    (j + 1) as f32 * tile_size + hw,
+                ));
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+
+    // Bottom boundary (last row): floor tiles generate an outer rect.
+    let last_j = height - 1;
+    i = 0;
+    while i < width {
+        let idx = (i as usize * height_u + last_j as usize) * 3;
+        if tiles[idx] == 1 {
+            rects.push(Rect::new(
+                i as f32 * tile_size - hw,
+                height as f32 * tile_size - hw,
+                (i + 1) as f32 * tile_size + hw,
+                height as f32 * tile_size + hw,
+            ));
+        }
+        i += 1;
+    }
+
+    // Right boundary (last column): floor tiles generate an outer rect.
+    let last_i = width - 1;
+    let mut j = 0u32;
+    while j < height {
+        let idx = (last_i as usize * height_u + j as usize) * 3;
+        if tiles[idx] == 1 {
+            rects.push(Rect::new(
+                width as f32 * tile_size - hw,
+                j as f32 * tile_size - hw,
+                width as f32 * tile_size + hw,
+                (j + 1) as f32 * tile_size + hw,
+            ));
+        }
+        j += 1;
+    }
+
+    rects
 }
 
 /// Build wall rectangles from maze tile data.
@@ -40,111 +141,24 @@ pub extern "C" fn vt_build_wall_rects(
         return 0;
     }
 
-    let hw = wall_width * 0.5;
-    let height_u = height as usize;
-    let mut count: u64 = 0;
+    let tiles_slice = unsafe { std::slice::from_raw_parts(tiles, total_cells as usize) };
+    let rects = build_wall_rects_vec(tiles_slice, width, height, tile_size, wall_width);
 
-    // Writing helper: saturates at out_capacity, but keeps counting so the
-    // return value is min(total, out_capacity).
-    unsafe fn write_rect(
-        out: *mut f32,
-        out_capacity: u32,
-        count: u64,
-        min_x: f32,
-        min_y: f32,
-        max_x: f32,
-        max_y: f32,
-    ) {
-        if count < out_capacity as u64 {
-            let base = out.add(count as usize * 4);
-            *base = min_x;
-            *base.add(1) = min_y;
-            *base.add(2) = max_x;
-            *base.add(3) = max_y;
+    let write_count = (rects.len() as u64).min(out_capacity as u64) as usize;
+    for (idx, rect) in rects.iter().take(write_count).enumerate() {
+        let base = unsafe { out.add(idx * 4) };
+        unsafe {
+            *base = rect.min_x;
+            *base.add(1) = rect.min_y;
+            *base.add(2) = rect.max_x;
+            *base.add(3) = rect.max_y;
         }
     }
 
-    unsafe {
-        let mut i = 0u32;
-        while i < width {
-            let mut j = 0u32;
-            while j < height {
-                let idx = (i as usize * height_u + j as usize) * 3;
-
-                if *tiles.add(idx + 1) == 1 {
-                    write_rect(
-                        out,
-                        out_capacity,
-                        count,
-                        i as f32 * tile_size - hw,
-                        j as f32 * tile_size - hw,
-                        (i + 1) as f32 * tile_size + hw,
-                        j as f32 * tile_size + hw,
-                    );
-                    count += 1;
-                }
-                if *tiles.add(idx + 2) == 1 {
-                    write_rect(
-                        out,
-                        out_capacity,
-                        count,
-                        i as f32 * tile_size - hw,
-                        j as f32 * tile_size - hw,
-                        i as f32 * tile_size + hw,
-                        (j + 1) as f32 * tile_size + hw,
-                    );
-                    count += 1;
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-
-        // Bottom boundary (last row): floor tiles generate an outer rect.
-        let last_j = height - 1;
-        i = 0;
-        while i < width {
-            let idx = (i as usize * height_u + last_j as usize) * 3;
-            if *tiles.add(idx) == 1 {
-                write_rect(
-                    out,
-                    out_capacity,
-                    count,
-                    i as f32 * tile_size - hw,
-                    height as f32 * tile_size - hw,
-                    (i + 1) as f32 * tile_size + hw,
-                    height as f32 * tile_size + hw,
-                );
-                count += 1;
-            }
-            i += 1;
-        }
-
-        // Right boundary (last column): floor tiles generate an outer rect.
-        let last_i = width - 1;
-        let mut j = 0u32;
-        while j < height {
-            let idx = (last_i as usize * height_u + j as usize) * 3;
-            if *tiles.add(idx) == 1 {
-                write_rect(
-                    out,
-                    out_capacity,
-                    count,
-                    width as f32 * tile_size - hw,
-                    j as f32 * tile_size - hw,
-                    width as f32 * tile_size + hw,
-                    (j + 1) as f32 * tile_size + hw,
-                );
-                count += 1;
-            }
-            j += 1;
-        }
-    }
-
-    if count > out_capacity as u64 {
+    if rects.len() as u64 > out_capacity as u64 {
         out_capacity
     } else {
-        count as u32
+        rects.len() as u32
     }
 }
 
