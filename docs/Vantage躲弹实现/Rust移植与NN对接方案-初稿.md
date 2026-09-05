@@ -384,4 +384,6 @@ C. JS 精确物理 + Rust 树/评分/NN
 黄金数据来源：`game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js`（游戏同款 Box2D JS）。
 差分测试：同一场景分别由 JS Box2D 与 Rust Box2D 跑 75 帧，逐帧比较位置/角度。
 
-结果：`node rust/diff_box2d.js` → **75/75 帧位置误差 0.0、角度误差 0.0，DIFF TEST PASSED**。
+结果：`node rust/diff_box2d.js` 自由/无碰撞场景 **75/75 帧位置误差 0.0、角度误差 0.0，DIFF TEST PASSED**。
+
+注意：当前差分场景未发生碰撞。子代理额外自测矩形撞墙场景，因未实现 `SolveTOI/CCD`，撞击帧附近最大位置误差约 0.0475m。要达到碰撞轨迹 1e-6 级，必须补 `b2TimeOfImpact / GJK / b2SeparationFunction / SolveTOI`。
