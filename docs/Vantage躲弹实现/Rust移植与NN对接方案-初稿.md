@@ -411,3 +411,10 @@ C. JS 精确物理 + Rust 树/评分/NN
 - 试验工作台 v53 新增“Rust物理”复选框（默认关）；index.html 版本号同步（sandbox v28 / bridge v2 / testbench v53）；wasm 已重编（28KB→124KB）。
 - 新增 `diff_rollout_bridge.js`：真实 vm 加载 sandbox+wasm，对同一场次分别走 JS 融合世界与 Rust opt-in 路径，9op×76 样本 + 死亡帧逐项对比，含第二次持久 warm 调用，位置/角度 1e-9 PASS。
 - 验证：cargo test 60 passed；diff_box2d / diff_rollout / diff_rollout_bridge 全部 PASS；node --check 通过；wasm32 release 构建通过。
+
+## 十八、第六波 6b 修复：融合世界此前其实一直被静默禁用
+
+- 实测报错 `shape.GetVertex is not a function`。游戏 Box2D 的 `b2PolygonShape` 只有 `GetVertices()/GetVertexCount()`，`cloneFusedShape` 误用 `GetVertex()`。
+- 该异常被 `scorePaths` 的 try/catch 吞掉后回退单路径静态检测，因此 JS 融合世界实际上长期没有生效；Rust 路径把它暴露出来。
+- v29 修复：clone 多边形改用 `GetVertices()`；`diff_rollout.js` / `diff_rollout_bridge.js` 移除 GetVertex polyfill，防止测试掩盖真实接口问题。
+- 修复后 diff_rollout / diff_rollout_bridge 仍 1e-9 PASS。注意：这会让 JS 融合世界真正参与全树重路由，v68 的性能尖峰会比之前更真实，下一步必须撤 v68。

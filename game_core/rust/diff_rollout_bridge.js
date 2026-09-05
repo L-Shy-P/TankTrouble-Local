@@ -40,14 +40,6 @@ function loadSandbox() {
   const Box2D = sandbox.Box2D;
   if (!Box2D) throw new Error('Box2D was not defined after loading the JS file');
 
-  // The browser game also has local_patch.js, which supplies the polygon
-  // shape GetVertex helper used by VantageSandbox.cloneFusedShape. This
-  // Box2D revision only has GetVertices/GetVertexCount on b2PolygonShape.
-  const b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
-  if (b2PolygonShape && !b2PolygonShape.prototype.GetVertex) {
-    b2PolygonShape.prototype.GetVertex = function (i) { return this.m_vertices[i]; };
-  }
-
   // b. Minimal Classy stub (plain object factory).
   function makeClass() {
     const C = {};

@@ -30,6 +30,8 @@
  * 2026-08-23 v27（弹道模拟提前停）：
  *   simulateBulletTracks 在所有被模拟子弹都已 active=false 后直接 break，
  *   不再空转 Box2D Step；混弹时由寿命最长的弹决定继续。
+ * 2026-09-05 v29（修复 cloneFusedShape 多边形接口：GetVertices，不是 GetVertex；
+ *   该异常此前被 scorePaths 静默吞掉，导致融合世界实际从未生效）：
  * 2026-09-05 v28（Rust 融合 rollouts opt-in）：
  *   VantageSandbox.setRustPhysicsEnabled(true) 后，adapter.simulateTankBatch
  *   优先走 vt_rollout_batch（ABI v2）预测；JS 融合世界仍是死亡权威与回退。
@@ -593,10 +595,16 @@
             return cs;
         }
         if (st === Box2D.Collision.Shapes.b2Shape.e_polygonShape) {
+            // 本 Box2D 修订的 b2PolygonShape 只有 GetVertices()/GetVertexCount()，
+            // 没有 GetVertex()。必须用游戏真实接口，不能依赖 local_patch 之类的
+            // 替身补丁（v29：此前融合世界一直在此抛错并被 scorePaths 吞掉回退）。
             var verts = [];
-            var n = shape.GetVertexCount();
+            var rawVerts = (typeof shape.GetVertices === 'function')
+                ? shape.GetVertices()
+                : shape.m_vertices;
+            var n = rawVerts ? rawVerts.length : shape.GetVertexCount();
             for (var vi = 0; vi < n; vi++) {
-                var v = shape.GetVertex(vi);
+                var v = rawVerts[vi];
                 verts.push(Box2D.Common.Math.b2Vec2.Make(v.x, v.y));
             }
             return new Box2D.Collision.Shapes.b2PolygonShape.AsArray(verts);
@@ -1632,6 +1640,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v28：Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
+    console.log('[Vantage Sandbox] 模块已加载（v29：修复多边形 clone 接口 + Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
 
 })(typeof window !== 'undefined' ? window : this);
