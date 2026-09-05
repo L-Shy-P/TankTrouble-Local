@@ -418,3 +418,13 @@ C. JS 精确物理 + Rust 树/评分/NN
 - 该异常被 `scorePaths` 的 try/catch 吞掉后回退单路径静态检测，因此 JS 融合世界实际上长期没有生效；Rust 路径把它暴露出来。
 - v29 修复：clone 多边形改用 `GetVertices()`；`diff_rollout.js` / `diff_rollout_bridge.js` 移除 GetVertex polyfill，防止测试掩盖真实接口问题。
 - 修复后 diff_rollout / diff_rollout_bridge 仍 1e-9 PASS。注意：这会让 JS 融合世界真正参与全树重路由，v68 的性能尖峰会比之前更真实，下一步必须撤 v68。
+
+## 十九、第七波 7a：增量重评分 + 死亡验证核心（Rust 侧已完成）
+
+- 新模块 `rescore.rs` + `vt_rescore_nodes`（ABI v3）：输入节点已有 `rolloutSamples` 与新旧威胁 track/path，输出逐帧分数、总分、deathFrame、verifiedFrames。**坦克轨迹不再重跑**。
+- 评分精确复刻 JS：track/path 查询语义、遮蔽角 `scoreFrameAlive`、车道惩罚、stuck 惩罚、死亡帧截断；弹簧绳显式返回 unsupported（JS 回退），不做静默降级。
+- 危险粗筛：保守 segment-segment 包络过滤，无假阴性；无危险帧时死亡验证 0 次 world.Step。
+- 死亡验证：独立单候选融合世界（墙+实体+传感器+子弹），按 cacheId+墙签名持久 warm-start，只对 danger 帧逐帧 Step(0.02,10,10) 并扫描 sensor×PROJECTILE。
+- `diff_rescore.js` 7 场景全 PASS（逐帧分数 1e-9、total 1e-9、deathFrame 精确、warm 持久一致、spring unsupported 预期）。
+- 性能：9 nodes×76 samples×(1/8 threats) 原生 CLI 0.314ms / 0.736ms。
+- `cargo test` 69 passed；diff_rollout / diff_rollout_bridge 仍 PASS；wasm32 release 构建通过（7b 接线时再发布 wasm）。

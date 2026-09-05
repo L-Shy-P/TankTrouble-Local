@@ -117,13 +117,17 @@ pub struct RolloutOutput {
     pub death_frame: Vec<i32>,
 }
 
-struct BulletSlot {
-    body: crate::box2d::BodyId,
-    last_round: u64,
-    radius: f64,
-    initial_speed: f64,
-    life_left: f64,
-    active: bool,
+pub(crate) struct BulletSlot {
+    pub(crate) body: crate::box2d::BodyId,
+    pub(crate) last_round: u64,
+    pub(crate) radius: f64,
+    pub(crate) initial_speed: f64,
+    pub(crate) life_left: f64,
+    pub(crate) active: bool,
+    /// Last placed linear velocity (verification world "only frame k exists"
+    /// fallback keeps the previous direction/speed).
+    pub(crate) last_vx: f64,
+    pub(crate) last_vy: f64,
 }
 
 struct FusedWorld {
@@ -161,7 +165,7 @@ impl RolloutCache {
     }
 }
 
-fn wall_signature(walls: &[WallPoly]) -> Result<Vec<u8>, String> {
+pub(crate) fn wall_signature(walls: &[WallPoly]) -> Result<Vec<u8>, String> {
     let mut serialized: Vec<Vec<u8>> = Vec::with_capacity(walls.len());
     for (wi, wall) in walls.iter().enumerate() {
         if wall.vertices.is_empty() {
@@ -204,6 +208,247 @@ fn turret_vertices() -> Vec<(f64, f64)> {
     let bottom = BULLET_TURRET_OFFSET_Y_M - BULLET_TURRET_HEIGHT_M / 2.0;
     // Exact JS `_createBulletTurretFixtureDefs` vertex order.
     vec![(hw, top), (-hw, top), (-hw, bottom), (hw, bottom)]
+}
+/// Create one fused candidate body (solid fixtures mask=MAZE, sensor fixtures
+/// mask=PROJECTILE), exactly like JS `createFusedCandidateBody`.
+pub(crate) fn create_fused_candidate(
+    world: &mut World,
+    op_index: usize,
+) -> Result<crate::box2d::BodyId, String> {
+    let mut bd = BodyDef::new();
+    bd.body_type = B2_DYNAMIC_BODY;
+    bd.angle = 0.0;
+    bd.linear_damping = 0.0;
+    bd.fixed_rotation = false;
+    bd.active = true;
+    bd.allow_sleep = false;
+    let body = Body::create(world, bd);
+
+    // Base solid fixture (AsBox(1.5, 2.0)).
+    let base_shape = PolygonShape::set_as_box(TANK_WIDTH_M / 2.0, TANK_HEIGHT_M / 2.0);
+    let mut fd = FixtureDef::new();
+    fd.shape = Some(Shape::Polygon(base_shape.clone()));
+    fd.density = 1.0;
+    fd.friction = 0.25;
+    fd.restitution = 0.0;
+    fd.is_sensor = false;
+    fd.category_bits = CATEGORY_TANK;
+    fd.mask_bits = CATEGORY_MAZE;
+    fd.kind = FixtureKind::TankSolid;
+    Body::create_fixture(world, body, fd);
+
+    // Bullet turret solid fixture.
+    let turret_poly = PolygonShape::from_vertices(&turret_vertices())
+        .map_err(|e| format!("turret fixture: {}", e))?;
+    let mut fd = FixtureDef::new();
+    fd.shape = Some(Shape::Polygon(turret_poly.clone()));
+    fd.density = 0.0;
+    fd.friction = 0.25;
+    fd.restitution = 0.0;
+    fd.is_sensor = false;
+    fd.category_bits = CATEGORY_TANK;
+    fd.mask_bits = CATEGORY_MAZE;
+    fd.kind = FixtureKind::TankSolid;
+    Body::create_fixture(world, body, fd);
+
+    // Sensor copies (same shapes, one per original fixture).  JS
+    // `createFusedCandidateBody` walks `GetFixtureList()` after
+    // `createTankBody`, so the fixture list head is the turret; the
+    // sensor creation order is therefore turret-sensor first, then
+    // base-sensor.
+    let mut fd = FixtureDef::new();
+    fd.shape = Some(Shape::Polygon(turret_poly));
+    fd.density = 0.0;
+    fd.friction = 0.0;
+    fd.restitution = 0.0;
+    fd.is_sensor = true;
+    fd.category_bits = CATEGORY_TANK;
+    fd.mask_bits = CATEGORY_PROJECTILE;
+    fd.kind = FixtureKind::TankSensor {
+        op_index: op_index as u8,
+    };
+    Body::create_fixture(world, body, fd);
+
+    let mut fd = FixtureDef::new();
+    fd.shape = Some(Shape::Polygon(base_shape));
+    fd.density = 0.0;
+    fd.friction = 0.0;
+    fd.restitution = 0.0;
+    fd.is_sensor = true;
+    fd.category_bits = CATEGORY_TANK;
+    fd.mask_bits = CATEGORY_PROJECTILE;
+    fd.kind = FixtureKind::TankSensor {
+        op_index: op_index as u8,
+    };
+    Body::create_fixture(world, body, fd);
+
+    Ok(body)
+}
+
+/// Create a projectile body identical to JS `B2DUtils.createProjectileBody`
+/// for the fused batch / verification world.
+pub(crate) fn create_projectile_body(world: &mut World, radius: f64) -> crate::box2d::BodyId {
+    let mut bd = BodyDef::new();
+    bd.body_type = B2_DYNAMIC_BODY;
+    bd.fixed_rotation = true;
+    bd.active = true;
+    bd.linear_damping = 0.0;
+    bd.bullet = true;
+    bd.allow_sleep = true;
+    let body = Body::create(world, bd);
+    let mut fd = FixtureDef::new();
+    fd.shape = Some(Shape::Circle(CircleShape::new(radius)));
+    fd.density = 0.01;
+    fd.friction = 0.0;
+    fd.restitution = 1.0;
+    fd.is_sensor = false;
+    fd.category_bits = CATEGORY_PROJECTILE;
+    fd.mask_bits = BULLET_MASK;
+    fd.kind = FixtureKind::Bullet;
+    Body::create_fixture(world, body, fd);
+    body
+}
+/// Dedicated single-candidate verification world.  Uses the exact same wall
+/// fixtures, fused candidate body and bullet body definitions as the
+/// 9-candidate rollout world, but is never shared with `vt_rollout_batch`.
+pub struct VerificationWorld {
+    pub(crate) world: World,
+    pub(crate) candidate: crate::box2d::BodyId,
+    pub(crate) bullet_slots: Vec<BulletSlot>,
+    pub(crate) round: u64,
+}
+
+impl VerificationWorld {
+    pub(crate) fn build(walls: &[WallPoly]) -> Result<Self, String> {
+        if walls.len() > MAX_WALLS {
+            return Err(format!(
+                "wall count {} exceeds max {}",
+                walls.len(),
+                MAX_WALLS
+            ));
+        }
+        let mut world = World::new((0.0, 0.0), true);
+
+        for (wi, wall) in walls.iter().enumerate() {
+            if wall.vertices.len() < 3 || wall.vertices.len() > MAX_WALL_VERTS {
+                return Err(format!(
+                    "wall {} has {} vertices (expected 3..{})",
+                    wi,
+                    wall.vertices.len(),
+                    MAX_WALL_VERTS
+                ));
+            }
+            let poly = PolygonShape::from_vertices(&wall.vertices)
+                .map_err(|e| format!("wall {}: {}", wi, e))?;
+            let mut bd = BodyDef::new();
+            bd.body_type = crate::box2d::B2_STATIC_BODY;
+            let body = Body::create(&mut world, bd);
+            let mut fd = FixtureDef::new();
+            fd.shape = Some(Shape::Polygon(poly));
+            fd.density = 0.0;
+            fd.friction = 0.05;
+            fd.restitution = 0.0;
+            fd.is_sensor = false;
+            fd.category_bits = CATEGORY_MAZE;
+            fd.mask_bits = WALL_MASK;
+            fd.kind = FixtureKind::Wall;
+            Body::create_fixture(&mut world, body, fd);
+        }
+
+        let candidate = create_fused_candidate(&mut world, 0)?;
+
+        Ok(Self {
+            world,
+            candidate,
+            bullet_slots: Vec::new(),
+            round: 0,
+        })
+    }
+
+    pub(crate) fn acquire_bullet_slot(&mut self, radius: f64) -> usize {
+        let round = self.round;
+        for idx in 0..self.bullet_slots.len() {
+            if self.bullet_slots[idx].last_round != round {
+                let old_body = self.bullet_slots[idx].body;
+                let radius_changed = self.bullet_slots[idx].radius != radius;
+                if radius_changed {
+                    self.world.set_active(old_body, false);
+                    let new_body = create_projectile_body(&mut self.world, radius);
+                    self.bullet_slots[idx].body = new_body;
+                    self.bullet_slots[idx].radius = radius;
+                }
+                self.bullet_slots[idx].last_round = round;
+                self.world.set_active(self.bullet_slots[idx].body, true);
+                return idx;
+            }
+        }
+        let body = create_projectile_body(&mut self.world, radius);
+        self.bullet_slots.push(BulletSlot {
+            body,
+            last_round: round,
+            radius,
+            initial_speed: 0.0,
+            life_left: 0.0,
+            active: false,
+            last_vx: 0.0,
+            last_vy: 0.0,
+        });
+        self.world.set_active(body, true);
+        self.bullet_slots.len() - 1
+    }
+
+    pub(crate) fn park_unused_bullets(&mut self) {
+        let round = self.round;
+        for idx in 0..self.bullet_slots.len() {
+            if self.bullet_slots[idx].last_round != round {
+                self.world.set_active(self.bullet_slots[idx].body, false);
+            }
+        }
+    }
+}
+
+/// Process/WASM-lifetime cache for the dedicated single-candidate
+/// verification world, keyed by the exact same wall signature as the rollout
+/// cache.  This world is deliberately separate from [`RolloutCache`] so
+/// verification never disturbs the 9-candidate warm-starting state.
+pub struct VerificationCache {
+    signature: Option<Vec<u8>>,
+    world: Option<VerificationWorld>,
+}
+
+impl Default for VerificationCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VerificationCache {
+    pub fn new() -> Self {
+        Self {
+            signature: None,
+            world: None,
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.signature = None;
+        self.world = None;
+    }
+
+    pub(crate) fn ensure_world(
+        &mut self,
+        walls: &[WallPoly],
+    ) -> Result<&mut VerificationWorld, String> {
+        let sig = wall_signature(walls)?;
+        if self.signature.as_ref() != Some(&sig) {
+            let world = VerificationWorld::build(walls)?;
+            self.signature = Some(sig);
+            self.world = Some(world);
+        }
+        self.world
+            .as_mut()
+            .ok_or_else(|| "verification world missing after rebuild".to_string())
+    }
 }
 
 impl FusedWorld {
@@ -248,74 +493,7 @@ impl FusedWorld {
         // (solid fixtures get mask=MAZE only; sensors get mask=PROJECTILE).
         let mut candidates = Vec::with_capacity(MAX_OPS);
         for op_index in 0..MAX_OPS {
-            let mut bd = BodyDef::new();
-            bd.body_type = B2_DYNAMIC_BODY;
-            bd.angle = 0.0;
-            bd.linear_damping = 0.0;
-            bd.fixed_rotation = false;
-            bd.active = true;
-            bd.allow_sleep = false;
-            let body = Body::create(&mut world, bd);
-
-            // Base solid fixture (AsBox(1.5, 2.0)).
-            let base_shape = PolygonShape::set_as_box(TANK_WIDTH_M / 2.0, TANK_HEIGHT_M / 2.0);
-            let mut fd = FixtureDef::new();
-            fd.shape = Some(Shape::Polygon(base_shape.clone()));
-            fd.density = 1.0;
-            fd.friction = 0.25;
-            fd.restitution = 0.0;
-            fd.is_sensor = false;
-            fd.category_bits = CATEGORY_TANK;
-            fd.mask_bits = CATEGORY_MAZE;
-            fd.kind = FixtureKind::TankSolid;
-            Body::create_fixture(&mut world, body, fd);
-
-            // Bullet turret solid fixture.
-            let turret_poly = PolygonShape::from_vertices(&turret_vertices())
-                .map_err(|e| format!("turret fixture: {}", e))?;
-            let mut fd = FixtureDef::new();
-            fd.shape = Some(Shape::Polygon(turret_poly.clone()));
-            fd.density = 0.0;
-            fd.friction = 0.25;
-            fd.restitution = 0.0;
-            fd.is_sensor = false;
-            fd.category_bits = CATEGORY_TANK;
-            fd.mask_bits = CATEGORY_MAZE;
-            fd.kind = FixtureKind::TankSolid;
-            Body::create_fixture(&mut world, body, fd);
-
-            // Sensor copies (same shapes, one per original fixture).  JS
-            // `createFusedCandidateBody` walks `GetFixtureList()` after
-            // `createTankBody`, so the fixture list head is the turret; the
-            // sensor creation order is therefore turret-sensor first, then
-            // base-sensor.
-            let mut fd = FixtureDef::new();
-            fd.shape = Some(Shape::Polygon(turret_poly));
-            fd.density = 0.0;
-            fd.friction = 0.0;
-            fd.restitution = 0.0;
-            fd.is_sensor = true;
-            fd.category_bits = CATEGORY_TANK;
-            fd.mask_bits = CATEGORY_PROJECTILE;
-            fd.kind = FixtureKind::TankSensor {
-                op_index: op_index as u8,
-            };
-            Body::create_fixture(&mut world, body, fd);
-
-            let mut fd = FixtureDef::new();
-            fd.shape = Some(Shape::Polygon(base_shape));
-            fd.density = 0.0;
-            fd.friction = 0.0;
-            fd.restitution = 0.0;
-            fd.is_sensor = true;
-            fd.category_bits = CATEGORY_TANK;
-            fd.mask_bits = CATEGORY_PROJECTILE;
-            fd.kind = FixtureKind::TankSensor {
-                op_index: op_index as u8,
-            };
-            Body::create_fixture(&mut world, body, fd);
-
-            candidates.push(body);
+            candidates.push(create_fused_candidate(&mut world, op_index)?);
         }
 
         Ok(Self {
@@ -327,25 +505,7 @@ impl FusedWorld {
     }
 
     fn create_bullet_body(&mut self, radius: f64) -> crate::box2d::BodyId {
-        let mut bd = BodyDef::new();
-        bd.body_type = B2_DYNAMIC_BODY;
-        bd.fixed_rotation = true;
-        bd.active = true;
-        bd.linear_damping = 0.0;
-        bd.bullet = true;
-        bd.allow_sleep = true;
-        let body = Body::create(&mut self.world, bd);
-        let mut fd = FixtureDef::new();
-        fd.shape = Some(Shape::Circle(CircleShape::new(radius)));
-        fd.density = 0.01;
-        fd.friction = 0.0;
-        fd.restitution = 1.0;
-        fd.is_sensor = false;
-        fd.category_bits = CATEGORY_PROJECTILE;
-        fd.mask_bits = BULLET_MASK;
-        fd.kind = FixtureKind::Bullet;
-        Body::create_fixture(&mut self.world, body, fd);
-        body
+        create_projectile_body(&mut self.world, radius)
     }
 
     fn acquire_bullet_slot(&mut self, radius: f64) -> usize {
@@ -376,6 +536,8 @@ impl FusedWorld {
             initial_speed: 0.0,
             life_left: 0.0,
             active: false,
+            last_vx: 0.0,
+            last_vy: 0.0,
         });
         self.world.set_active(body, true);
         self.bullet_slots.len() - 1

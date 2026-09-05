@@ -1,12 +1,14 @@
-//! vantage_core: minimal, read-only Rust/WASM sidecar for Vantage dodge logic.
+//! vantage_core: Rust/WASM sidecar for Vantage dodge logic.
 //!
-//! Phase 1 contains only geometry/data helpers. It deliberately contains no NN
-//! and no exact collision/death logic; death authority stays in the JS sandbox.
+//! Contains geometry/scoring helpers, the fused rollout batch, and the
+//! incremental rescore + fused sensor/CCD death-verification core for tree
+//! nodes with already-stored rollout samples.  No NN lives here.
 
 #![allow(clippy::missing_safety_doc)]
 
 pub mod box2d;
 pub mod minimal;
+pub mod rescore;
 pub mod rollout;
 pub mod scoring;
 pub mod tree;
@@ -14,7 +16,7 @@ pub mod tree;
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
-    2
+    3
 }
 
 /// Flat-buffer fused rollout batch ABI.
@@ -214,6 +216,346 @@ pub extern "C" fn vt_rollout_batch(
             out_death_frame_slice[op] = output.death_frame[op];
         }
         1
+    }));
+
+    match result {
+        Ok(v) => v,
+        Err(_) => 0,
+    }
+}
+
+/// Flat-buffer incremental rescore + death-verification ABI (v3).
+///
+/// See `rescore.rs` for the pure struct definitions.  All geometry is `f64`.
+/// Fixed limits: nodes <= 64, samples per node <= 76, scored frames <= 75,
+/// threats <= 64, track/path points per threat <= 4096, walls <= 1024.
+///
+/// The tank trajectories are NOT re-simulated: `samples_x/y/rot` are the
+/// already-stored `rolloutSamples` (node-major, `sample_counts[ni]` samples).
+/// The dedicated verification world is keyed by `cache_id` + wall signature
+/// and is independent from the `vt_rollout_batch` fused world.
+///
+/// Outputs:
+/// - `out_per_frame_scores`: node-major, `node_count * 75` values; frames
+///   beyond a node's actual scored frames are zero-padded.
+/// - `out_total_score`, `out_death_frame`, `out_verified_frames`: one per node.
+/// - `out_ok`: one per node, 1 = ok, 0 = fallback needed (e.g. spring rope
+///   scoring is unsupported by the Rust core).
+///
+/// Returns 1 when the call itself is valid (including the spring-rope
+/// fallback case, where `out_ok` is zeroed), 0 on bad pointers/sizes or an
+/// internal error.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub extern "C" fn vt_rescore_nodes(
+    cache_id: u64,
+    node_count: u32,
+    sample_counts: *const u32,
+    samples_x: *const f64,
+    samples_y: *const f64,
+    samples_rot: *const f64,
+    start_t: *const f64,
+    moving: *const u8,
+    frames: *const u32,
+    wall_vert_counts: *const u32,
+    wall_verts: *const f64,
+    wall_count: u32,
+    threat_count: u32,
+    threat_track_counts: *const u32,
+    track_x: *const f64,
+    track_y: *const f64,
+    track_alive: *const u8,
+    threat_path_counts: *const u32,
+    path_x: *const f64,
+    path_y: *const f64,
+    anchor_offset: *const f64,
+    speed: *const f64,
+    bullet_radius: *const f64,
+    life_left_seconds: *const f64,
+    death_penalty: f64,
+    stuck_penalty: f64,
+    stuck_dist_eps: f64,
+    stuck_rot_eps: f64,
+    lane_penalty_ratio: f64,
+    spring_rope_enabled: u8,
+    out_per_frame_scores: *mut f64,
+    out_total_score: *mut f64,
+    out_death_frame: *mut i32,
+    out_verified_frames: *mut u32,
+    out_ok: *mut u8,
+) -> i32 {
+    use rescore::{
+        RescoreConfig, RescoreNodeInput, RescoreThreatInput, TankPoseLike, ThreatPathPoint,
+        ThreatTrackPoint, MAX_RESCORE_FRAMES, MAX_RESCORE_NODES, MAX_RESCORE_PATH_POINTS,
+        MAX_RESCORE_SAMPLES, MAX_RESCORE_THREATS, MAX_RESCORE_TRACK_POINTS,
+    };
+    use rollout::{VerificationCache, WallPoly, MAX_WALLS};
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if node_count == 0 || node_count > MAX_RESCORE_NODES as u32 {
+            return 0;
+        }
+        if threat_count > MAX_RESCORE_THREATS as u32 {
+            return 0;
+        }
+        if wall_count > MAX_WALLS as u32 {
+            return 0;
+        }
+        if sample_counts.is_null()
+            || samples_x.is_null()
+            || samples_y.is_null()
+            || samples_rot.is_null()
+            || start_t.is_null()
+            || moving.is_null()
+            || frames.is_null()
+            || wall_vert_counts.is_null()
+            || wall_verts.is_null()
+            || out_per_frame_scores.is_null()
+            || out_total_score.is_null()
+            || out_death_frame.is_null()
+            || out_verified_frames.is_null()
+            || out_ok.is_null()
+        {
+            return 0;
+        }
+        if threat_count > 0
+            && (threat_track_counts.is_null()
+                || track_x.is_null()
+                || track_y.is_null()
+                || track_alive.is_null()
+                || threat_path_counts.is_null()
+                || path_x.is_null()
+                || path_y.is_null()
+                || anchor_offset.is_null()
+                || speed.is_null()
+                || bullet_radius.is_null()
+                || life_left_seconds.is_null())
+        {
+            return 0;
+        }
+
+        let node_count_u = node_count as usize;
+        let threat_count_u = threat_count as usize;
+        let wall_count_u = wall_count as usize;
+
+        let sample_counts_slice =
+            unsafe { std::slice::from_raw_parts(sample_counts, node_count_u) };
+        let mut total_samples = 0usize;
+        for &c in sample_counts_slice {
+            if c == 0 || c as usize > MAX_RESCORE_SAMPLES {
+                return 0;
+            }
+            total_samples += c as usize;
+            if total_samples > MAX_RESCORE_NODES * MAX_RESCORE_SAMPLES {
+                return 0;
+            }
+        }
+
+        let frames_slice = unsafe { std::slice::from_raw_parts(frames, node_count_u) };
+        for &f in frames_slice {
+            if f as usize > MAX_RESCORE_FRAMES {
+                return 0;
+            }
+        }
+
+        // Read wall vertex counts and validate before summing.
+        let wall_vert_counts_slice =
+            unsafe { std::slice::from_raw_parts(wall_vert_counts, wall_count_u) };
+        let mut total_wall_verts = 0usize;
+        for &c in wall_vert_counts_slice {
+            if c < 3 || c as usize > 8 {
+                return 0;
+            }
+            total_wall_verts += c as usize;
+            if total_wall_verts > MAX_WALLS * 8 {
+                return 0;
+            }
+        }
+        let wall_verts_slice =
+            unsafe { std::slice::from_raw_parts(wall_verts, total_wall_verts * 2) };
+
+        let samples_x_slice = unsafe { std::slice::from_raw_parts(samples_x, total_samples) };
+        let samples_y_slice = unsafe { std::slice::from_raw_parts(samples_y, total_samples) };
+        let samples_rot_slice = unsafe { std::slice::from_raw_parts(samples_rot, total_samples) };
+        let start_t_slice = unsafe { std::slice::from_raw_parts(start_t, node_count_u) };
+        let moving_slice = unsafe { std::slice::from_raw_parts(moving, node_count_u) };
+
+        let mut walls = Vec::with_capacity(wall_count_u);
+        let mut offset = 0usize;
+        for &vc in wall_vert_counts_slice {
+            let mut verts = Vec::with_capacity(vc as usize);
+            for _ in 0..vc {
+                verts.push((wall_verts_slice[offset], wall_verts_slice[offset + 1]));
+                offset += 2;
+            }
+            walls.push(WallPoly { vertices: verts });
+        }
+
+        let mut nodes = Vec::with_capacity(node_count_u);
+        let mut sample_offset = 0usize;
+        for ni in 0..node_count_u {
+            let sc = sample_counts_slice[ni] as usize;
+            let mut samples = Vec::with_capacity(sc);
+            for _ in 0..sc {
+                samples.push(TankPoseLike::new(
+                    samples_x_slice[sample_offset],
+                    samples_y_slice[sample_offset],
+                    samples_rot_slice[sample_offset],
+                ));
+                sample_offset += 1;
+            }
+            nodes.push(RescoreNodeInput::new(
+                samples,
+                moving_slice[ni] != 0,
+                start_t_slice[ni],
+                frames_slice[ni] as usize,
+            ));
+        }
+
+        let threats = if threat_count_u > 0 {
+            let threat_track_counts_slice =
+                unsafe { std::slice::from_raw_parts(threat_track_counts, threat_count_u) };
+            let threat_path_counts_slice =
+                unsafe { std::slice::from_raw_parts(threat_path_counts, threat_count_u) };
+            let mut total_track = 0usize;
+            let mut total_path = 0usize;
+            for ti in 0..threat_count_u {
+                let tc = threat_track_counts_slice[ti] as usize;
+                let pc = threat_path_counts_slice[ti] as usize;
+                if tc > MAX_RESCORE_TRACK_POINTS || pc > MAX_RESCORE_PATH_POINTS {
+                    return 0;
+                }
+                total_track += tc;
+                total_path += pc;
+                if total_track > MAX_RESCORE_THREATS * MAX_RESCORE_TRACK_POINTS
+                    || total_path > MAX_RESCORE_THREATS * MAX_RESCORE_PATH_POINTS
+                {
+                    return 0;
+                }
+            }
+
+            let track_x_slice = unsafe { std::slice::from_raw_parts(track_x, total_track) };
+            let track_y_slice = unsafe { std::slice::from_raw_parts(track_y, total_track) };
+            let track_alive_slice = unsafe { std::slice::from_raw_parts(track_alive, total_track) };
+            let path_x_slice = unsafe { std::slice::from_raw_parts(path_x, total_path) };
+            let path_y_slice = unsafe { std::slice::from_raw_parts(path_y, total_path) };
+            let anchor_offset_slice =
+                unsafe { std::slice::from_raw_parts(anchor_offset, threat_count_u) };
+            let speed_slice = unsafe { std::slice::from_raw_parts(speed, threat_count_u) };
+            let bullet_radius_slice =
+                unsafe { std::slice::from_raw_parts(bullet_radius, threat_count_u) };
+            let life_left_slice =
+                unsafe { std::slice::from_raw_parts(life_left_seconds, threat_count_u) };
+
+            let mut threats = Vec::with_capacity(threat_count_u);
+            let mut track_offset = 0usize;
+            let mut path_offset = 0usize;
+            for ti in 0..threat_count_u {
+                let tc = threat_track_counts_slice[ti] as usize;
+                let pc = threat_path_counts_slice[ti] as usize;
+                let track = if tc > 0 {
+                    let mut v = Vec::with_capacity(tc);
+                    for j in 0..tc {
+                        v.push(ThreatTrackPoint::new(
+                            track_x_slice[track_offset + j],
+                            track_y_slice[track_offset + j],
+                            track_alive_slice[track_offset + j] != 0,
+                        ));
+                    }
+                    track_offset += tc;
+                    Some(v)
+                } else {
+                    None
+                };
+                let path = if pc > 0 {
+                    let mut v = Vec::with_capacity(pc);
+                    for j in 0..pc {
+                        v.push(ThreatPathPoint::new(
+                            path_x_slice[path_offset + j],
+                            path_y_slice[path_offset + j],
+                        ));
+                    }
+                    path_offset += pc;
+                    Some(v)
+                } else {
+                    None
+                };
+                if bullet_radius_slice[ti] <= 0.0 || bullet_radius_slice[ti].is_nan() {
+                    return 0;
+                }
+                threats.push(RescoreThreatInput {
+                    id: ti as i64,
+                    track,
+                    path,
+                    speed: speed_slice[ti],
+                    anchor_offset: anchor_offset_slice[ti],
+                    bullet_radius: bullet_radius_slice[ti],
+                    life_left_seconds: life_left_slice[ti],
+                });
+            }
+            threats
+        } else {
+            Vec::new()
+        };
+
+        let cfg = RescoreConfig {
+            death_penalty,
+            stuck_penalty,
+            stuck_dist_eps,
+            stuck_rot_eps,
+            lane_penalty_ratio,
+            spring_rope_enabled: spring_rope_enabled != 0,
+        };
+
+        static CACHES: std::sync::OnceLock<
+            std::sync::Mutex<std::collections::HashMap<u64, VerificationCache>>,
+        > = std::sync::OnceLock::new();
+        let mut caches_guard = CACHES
+            .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let cache = caches_guard.entry(cache_id).or_default();
+
+        let per_frame_stride = MAX_RESCORE_FRAMES;
+        let out_pfs_slice = unsafe {
+            std::slice::from_raw_parts_mut(out_per_frame_scores, node_count_u * per_frame_stride)
+        };
+        let out_total_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_total_score, node_count_u) };
+        let out_death_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_death_frame, node_count_u) };
+        let out_verified_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_verified_frames, node_count_u) };
+        let out_ok_slice = unsafe { std::slice::from_raw_parts_mut(out_ok, node_count_u) };
+        out_pfs_slice.fill(0.0);
+        out_total_slice.fill(0.0);
+        out_death_slice.fill(-1);
+        out_verified_slice.fill(0);
+        out_ok_slice.fill(0);
+
+        match rescore::rescore_nodes(cache, &walls, &nodes, &threats, &cfg) {
+            Ok(outputs) => {
+                for (ni, out) in outputs.iter().enumerate() {
+                    let base = ni * per_frame_stride;
+                    for (fi, v) in out.per_frame_scores.iter().enumerate() {
+                        if fi >= per_frame_stride {
+                            break;
+                        }
+                        out_pfs_slice[base + fi] = *v;
+                    }
+                    out_total_slice[ni] = out.total_score;
+                    out_death_slice[ni] = out.death_frame;
+                    out_verified_slice[ni] = out.verified_frames;
+                    out_ok_slice[ni] = 1;
+                }
+                1
+            }
+            Err(rescore::RescoreError::SpringRopeUnsupported) => {
+                // Call is valid; per-node ok=0 signals JS fallback.
+                1
+            }
+            Err(_) => 0,
+        }
     }));
 
     match result {
@@ -567,7 +909,72 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 2);
+        assert_eq!(vt_version(), 3);
+    }
+
+    #[test]
+    fn test_vt_rescore_nodes_single_node_no_threats() {
+        let sample_counts = [3u32];
+        let samples_x = [5.0f64, 5.0, 5.0];
+        let samples_y = [8.0f64, 8.0, 8.0];
+        let samples_rot = [0.0f64; 3];
+        let start_t = [0.0f64];
+        let moving = [0u8];
+        let frames = [2u32];
+        let wall_counts = [0u32];
+        let wall_verts = [0.0f64];
+        let mut out_pfs = vec![0.0f64; 64 * 75];
+        let mut out_total = vec![0.0f64; 64];
+        let mut out_death = vec![0i32; 64];
+        let mut out_verified = vec![0u32; 64];
+        let mut out_ok = vec![0u8; 64];
+
+        let ok = vt_rescore_nodes(
+            0,
+            1,
+            sample_counts.as_ptr(),
+            samples_x.as_ptr(),
+            samples_y.as_ptr(),
+            samples_rot.as_ptr(),
+            start_t.as_ptr(),
+            moving.as_ptr(),
+            frames.as_ptr(),
+            wall_counts.as_ptr(),
+            wall_verts.as_ptr(),
+            0,
+            0,
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0.0,
+            4.0,
+            0.05,
+            0.05,
+            0.0,
+            0,
+            out_pfs.as_mut_ptr(),
+            out_total.as_mut_ptr(),
+            out_death.as_mut_ptr(),
+            out_verified.as_mut_ptr(),
+            out_ok.as_mut_ptr(),
+        );
+
+        assert_eq!(ok, 1);
+        assert_eq!(out_ok[0], 1);
+        assert_eq!(out_death[0], -1);
+        assert_eq!(out_verified[0], 0);
+        assert_eq!(out_pfs[0], 39.47841760435743);
+        assert_eq!(out_pfs[1], 39.47841760435743);
+        assert_eq!(out_total[0], 78.95683520871486);
+        assert_eq!(out_pfs[2], 0.0);
     }
 
     #[test]
