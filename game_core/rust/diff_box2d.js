@@ -10,6 +10,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const { spawnSync } = require('child_process');
@@ -17,7 +18,7 @@ const { spawnSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
 const jsPath = path.join(root, 'js', 'f1a5ef972c273fb89a098cb50b0f22e7.js');
 const crateDir = path.join(root, 'rust', 'vantage_core');
-const scenePath = path.join(root, 'rust', 'diff_scene.json');
+const scenePath = path.join(os.tmpdir(), 'vantage_box2d_scene.json');
 
 // ---------------------------------------------------------------------------
 // Scene definition (must match diff_box2d.js + box2d_trace.rs)
@@ -183,6 +184,12 @@ function main() {
     process.exitCode = 1;
   } else {
     console.log('DIFF TEST PASSED');
+  }
+
+  try {
+    fs.unlinkSync(scenePath);
+  } catch (_) {
+    // The scene temp file is best-effort cleanup only.
   }
 }
 

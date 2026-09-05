@@ -1273,24 +1273,6 @@ impl Body {
         self.xf.position.x = self.sweep.c.x - (r.col1.x * lc.x + r.col2.x * lc.y);
         self.xf.position.y = self.sweep.c.y - (r.col1.y * lc.x + r.col2.y * lc.y);
     }
-
-    pub fn reset_mass_data(&mut self) {
-        self.mass = 0.0;
-        self.inv_mass = 0.0;
-        self.i = 0.0;
-        self.inv_i = 0.0;
-        self.sweep.local_center.set_zero();
-
-        if self.body_type != B2_STATIC_BODY && self.body_type != B2_KINEMATIC_BODY {
-            let mut local_center = Vec2::ZERO;
-            let mut mass = 0.0;
-            let mut inertia = 0.0;
-            // Fixture mass accumulation is done by World::create_fixture because
-            // it needs the fixture shapes.  See `World::reset_body_mass_data`.
-            // (Bodies are always created empty, then fixtures are attached.)
-            let _ = (&mut local_center, &mut mass, &mut inertia);
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1534,6 +1516,7 @@ impl World {
                 inertia += fi;
             }
             if mass > 0.0 {
+                body.mass = mass;
                 body.inv_mass = 1.0 / mass;
                 local_center.x *= body.inv_mass;
                 local_center.y *= body.inv_mass;
@@ -1551,7 +1534,6 @@ impl World {
                 body.i = 0.0;
                 body.inv_i = 0.0;
             }
-            body.mass = mass;
             let old_c = body.sweep.c;
             body.sweep.local_center = local_center;
             body.sweep.c0 = b2_mul_x(&body.xf, &body.sweep.local_center);
