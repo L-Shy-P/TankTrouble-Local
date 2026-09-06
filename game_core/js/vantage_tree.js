@@ -1,6 +1,9 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-05 v74（回退 v73 异步分片；保持 v72 同步批量语义）：
+ *   v73 的“先执行旧节点再后台更新”会浪费根层未来树叉，
+ *   主人判定方向错误，已整体回退。
  * 2026-09-05 v72（v68 多层 Rust 重评分合并为一次 WASM 调用）：
  *   tryRustRescoreBatch 收集所有受影响父层节点后按 512 分块，
  *   一次/少数几次调用 rescoreTankSamples；失败回退逐层刷新。
@@ -4066,5 +4069,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v72：v68语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v74：回退v73异步分片 + v68同步语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);
