@@ -10,7 +10,7 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
- * 2026-09-05 v58（配合桥 v6 / 沙箱 v31 / 树 v75）：
+ * 2026-09-07 v59（配合桥 v8 / 沙箱 v31 / 树 v76）：
  *   Rust vt_rescore_nodes 升级 ABI v4：节点可携带 previousScores，
  *   新弹帧级增量评分；testbench 仅版本号同步。
  * 2026-09-05 v54（Rust 物理开关也启用增量层刷新）：
@@ -62,7 +62,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v58';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v59';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2603,7 +2603,8 @@
                 ' 重建' + tr.stats.rebuilds + ' 回退' + (tr.stats.retreats || 0) +
                 ' 对齐败' + tr.stats.alignFails + '<br>' +
                 '生长 ' + fmt(tr.stats.growMs, 1) + 'ms' +
-                (tr.stats.growSkips ? '（跳' + tr.stats.growSkips + '帧）' : '');
+                (tr.stats.growSkips ? '（跳' + tr.stats.growSkips + '帧）' : '') +
+                (tr.stats.nodeCountFixes ? ' 计数修复' + tr.stats.nodeCountFixes : '');
             if (tr.diag) {
                 var lastDesync = tr.diag.bulletDesyncs.length
                     ? tr.diag.bulletDesyncs[tr.diag.bulletDesyncs.length - 1] : null;

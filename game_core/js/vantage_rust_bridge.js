@@ -80,7 +80,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=7';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=8';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -1214,6 +1214,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v7: v4 ABI + incremental previousScores/isNew, rolloutBatch fixed, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v8: v4 ABI + danger/affected coarse skip blocks, incremental previousScores/isNew, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);

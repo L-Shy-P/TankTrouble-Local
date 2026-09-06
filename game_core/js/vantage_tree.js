@@ -1,6 +1,15 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v76（修复批处理节点计数负数 + Rust 粗筛跨帧跳跃）：
+ *   ① detachChild 幂等：摘除子树时断开内部 parent 链；invalidateDescendants
+ *      对已摘除残留只清理不二次扣数；applyLayerResults 写回前校验节点仍
+ *      挂在当前父层；批量写回后按真实拓扑 recountActiveNodes，杜绝
+ *      nodeCount 被扣成负数、绕过 maxNodes 上限的问题。
+ *   ② Rust danger/affected 粗筛增加 COARSE_BLOCK_FRAMES=16 的时空块跳跃：
+ *      坦克块盒直接使用存储样本（天然包含前进+旋转），威胁块盒覆盖 track
+ *      的取整边界；块盒距离大于安全半径时整块跳过，否则逐帧精确回退。
+ *      路径弹与 lane 开启时保持原精确逐帧路径，确保无损。
  * 2026-09-05 v75（Rust 帧级增量评分 ABI v4）：
  *   tryRustRescoreLayer/Batch 在 onlyPending 且节点已有 perFrameScores 时
  *   传 previousScores 给 adapter.rescoreTankSamples(nodes,threats,cfg,pending)，
@@ -609,7 +618,7 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0 },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0 },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -1120,7 +1129,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         while (node.children.length) {
             var child = node.children[0];
             markInvalid(child);
-            detachChild(tree, child);
+            if (child.parent === node) {
+                detachChild(tree, child);
+            } else {
+                // v76：已被祖先 detach 的残留后代不得二次扣 nodeCount。
+                node.children.shift();
+            }
             removed++;
         }
         return removed;
@@ -1341,11 +1355,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** v70：把已算好的 results 写回一父层候选节点；返回更新数。 */
     function applyLayerResults(tree, adapter, parent, stale, results) {
         if (!results || results.length !== stale.length) return 0;
+        if (!tree || !parent || parent.invalid || !isActiveTreeNode(tree, parent)) return 0;
         var updated = 0;
         for (var i = 0; i < stale.length; i++) {
             var c = stale[i];
             var r = results[i];
-            if (!r) continue;
+            if (!c || !r) continue;
+            // v76：同批写回中，祖先 death-shorten 可能已把后序候选整棵摘除。
+            // 已失效/已脱离当前父层的候选一律跳过，防止二次写回、二次扣数。
+            if (c.invalid || c.parent !== parent || !isActiveTreeNode(tree, c)) continue;
             var oldFd = c.fullDeathFrame;
             if (r.samples && r.samples.length) c.rolloutSamples = r.samples;
             applyRolloutScore(tree, c, r);
@@ -1363,6 +1381,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
         }
         if (updated) backpropBest(parent);
+        if (tree.nodeCount < 0) recountActiveNodes(tree);
         return updated;
     }
 
@@ -1481,6 +1500,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var jobResults = allResults.slice(job.offset, job.offset + job.stale.length);
             updated += applyLayerResults(tree, adapter, job.parent, job.stale, jobResults);
         }
+        // v76：批量写回后强制按真实拓扑重数一次。任何多重摘除/计数漂移
+        // 都在这里被当场纠正，绝不带着错误计数进入下一轮生长调度。
+        recountActiveNodes(tree);
         recordStructure(tree, 'rust-rescore-batch',
             'parents=' + jobs.length + ' nodes=' + allNodes.length + ' updated=' + updated);
         return { used: true, updated: updated };
@@ -1575,6 +1597,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
 
         recomputeSubtreeBestPostOrder(tree);
+        recountActiveNodes(tree);
         recordStructure(tree, 'global-reroute',
             'rescored=' + rescored + ' nextChanged=' + nextChanged);
         return { rescored: rescored, nextChanged: nextChanged };
@@ -1916,17 +1939,77 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var parent = child.parent;
         if (!parent) return;
         var ci = parent.children.indexOf(child);
-        if (ci >= 0) parent.children.splice(ci, 1);
+        if (ci < 0) {
+            // v76：parent 链已经断开/不一致时只清理，绝不递减 nodeCount。
+            child.parent = null;
+            child.parentId = null;
+            return;
+        }
+        parent.children.splice(ci, 1);
         child.parent = null;
         child.parentId = null;
-        // 递减子树计数 + 清 leaves
+        // 递减子树计数 + 清 leaves；同时断开整个被摘除子树的 parent 链，
+        // 让后续重复 detach/invalidate 变成无副作用操作（幂等）。
         (function drop(n) {
             tree.nodeCount--;
+            n.parent = null;
+            n.parentId = null;
             var li = tree.leaves.indexOf(n);
             if (li >= 0) tree.leaves.splice(li, 1);
             for (var j = 0; j < n.children.length; j++) drop(n.children[j]);
         })(child);
         backpropBest(parent);
+    }
+
+    /** v76：节点是否仍挂在当前活动树上（排除 invalid/已摘除）。 */
+    function isActiveTreeNode(tree, n) {
+        if (!tree || !n || n.invalid) return false;
+        if (n === tree.root) return true;
+        var p = n.parent;
+        var guard = 0;
+        var seen = {};
+        while (p) {
+            if (p === tree.root) return true;
+            if (seen[p.id] || ++guard > 200) return false;
+            seen[p.id] = true;
+            p = p.parent;
+        }
+        return false;
+    }
+
+    /** v76：沿真实拓扑重数活动节点并修复 leaves/计数。返回是否发生修复。 */
+    function recountActiveNodes(tree) {
+        if (!tree || !tree.root) return false;
+        var count = 0;
+        var leaves = [];
+        (function rec(n, depth) {
+            if (!n) return;
+            count++;
+            n.depth = depth;
+            if (!n.children.length) {
+                if (n.status !== 'dead') leaves.push(n);
+            } else {
+                for (var j = 0; j < n.children.length; j++) rec(n.children[j], depth + 1);
+            }
+        })(tree.root, 0);
+        var changed = tree.nodeCount !== count || tree.leaves.length !== leaves.length;
+        if (changed) {
+            tree.stats.nodeCountFixes = (tree.stats.nodeCountFixes || 0) + 1;
+            recordStructure(tree, 'node-count-audit',
+                'count=' + count + ' leaves=' + leaves.length +
+                ' oldCount=' + tree.nodeCount + ' oldLeaves=' + tree.leaves.length);
+        }
+        tree.nodeCount = count;
+        tree.leaves = leaves;
+        return changed;
+    }
+
+    /** v76：负数计数保护——防止负数绕过 maxNodes 上限继续生长。 */
+    function ensureNonNegativeNodeCount(tree) {
+        if (tree && tree.root && tree.nodeCount < 0) {
+            return recountActiveNodes(tree);
+        }
+        return false;
     }
 
     /** v30：每次 commit 后记录节点数曲线（正常坍缩下应为锯齿上行）。 */
@@ -2369,6 +2452,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      */
     function attachResults(tree, leaf, results, threats) {
         if (!leaf || leaf.status === 'dead' || leaf.children.length > 0) return 0;
+        ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount + results.length > tree.cfg.maxNodes) return 0;
         var ecfg = effectiveExpandCfg(tree);
         tree.diag.lastEffTMin = ecfg.tMin;
@@ -2404,6 +2488,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     function expandLeaf(tree, leaf, adapter, threats) {
         if (!leaf || leaf.status === 'dead' || leaf.children.length > 0) return 0;
+        ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount + 9 > tree.cfg.maxNodes) return 0;
         var results = rolloutNine(tree, adapter, leaf.simState, threats);
         return attachResults(tree, leaf, results, threats);
@@ -2652,6 +2737,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      */
     function startExpandSlice(tree, leaf, adapter, threats) {
         if (!leaf || leaf.status === 'dead' || leaf.children.length > 0) return false;
+        ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount + 9 > tree.cfg.maxNodes) return false;
         tree._expandSlice = {
             leaf: leaf,
@@ -2816,6 +2902,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             recordGrowStall(tree, 'grow-no-threat', 'no-threats');
             return;
         }
+        ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount >= tree.cfg.maxNodes) {
             recordGrowStall(tree, 'grow-maxnodes', 'nodeCount=' + tree.nodeCount);
             return;
@@ -4101,5 +4188,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v75：Rust帧级增量评分 + v68同步语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v76：节点计数修复 + Rust粗筛跨帧跳跃 + v75帧级增量评分 + v68同步语义 + Rust批量层刷新）');
 })(typeof window !== 'undefined' ? window : this);

@@ -30,6 +30,12 @@ pub const MAX_RESCORE_THREATS: usize = 64;
 pub const MAX_RESCORE_TRACK_POINTS: usize = 4096;
 pub const MAX_RESCORE_PATH_POINTS: usize = 4096;
 
+/// Frames per coarse skip block for the danger pre-filter and the
+/// incremental affected-frame mask.  Blocks are conservative: tank boxes
+/// cover the actual stored sample positions (including rotation), and threat
+/// boxes cover the actual track points inside the same time interval.
+pub const COARSE_BLOCK_FRAMES: usize = 16;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TankPoseLike {
     pub x: f64,
@@ -420,6 +426,90 @@ impl TailBox {
         };
         (dx * dx + dy * dy).sqrt()
     }
+
+    fn distance_to_box(&self, other: &TailBox) -> f64 {
+        if self.is_empty() || other.is_empty() {
+            return f64::INFINITY;
+        }
+        let dx = if self.min_x > other.max_x {
+            self.min_x - other.max_x
+        } else if other.min_x > self.max_x {
+            other.min_x - self.max_x
+        } else {
+            0.0
+        };
+        let dy = if self.min_y > other.max_y {
+            self.min_y - other.max_y
+        } else if other.min_y > self.max_y {
+            other.min_y - self.max_y
+        } else {
+            0.0
+        };
+        (dx * dx + dy * dy).sqrt()
+    }
+}
+
+/// A conservative chunk of one threat's track, expressed in threat-local
+/// `q` time (`q = t_sec - anchor_offset`).  Only frames whose `q` falls inside
+/// `[q0, q1]` may be skipped with this chunk.
+#[derive(Clone, Copy, Debug)]
+struct ThreatCoarseChunk {
+    q0: f64,
+    q1: f64,
+    bbox: TailBox,
+}
+
+impl ThreatCoarseChunk {
+    fn overlaps(&self, q0: f64, q1: f64) -> bool {
+        self.q0 <= q1 && q0 <= self.q1
+    }
+}
+
+/// Build conservative `[q, bbox]` chunks from a threat's Box2D track.
+///
+/// The chunk time range is widened by half a frame on each side because
+/// `threat_bullet_pos` rounds `q / RESCORE_DT` to the nearest track index.
+/// Dead track points are excluded from the bbox (they have no bullet
+/// position, so they can never create danger).  If a chunk has no alive
+/// points it is dropped; frames in that chunk fall back to exact checking.
+fn threat_track_coarse_chunks(
+    th: &RescoreThreatInput,
+    block_frames: usize,
+) -> Vec<ThreatCoarseChunk> {
+    let track = match &th.track {
+        Some(t) if !t.is_empty() => t,
+        _ => return Vec::new(),
+    };
+    let dt = RESCORE_DT;
+    let half = dt * 0.5;
+    let mut chunks = Vec::new();
+    let mut s = 0usize;
+    while s < track.len() {
+        let e = (s + block_frames).min(track.len() - 1);
+        // Cover the half-frame rounding window: `threat_bullet_pos` uses
+        // `round(q / dt)`, so q at e+0.5 may already map to e+1.  Including
+        // the next alive track point makes the bbox conservative for that
+        // boundary case.
+        let e_cover = (e + 1).min(track.len() - 1);
+        let mut bbox = TailBox::new_inf();
+        for p in &track[s..=e_cover] {
+            if p.alive {
+                bbox.add(p.x, p.y);
+            }
+        }
+        if !bbox.is_empty() {
+            chunks.push(ThreatCoarseChunk {
+                q0: (s as f64 * dt - half).max(0.0),
+                q1: e_cover as f64 * dt + half,
+                bbox,
+            });
+        }
+        if e == track.len() - 1 {
+            break;
+        }
+        s = e + 1;
+    }
+    chunks
 }
 
 /// Conservative bounding box of a threat's remaining track/path points from
@@ -507,40 +597,38 @@ pub fn new_threat_affected_frames(
 
     let geo = scoring::exact_geom();
     let occ_radius = geo.r_semi + 0.25;
-    let occ_radius2 = occ_radius * occ_radius;
     let lane_radius = 3.5 + geo.geo_offset + 0.25;
 
-    for i in 1..=max_i {
-        let s = node.samples[i];
-        let t_sec = node.start_t + i as f64 * RESCORE_DT;
-        let gx = s.x + s.rot.sin() * geo.geo_offset;
-        let gy = s.y - s.rot.cos() * geo.geo_offset;
+    // Lane pressure uses the threat's whole future tail from every frame, so
+    // a per-chunk bbox can never be conservative enough.  Keep the exact
+    // per-frame path whenever lane scoring is enabled.
+    if cfg.lane_penalty_ratio > 0.0 {
+        for i in 1..=max_i {
+            let s = node.samples[i];
+            let t_sec = node.start_t + i as f64 * RESCORE_DT;
+            let gx = s.x + s.rot.sin() * geo.geo_offset;
+            let gy = s.y - s.rot.cos() * geo.geo_offset;
 
-        for th in threats.iter().filter(|th| th.is_new) {
-            match threat_bullet_pos(th, t_sec) {
-                Some(p) => {
-                    let dx = p.x - gx;
-                    let dy = p.y - gy;
-                    if dx * dx + dy * dy <= occ_radius2 {
-                        mask[i] = true;
-                        break;
-                    }
-                }
-                None => {
-                    // Bullet position is not defined at this exact frame.
-                    // If the remaining tail can still reach the node within
-                    // this frame horizon, mark the frame anyway (false
-                    // positives are fine, false negatives are not).
-                    if let Some(tb) = threat_tail_box_from(th, t_sec) {
-                        if tb.distance_to_point(gx, gy) <= occ_radius {
+            for th in threats.iter().filter(|th| th.is_new) {
+                match threat_bullet_pos(th, t_sec) {
+                    Some(p) => {
+                        let dx = p.x - gx;
+                        let dy = p.y - gy;
+                        if dx * dx + dy * dy <= occ_radius * occ_radius {
                             mask[i] = true;
                             break;
                         }
                     }
+                    None => {
+                        if let Some(tb) = threat_tail_box_from(th, t_sec) {
+                            if tb.distance_to_point(gx, gy) <= occ_radius {
+                                mask[i] = true;
+                                break;
+                            }
+                        }
+                    }
                 }
-            }
 
-            if cfg.lane_penalty_ratio > 0.0 {
                 if let Some(tb) = threat_tail_box_from(th, t_sec) {
                     if tb.distance_to_point(gx, gy) <= lane_radius {
                         mask[i] = true;
@@ -548,6 +636,105 @@ pub fn new_threat_affected_frames(
                     }
                 }
             }
+        }
+        return mask;
+    }
+
+    // Lane is disabled: occlusion impact is instantaneous.  Coarse-skip
+    // whole 16-frame blocks whose actual geometric-center box is farther than
+    // occ_radius from the new threat's track chunk.  The tank center box is
+    // built from the stored samples, so forward + rotation motion is included
+    // exactly.  Path-only threats fall back to the exact per-frame path.
+    for th in threats.iter().filter(|th| th.is_new) {
+        let chunks = threat_track_coarse_chunks(th, COARSE_BLOCK_FRAMES);
+        if chunks.is_empty() {
+            for i in 1..=max_i {
+                if mask[i] {
+                    continue;
+                }
+                let s = node.samples[i];
+                let t_sec = node.start_t + i as f64 * RESCORE_DT;
+                let gx = s.x + s.rot.sin() * geo.geo_offset;
+                let gy = s.y - s.rot.cos() * geo.geo_offset;
+                match threat_bullet_pos(th, t_sec) {
+                    Some(p) => {
+                        let dx = p.x - gx;
+                        let dy = p.y - gy;
+                        if dx * dx + dy * dy <= occ_radius * occ_radius {
+                            mask[i] = true;
+                        }
+                    }
+                    None => {
+                        if let Some(tb) = threat_tail_box_from(th, t_sec) {
+                            if tb.distance_to_point(gx, gy) <= occ_radius {
+                                mask[i] = true;
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        let mut block_start = 1usize;
+        while block_start <= max_i {
+            let block_end = (block_start + COARSE_BLOCK_FRAMES - 1).min(max_i);
+            let mut center_box = TailBox::new_inf();
+            for k in block_start..=block_end {
+                let sk = node.samples[k];
+                center_box.add(
+                    sk.x + sk.rot.sin() * geo.geo_offset,
+                    sk.y - sk.rot.cos() * geo.geo_offset,
+                );
+            }
+
+            let q0 = node.start_t + block_start as f64 * RESCORE_DT - th.anchor_offset;
+            let q1 = node.start_t + block_end as f64 * RESCORE_DT - th.anchor_offset;
+
+            let mut any_overlap = false;
+            let mut all_overlap_far = true;
+            for ch in &chunks {
+                if !ch.overlaps(q0, q1) {
+                    continue;
+                }
+                any_overlap = true;
+                if ch.bbox.distance_to_box(&center_box) <= occ_radius {
+                    all_overlap_far = false;
+                    break;
+                }
+            }
+
+            if any_overlap && all_overlap_far {
+                block_start = block_end + 1;
+                continue;
+            }
+
+            for i in block_start..=block_end {
+                if mask[i] {
+                    continue;
+                }
+                let s = node.samples[i];
+                let t_sec = node.start_t + i as f64 * RESCORE_DT;
+                let gx = s.x + s.rot.sin() * geo.geo_offset;
+                let gy = s.y - s.rot.cos() * geo.geo_offset;
+                match threat_bullet_pos(th, t_sec) {
+                    Some(p) => {
+                        let dx = p.x - gx;
+                        let dy = p.y - gy;
+                        if dx * dx + dy * dy <= occ_radius * occ_radius {
+                            mask[i] = true;
+                        }
+                    }
+                    None => {
+                        if let Some(tb) = threat_tail_box_from(th, t_sec) {
+                            if tb.distance_to_point(gx, gy) <= occ_radius {
+                                mask[i] = true;
+                            }
+                        }
+                    }
+                }
+            }
+            block_start = block_end + 1;
         }
     }
 
@@ -733,47 +920,110 @@ pub fn danger_frames_for_samples(
     start_t: f64,
     dt: f64,
 ) -> Vec<u8> {
+    let chunks: Vec<Vec<ThreatCoarseChunk>> = threats
+        .iter()
+        .map(|th| threat_track_coarse_chunks(th, COARSE_BLOCK_FRAMES))
+        .collect();
+    danger_frames_for_samples_with_chunks(samples, threats, start_t, dt, &chunks)
+}
+
+fn exact_danger_at_frame(
+    samples: &[TankPoseLike],
+    th: &RescoreThreatInput,
+    i: usize,
+    start_t: f64,
+    dt: f64,
+    radius: f64,
+) -> bool {
+    let tank_prev = samples[i - 1];
+    let tank_cur = samples[i];
+    let t_prev = start_t + (i - 1) as f64 * dt;
+    let t_cur = start_t + i as f64 * dt;
+    let p_prev = threat_bullet_pos(th, t_prev);
+    let p_cur = threat_bullet_pos(th, t_cur);
+    if p_prev.is_none() && p_cur.is_none() {
+        return false;
+    }
+
+    let min_dist = match (p_prev, p_cur) {
+        (Some(a), Some(b)) => segment_segment_distance(tank_prev.point(), tank_cur.point(), a, b),
+        (Some(a), None) | (None, Some(a)) => {
+            point_segment_distance(a, tank_prev.point(), tank_cur.point())
+        }
+        (None, None) => return false,
+    };
+
+    min_dist <= radius
+}
+
+fn danger_frames_for_samples_with_chunks(
+    samples: &[TankPoseLike],
+    threats: &[RescoreThreatInput],
+    start_t: f64,
+    dt: f64,
+    chunks_by_threat: &[Vec<ThreatCoarseChunk>],
+) -> Vec<u8> {
     let mut flags = vec![0u8; samples.len()];
     if samples.len() < 2 {
         return flags;
     }
-
+    let max_i = samples.len() - 1;
     let geo = scoring::exact_geom();
     let envelope = geo.r_semi;
 
-    for i in 1..samples.len() {
-        let tank_prev = samples[i - 1];
-        let tank_cur = samples[i];
-        let t_prev = start_t + (i - 1) as f64 * dt;
-        let t_cur = start_t + i as f64 * dt;
-        let mut danger = false;
+    for (ti, th) in threats.iter().enumerate() {
+        let chunks = &chunks_by_threat[ti];
+        let radius = envelope + th.bullet_radius + DANGER_MARGIN + th.speed.max(0.0) * dt;
 
-        for th in threats {
-            let p_prev = threat_bullet_pos(th, t_prev);
-            let p_cur = threat_bullet_pos(th, t_cur);
-            if p_prev.is_none() && p_cur.is_none() {
+        if chunks.is_empty() {
+            // No Box2D track (or all-dead track): exact per-frame fallback.
+            for i in 1..=max_i {
+                if flags[i] == 0 && exact_danger_at_frame(samples, th, i, start_t, dt, radius) {
+                    flags[i] = 1;
+                }
+            }
+            continue;
+        }
+
+        let mut block_start = 1usize;
+        while block_start <= max_i {
+            let block_end = (block_start + COARSE_BLOCK_FRAMES - 1).min(max_i);
+            // Danger frame i uses samples[i-1] and samples[i]; the tank box
+            // therefore spans samples[block_start-1 ..= block_end].  This
+            // exactly covers forward + rotation paths stored in the samples.
+            let mut tank_box = TailBox::new_inf();
+            for k in (block_start - 1)..=block_end {
+                tank_box.add(samples[k].x, samples[k].y);
+            }
+
+            let q0 = start_t + (block_start as f64 - 1.0) * dt - th.anchor_offset;
+            let q1 = start_t + block_end as f64 * dt - th.anchor_offset;
+
+            let mut any_overlap = false;
+            let mut all_overlap_far = true;
+            for ch in chunks {
+                if !ch.overlaps(q0, q1) {
+                    continue;
+                }
+                any_overlap = true;
+                if ch.bbox.distance_to_box(&tank_box) <= radius {
+                    all_overlap_far = false;
+                    break;
+                }
+            }
+
+            if any_overlap && all_overlap_far {
+                // Whole block is safe for this threat.
+                block_start = block_end + 1;
                 continue;
             }
 
-            let radius = envelope + th.bullet_radius + DANGER_MARGIN + th.speed.max(0.0) * dt;
-            let min_dist = match (p_prev, p_cur) {
-                (Some(a), Some(b)) => {
-                    segment_segment_distance(tank_prev.point(), tank_cur.point(), a, b)
+            for i in block_start..=block_end {
+                if flags[i] == 0 && exact_danger_at_frame(samples, th, i, start_t, dt, radius) {
+                    flags[i] = 1;
                 }
-                (Some(a), None) | (None, Some(a)) => {
-                    point_segment_distance(a, tank_prev.point(), tank_cur.point())
-                }
-                (None, None) => continue,
-            };
-
-            if min_dist <= radius {
-                danger = true;
-                break;
             }
-        }
-
-        if danger {
-            flags[i] = 1;
+            block_start = block_end + 1;
         }
     }
 
@@ -965,11 +1215,25 @@ pub fn rescore_nodes(
         return Err(RescoreError::SpringRopeUnsupported);
     }
 
+    // Precompute coarse track chunks once for the whole batch.  The danger
+    // pre-filter can then skip far-away frame blocks without re-reading the
+    // track per node.  (Path-only threats simply fall back to exact checks.)
+    let danger_chunks: Vec<Vec<ThreatCoarseChunk>> = threats
+        .iter()
+        .map(|th| threat_track_coarse_chunks(th, COARSE_BLOCK_FRAMES))
+        .collect();
+
     let mut outputs = Vec::with_capacity(nodes.len());
     for node in nodes {
         let mut out = score_stored_node(node, threats, cfg, threat_bullet_pos)?;
         if node.scored_frames() > 0 && node.samples.len() >= 2 {
-            let danger = danger_frames_for_node(node, threats);
+            let danger = danger_frames_for_samples_with_chunks(
+                &node.samples,
+                threats,
+                node.start_t,
+                RESCORE_DT,
+                &danger_chunks,
+            );
             let (death_frame, verified_frames) =
                 verify_death_for_node(cache, walls, node, threats, &danger)?;
             if death_frame > 0 {
@@ -1437,6 +1701,125 @@ mod tests {
         assert_eq!(incremental.per_frame_scores, full.per_frame_scores);
         assert_eq!(incremental.total_score, full.total_score);
         assert_eq!(incremental.death_frame, full.death_frame);
+    }
+
+    #[test]
+    fn danger_coarse_skip_matches_exact_for_moving_rotating_tank() {
+        let samples: Vec<TankPoseLike> = (0..=75)
+            .map(|i| {
+                let t = i as f64 * RESCORE_DT;
+                TankPoseLike::new(
+                    5.0 + t * 0.4,
+                    8.0 + (t * 2.1).sin() * 1.5,
+                    (t * 1.7).cos() * 0.8,
+                )
+            })
+            .collect();
+        let node = RescoreNodeInput::new(samples.clone(), true, 0.0, 75);
+
+        let tracks = vec![
+            // Far away parallel track: should be all zero and is the exact
+            // case the coarse skip is designed to accelerate.
+            (0..=100)
+                .map(|i| ThreatTrackPoint::new(20.0 + i as f64 * 0.05, 30.0, true))
+                .collect::<Vec<_>>(),
+            // Crossing track that intersects the moving/rotating node path.
+            (0..=100)
+                .map(|i| ThreatTrackPoint::new(4.0 + i as f64 * 0.03, 8.5, true))
+                .collect::<Vec<_>>(),
+            // Track that dies halfway through.
+            (0..=100)
+                .map(|i| ThreatTrackPoint::new(4.0 + i as f64 * 0.03, 8.0, i < 40))
+                .collect::<Vec<_>>(),
+        ];
+
+        let geo = scoring::exact_geom();
+        let envelope = geo.r_semi;
+        for track in tracks {
+            let th = RescoreThreatInput::new(1)
+                .with_track(track)
+                .with_bullet_radius(0.25)
+                .with_life_left_seconds(10.0);
+            let chunks = threat_track_coarse_chunks(&th, COARSE_BLOCK_FRAMES);
+            let coarse = danger_frames_for_samples_with_chunks(
+                &samples,
+                &[th.clone()],
+                node.start_t,
+                RESCORE_DT,
+                &[chunks],
+            );
+            let radius =
+                envelope + th.bullet_radius + DANGER_MARGIN + th.speed.max(0.0) * RESCORE_DT;
+            let mut brute = vec![0u8; samples.len()];
+            for i in 1..samples.len() {
+                if exact_danger_at_frame(&samples, &th, i, node.start_t, RESCORE_DT, radius) {
+                    brute[i] = 1;
+                }
+            }
+            assert_eq!(coarse, brute, "coarse danger differs from exact");
+        }
+    }
+
+    #[test]
+    fn affected_mask_coarse_skip_matches_exact_for_occlusion_only() {
+        let samples: Vec<TankPoseLike> = (0..=75)
+            .map(|i| {
+                let t = i as f64 * RESCORE_DT;
+                TankPoseLike::new(
+                    5.0 + t * 0.4,
+                    8.0 + (t * 2.1).sin() * 1.5,
+                    (t * 1.7).cos() * 0.8,
+                )
+            })
+            .collect();
+        let node = RescoreNodeInput::new(samples, true, 0.0, 75);
+        let geo = scoring::exact_geom();
+        let occ_radius = geo.r_semi + 0.25;
+
+        let tracks = vec![
+            (0..=100)
+                .map(|i| ThreatTrackPoint::new(20.0 + i as f64 * 0.05, 30.0, true))
+                .collect::<Vec<_>>(),
+            (0..=100)
+                .map(|i| ThreatTrackPoint::new(4.0 + i as f64 * 0.03, 8.5, true))
+                .collect::<Vec<_>>(),
+            (0..=100)
+                .map(|i| ThreatTrackPoint::new(4.0 + i as f64 * 0.03, 8.0, i < 40))
+                .collect::<Vec<_>>(),
+        ];
+
+        for track in tracks {
+            let th = RescoreThreatInput::new(1)
+                .with_track(track)
+                .with_bullet_radius(0.25)
+                .with_life_left_seconds(10.0)
+                .with_is_new(true);
+            let coarse = new_threat_affected_frames(
+                &node.clone().with_previous_scores(vec![0.0; 75]),
+                &[th.clone()],
+                &RescoreConfig::default(),
+            );
+            let mut brute = vec![false; 76];
+            for i in 1..=75 {
+                let s = node.samples[i];
+                let t_sec = node.start_t + i as f64 * RESCORE_DT;
+                let gx = s.x + s.rot.sin() * geo.geo_offset;
+                let gy = s.y - s.rot.cos() * geo.geo_offset;
+                match threat_bullet_pos(&th, t_sec) {
+                    Some(p) => {
+                        let dx = p.x - gx;
+                        let dy = p.y - gy;
+                        brute[i] = dx * dx + dy * dy <= occ_radius * occ_radius;
+                    }
+                    None => {
+                        if let Some(tb) = threat_tail_box_from(&th, t_sec) {
+                            brute[i] = tb.distance_to_point(gx, gy) <= occ_radius;
+                        }
+                    }
+                }
+            }
+            assert_eq!(coarse, brute, "coarse affected mask differs from exact");
+        }
     }
 
     #[test]

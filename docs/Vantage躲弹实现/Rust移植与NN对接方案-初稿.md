@@ -463,3 +463,39 @@ C. JS 精确物理 + Rust 树/评分/NN
 - `vt_rescore_nodes` ABI v4 新增 `prev_per_frame_scores`（可空）与 `threat_is_new`；JS bridge v6/v7、sandbox v31、tree v75、testbench v58。
 - 新增 cached far-away / cached crossing 差分场景；全部 5 个差分 PASS，`cargo test` 75 passed。
 - 修复 v75 初版误把 rescore 代码贴进 rolloutBatch 导致 Rust 物理回退的问题；diff_rollout_bridge/diff_rescore_bridge 现在会统计 fallback warning 并作为失败。
+
+## 二十六、第八波 v76：节点计数负数修复 + Rust 粗筛跨帧跳跃
+
+### 问题现场
+双管连射后期偶发 FPS 骤降；树结构历史出现 `n:-287`，即 `tree.nodeCount` 被扣成负数。
+根因不在评分，而在 v72 批量写回：`tryRustRescoreBatch` 一次收集 37 个父层、326 个节点；
+写回按先序进行，祖先候选 death-shorten 会 `invalidateDescendants` 摘除整棵子树，
+但同批 jobs 仍包含已摘除的后代；后代再次 death-shorten 时对同一批后代二次 `detachChild`，
+重复扣减 nodeCount。负数绕过 `maxNodes=500` 上限，树超限扩张，后续每颗新弹全树重路由都更贵。
+
+### 修复（JS tree v76）
+- `detachChild` 幂等：摘除子树时递归断开内部 `parent/parentId`；`parent.children` 不一致时只清理不扣数。
+- `invalidateDescendants` 对已脱离父节点的残留 child 只 `shift`，不再二次 detach。
+- `applyLayerResults` 写回前校验 `c.invalid || c.parent !== parent || !isActiveTreeNode`。
+- `tryRustRescoreBatch` / `rerouteTreeForCurrentThreats` 写回后强制 `recountActiveNodes`；
+  `growStep/attachResults/expandLeaf/startExpandSlice` 在 maxNodes 判定前先修负数计数。
+- `tree.stats.nodeCountFixes` 记录修复次数；结构事件 `node-count-audit` 留痕。
+- 回归脚本 `rust/diff_tree_nodecount.js`：祖先+后代同批死亡缩短场景，断言 nodeCount 保持 2 且后代 parent 链已断。
+
+### 粗筛跨帧跳跃（Rust wasm v8 / bridge v8）
+- 新增 `COARSE_BLOCK_FRAMES=16`。
+- 坦克块盒直接使用存储样本位姿（天然包含前进+旋转）；威胁块盒按 track 索引分块，
+  q 时间窗向两侧各扩半帧，块盒额外覆盖 e+1 号 track 点，保守处理 `round(q/dt)` 取整边界。
+- `danger_frames_for_samples_with_chunks`：块盒距离 > `envelope + bullet_radius + DANGER_MARGIN + speed*dt` 时整块跳过，
+  否则逐帧精确回退。路径弹/无 track 弹走原精确逐帧路径。
+- `new_threat_affected_frames`：lane 关闭时，几何中心块盒与 track 块盒距离 > `R_SEMI+0.25` 时整块跳过；
+  lane 开启时保持原精确逐帧路径（车道压分使用整条未来尾迹，块盒无法保守）。
+- 新增回归测试：`danger_coarse_skip_matches_exact_for_moving_rotating_tank`、
+  `affected_mask_coarse_skip_matches_exact_for_occlusion_only`，对远弹/横穿弹/中途死亡 track
+  断言粗筛与逐帧精确完全一致。
+- 版本：tree v76、bridge v8、testbench v59、index.html 同步；WASM 重新构建。
+
+### 验证
+- `cargo test`：77 passed。
+- `diff_tree_nodecount.js` PASS。
+- `diff_rescore.js / diff_rollout.js / diff_rescore_bridge.js / diff_rollout_bridge.js / diff_rollout_rescore_edge.js` 全部 PASS。
