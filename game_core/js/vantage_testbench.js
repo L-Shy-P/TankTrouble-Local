@@ -10,6 +10,9 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
+ * 2026-09-05 v58（配合桥 v6 / 沙箱 v31 / 树 v75）：
+ *   Rust vt_rescore_nodes 升级 ABI v4：节点可携带 previousScores，
+ *   新弹帧级增量评分；testbench 仅版本号同步。
  * 2026-09-05 v54（Rust 物理开关也启用增量层刷新）：
  *   开启“Rust物理”后，树 stale 层刷新还会优先走
  *   VantageSandbox.rescoreTankSamples（vt_rescore_nodes，ABI v3），
@@ -59,7 +62,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v57';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v58';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。

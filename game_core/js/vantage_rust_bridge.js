@@ -5,7 +5,7 @@
  * Exposes:
  *   - version()
  *   - rolloutBatch(...)         (ABI v2: vt_rollout_batch)
- *   - rescoreNodes(...)         (ABI v3: vt_rescore_nodes)
+ *   - rescoreNodes(...)         (ABI v4: vt_rescore_nodes, bridge v6)
  *   - buildWallRects(...)
  *   - sweepDangerFrames(...)
  *   - minimalDecide(...)
@@ -80,7 +80,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=5';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=7';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -423,16 +423,17 @@
 
         /**
          * Incremental rescore + death-verification batch over stored rollout
-         * samples (ABI v3).
+         * samples (ABI v4).
          *
          * JS API:
          *   input = {
          *     cacheId: <integer 0..2^32-1>,
          *     walls: [{verts:[[x,y],...]}],       // 0..1024 walls, 3..8 verts
          *     nodes: [{samples:[{x,y,rot}...], moving:bool, startT:number,
-         *              frames:int}],              // 1..64 nodes, 2..76 samples
+         *              frames:int, previousScores?:[0..75]}], // 1..512 nodes
          *     threats: [{track:[{x,y,alive}...]?, path:[[x,y]...]?,
-         *                speed, anchorOffset, bulletRadius, lifeLeftSeconds}],
+         *                speed, anchorOffset, bulletRadius, lifeLeftSeconds,
+         *                isNew?:bool}],
          *     cfg: {deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
          *           lanePenaltyRatio, springRopeEnabled}
          *   }
@@ -463,7 +464,7 @@
 
                 var nodes = input.nodes;
                 if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 512) {
-                    throw badInput('nodes must be an array of 1..64 entries');
+                    throw badInput('nodes must be an array of 1..512 entries');
                 }
 
                 var walls = input.walls;
@@ -497,6 +498,9 @@
                 var nodeFrames = [];
                 var nodeStartT = [];
                 var nodeMoving = [];
+                var nodePreviousScores = [];
+                var anyNodePrev = false;
+                var allNodesPrev = true;
                 var totalSamples = 0;
                 for (i = 0; i < nodeCount; i++) {
                     var node = nodes[i];
@@ -526,6 +530,24 @@
                         throw badInput('nodes[' + i + '].frames must be an integer in [1, 75]');
                     }
                     nodeFrames.push(fr);
+                    if (node.previousScores !== undefined && node.previousScores !== null) {
+                        if (!Array.isArray(node.previousScores)) {
+                            throw badInput('nodes[' + i + '].previousScores must be an array');
+                        }
+                        if (node.previousScores.length > 75) {
+                            throw badInput('nodes[' + i + '].previousScores must have 0..75 entries');
+                        }
+                        for (k = 0; k < node.previousScores.length; k++) {
+                            if (!isFinite(Number(node.previousScores[k]))) {
+                                throw badInput('nodes[' + i + '].previousScores[' + k + '] must be finite');
+                            }
+                        }
+                        nodePreviousScores.push(node.previousScores);
+                        anyNodePrev = true;
+                    } else {
+                        nodePreviousScores.push(null);
+                        allNodesPrev = false;
+                    }
                     for (k = 0; k < sc; k++) {
                         var s = node.samples[k];
                         var sx = s && typeof s === 'object' ? (s.x !== undefined ? s.x : s[0]) : s;
@@ -567,6 +589,7 @@
                 // Validate threats.
                 var trackCounts = [];
                 var pathCounts = [];
+                var threatIsNew = [];
                 var totalTrack = 0;
                 var totalPath = 0;
                 for (i = 0; i < threatCount; i++) {
@@ -632,6 +655,10 @@
                     if (rad < 0) {
                         throw badInput('threats[' + i + '].bulletRadius must be >= 0');
                     }
+                    if (th.isNew !== undefined && th.isNew !== null && typeof th.isNew !== 'boolean') {
+                        throw badInput('threats[' + i + '].isNew must be a boolean');
+                    }
+                    threatIsNew.push(th.isNew ? 1 : 0);
                 }
 
                 var deathPenalty = Number(cfg.deathPenalty !== undefined ? cfg.deathPenalty : 0);
@@ -669,6 +696,10 @@
                 var speedBytes = Math.max(1, threatCount) * 8;
                 var bulletRadiusBytes = Math.max(1, threatCount) * 8;
                 var lifeLeftBytes = Math.max(1, threatCount) * 8;
+                // Only pass a previous-score block when every node has one;
+                // a single null pointer cannot represent a per-node None.
+                var prevPfsBytes = allNodesPrev ? nodeCount * 75 * 8 : 0;
+                var threatIsNewBytes = threatCount > 0 ? threatCount : 0;
                 var outPfsBytes = nodeCount * 75 * 8;
                 var outTotalBytes = nodeCount * 8;
                 var outDeathBytes = nodeCount * 4;
@@ -703,6 +734,9 @@
                 var speedBase = off; off += speedBytes;
                 var bulletRadiusBase = off; off += bulletRadiusBytes;
                 var lifeLeftBase = off; off += lifeLeftBytes;
+                var prevPfsBase = off; off += prevPfsBytes;
+                var threatIsNewBase = off; off += threatIsNewBytes;
+                off = align8(off);
                 var outPfsBase = off; off += outPfsBytes;
                 var outTotalBase = off; off += outTotalBytes;
                 var outDeathBase = off; off += outDeathBytes;
@@ -731,6 +765,8 @@
                 speedBase += base;
                 bulletRadiusBase += base;
                 lifeLeftBase += base;
+                prevPfsBase += base;
+                threatIsNewBase += base;
                 outPfsBase += base;
                 outTotalBase += base;
                 outDeathBase += base;
@@ -765,6 +801,17 @@
                     }
                 }
 
+                if (allNodesPrev) {
+                    var prevPfs = new Float64Array(this._memory.buffer, prevPfsBase, nodeCount * 75);
+                    for (i = 0; i < nodeCount; i++) {
+                        var pv = nodePreviousScores[i];
+                        var pvBase = i * 75;
+                        for (k = 0; k < pv.length; k++) {
+                            prevPfs[pvBase + k] = Number(pv[k]);
+                        }
+                    }
+                }
+
                 if (wallCount > 0) {
                     var wallCounts = new Uint32Array(this._memory.buffer, wallCountsBase, wallCount);
                     var wallVerts = new Float64Array(this._memory.buffer, wallVertsBase, totalWallVerts * 2);
@@ -792,6 +839,7 @@
                     var speed = new Float64Array(this._memory.buffer, speedBase, threatCount);
                     var bulletRadius = new Float64Array(this._memory.buffer, bulletRadiusBase, threatCount);
                     var lifeLeft = new Float64Array(this._memory.buffer, lifeLeftBase, threatCount);
+                    var threatIsNewView = new Uint8Array(this._memory.buffer, threatIsNewBase, threatCount);
 
                     var tOff = 0;
                     var pOff = 0;
@@ -816,6 +864,7 @@
                         speed[i] = Number(th2.speed !== undefined ? th2.speed : 0);
                         bulletRadius[i] = Number(th2.bulletRadius !== undefined ? th2.bulletRadius : 0.25);
                         lifeLeft[i] = Number(th2.lifeLeftSeconds !== undefined ? th2.lifeLeftSeconds : 10);
+                        threatIsNewView[i] = threatIsNew[i];
                     }
                 }
 
@@ -833,6 +882,8 @@
                     anchorOffsetBase, speedBase, bulletRadiusBase, lifeLeftBase,
                     deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
                     lanePenaltyRatio, springRopeEnabled,
+                    allNodesPrev ? prevPfsBase : 0,
+                    threatCount > 0 ? threatIsNewBase : 0,
                     outPfsBase, outTotalBase, outDeathBase, outVerifiedBase, outOkBase
                 );
                 if (ret !== 1) {
@@ -1163,6 +1214,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v5: v3 ABI + 512-node rescore batching, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v7: v4 ABI + incremental previousScores/isNew, rolloutBatch fixed, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);

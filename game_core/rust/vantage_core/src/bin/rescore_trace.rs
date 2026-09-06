@@ -370,7 +370,34 @@ fn parse_scene(json: &Json) -> Result<Scene, String> {
             Some(Json::Number(f)) if f.fract() == 0.0 && *f >= 0.0 => *f as usize,
             _ => samples.len().saturating_sub(1),
         };
-        nodes.push(RescoreNodeInput::new(samples, moving, start_t, frames));
+        let previous_scores = match no.get("previousScores") {
+            Some(Json::Array(arr)) => {
+                if arr.len() > 75 {
+                    return Err(format!(
+                        "nodes[{}].previousScores must have 0..75 entries",
+                        ni
+                    ));
+                }
+                let mut v = Vec::with_capacity(arr.len());
+                for (pi, pv) in arr.iter().enumerate() {
+                    v.push(as_f64(
+                        pv,
+                        &format!("nodes[{}].previousScores[{}]", ni, pi),
+                    )?);
+                }
+                Some(v)
+            }
+            Some(_) => {
+                return Err(format!("nodes[{}].previousScores must be an array", ni));
+            }
+            None => None,
+        };
+        let node = RescoreNodeInput::new(samples, moving, start_t, frames);
+        let node = match previous_scores {
+            Some(prev) => node.with_previous_scores(prev),
+            None => node,
+        };
+        nodes.push(node);
     }
 
     let threats_json = as_array(
@@ -432,13 +459,20 @@ fn parse_scene(json: &Json) -> Result<Scene, String> {
             Some(v) => as_f64(v, "lifeLeftSeconds")?,
             None => 10.0,
         };
+        let is_new = match to.get("isNew") {
+            Some(v) => {
+                parse_bool_or_num(v).ok_or_else(|| format!("threats[{}].isNew must be bool", ti))?
+            }
+            None => false,
+        };
         threats.push(
             RescoreThreatInput::new(id)
                 .with_track(track.unwrap_or_default())
                 .with_path(path.unwrap_or_default(), speed)
                 .with_anchor_offset(anchor_offset)
                 .with_bullet_radius(bullet_radius)
-                .with_life_left_seconds(life_left_seconds),
+                .with_life_left_seconds(life_left_seconds)
+                .with_is_new(is_new),
         );
     }
 

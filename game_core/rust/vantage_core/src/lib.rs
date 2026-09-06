@@ -16,7 +16,7 @@ pub mod tree;
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
-    3
+    4
 }
 
 /// Flat-buffer fused rollout batch ABI.
@@ -224,7 +224,7 @@ pub extern "C" fn vt_rollout_batch(
     }
 }
 
-/// Flat-buffer incremental rescore + death-verification ABI (v3).
+/// Flat-buffer incremental rescore + death-verification ABI (v4).
 ///
 /// See `rescore.rs` for the pure struct definitions.  All geometry is `f64`.
 /// Fixed limits: nodes <= 512, samples per node <= 76, scored frames <= 75,
@@ -234,6 +234,16 @@ pub extern "C" fn vt_rollout_batch(
 /// already-stored `rolloutSamples` (node-major, `sample_counts[ni]` samples).
 /// The dedicated verification world is keyed by `cache_id` + wall signature
 /// and is independent from the `vt_rollout_batch` fused world.
+///
+/// Incremental inputs (v4):
+/// - `prev_per_frame_scores`: node-major, `node_count * 75` values (stride
+///   75); MAY be null.  When non-null, the first `scored_frames` values for
+///   each node are used as that node's previous scores; frames beyond the
+///   node's scored length are ignored.  A node only uses the cached path when
+///   its previous-score length equals its scored frame count.
+/// - `threat_is_new`: one `u8` per threat; MAY be null only when
+///   `threat_count == 0`.  Non-zero marks a threat as newly added since the
+///   previous scores were computed.
 ///
 /// Outputs:
 /// - `out_per_frame_scores`: node-major, `node_count * 75` values; frames
@@ -278,6 +288,8 @@ pub extern "C" fn vt_rescore_nodes(
     stuck_rot_eps: f64,
     lane_penalty_ratio: f64,
     spring_rope_enabled: u8,
+    prev_per_frame_scores: *const f64,
+    threat_is_new: *const u8,
     out_per_frame_scores: *mut f64,
     out_total_score: *mut f64,
     out_death_frame: *mut i32,
@@ -329,7 +341,8 @@ pub extern "C" fn vt_rescore_nodes(
                 || anchor_offset.is_null()
                 || speed.is_null()
                 || bullet_radius.is_null()
-                || life_left_seconds.is_null())
+                || life_left_seconds.is_null()
+                || threat_is_new.is_null())
         {
             return 0;
         }
@@ -391,6 +404,14 @@ pub extern "C" fn vt_rescore_nodes(
             walls.push(WallPoly { vertices: verts });
         }
 
+        let prev_pfs_slice = if prev_per_frame_scores.is_null() {
+            None
+        } else {
+            Some(unsafe {
+                std::slice::from_raw_parts(prev_per_frame_scores, node_count_u * MAX_RESCORE_FRAMES)
+            })
+        };
+
         let mut nodes = Vec::with_capacity(node_count_u);
         let mut sample_offset = 0usize;
         for ni in 0..node_count_u {
@@ -404,12 +425,22 @@ pub extern "C" fn vt_rescore_nodes(
                 ));
                 sample_offset += 1;
             }
-            nodes.push(RescoreNodeInput::new(
+            let scored = (frames_slice[ni] as usize).min(sc.saturating_sub(1));
+            let previous_scores = prev_pfs_slice.map(|slice| {
+                let base = ni * MAX_RESCORE_FRAMES;
+                slice[base..base + scored].to_vec()
+            });
+            let node = RescoreNodeInput::new(
                 samples,
                 moving_slice[ni] != 0,
                 start_t_slice[ni],
                 frames_slice[ni] as usize,
-            ));
+            );
+            let node = match previous_scores {
+                Some(p) => node.with_previous_scores(p),
+                None => node,
+            };
+            nodes.push(node);
         }
 
         let threats = if threat_count_u > 0 {
@@ -484,6 +515,8 @@ pub extern "C" fn vt_rescore_nodes(
                 if bullet_radius_slice[ti] < 0.0 || bullet_radius_slice[ti].is_nan() {
                     return 0;
                 }
+                let threat_is_new_slice =
+                    unsafe { std::slice::from_raw_parts(threat_is_new, threat_count_u) };
                 threats.push(RescoreThreatInput {
                     id: ti as i64,
                     track,
@@ -492,6 +525,7 @@ pub extern "C" fn vt_rescore_nodes(
                     anchor_offset: anchor_offset_slice[ti],
                     bullet_radius: bullet_radius_slice[ti],
                     life_left_seconds: life_left_slice[ti],
+                    is_new: threat_is_new_slice[ti] != 0,
                 });
             }
             threats
@@ -910,7 +944,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 3);
+        assert_eq!(vt_version(), 4);
     }
 
     #[test]
@@ -961,6 +995,8 @@ mod tests {
             0.05,
             0.0,
             0,
+            std::ptr::null(),
+            std::ptr::null(),
             out_pfs.as_mut_ptr(),
             out_total.as_mut_ptr(),
             out_death.as_mut_ptr(),
@@ -976,6 +1012,136 @@ mod tests {
         assert_eq!(out_pfs[1], 39.47841760435743);
         assert_eq!(out_total[0], 78.95683520871486);
         assert_eq!(out_pfs[2], 0.0);
+    }
+
+    #[test]
+    fn test_vt_rescore_nodes_previous_scores_and_is_new_params() {
+        let sample_counts = [3u32];
+        let samples_x = [5.0f64, 5.0, 5.0];
+        let samples_y = [8.0f64, 8.0, 8.0];
+        let samples_rot = [0.0f64; 3];
+        let start_t = [0.0f64];
+        let moving = [0u8];
+        let frames = [2u32];
+        let wall_counts = [0u32];
+        let wall_verts = [0.0f64];
+        let mut prev = vec![0.0f64; 75];
+        prev[0] = 39.47841760435743;
+        prev[1] = 39.47841760435743;
+        let threat_is_new: [u8; 0] = [];
+        let mut out_pfs = vec![0.0f64; 64 * 75];
+        let mut out_total = vec![0.0f64; 64];
+        let mut out_death = vec![0i32; 64];
+        let mut out_verified = vec![0u32; 64];
+        let mut out_ok = vec![0u8; 64];
+
+        let ok = vt_rescore_nodes(
+            0,
+            1,
+            sample_counts.as_ptr(),
+            samples_x.as_ptr(),
+            samples_y.as_ptr(),
+            samples_rot.as_ptr(),
+            start_t.as_ptr(),
+            moving.as_ptr(),
+            frames.as_ptr(),
+            wall_counts.as_ptr(),
+            wall_verts.as_ptr(),
+            0,
+            0,
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0.0,
+            4.0,
+            0.05,
+            0.05,
+            0.0,
+            0,
+            prev.as_ptr(),
+            threat_is_new.as_ptr(),
+            out_pfs.as_mut_ptr(),
+            out_total.as_mut_ptr(),
+            out_death.as_mut_ptr(),
+            out_verified.as_mut_ptr(),
+            out_ok.as_mut_ptr(),
+        );
+
+        assert_eq!(ok, 1);
+        assert_eq!(out_ok[0], 1);
+        assert_eq!(out_pfs[0], prev[0]);
+        assert_eq!(out_pfs[1], prev[1]);
+        assert_eq!(out_total[0], prev[0] + prev[1]);
+        assert_eq!(out_pfs[2], 0.0);
+    }
+
+    #[test]
+    fn test_vt_rescore_nodes_rejects_missing_threat_is_new() {
+        // threat_count > 0 requires threat_is_new to be non-null.
+        let sample_counts = [3u32];
+        let samples_x = [5.0f64, 5.0, 5.0];
+        let samples_y = [8.0f64, 8.0, 8.0];
+        let samples_rot = [0.0f64; 3];
+        let start_t = [0.0f64];
+        let moving = [0u8];
+        let frames = [2u32];
+        let wall_counts = [0u32];
+        let wall_verts = [0.0f64];
+        let mut out_pfs = vec![0.0f64; 64 * 75];
+        let mut out_total = vec![0.0f64; 64];
+        let mut out_death = vec![0i32; 64];
+        let mut out_verified = vec![0u32; 64];
+        let mut out_ok = vec![0u8; 64];
+
+        let ok = vt_rescore_nodes(
+            0,
+            1,
+            sample_counts.as_ptr(),
+            samples_x.as_ptr(),
+            samples_y.as_ptr(),
+            samples_rot.as_ptr(),
+            start_t.as_ptr(),
+            moving.as_ptr(),
+            frames.as_ptr(),
+            wall_counts.as_ptr(),
+            wall_verts.as_ptr(),
+            0,
+            1,
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0.0,
+            4.0,
+            0.05,
+            0.05,
+            0.0,
+            0,
+            std::ptr::null(),
+            std::ptr::null(),
+            out_pfs.as_mut_ptr(),
+            out_total.as_mut_ptr(),
+            out_death.as_mut_ptr(),
+            out_verified.as_mut_ptr(),
+            out_ok.as_mut_ptr(),
+        );
+
+        assert_eq!(ok, 0);
     }
 
     #[test]

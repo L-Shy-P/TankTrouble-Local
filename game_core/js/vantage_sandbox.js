@@ -30,6 +30,11 @@
  * 2026-08-23 v27（弹道模拟提前停）：
  *   simulateBulletTracks 在所有被模拟子弹都已 active=false 后直接 break，
  *   不再空转 Box2D Step；混弹时由寿命最长的弹决定继续。
+ * 2026-09-05 v31（Rust vt_rescore_nodes ABI v4：帧级增量评分）：
+ *   adapter.rescoreTankSamples(nodes, threats, cfg, pendingThreats) 透传
+ *   nodes[].previousScores 与 threats[].isNew；Rust 只重算新弹能影响的
+ *   帧，未受影响帧直接复制上一轮 perFrameScores。pendingThreats 缺省
+ *   时按全量刷新（isNew=false）保持 v68 语义。
  * 2026-09-05 v30（Rust vt_rescore_nodes 增量层刷新接入）：
  *   adapter.rescoreTankSamples(nodes, threats, cfg) 通过 VantageRustBridge
  *   .rescoreNodes（ABI v3）对已有 rolloutSamples 重评分 + 融合验证；
@@ -1476,13 +1481,15 @@
             },
 
             /**
-             * v30：Rust vt_rescore_nodes 增量层刷新（ABI v3）。
+             * v31：Rust vt_rescore_nodes 增量层刷新（ABI v4）。
              * 对树节点已存储的 rolloutSamples 做纯函数重评分 + 融合传感器/
              * CCD 死亡验证，不重新模拟坦克物理。仅在 Rust 物理开关开启、
              * 融合世界存在且 Rust 桥就绪时启用；任何失败都返回 null，
              * 由树回退 VantageScoring.scorePaths（JS 融合路径）。
+             * @param {Array} [pendingThreats] 本 tick 新增的 threat 列表；
+             *   缺省时所有 threat 视为旧弹（isNew=false，全量刷新）。
              */
-            rescoreTankSamples: function(nodes, threats, cfg) {
+            rescoreTankSamples: function(nodes, threats, cfg, pendingThreats) {
                 if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
                 if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
                 if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 512) return null;
@@ -1490,6 +1497,16 @@
 
                 var fc = getFusedWorld(gameController, aiId);
                 if (!fc || !fc.wallShapes) return null;
+
+                var pendingIds = {};
+                if (Array.isArray(pendingThreats)) {
+                    for (var pti = 0; pti < pendingThreats.length; pti++) {
+                        var pth = pendingThreats[pti];
+                        if (pth && pth.id !== undefined && pth.id !== null) {
+                            pendingIds[String(pth.id)] = true;
+                        }
+                    }
+                }
 
                 var bridgeThreats = [];
                 var ti, tfi, pi;
@@ -1500,7 +1517,8 @@
                         speed: th.speed || 0,
                         anchorOffset: th.anchorOffset || 0,
                         bulletRadius: 0.25,
-                        lifeLeftSeconds: 10
+                        lifeLeftSeconds: 10,
+                        isNew: !!(pendingIds[String(th.id)] === true)
                     };
                     if (th.track) {
                         if (!Array.isArray(th.track)) return null;
@@ -1537,12 +1555,26 @@
                     bridgeThreats.push(bth);
                 }
 
+                var bridgeNodes = [];
+                for (var bni = 0; bni < nodes.length; bni++) {
+                    var bn = {
+                        samples: nodes[bni].samples,
+                        moving: nodes[bni].moving,
+                        startT: nodes[bni].startT,
+                        frames: nodes[bni].frames
+                    };
+                    if (nodes[bni].previousScores !== undefined && nodes[bni].previousScores !== null) {
+                        bn.previousScores = nodes[bni].previousScores;
+                    }
+                    bridgeNodes.push(bn);
+                }
+
                 var bridgeResult;
                 try {
                     bridgeResult = global.VantageRustBridge.rescoreNodes({
                         cacheId: hashAiIdForRustCache(aiId),
                         walls: fc.wallShapes,
-                        nodes: nodes,
+                        nodes: bridgeNodes,
                         threats: bridgeThreats,
                         cfg: cfg || {}
                     });
@@ -1747,6 +1779,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v30：Rust 增量层刷新 rescoreTankSamples + Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
+    console.log('[Vantage Sandbox] 模块已加载（v31：Rust 帧级增量重评分 rescoreTankSamples + Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
 
 })(typeof window !== 'undefined' ? window : this);

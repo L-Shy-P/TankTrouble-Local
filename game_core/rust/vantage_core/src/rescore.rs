@@ -82,6 +82,10 @@ pub struct RescoreNodeInput {
     pub moving: bool,
     pub start_t: f64,
     pub frames: usize,
+    /// Previous per-frame net scores for this node.  When `Some` and its
+    /// length equals `scored_frames()`, only frames affected by newly-added
+    /// threats are recomputed; unaffected frames are copied verbatim.
+    pub previous_scores: Option<Vec<f64>>,
 }
 
 impl RescoreNodeInput {
@@ -91,7 +95,13 @@ impl RescoreNodeInput {
             moving,
             start_t,
             frames,
+            previous_scores: None,
         }
+    }
+
+    pub fn with_previous_scores(mut self, previous_scores: Vec<f64>) -> Self {
+        self.previous_scores = Some(previous_scores);
+        self
     }
 
     pub fn scored_frames(&self) -> usize {
@@ -108,6 +118,10 @@ pub struct RescoreThreatInput {
     pub anchor_offset: f64,
     pub bullet_radius: f64,
     pub life_left_seconds: f64,
+    /// True when this threat is newly added since the node's previous
+    /// per-frame scores were computed.  Only `is_new` threats contribute to
+    /// the incremental affected-frame mask.
+    pub is_new: bool,
 }
 
 impl RescoreThreatInput {
@@ -120,6 +134,7 @@ impl RescoreThreatInput {
             anchor_offset: 0.0,
             bullet_radius: scoring::BULLET_RADIUS_M,
             life_left_seconds: 10.0,
+            is_new: false,
         }
     }
 
@@ -146,6 +161,11 @@ impl RescoreThreatInput {
 
     pub fn with_life_left_seconds(mut self, life_left_seconds: f64) -> Self {
         self.life_left_seconds = life_left_seconds;
+        self
+    }
+
+    pub fn with_is_new(mut self, is_new: bool) -> Self {
+        self.is_new = is_new;
         self
     }
 }
@@ -350,6 +370,190 @@ fn is_stuck_pose(prev: TankPoseLike, cur: TankPoseLike, cfg: &RescoreConfig) -> 
     dr.abs() < cfg.stuck_rot_eps
 }
 
+// ---------------------------------------------------------------------------
+// Incremental affected-frame mask (conservative for default cfg)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug)]
+struct TailBox {
+    min_x: f64,
+    max_x: f64,
+    min_y: f64,
+    max_y: f64,
+}
+
+impl TailBox {
+    fn new_inf() -> Self {
+        Self {
+            min_x: f64::INFINITY,
+            max_x: f64::NEG_INFINITY,
+            min_y: f64::INFINITY,
+            max_y: f64::NEG_INFINITY,
+        }
+    }
+
+    fn add(&mut self, x: f64, y: f64) {
+        self.min_x = self.min_x.min(x);
+        self.max_x = self.max_x.max(x);
+        self.min_y = self.min_y.min(y);
+        self.max_y = self.max_y.max(y);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.min_x > self.max_x || self.min_y > self.max_y
+    }
+
+    fn distance_to_point(&self, x: f64, y: f64) -> f64 {
+        let dx = if self.min_x > x {
+            self.min_x - x
+        } else if self.max_x < x {
+            self.max_x - x
+        } else {
+            0.0
+        };
+        let dy = if self.min_y > y {
+            self.min_y - y
+        } else if self.max_y < y {
+            self.max_y - y
+        } else {
+            0.0
+        };
+        (dx * dx + dy * dy).sqrt()
+    }
+}
+
+/// Conservative bounding box of a threat's remaining track/path points from
+/// `t_sec` onward.  Used only for incremental-mask lane/tail reach checks; it
+/// deliberately mirrors the lane-penalty sampling windows from `scoring.rs`
+/// without calling the JS lane logic itself.
+fn threat_tail_box_from(th: &RescoreThreatInput, t_sec: f64) -> Option<TailBox> {
+    let q = t_sec - th.anchor_offset;
+
+    if let Some(track) = &th.track {
+        if !track.is_empty() {
+            let idx = if q < 0.0 {
+                0usize
+            } else {
+                (q / RESCORE_DT).round().max(0.0) as usize
+            };
+            let mut box_ = TailBox::new_inf();
+            for s in track.iter().skip(idx) {
+                if !s.alive {
+                    break;
+                }
+                box_.add(s.x, s.y);
+            }
+            return if box_.is_empty() { None } else { Some(box_) };
+        }
+    }
+
+    let path = th.path.as_ref()?;
+    if path.len() < 2 || th.speed <= 0.0 {
+        return None;
+    }
+
+    if q < 0.0 {
+        // Before anchor: the whole path is still "remaining".  This is a
+        // deliberate false-positive region (lane scoring skips q < 0).
+        let mut box_ = TailBox::new_inf();
+        for p in path {
+            box_.add(p.x, p.y);
+        }
+        return Some(box_);
+    }
+
+    let s0 = q * th.speed;
+    let mut cum = 0.0;
+    let mut box_ = TailBox::new_inf();
+    for i in 0..path.len() - 1 {
+        let a = &path[i];
+        let b = &path[i + 1];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let seg_len = (dx * dx + dy * dy).sqrt();
+        if seg_len <= 0.0 {
+            continue;
+        }
+        if cum + seg_len <= s0 {
+            cum += seg_len;
+            continue;
+        }
+        let f0 = if cum >= s0 { 0.0 } else { (s0 - cum) / seg_len };
+        box_.add(a.x + (b.x - a.x) * f0, a.y + (b.y - a.y) * f0);
+        box_.add(b.x, b.y);
+        cum += seg_len;
+    }
+    if box_.is_empty() {
+        None
+    } else {
+        Some(box_)
+    }
+}
+
+/// Frame mask (`mask[i]` for frame `i`, `1..=scored_frames`) of frames that
+/// may be affected by newly-added threats.  The mask is conservative for the
+/// default config (`lane_penalty_ratio == 0`, spring disabled): it may contain
+/// false positives but no false negatives.
+pub fn new_threat_affected_frames(
+    node: &RescoreNodeInput,
+    threats: &[RescoreThreatInput],
+    cfg: &RescoreConfig,
+) -> Vec<bool> {
+    let max_i = node.scored_frames();
+    let mut mask = vec![false; max_i + 1];
+    if max_i == 0 {
+        return mask;
+    }
+
+    let geo = scoring::exact_geom();
+    let occ_radius = geo.r_semi + 0.25;
+    let occ_radius2 = occ_radius * occ_radius;
+    let lane_radius = 3.5 + geo.geo_offset + 0.25;
+
+    for i in 1..=max_i {
+        let s = node.samples[i];
+        let t_sec = node.start_t + i as f64 * RESCORE_DT;
+        let gx = s.x + s.rot.sin() * geo.geo_offset;
+        let gy = s.y - s.rot.cos() * geo.geo_offset;
+
+        for th in threats.iter().filter(|th| th.is_new) {
+            match threat_bullet_pos(th, t_sec) {
+                Some(p) => {
+                    let dx = p.x - gx;
+                    let dy = p.y - gy;
+                    if dx * dx + dy * dy <= occ_radius2 {
+                        mask[i] = true;
+                        break;
+                    }
+                }
+                None => {
+                    // Bullet position is not defined at this exact frame.
+                    // If the remaining tail can still reach the node within
+                    // this frame horizon, mark the frame anyway (false
+                    // positives are fine, false negatives are not).
+                    if let Some(tb) = threat_tail_box_from(th, t_sec) {
+                        if tb.distance_to_point(gx, gy) <= occ_radius {
+                            mask[i] = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if cfg.lane_penalty_ratio > 0.0 {
+                if let Some(tb) = threat_tail_box_from(th, t_sec) {
+                    if tb.distance_to_point(gx, gy) <= lane_radius {
+                        mask[i] = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    mask
+}
+
 pub fn score_stored_node<F>(
     node: &RescoreNodeInput,
     threats: &[RescoreThreatInput],
@@ -375,12 +579,32 @@ where
     let scoring_cfg = scoring::ScoringConfig::default();
     let max_i = node.scored_frames();
 
+    let use_previous = node
+        .previous_scores
+        .as_ref()
+        .map(|p| p.len() == max_i && p.iter().all(|v| v.is_finite()))
+        .unwrap_or(false);
+    let affected = if use_previous {
+        new_threat_affected_frames(node, threats, cfg)
+    } else {
+        vec![false; max_i + 1]
+    };
+
     let mut total_score = 0.0;
     let mut per_frame_scores = Vec::with_capacity(max_i);
     let mut prev_pose = node.samples[0];
 
     for i in 1..=max_i {
         let s = node.samples[i];
+
+        if use_previous && !affected[i] {
+            let v = node.previous_scores.as_ref().unwrap()[i - 1];
+            total_score += v;
+            per_frame_scores.push(v);
+            prev_pose = s;
+            continue;
+        }
+
         let t_sec = node.start_t + i as f64 * RESCORE_DT;
         let bullet_positions: Vec<Point> = threats
             .iter()
@@ -1154,5 +1378,142 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, RescoreError::SpringRopeUnsupported);
+    }
+
+    #[test]
+    fn incremental_mask_far_away_new_bullet_is_empty() {
+        let node = static_node(75);
+        let prev = score_stored_node(&node, &[], &RescoreConfig::default(), threat_bullet_pos)
+            .unwrap()
+            .per_frame_scores;
+        let new_threat = RescoreThreatInput::new(9)
+            .with_path(path_pts(&[(100.0, 100.0), (100.0, 80.0)]), 10.0)
+            .with_is_new(true);
+        let node_prev = node.with_previous_scores(prev.clone());
+
+        let mask = new_threat_affected_frames(
+            &node_prev,
+            &[new_threat.clone()],
+            &RescoreConfig::default(),
+        );
+        assert!(mask.iter().skip(1).all(|b| !b), "far bullet marked a frame");
+
+        let out = score_stored_node(
+            &node_prev,
+            &[new_threat],
+            &RescoreConfig::default(),
+            threat_bullet_pos,
+        )
+        .unwrap();
+        assert_eq!(out.per_frame_scores, prev);
+        assert_eq!(out.total_score, prev.iter().sum::<f64>());
+    }
+
+    #[test]
+    fn incremental_mask_crossing_new_bullet_matches_full_recompute() {
+        let node = static_node(75);
+        let prev = score_stored_node(&node, &[], &RescoreConfig::default(), threat_bullet_pos)
+            .unwrap()
+            .per_frame_scores;
+        let threat = RescoreThreatInput::new(1)
+            .with_path(path_pts(&[(5.0, -10.0), (5.0, 10.0)]), 10.0)
+            .with_bullet_radius(0.25)
+            .with_is_new(true);
+
+        let incremental = score_stored_node(
+            &node.clone().with_previous_scores(prev),
+            &[threat.clone()],
+            &RescoreConfig::default(),
+            threat_bullet_pos,
+        )
+        .unwrap();
+        let full = score_stored_node(
+            &node,
+            &[threat],
+            &RescoreConfig::default(),
+            threat_bullet_pos,
+        )
+        .unwrap();
+        assert_eq!(incremental.per_frame_scores, full.per_frame_scores);
+        assert_eq!(incremental.total_score, full.total_score);
+        assert_eq!(incremental.death_frame, full.death_frame);
+    }
+
+    #[test]
+    fn incremental_mask_lane_enabled_is_conservative_and_matches_full() {
+        let node = static_node(75);
+        let cfg = RescoreConfig {
+            lane_penalty_ratio: 0.5,
+            ..RescoreConfig::default()
+        };
+        let prev = score_stored_node(&node, &[], &cfg, threat_bullet_pos)
+            .unwrap()
+            .per_frame_scores;
+        let threat = RescoreThreatInput::new(1)
+            .with_path(path_pts(&[(5.0, -10.0), (5.0, 10.0)]), 10.0)
+            .with_bullet_radius(0.25)
+            .with_is_new(true);
+
+        let mask = new_threat_affected_frames(
+            &node.clone().with_previous_scores(prev.clone()),
+            &[threat.clone()],
+            &cfg,
+        );
+        let full = score_stored_node(&node, &[threat.clone()], &cfg, threat_bullet_pos).unwrap();
+        let incremental = score_stored_node(
+            &node.with_previous_scores(prev.clone()),
+            &[threat],
+            &cfg,
+            threat_bullet_pos,
+        )
+        .unwrap();
+
+        for i in 1..=full.per_frame_scores.len() {
+            if (full.per_frame_scores[i - 1] - prev[i - 1]).abs() > 1e-15 {
+                assert!(mask[i], "frame {} differs but was not marked affected", i);
+            }
+        }
+        assert_eq!(incremental.per_frame_scores, full.per_frame_scores);
+        assert_eq!(incremental.total_score, full.total_score);
+        assert_eq!(incremental.death_frame, full.death_frame);
+    }
+
+    #[test]
+    fn rescore_nodes_previous_scores_path_matches_full_for_death_scene() {
+        let walls = arena_walls();
+        let samples: Vec<TankPoseLike> =
+            (0..=40).map(|_| TankPoseLike::new(5.0, 8.0, 0.0)).collect();
+        let node = RescoreNodeInput::new(samples, false, 0.0, 40);
+        let threat = RescoreThreatInput::new(1)
+            .with_path(path_pts(&[(5.0, 12.0), (5.0, -10.0)]), 18.0)
+            .with_bullet_radius(0.25)
+            .with_life_left_seconds(10.0)
+            .with_is_new(true);
+        let cfg = RescoreConfig::default();
+
+        let prev = score_stored_node(&node, &[], &cfg, threat_bullet_pos)
+            .unwrap()
+            .per_frame_scores;
+        let incremental = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node.clone().with_previous_scores(prev)],
+            &[threat.clone()],
+            &cfg,
+        )
+        .unwrap();
+        let full = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node],
+            &[threat],
+            &cfg,
+        )
+        .unwrap();
+
+        assert_eq!(incremental[0].per_frame_scores, full[0].per_frame_scores);
+        assert_eq!(incremental[0].total_score, full[0].total_score);
+        assert_eq!(incremental[0].death_frame, full[0].death_frame);
+        assert!(full[0].death_frame > 0, "test scene should die");
     }
 }

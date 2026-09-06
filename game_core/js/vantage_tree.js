@@ -1,6 +1,11 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-05 v75（Rust 帧级增量评分 ABI v4）：
+ *   tryRustRescoreLayer/Batch 在 onlyPending 且节点已有 perFrameScores 时
+ *   传 previousScores 给 adapter.rescoreTankSamples(nodes,threats,cfg,pending)，
+ *   Rust 只重算新弹能影响的帧；未受影响帧复制上一轮 perFrameScores。
+ *   节点新增 n.perFrameScores 并在 buildCandidate/applyRolloutScore 中保存。
  * 2026-09-05 v74（回退 v73 异步分片；保持 v72 同步批量语义）：
  *   v73 的“先执行旧节点再后台更新”会浪费根层未来树叉，
  *   主人判定方向错误，已整体回退。
@@ -362,6 +367,7 @@
         n.invalid = false;        // v47：结构失效（重摆穿墙/威胁局部失效剪枝）
         n.next = null;            // v49：本节点已经选定的下一个路线节点
         n.scoreCache = null;      // v54：scoreRolloutCached 的缓存
+        n.perFrameScores = null;  // v75：最近一次 75 帧净分（Rust 增量评分用）
         n.freshSig = '';          // v54：当前 scoreCache 对应的威胁窗口签名
         n.dataVersion = 0;        // v54：缓存数据版本，随增量更新递增
         n.status = 'pending';
@@ -1127,6 +1133,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      */
     function applyRolloutScore(tree, node, r) {
         if (!node || !r || !r.perFrameScores) return false;
+        node.perFrameScores = r.perFrameScores.slice();
         var planned = plannedFramesOf(node);
         var actual = planned;
         if (r.dead) {
@@ -1274,12 +1281,21 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     return null;
                 }
             }
-            nodes.push({
+            var onlyPending = nodeStaleOnlyByPending(
+                c.freshSig || '',
+                nodeWindowSig(adapter, c, tree.threats || []),
+                tree._pendingThreats || []
+            );
+            var nodeInput = {
                 samples: c.rolloutSamples,
                 moving: isMovingInputs(c.inputs),
                 startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
                 frames: EVAL_FRAMES
-            });
+            };
+            if (onlyPending && Array.isArray(c.perFrameScores)) {
+                nodeInput.previousScores = c.perFrameScores;
+            }
+            nodes.push(nodeInput);
         }
 
         var results;
@@ -1287,7 +1303,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             results = adapter.rescoreTankSamples(
                 nodes,
                 tree.threats || [],
-                treeScoringCfg(tree)
+                treeScoringCfg(tree),
+                tree._pendingThreats || []
             );
         } catch (eRustLayer) {
             results = null;
@@ -1416,12 +1433,21 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         return null;
                     }
                 }
-                allNodes.push({
+                var onlyPending = nodeStaleOnlyByPending(
+                    c.freshSig || '',
+                    nodeWindowSig(adapter, c, tree.threats || []),
+                    tree._pendingThreats || []
+                );
+                var nodeInput = {
                     samples: c.rolloutSamples,
                     moving: isMovingInputs(c.inputs),
                     startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
                     frames: EVAL_FRAMES
-                });
+                };
+                if (onlyPending && Array.isArray(c.perFrameScores)) {
+                    nodeInput.previousScores = c.perFrameScores;
+                }
+                allNodes.push(nodeInput);
             }
             jobs.push({ parent: parent, stale: collected.stale, offset: allNodes.length - collected.stale.length });
         }
@@ -1435,7 +1461,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var chunk = allNodes.slice(start, start + CHUNK);
             var chunkResults;
             try {
-                chunkResults = adapter.rescoreTankSamples(chunk, threats, cfg);
+                chunkResults = adapter.rescoreTankSamples(
+                    chunk,
+                    threats,
+                    cfg,
+                    tree._pendingThreats || []
+                );
             } catch (eBatch) {
                 return null;
             }
@@ -2027,6 +2058,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             : r.totalScore;
         child.baseExt = (r.totalScore || 0) - child.segmentScore;   // 恒定延伸基线
         child.rolloutTotal = (r.totalScore || 0);                 // v52：75帧全累积总分
+        child.perFrameScores = r.perFrameScores ? r.perFrameScores.slice() : null; // v75
         child.deathAuthority = r.deathAuthority || '';            // v60：死亡判定权威来源
         child.subtreeBest = child.segmentScore + Math.max(0, child.baseExt);  // = totalScore
         child.status = childDead ? 'dead' : 'alive';
@@ -4069,5 +4101,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v74：回退v73异步分片 + v68同步语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v75：Rust帧级增量评分 + v68同步语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);

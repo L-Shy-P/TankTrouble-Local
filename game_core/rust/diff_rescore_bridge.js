@@ -5,7 +5,7 @@
 // VantageSandbox.setRustPhysicsEnabled(true)).
 //
 // This exercises the exact browser hot-path wiring: stored rolloutSamples are
-// rescored by vt_rescore_nodes (ABI v3) through VantageRustBridge, and the
+// rescored by vt_rescore_nodes (ABI v4) through VantageRustBridge, and the
 // result is mapped back into the same shape VantageScoring.scorePaths returns.
 
 'use strict';
@@ -281,10 +281,17 @@ async function main() {
 
   const init = await globalBridge.init('js/wasm/vantage_core.wasm');
   if (!init.ok) throw new Error('bridge init failed: ' + init.error);
-  if (globalBridge.version() !== 3) {
-    throw new Error('expected wasm ABI v3, got ' + globalBridge.version());
+  if (globalBridge.version() !== 4) {
+    throw new Error('expected wasm ABI v4, got ' + globalBridge.version());
   }
   VantageSandbox.setRustPhysicsEnabled(true);
+
+  const rustNativeWarn = globalSandbox.console.warn.bind(globalSandbox.console);
+  let rustWarnCount = 0;
+  globalSandbox.console.warn = function () {
+    rustWarnCount++;
+    rustNativeWarn.apply(null, arguments);
+  };
 
   // Stored samples = the real fused trajectory, by reference.
   const nodes = fusedBatch.map((r, j) => ({
@@ -407,6 +414,121 @@ async function main() {
   console.log('  calls compared : 2');
   console.log('  identical       : PASS');
 
+  // Cached incremental path: previousScores (no threats) + a new far-away
+  // bullet that cannot influence any frame.  Use a no-bullet stored batch so
+  // the JS scorePaths reference and the Rust cached path share the same
+  // death semantics (both alive).  The bridge must pass the previousScores
+  // block through and the output must match the full JS reference exactly.
+  const adapterNoBullet = VantageSandbox.createAdapter(
+    makeGameController(maze, makeFakeTank(Box2D, startPose.x, startPose.y, startPose.rot), {}),
+    'p0'
+  );
+  const noBulletBatch = adapterNoBullet.simulateTankBatch(startPose, ops, frames, {
+    startPose, threats: [], tGlobal: 0,
+  });
+  const fakeAdapterNoBullet = {
+    constants: adapterNoBullet.constants,
+    bulletPosAt: function (path, speed, timeSec) {
+      return adapterNoBullet.bulletPosAt(path, speed, timeSec);
+    },
+    simulateTankBatch: function () {
+      return noBulletBatch;
+    },
+  };
+  const jsPrev = VantageScoring.scorePaths(
+    fakeAdapterNoBullet, { tank: startPose, tGlobal: 0 }, ops, frames, [], cfg
+  );
+  const farThreat = {
+    id: 'far1',
+    path: [{ x: 35.0, y: 2.0 }, { x: 36.0, y: 2.0 }],
+    speed: 18.0,
+    anchorOffset: 0,
+    bulletRadius: 0.25,
+    lifeLeftSeconds: 10,
+  };
+  const cachedNodes = noBulletBatch.map((r, j) => ({
+    samples: r.samples,
+    moving: isMovingInputs(ops[j].inputs),
+    startT: 0,
+    frames: frames,
+    previousScores: jsPrev[j].perFrameScores.slice(),
+  }));
+  const cachedRescore = adapterNoBullet.rescoreTankSamples(cachedNodes, [farThreat], cfg, [farThreat]);
+  if (!cachedRescore) throw new Error('cached far-away rescore returned null');
+  const jsFar = VantageScoring.scorePaths(
+    fakeAdapterNoBullet, { tank: startPose, tGlobal: 0 }, ops, frames, [farThreat], cfg
+  );
+  let maxCachedScore = 0;
+  let maxCachedTotal = 0;
+  for (let op = 0; op < ops.length; op++) {
+    if (cachedRescore[op].deathFrame !== jsFar[op].deathFrame) {
+      throw new Error('cached far-away death mismatch op ' + op);
+    }
+    for (let f = 0; f < jsFar[op].perFrameScores.length; f++) {
+      maxCachedScore = Math.max(maxCachedScore,
+        Math.abs(jsFar[op].perFrameScores[f] - cachedRescore[op].perFrameScores[f]));
+    }
+    maxCachedTotal = Math.max(maxCachedTotal,
+      Math.abs(jsFar[op].totalScore - cachedRescore[op].totalScore));
+  }
+  console.log('scene            : cached incremental + new far-away bullet');
+  console.log('  max per-frame err:', maxCachedScore.toExponential(9));
+  console.log('  max total err    :', maxCachedTotal.toExponential(9));
+  console.log('  deathFrame exact : PASS');
+  if (maxCachedScore > 1e-9 || maxCachedTotal > 1e-9) {
+    throw new Error('cached far-away rescore score mismatch');
+  }
+
+  // Performance: one full recompute vs cached incremental, 9 nodes.
+  const crossingPerfThreat = {
+    id: 'perf1',
+    path: [{ x: 8.0, y: -10.0 }, { x: 8.0, y: 10.0 }],
+    speed: 10.0,
+    anchorOffset: 0,
+    bulletRadius: 0.25,
+    lifeLeftSeconds: 10,
+  };
+  const nodesNoPrev = noBulletBatch.map((r, j) => ({
+    samples: r.samples,
+    moving: isMovingInputs(ops[j].inputs),
+    startT: 0,
+    frames: frames,
+  }));
+  const nodesCrossPrev = noBulletBatch.map((r, j) => ({
+    samples: r.samples,
+    moving: isMovingInputs(ops[j].inputs),
+    startT: 0,
+    frames: frames,
+    previousScores: jsPrev[j].perFrameScores.slice(),
+  }));
+  adapterNoBullet.rescoreTankSamples(nodesNoPrev, [crossingPerfThreat], cfg, [crossingPerfThreat]);
+  let fullCrossMs = 0;
+  for (let t = 0; t < 3; t++) {
+    const t0 = performance.now();
+    adapterNoBullet.rescoreTankSamples(nodesNoPrev, [crossingPerfThreat], cfg, [crossingPerfThreat]);
+    fullCrossMs += performance.now() - t0;
+  }
+  fullCrossMs /= 3;
+  adapterNoBullet.rescoreTankSamples(cachedNodes, [farThreat], cfg, [farThreat]);
+  let cachedFarMs = 0;
+  for (let t = 0; t < 3; t++) {
+    const t0 = performance.now();
+    adapterNoBullet.rescoreTankSamples(cachedNodes, [farThreat], cfg, [farThreat]);
+    cachedFarMs += performance.now() - t0;
+  }
+  cachedFarMs /= 3;
+  adapterNoBullet.rescoreTankSamples(nodesCrossPrev, [crossingPerfThreat], cfg, [crossingPerfThreat]);
+  let cachedCrossMs = 0;
+  for (let t = 0; t < 3; t++) {
+    const t0 = performance.now();
+    adapterNoBullet.rescoreTankSamples(nodesCrossPrev, [crossingPerfThreat], cfg, [crossingPerfThreat]);
+    cachedCrossMs += performance.now() - t0;
+  }
+  cachedCrossMs /= 3;
+  console.log('perf             : full crossing rescore avg ' + fullCrossMs.toFixed(3) +
+    ' ms, cached far-away avg ' + cachedFarMs.toFixed(3) +
+    ' ms, cached crossing avg ' + cachedCrossMs.toFixed(3) + ' ms (9 nodes)');
+
   // Performance: 1 warmup + 3 timed real-wasm rescore calls.
   adapter.rescoreTankSamples(nodes, threats, cfg);
   let rescoreMs = 0;
@@ -418,6 +540,10 @@ async function main() {
   rescoreMs /= 3;
   console.log('perf             : rescoreTankSamples avg ' + rescoreMs.toFixed(3) +
     ' ms, fused simulateTankBatch avg ' + fusedMs.toFixed(3) + ' ms');
+
+  if (rustWarnCount !== 0) {
+    throw new Error('Rust rescore path emitted ' + rustWarnCount + ' fallback warning(s)');
+  }
 
   // Spring rope enabled must make the adapter return null (tree would fall back).
   const cfgSpring = Object.assign({}, cfg, { springRopeEnabled: true });

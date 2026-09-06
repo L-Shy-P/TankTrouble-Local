@@ -424,6 +424,14 @@ async function main() {
   if (!init.ok) throw new Error('bridge init failed: ' + init.error);
   VantageSandbox.setRustPhysicsEnabled(true);
 
+  // v7 regression: any Rust-path fallback warning is a test failure.
+  const rustNativeWarn = globalSandbox.console.warn.bind(globalSandbox.console);
+  let rustWarnCount = 0;
+  globalSandbox.console.warn = function () {
+    rustWarnCount++;
+    rustNativeWarn.apply(null, arguments);
+  };
+
   function compareBatch(name, fusedBatch, rustBatch) {
     let maxPos = 0, maxAng = 0, maxPosAt = '', maxAngAt = '';
     for (let op = 0; op < ops.length; op++) {
@@ -459,6 +467,9 @@ async function main() {
   const ok2 = compareBatch('bridge head-on bullet, call 2 (warm)', fused2, rust2);
 
   VantageSandbox.setRustPhysicsEnabled(false);
+  if (rustWarnCount !== 0) {
+    throw new Error('Rust physics path emitted ' + rustWarnCount + ' fallback warning(s)');
+  }
 
   if (!ok1 || !ok2) {
     console.error('DIFF ROLLOUT BRIDGE FAILED');

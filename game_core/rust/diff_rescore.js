@@ -282,6 +282,7 @@ function threatToJson(th) {
     bulletRadius: th.bulletRadius || 0.25,
     lifeLeftSeconds: th.lifeLeftSeconds !== undefined ? th.lifeLeftSeconds : 10,
   };
+  if (th.isNew !== undefined) o.isNew = !!th.isNew;
   if (th.track) {
     o.track = th.track.map((f) => [f.x, f.y, f.alive !== false]);
   }
@@ -310,6 +311,17 @@ function buildRescoreScene(cacheId, maze, batch, ops, threats, startT, frames, c
 
 function buildManualScene(cacheId, maze, batch, ops, threats, startT, frames, cfg) {
   return buildRescoreScene(cacheId, maze, batch, ops, threats, startT, frames, cfg);
+}
+
+function withPreviousScores(scene, prevResults) {
+  if (!prevResults) return scene;
+  scene.nodes = scene.nodes.map((node, j) => {
+    const pfs = prevResults[j] && prevResults[j].perFrameScores
+      ? prevResults[j].perFrameScores.slice()
+      : [];
+    return Object.assign({}, node, { previousScores: pfs });
+  });
+  return scene;
 }
 
 // ---------------------------------------------------------------------------
@@ -636,6 +648,79 @@ function main() {
   const cfgSpring = Object.assign({}, cfg, { springRopeEnabled: true });
   rustScenes.push(buildRescoreScene(6, maze, realBatchA, ops, threatsA, 0, frames, cfgSpring));
 
+  // Scene g: previousScores + a new far-away bullet. The bullet is outside
+  // every influence radius, so the Rust cached path must copy the previous
+  // scores and still match the full JS scorePaths reference exactly.
+  const adapterNoBulletG = VantageSandbox.createAdapter(
+    makeGameController(maze, makeFakeTank(Box2D, startPoseA.x, startPoseA.y, startPoseA.rot), {}),
+    'p0'
+  );
+  const noBulletBatchG = adapterNoBulletG.simulateTankBatch(startPoseA, ops, frames, {
+    startPose: startPoseA,
+    threats: [],
+    tGlobal: 0,
+  });
+  const fakeAdapterG = makeFakeScoreAdapter(adapterNoBulletG, noBulletBatchG);
+  const jsPrevG = VantageScoring.scorePaths(
+    fakeAdapterG, { tank: startPoseA, tGlobal: 0 }, ops, frames, [], cfg
+  );
+  const farThreatG = {
+    id: 'g1',
+    path: [{ x: 35.0, y: 2.0 }, { x: 36.0, y: 2.0 }],
+    speed: 18.0,
+    anchorOffset: 0,
+    bulletRadius: 0.25,
+    lifeLeftSeconds: 10,
+    isNew: true,
+  };
+  const jsG = VantageScoring.scorePaths(
+    fakeAdapterG, { tank: startPoseA, tGlobal: 0 }, ops, frames, [farThreatG], cfg
+  );
+  const sceneG = withPreviousScores(
+    buildRescoreScene(7, maze, noBulletBatchG, ops, [farThreatG], 0, frames, cfg),
+    jsPrevG
+  );
+  rustScenes.push(sceneG);
+  jsResults.push(jsG);
+  batchDeath.push(null);
+  names.push('g previousScores + new far-away bullet');
+
+  // Scene h: previousScores + a new crossing bullet. The cached path must
+  // recompute only affected frames and match the full JS reference exactly.
+  const crossingThreatH = {
+    id: 'h1',
+    path: [{ x: 8.0, y: -10.0 }, { x: 8.0, y: 10.0 }],
+    speed: 10.0,
+    anchorOffset: 0,
+    bulletRadius: 0.25,
+    lifeLeftSeconds: 10,
+    isNew: true,
+  };
+  // Use only the static op for the crossing scene: the bullet passes within
+  // r_semi of the tank geometry centre (so per-frame scores change) but it
+  // cannot physically touch the stationary tank (x=8 vs tank body x<=6.5).
+  const staticOpsH = [ops[0]];
+  const noBulletBatchH = adapterNoBulletG.simulateTankBatch(startPoseA, staticOpsH, frames, {
+    startPose: startPoseA,
+    threats: [],
+    tGlobal: 0,
+  });
+  const fakeAdapterH = makeFakeScoreAdapter(adapterNoBulletG, noBulletBatchH);
+  const jsPrevH = VantageScoring.scorePaths(
+    fakeAdapterH, { tank: startPoseA, tGlobal: 0 }, staticOpsH, frames, [], cfg
+  );
+  const jsH = VantageScoring.scorePaths(
+    fakeAdapterH, { tank: startPoseA, tGlobal: 0 }, staticOpsH, frames, [crossingThreatH], cfg
+  );
+  const sceneH = withPreviousScores(
+    buildRescoreScene(8, maze, noBulletBatchH, staticOpsH, [crossingThreatH], 0, frames, cfg),
+    jsPrevH
+  );
+  rustScenes.push(sceneH);
+  jsResults.push(jsH);
+  batchDeath.push(null);
+  names.push('h previousScores + new crossing bullet');
+
   const rustResults = runRustRescore(rustScenes);
   if (rustResults.length !== rustScenes.length) {
     throw new Error(
@@ -672,6 +757,12 @@ function main() {
   console.log('scene            : e warm persistence unchanged');
   console.log('  calls compared : 2');
   console.log('  identical       : PASS');
+  console.log('');
+
+  allOk = compareRescoreScene(names[4], jsResults[4], rustResults[7].nodes, null) && allOk;
+  console.log('');
+
+  allOk = compareRescoreScene(names[5], jsResults[5], rustResults[8].nodes, null) && allOk;
   console.log('');
 
   allOk = checkSpringUnsupported('f spring rope unsupported fallback', rustResults[6].nodes) && allOk;

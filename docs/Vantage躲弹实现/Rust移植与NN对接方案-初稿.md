@@ -456,3 +456,10 @@ C. JS 精确物理 + Rust 树/评分/NN
 - `vt_rescore_nodes` node 上限 64→512；bridge v5 / testbench v55。
 - Tree v72 新增 `tryRustRescoreBatch`：先收集全树所有受影响父层的 stale 节点，按 512 分块，一次/少数几次调用 `adapter.rescoreTankSamples`，再把结果按父层切回写节点。墙/威胁轨迹拷贝与 JS↔WASM 边界开销从每层一次降为每批一次。
 - 任一节点无效或 Rust 失败时整批回退原逐层刷新，语义与 v68 完全一致。
+
+## 二十五、第七波 v75：Rust 帧级增量评分（ABI v4）
+
+- 节点持久保存 `perFrameScores`；新弹刷新时，Rust 只重算新弹能影响的帧（遮蔽 R_SEMI+0.25 / 车道 3.5+offset+0.25 / 尾部未来盒），其余帧直接复制上一轮分数。默认 lane=0/spring=false 下与全量重算逐位一致。
+- `vt_rescore_nodes` ABI v4 新增 `prev_per_frame_scores`（可空）与 `threat_is_new`；JS bridge v6/v7、sandbox v31、tree v75、testbench v58。
+- 新增 cached far-away / cached crossing 差分场景；全部 5 个差分 PASS，`cargo test` 75 passed。
+- 修复 v75 初版误把 rescore 代码贴进 rolloutBatch 导致 Rust 物理回退的问题；diff_rollout_bridge/diff_rescore_bridge 现在会统计 fallback warning 并作为失败。
