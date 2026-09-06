@@ -1,9 +1,6 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
- * 2026-09-05 v73（全树重路由异步分片 + 新弹自动合并）：
- *   每 tick 最多处理 6 个父层；完成前旧 commitNode 继续执行。
- *   分片期间再来新弹直接重启到最新 threats，不叠加旧任务。
  * 2026-09-05 v72（v68 多层 Rust 重评分合并为一次 WASM 调用）：
  *   tryRustRescoreBatch 收集所有受影响父层节点后按 512 分块，
  *   一次/少数几次调用 rescoreTankSamples；失败回退逐层刷新。
@@ -713,7 +710,6 @@
         tree.threats = threats;
         tree._hasOffsetThreats = false;
         tree._pendingThreats = [];
-        tree._rerouteSlice = null;
         if (missing) {
             ensureThreatTracks(tree, adapter, threats, missingIds);
         }
@@ -1454,107 +1450,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         recordStructure(tree, 'rust-rescore-batch',
             'parents=' + jobs.length + ' nodes=' + allNodes.length + ' updated=' + updated);
         return { used: true, updated: updated };
-    }
-
-    /** v73：每 tick 最多处理的全树重路由父层数（异步分片预算）。 */
-    var REROUTE_PARENT_BUDGET = 6;
-
-    /** v73：收集当前活动父层（与 v68 reroute 同口径）。 */
-    function collectActiveParents(tree) {
-        if (!tree || !tree.root) return [];
-        var parents = [];
-        (function collect(n) {
-            if (!n || n.invalid || n.exhausted) return;
-            if (n.children && n.children.length) parents.push(n);
-            for (var i = 0; i < n.children.length; i++) collect(n.children[i]);
-        })(tree.root);
-        return parents;
-    }
-
-    /** v73：全树重路由完成后统一重选 next + 后序回传 subtreeBest。 */
-    function finishRerouteSlice(tree) {
-        var parents = collectActiveParents(tree);
-        var nextChanged = 0;
-        for (var i = 0; i < parents.length; i++) {
-            var p = parents[i];
-            var oldNext = p.next;
-            var newNext = pickBestChildByRolloutTotal(p.children);
-            p.next = newNext;
-            if (oldNext !== newNext) nextChanged++;
-        }
-        recomputeSubtreeBestPostOrder(tree);
-        return nextChanged;
-    }
-
-    /**
-     * v73：异步分片全树重路由。每 tick 只处理少量父层，旧 commitNode
-     * 在完成前继续执行。新弹到来时直接重启到最新 threats，不叠加旧任务。
-     */
-    function startRerouteSlice(tree, adapter) {
-        if (!tree || !adapter) return;
-        tree._rerouteSlice = {
-            index: 0,
-            updated: 0,
-            ticks: 0,
-            startedAt: _timeAcc,
-            lastThreatIds: tree.threatIds
-        };
-        recordStructure(tree, 'reroute-slice-start',
-            'parents=' + collectActiveParents(tree).length);
-        stepRerouteSlice(tree, adapter);
-    }
-
-    /** v73：推进重路由分片；任务完成返回 true。 */
-    function stepRerouteSlice(tree, adapter) {
-        var job = tree._rerouteSlice;
-        if (!job) return true;
-
-        var parents = collectActiveParents(tree);
-        var subset = [];
-        var i;
-        for (i = job.index; i < parents.length && subset.length < REROUTE_PARENT_BUDGET; i++) {
-            var p = parents[i];
-            if (!p || p.invalid || p.exhausted) continue;
-            subset.push(p);
-        }
-        if (!subset.length) {
-            var forcedNextChanged = finishRerouteSlice(tree);
-            recordStructure(tree, 'reroute-slice-finish',
-                'updated=' + job.updated + ' ticks=' + job.ticks +
-                ' nextChanged=' + forcedNextChanged);
-            tree._rerouteSlice = null;
-            return true;
-        }
-
-        var batch = tryRustRescoreBatch(tree, adapter, subset);
-        var chunkUpdated = 0;
-        if (batch && batch.used) {
-            chunkUpdated = batch.updated;
-        } else {
-            for (i = 0; i < subset.length; i++) {
-                chunkUpdated += refreshFusedLayer(tree, adapter, subset[i]);
-            }
-        }
-        job.updated += chunkUpdated;
-        job.ticks++;
-
-        // 推进索引；subset 是按顺序收集的，取其末尾在原数组中的位置 + 1。
-        var lastParent = subset[subset.length - 1];
-        var nextIndex = parents.indexOf(lastParent) + 1;
-        job.index = Math.max(job.index + 1, nextIndex);
-
-        if (job.index >= parents.length) {
-            var nextChanged = finishRerouteSlice(tree);
-            recordStructure(tree, 'reroute-slice-finish',
-                'updated=' + job.updated + ' ticks=' + job.ticks +
-                ' nextChanged=' + nextChanged);
-            tree._rerouteSlice = null;
-            return true;
-        }
-        recordStructure(tree, 'reroute-slice-progress',
-            'index=' + job.index + '/' + parents.length +
-            ' updated=' + job.updated + ' tick=' + job.ticks);
-        return false;
     }
 
     /** v68：当前提交层重评分。只做本层，不做惰性链。 */
@@ -3214,8 +3109,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 tree.threats = threats;
                 tree._hasOffsetThreats = false;
                 tree._pendingThreats = [];
-        tree._rerouteSlice = null;
-                tree._rerouteSlice = null;
                 ensureThreatTracks(tree, adapter, threats);
                 snapshotThreatAnchors(tree, threats, tree.rootAbsT);
             }
@@ -3307,8 +3200,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 tree.rootAbsT = _timeAcc;
                 tree.threats = threats;
                 tree._pendingThreats = [];
-        tree._rerouteSlice = null;
-                tree._rerouteSlice = null;
                 ensureThreatTracks(tree, adapter, threats);
                 snapshotThreatAnchors(tree, threats, tree.rootAbsT);
                 if (results && results.length) {
@@ -3446,7 +3337,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         tree.threats = threats;
         tree._hasOffsetThreats = false;   // 全新锚定，所有 threat 相对本根，无偏移
         tree._pendingThreats = [];
-        tree._rerouteSlice = null;
         ensureThreatTracks(tree, adapter, threats);
         snapshotThreatAnchors(tree, threats, tree.rootAbsT);
         tree.leaves = [root];
@@ -3722,7 +3612,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 removedAny = removeThreatsByIds(_tree, removedIds);
                 if (removedAny) {
                     _tree._lazyDirty = true;
-                    _tree._rerouteSlice = null;   // v73：增量/删除混合时作废旧分片
                     pushEvent('threat', '弹消失-移除 ' + removedIds.join(','));
                 }
             }
@@ -3766,12 +3655,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 决策/展开统一用限流后的 threats；没有新鲜需求时沿用锚定 threats。
         var evalThreats = threats || tree.threats || [];
 
-        // v73：上一 tick 未完成的全树重路由分片先推进；完成前旧操作继续执行。
-        if (tree._rerouteSlice && !emergency) {
-            stepRerouteSlice(tree, adapter);
-            return;
-        }
-
         // 提交切片进行中：继续推进；新弹出现则作废旧切片、用新 threats 重开。
         if (tree._commitSlice) {
             if (emergency) tree._commitSlice = null;
@@ -3799,10 +3682,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 stepCommitSlice(tree);
                 return;
             }
-            // v73：全树重路由改为分片异步。startRerouteSlice 会立即推进
-            // 第一个分片；若未完成，后续 tick 继续推进，完成前旧 next 继续执行。
-            // 新弹再来会直接重启到最新 threats，不会叠加旧任务。
-            startRerouteSlice(tree, adapter);
+            // v68：恢复 v52 全树重选语义；但精确死亡来自融合世界。
+            rerouteTreeForCurrentThreats(tree, adapter);
             tree.threatDirty = false;
             // v39：仅当“当前段是静止且新弹很快会进入威胁圈”时才提前结束。
             // 一般新弹仍让当前段自然跑完，避免 v37 前的树图频闪。
@@ -3824,7 +3705,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     pushEvent('force', '静止段提前结束');
                 }
             }
-            if (tree._rerouteSlice) return;   // v73：本 tick 只推分片，避免叠加其他重活
         }
 
         // 提交心跳：无 commitNode → 首次提交；段末 → 对齐检查 + 坍缩
@@ -4186,5 +4066,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v73：v68语义 + 新弹粗过滤 + Rust批量层刷新 + 异步分片合并 + Rust最小决策实验开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v72：v68语义 + 新弹粗过滤 + Rust批量层刷新 + Rust最小决策实验开关）');
 })(typeof window !== 'undefined' ? window : this);
