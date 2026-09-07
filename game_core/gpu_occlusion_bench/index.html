@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>GPU 离线基准：单帧遮蔽角评分（Vantage）</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 2rem; line-height: 1.6; }
+    h1 { font-size: 1.4rem; }
+    label { display: inline-block; margin: 0.5rem 1rem 0.5rem 0; }
+    input { width: 7rem; padding: 0.25rem; }
+    button { padding: 0.4rem 1.2rem; cursor: pointer; }
+    #gpuSupport { font-weight: bold; }
+    #status { margin: 1rem 0; font-weight: bold; }
+    table { border-collapse: collapse; margin-top: 1rem; }
+    td, th { border: 1px solid #999; padding: 0.4rem 0.8rem; text-align: left; }
+    #detail { color: #555; max-width: 60rem; }
+    .note { color: #888; font-size: 0.9rem; max-width: 60rem; }
+  </style>
+</head>
+<body>
+  <h1>GPU 离线基准：单帧遮蔽角评分（Vantage）</h1>
+  <p class="note">独立于游戏的离线基准：GPU 只计算单帧遮蔽角评分（生成 f32 遮蔽弧段，区间合并留 CPU），
+    不写回游戏，不接最终决策。保留 JS 精确 f64 版本作为对照。</p>
+  <div>
+    <label>操作数 <input id="ops" type="number" value="9" min="1" max="64"></label>
+    <label>帧数 <input id="frames" type="number" value="75" min="1" max="300"></label>
+    <label>每帧子弹数 <input id="bullets" type="number" value="20" min="0" max="128"></label>
+    <label>随机种子 <input id="seed" type="number" value="20260816"></label>
+    <button id="run">重新运行</button>
+  </div>
+  <div id="gpuSupport"></div>
+  <div id="status"></div>
+  <table id="results"></table>
+  <div id="detail"></div>
+  <script src="main.js"></script>
+</body>
+</html>

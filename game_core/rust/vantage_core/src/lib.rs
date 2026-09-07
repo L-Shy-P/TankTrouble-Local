@@ -10,13 +10,14 @@ pub mod box2d;
 pub mod minimal;
 pub mod rescore;
 pub mod rollout;
+pub mod score_paths;
 pub mod scoring;
 pub mod tree;
 
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
-    5
+    6
 }
 
 /// Flat-buffer fused rollout batch ABI.
@@ -979,7 +980,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 5);
+        assert_eq!(vt_version(), 6);
     }
 
     #[test]

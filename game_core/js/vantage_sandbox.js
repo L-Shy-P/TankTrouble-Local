@@ -30,6 +30,9 @@
  * 2026-08-23 v27（弹道模拟提前停）：
  *   simulateBulletTracks 在所有被模拟子弹都已 active=false 后直接 break，
  *   不再空转 Box2D Step；混弹时由寿命最长的弹决定继续。
+ * 2026-09-07 v33（ABI v6 + vt_score_paths 九操作评分 + 执行路线 JS 融合确认）：
+ *   simulateTankBatchScored 一次调用完成 Rust 融合模拟 + f64 遮蔽角评分；
+ *   仅支持 lane=0 且弹簧绳关闭的安全配置，任何失败/不支持返回 null。
  * 2026-09-07 v32（ABI v5 + 增量死亡验证只看新子弹 + JS 执行路线融合确认）：
  *   rescoreTankSamples 透传 previousDeathFrame 并标记 rustCandidate/rustIncremental；
  *   simulateTankBatch 为 Rust 物理预测打 rustPhysics 候选标记；新增
@@ -1492,6 +1495,159 @@
             },
 
             /**
+             * v33：九操作 Rust 评分路径（ABI v6 vt_score_paths）。
+             * 一次调用同时完成 Rust 融合世界坦克模拟（samples/候选死亡帧）
+             * 与 f64 遮蔽角评分。仅支持默认安全配置：lane=0 且弹簧绳关闭；
+             * 任何失败/不支持都返回 null，由 tree.rolloutNine 静默回退
+             * VantageScoring.scorePaths（JS 融合路径）。
+             */
+            simulateTankBatchScored: function(state, operations, durationFrames, opt) {
+                if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
+                if (durationFrames > 75) return null;
+                if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
+                opt = opt || {};
+                var cfg = opt.cfg || {};
+                if (cfg.springRopeEnabled) return null;
+                if (typeof cfg.lanePenaltyRatio === 'number' && cfg.lanePenaltyRatio > 0) return null;
+                if (!opt.startPose) opt.startPose = state;
+
+                var fc = getFusedWorld(gameController, aiId);
+                if (!fc || !fc.wallShapes) return null;
+
+                var fused0 = simulateFusedBatch(gameController, aiId, operations, 0, opt);
+                if (!fused0 || fused0.length !== operations.length) return null;
+
+                var me = gameController.getTank(aiId);
+                if (!me || !me.getB2DBody || !me.getB2DBody()) return null;
+
+                var bullets = [];
+                for (var bi = 0; bi < fc.bulletSlots.length; bi++) {
+                    var slot = fc.bulletSlots[bi];
+                    if (slot.lastRound !== fc.round || !slot.body || !slot.body.IsActive() || !slot.active) continue;
+                    var bpos = slot.body.GetPosition();
+                    var bvel = slot.body.GetLinearVelocity();
+                    bullets.push({
+                        x: bpos.x,
+                        y: bpos.y,
+                        vx: bvel.x,
+                        vy: bvel.y,
+                        radius: slot.radius,
+                        lifeLeft: slot.lifeLeft,
+                        active: true
+                    });
+                }
+
+                var opCalc = computeRustOperationSpeeds(me, operations, !!me.locked);
+                var rustOps = [];
+                for (var oi = 0; oi < operations.length; oi++) {
+                    var inputs = operations[oi].inputs || operations[oi];
+                    rustOps.push({
+                        speed: opCalc.speeds[oi],
+                        rotationSpeed: opCalc.rotationSpeeds[oi],
+                        moving: !!(inputs.forward || inputs.back || inputs.left || inputs.right)
+                    });
+                }
+
+                var threats = opt.threats || [];
+                var bridgeThreats = [];
+                for (var ti = 0; ti < threats.length; ti++) {
+                    var th = threats[ti];
+                    if (!th) return null;
+                    var bth = {
+                        speed: th.speed || 0,
+                        anchorOffset: th.anchorOffset || 0
+                    };
+                    if (th.track) {
+                        if (!Array.isArray(th.track)) return null;
+                        bth.track = [];
+                        for (var tfi = 0; tfi < th.track.length; tfi++) {
+                            var tf = th.track[tfi];
+                            if (!tf) return null;
+                            bth.track.push({ x: tf.x, y: tf.y, alive: tf.alive !== false });
+                        }
+                    }
+                    if (th.path) {
+                        if (!Array.isArray(th.path)) return null;
+                        bth.path = [];
+                        for (var pi = 0; pi < th.path.length; pi++) {
+                            var pp = th.path[pi];
+                            if (!pp) return null;
+                            bth.path.push({ x: pp.x, y: pp.y });
+                        }
+                    }
+                    bridgeThreats.push(bth);
+                }
+
+                var defaults = (global.VantageScoring && global.VantageScoring.DEFAULTS) || {};
+                var deathPenalty = (cfg.deathPenalty !== undefined) ? cfg.deathPenalty
+                    : ((defaults.deathPenalty !== undefined) ? defaults.deathPenalty : 0);
+                var stuckPenalty = (cfg.stuckPenalty !== undefined) ? cfg.stuckPenalty
+                    : ((defaults.stuckPenalty !== undefined) ? defaults.stuckPenalty : 4.0);
+                var stuckDistEps = (cfg.stuckDistEps !== undefined) ? cfg.stuckDistEps
+                    : ((defaults.stuckDistEps !== undefined) ? defaults.stuckDistEps : 0.05);
+                var stuckRotEps = (cfg.stuckRotEps !== undefined) ? cfg.stuckRotEps
+                    : ((defaults.stuckRotEps !== undefined) ? defaults.stuckRotEps : 0.05);
+                var lanePenaltyRatio = (cfg.lanePenaltyRatio !== undefined) ? cfg.lanePenaltyRatio
+                    : ((defaults.lanePenaltyRatio !== undefined) ? defaults.lanePenaltyRatio : 0);
+
+                var bridgeResult;
+                try {
+                    bridgeResult = global.VantageRustBridge.scorePaths({
+                        cacheId: hashAiIdForRustCache(aiId),
+                        startPose: opt.startPose,
+                        startT: (typeof opt.tGlobal === 'number') ? opt.tGlobal : 0,
+                        ops: rustOps,
+                        walls: fc.wallShapes,
+                        bullets: bullets,
+                        frames: durationFrames,
+                        threats: bridgeThreats,
+                        cfg: {
+                            deathPenalty: deathPenalty,
+                            stuckPenalty: stuckPenalty,
+                            stuckDistEps: stuckDistEps,
+                            stuckRotEps: stuckRotEps,
+                            lanePenaltyRatio: lanePenaltyRatio,
+                            springRopeEnabled: !!cfg.springRopeEnabled
+                        }
+                    });
+                } catch (eScored) {
+                    console.warn('[VantageSandbox] Rust 评分路径调用失败，回退 JS scorePaths:', eScored);
+                    return null;
+                }
+                if (!bridgeResult || bridgeResult.ok !== true ||
+                        !Array.isArray(bridgeResult.results) ||
+                        bridgeResult.results.length !== operations.length) {
+                    console.warn('[VantageSandbox] Rust 评分路径结果无效，回退 JS scorePaths:', bridgeResult && bridgeResult.error);
+                    return null;
+                }
+                for (var ri2 = 0; ri2 < bridgeResult.results.length; ri2++) {
+                    var rr = bridgeResult.results[ri2];
+                    if (!rr || rr.ok !== true || !Array.isArray(rr.samples) ||
+                            rr.samples.length !== durationFrames + 1 ||
+                            !Array.isArray(rr.perFrameScores)) {
+                        console.warn('[VantageSandbox] Rust 评分路径结果不匹配，回退 JS scorePaths');
+                        return null;
+                    }
+                }
+
+                return bridgeResult.results.map(function (r, idx) {
+                    return {
+                        samples: r.samples.map(function (s, frame) {
+                            return { t: frame * 0.02, x: s.x, y: s.y, rot: s.rot };
+                        }),
+                        dead: r.deathFrame > 0,
+                        deathFrame: r.deathFrame,
+                        perFrameScores: r.perFrameScores.slice(),
+                        totalScore: r.totalScore,
+                        frameCount: r.frameCount,
+                        rustPhysics: true,
+                        deathAuthority: 'rust-candidate'
+                    };
+                });
+            },
+
+
+            /**
              * v32：强制 JS 融合世界的批量坦克模拟（不经过 Rust 物理开关）。
              * 供树对最终执行路线做死亡权威确认；不可用时返回 null。
              */
@@ -1807,6 +1963,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v32：增量死亡验证只看新子弹 + simulateTankBatchJsFused 执行路线 JS 融合确认 + Rust 物理预测打标 rustPhysics）');
+    console.log('[Vantage Sandbox] 模块已加载（v33：vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认 + Rust 物理预测打标 rustPhysics）');
 
 })(typeof window !== 'undefined' ? window : this);

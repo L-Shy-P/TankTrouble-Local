@@ -555,3 +555,53 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - `diff_tree_nodecount.js` PASS。
 - `diff_rescore.js / diff_rollout.js / diff_rescore_bridge.js / diff_rollout_bridge.js / diff_rollout_rescore_edge.js` 全部 PASS。
 - 新增 `rust/diff_incremental_death_merge.js` PASS。
+
+
+## 九操作评分 Rust CPU 路径（vt_score_paths，ABI v6）
+
+### 目标
+- 把树展开 `rolloutNine` 的 9 操作评分从 JS `VantageScoring.scorePaths`
+  迁移到 Rust CPU；默认仍安全：Rust 路径只在 `RUST_PHYSICS_ENABLED=true`
+  且 bridge 就绪时启用，任何失败/不支持都静默回退 JS。
+- Rust 死亡帧只作候选；最终执行路线仍由 JS 融合世界确认，绝不破坏
+  v77 的 `deathAuthority='rust-candidate' -> JS 确认` 链条。
+
+### ABI v6：`vt_score_paths`
+- 输入：`cache_id`、父位姿 `start_x/y/rot`、`start_t`、9 组
+  `(speed, rotation_speed, moving)`、walls、真实子弹
+  `(x,y,vx,vy,radius,lifeLeft,active)`、`duration_frames<=75`、
+  评分 threats（`track`/`path`/`speed`/`anchorOffset`）与评分配置
+  `(deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
+  lanePenaltyRatio, springRopeEnabled)`。
+- 输出：每个操作的 samples（复用 `run_rollout_batch` 的融合世界轨迹）、
+  `perFrameScores`（75 帧平铺，零填充）、`totalScore`、`deathFrame`、`ok`。
+- 限制：`lanePenaltyRatio > 0` 或 `springRopeEnabled=true` 直接返回失败，
+  由 JS `scorePaths` 回退；这保证 Rust 只跑默认安全配置（lane=0、弹簧绳关）。
+
+### 实现路径
+- 坦克轨迹与候选死亡帧复用 `rollout::run_rollout_batch`（现有融合世界，
+  v2 起已与 JS `simulateFusedBatch` 差分一致）。
+- 存活帧评分复用 `rescore::score_stored_node`（其内部调用
+  `scoring::score_frame_alive`，f64 精确遮蔽角）。死亡帧按 JS 口径截断：
+  `perFrameScores = 前 deathFrame-1 帧净分 + (-deathPenalty)`。
+- 遮蔽角评分沿用 `scoring::occlusion_intervals` / `exactOcclusion`，
+  与 JS 拷贝区2 同源 f64。
+- JS 桥新增 `VantageRustBridge.scorePaths`（bridge v10）。
+- sandbox 新增 `adapter.simulateTankBatchScored`（sandbox v33）：
+  零帧融合预跑取真实子弹位姿/速度 -> `computeRustOperationSpeeds` ->
+  桥接 `scorePaths`；结果映射为 `scorePaths` 口径并打
+  `rustPhysics=true` / `deathAuthority='rust-candidate'`。
+- tree v78 的 `rolloutNine` 优先走 `adapter.simulateTankBatchScored`；
+  lane>0、弹簧绳、样本数不匹配、任何异常都静默回退
+  `VantageScoring.scorePaths`。
+
+### 差分测试
+- 新增 `rust/diff_score_paths_bridge.js`：远弹、近弹、横穿、激光半径0、
+  死亡五个场景，逐个比较 samples、perFrameScores、totalScore、deathFrame；
+  45 op / 1533 帧全部 1e-9 内一致。
+- 新增 Rust 单元测试：`score_paths_alive_far_bullet_matches_full_circle`、
+  `score_paths_rejects_lane_and_spring_config`。
+
+### 版本
+- Rust ABI v6、bridge v10、sandbox v33、scoring v31、tree v78、
+  testbench v61、index.html `?v=` 同步；WASM 重建。

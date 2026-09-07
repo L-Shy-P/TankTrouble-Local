@@ -5,7 +5,7 @@
 // VantageSandbox.setRustPhysicsEnabled(true)).
 //
 // This exercises the exact browser hot-path wiring: stored rolloutSamples are
-// rescored by vt_rescore_nodes (ABI v5) through VantageRustBridge, and the
+// rescored by vt_rescore_nodes (ABI v6) through VantageRustBridge, and the
 // result is mapped back into the same shape VantageScoring.scorePaths returns.
 
 'use strict';
@@ -266,7 +266,7 @@ async function main() {
 
   const init = await globalBridge.init('js/wasm/vantage_core.wasm');
   if (!init.ok) throw new Error('bridge init failed: ' + init.error);
-  if (globalBridge.version() !== 5) throw new Error('expected ABI v5, got ' + globalBridge.version());
+  if (globalBridge.version() !== 6) throw new Error('expected ABI v6, got ' + globalBridge.version());
   VantageSandbox.setRustPhysicsEnabled(true);
 
   const laserRust = laserAdapter.simulateTankBatch(startPose, ops, frames, laserOpt);

@@ -1,6 +1,10 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v78（vt_score_paths 九操作 Rust 评分接入 rolloutNine）：
+ *   rolloutNine 优先走 adapter.simulateTankBatchScored（Rust 融合模拟 + f64
+ *   遮蔽角评分，lane=0/弹簧绳关闭才启用）；任何失败或不支持静默回退
+ *   VantageScoring.scorePaths。Rust 死亡帧仍只作 rust-candidate。
  * 2026-09-07 v77（增量死亡验证只看新子弹 + JS 权威确认 + 无弹生长开关）：
  *   ① tryRustRescoreLayer/Batch 对 stale 完全由新增子弹引起的节点传
  *      previousDeathFrame；Rust 死亡验证只跑 isNew 新弹，旧弹死亡帧
@@ -2296,10 +2300,42 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     // ============================================================
 
     /** 9 操作 rollout（软死口径，deathPenalty=0）。
-     *  融合世界开启时一次批量模拟；关闭/不可用时 scorePaths 内部回退旧路径。 */
+     *  v78：优先走 Rust vt_score_paths（adapter.simulateTankBatchScored）；
+     *  任何失败/lane>0/弹簧绳/样本数不匹配都静默回退 JS scorePaths。
+     *  融合世界关闭/不可用时 scorePaths 内部回退旧路径。 */
     function rolloutNine(tree, adapter, simState, threats) {
         var ops = VantageSandbox.OPERATIONS;
         var cfg = treeScoringCfg(tree);
+        if (adapter && typeof adapter.simulateTankBatchScored === 'function') {
+            try {
+                var rustScored = adapter.simulateTankBatchScored(simState.tank, ops,
+                    EVAL_FRAMES, {
+                        startPose: simState.tank,
+                        threats: threats,
+                        tGlobal: simState.tGlobal,
+                        cfg: cfg
+                    });
+                if (rustScored && rustScored.length === ops.length) {
+                    var okAll = true;
+                    for (var ri = 0; ri < rustScored.length; ri++) {
+                        if (!rustScored[ri] || !rustScored[ri].perFrameScores ||
+                                !rustScored[ri].samples) {
+                            okAll = false;
+                            break;
+                        }
+                        rustScored[ri].opIndex = ri;
+                        rustScored[ri].opName = ops[ri].name;
+                        // Rust 死亡帧只作候选；最终执行路线仍由 JS 融合世界确认。
+                        rustScored[ri].deathAuthority = 'rust-candidate';
+                    }
+                    if (okAll) {
+                        return rustScored;
+                    }
+                }
+            } catch (eRustScored) {
+                // 静默回退 JS scorePaths。
+            }
+        }
         if (VantageScoring.scorePaths) {
             return VantageScoring.scorePaths(adapter, simState, ops,
                 EVAL_FRAMES, threats, cfg);
@@ -4409,5 +4445,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v77：增量死亡验证只看新子弹 + JS执行路线死亡确认 + 无弹生长开关 + v76节点计数修复）');
+    console.log('[Vantage Tree] 模块已加载（段制 v78：rolloutNine 优先走 vt_score_paths 九操作 Rust 评分 + JS执行路线死亡确认 + 无弹生长开关 + v76节点计数修复）');
 })(typeof window !== 'undefined' ? window : this);

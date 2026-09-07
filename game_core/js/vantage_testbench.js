@@ -10,6 +10,8 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
+ * 2026-09-07 v61（配合桥 v10 / 沙箱 v33 / 树 v78）：
+ *   Rust 九操作评分 vt_score_paths 接入树 rolloutNine；版本号同步。
  * 2026-09-07 v60（配合桥 v9 / 沙箱 v32 / 树 v77）：
  *   实验区新增“无弹生长”复选框，绑定 VantageTree.setGrowWithoutThreatsEnabled；
  *   开启后树在无 threats 时继续生长（无子弹纯数据搬运/更新性能实验）。
@@ -65,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v60';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v61';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。

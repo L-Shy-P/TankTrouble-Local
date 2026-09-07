@@ -20,6 +20,8 @@
  *   threats, cfg, prevCache)；返回 {result, cache}。
  *   无 prevCache 时全量计算并写缓存；有 prevCache 时按 added/removed 子弹
  *   增量更新角度并集、弹簧绳乘积、车道 max、死亡重查，不模拟坦克。
+ * 2026-09-07 v31（配合树 v78 / 沙箱 v33 / 桥 v10）：
+ *   vt_score_paths 接入 rolloutNine；scorePaths 保持 JS 回退路径不变。
  * 2026-08-23 v28（缺失折线的真实子弹兜底为直线威胁，杜绝“从视野消失”）：
  *   getProjectilePaths 瞬态丢弃折线时，computeThreats 仍为当前真实
  *   projectile 生成当前位置+速度方向的直线 fallback threat；
@@ -2476,6 +2478,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v30：scorePaths 透传 rustPhysics 候选标记 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v31：vt_score_paths 接入 rolloutNine + scorePaths 透传 rustPhysics 候选标记 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);
