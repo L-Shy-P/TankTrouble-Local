@@ -605,3 +605,31 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 ### 版本
 - Rust ABI v6、bridge v10、sandbox v33、scoring v31、tree v78、
   testbench v61、index.html `?v=` 同步；WASM 重建。
+
+## 二十八、第十波 v78/v79：九操作评分迁 Rust + 树死亡权威漏洞修复
+
+### v78
+- 新增 Rust ABI v6 `vt_score_paths`：复用 `run_rollout_batch` 做九操作融合
+  世界轨迹与候选死亡帧，再用 `score_stored_node`/f64 遮蔽角精确评分。
+- `adapter.simulateTankBatchScored` 接入 `rolloutNine`；lane>0、弹簧绳开启、
+  bridge 不可用、结果不匹配一律静默回退 JS `scorePaths`。
+- 离线差分：5 场景、45 操作、1533 帧，样本/每帧分/总分/死亡帧 1e-9 内一致。
+- GPU 离线基准：`gpu_occlusion_bench`，只生成单帧遮蔽弧段（f32），
+  区间合并与 gap 评分留 CPU；不接游戏决策。
+
+### v79
+- 树执行段死亡边界统一为 `safeFramesForDeath`。
+- 当前执行节点即时死亡扫描优先 JS 融合权威，并修复差一帧、tEndSec、
+  fullDeathFrame、authority 未更新的问题。
+- `applyLayerResults` 同时识别 `rustCandidate`/`rustPhysics`，不再把 Rust
+  物理候选误标 `fused`。
+- 全树 reroute 后确认当前 commitNode；最终路线确认提前到 reserve 拓扑变更前。
+- 刚性重摆后清空保留子树 `freshSig`/`scoreCache`，避免旧死亡结论保鲜。
+- 新增回归脚本 `rust/diff_tree_death_shorten.js`。
+
+### 已知未决
+- GPU 基准需实机 WebGPU 浏览器验证；WGSL 浮点取余已改为加减实现，
+  `main.js` 增加 error scope 报错定位。
+- 弹簧绳与 lane>0 的 Rust 评分尚未支持，保持 JS 回退。
+- Rust 死亡检测差分覆盖普通弹/激光/半径0/120弹；追踪导弹、地雷等
+  特殊弹种尚未完全覆盖，暂不取消最终执行路线 JS 确认。

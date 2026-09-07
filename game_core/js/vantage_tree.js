@@ -14,6 +14,20 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v79（修复执行段死亡边界 + 权威标记漏洞 + 重摆后失效）：
+ *   ① 统一 safeFramesForDeath 口径，修掉 invalidateStaleNodes 差一帧执行到死；
+ *   ② 当前执行节点即时死亡扫描优先走 JS 融合权威，并写全死亡帧/结束时间；
+ *   ③ applyLayerResults 识别 rustPhysics，不再把 Rust 物理候选误标 fused；
+ *   ④ 全树更新后立即确认当前 commitNode；
+ *   ⑤ 刚性重摆后清空子树 freshSig/scoreCache，旧死亡结论不再保鲜；
+ *   ⑥ 最终路线确认提前到 recordCommitInfo/reserve 拓扑变更之前。
+ * 2026-09-07 v78（rolloutNine 接入 vt_score_paths Rust 评分）：
+ *   ① rolloutNine 优先走 adapter.simulateTankBatchScored（Rust 融合模拟 +
+ *      f64 遮蔽角评分）；lane>0/弹簧绳/异常一律静默回退 JS scorePaths。
+ * 2026-09-07 v77（增量死亡验证只看新子弹 + JS 执行路线死亡确认 + 无弹生长）：
+ *   ① 新增 previousDeathFrame，Rust 增量死亡验证只跑 isNew 新弹；
+ *   ② Rust 死亡帧只作候选；最终执行路线由 JS 融合世界确认；
+ *   ③ 新增 growWithoutThreats 实验开关，默认关闭。
  * 2026-09-07 v76（修复批处理节点计数负数 + Rust 粗筛跨帧跳跃）：
  *   ① detachChild 幂等：摘除子树时断开内部 parent 链；invalidateDescendants
  *      对已摘除残留只清理不二次扣数；applyLayerResults 写回前校验节点仍
@@ -638,7 +652,7 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0 },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0 },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -944,36 +958,63 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pushEvent('threat', '局部追加新弹' + newOnes.length);
     }
 
-    /** v31：扫描单节点在“后补新弹”下是否比建节点时更早死亡。
-     *  v61：精确判定改为融合世界单操作模拟；不再使用静态 checkDeath。 */
+    /** v31/v78：扫描单节点在“后补新弹”下是否比建节点时更早死亡。
+     *  v61 起精确判定改融合世界；v78 起优先使用 JS 融合世界
+     *  simulateTankBatchJsFused，只有 JS 融合不可用时才回退
+     *  adapter.simulateTankBatch（并明确标记是否为 Rust 候选）。
+     *  返回 {death, authority, confirmed}；death<0 表示无更早死亡。 */
     function scanNodeDeath(tree, adapter, node, pending) {
-        if (!node || !node.rolloutSamples || !node.rolloutSamples.length) return -1;
-        if (!adapter || !adapter.simulateTankBatch) return -1;
+        if (!node || !node.rolloutSamples || !node.rolloutSamples.length) return null;
+        if (!adapter) return null;
         var segF = Math.max(1, node.segmentFrames || 0);
-        if (!node.inputs) return -1;
+        if (!node.inputs) return null;
         var startSample = node.rolloutSamples[0];
         var startPose = { x: startSample.x, y: startSample.y, rot: startSample.rot };
+        var opt = {
+            startPose: startPose,
+            threats: tree.threats || [],
+            tGlobal: node.rolloutStartT || 0
+        };
+        var op = [{ name: node.opName || '?', inputs: node.inputs }];
+
+        // 第一优先：JS 融合世界单操作模拟，游戏同源死亡权威。
+        var jsBatch = null;
+        if (typeof adapter.simulateTankBatchJsFused === 'function') {
+            try {
+                jsBatch = adapter.simulateTankBatchJsFused(startPose, op, segF, opt);
+            } catch (eJsFused) {
+                jsBatch = null;
+            }
+        }
+        if (jsBatch && jsBatch.length) {
+            var j0 = jsBatch[0];
+            if (j0 && j0.dead && j0.deathFrame != null) {
+                var absDeathJs = tree.rootAbsT + (node.rolloutStartT || 0) + j0.deathFrame * FRAME_DT;
+                if (absDeathJs < _timeAcc - FRAME_DT) return null;
+                return { death: j0.deathFrame, authority: 'fused', confirmed: true };
+            }
+            return { death: -1, authority: 'fused', confirmed: true };
+        }
+
+        // 回退：普通模拟批次；Rust 物理预测只作候选。
+        if (typeof adapter.simulateTankBatch !== 'function') return null;
         var batch = null;
         try {
-            batch = adapter.simulateTankBatch(startPose,
-                [{ name: node.opName || '?', inputs: node.inputs }],
-                segF,
-                {
-                    startPose: startPose,
-                    threats: tree.threats || [],
-                    tGlobal: node.rolloutStartT || 0
-                });
+            batch = adapter.simulateTankBatch(startPose, op, segF, opt);
         } catch (eFused) {
             batch = null;
         }
-        if (!batch || !batch.length) return -1;
+        if (!batch || !batch.length) return null;
         var b0 = batch[0];
-        if (!b0 || !b0.dead || b0.deathFrame == null) return -1;
+        if (!b0 || !b0.dead || b0.deathFrame == null) return null;
         var death = b0.deathFrame;
-        // 死亡若发生在已经执行过的过去帧，对本节点不构成新威胁。
         var absDeath = tree.rootAbsT + (node.rolloutStartT || 0) + death * FRAME_DT;
-        if (absDeath < _timeAcc - FRAME_DT) return -1;
-        return death;
+        if (absDeath < _timeAcc - FRAME_DT) return null;
+        return {
+            death: death,
+            authority: b0.rustPhysics ? 'rust-candidate' : (b0.deathAuthority || 'check'),
+            confirmed: false
+        };
     }
     /** v34：后补弹的粗包围盒（轨迹坐标 + 绝对时间范围；rootAbsT 用于把 anchorOffset 平移到绝对时间）。 */
     function threatCoarseBox(th, rootAbsT) {
@@ -1099,16 +1140,26 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // 其余节点先标 stale，由金线刷新在真正参与比较前融合重算，
             // 避免一颗新弹对几十上百个候选各自开一个融合世界导致掉帧。
             if (node !== tree.commitNode) continue;
-            var newDeath = scanNodeDeath(tree, adapter, node, pending);
-            if (newDeath < 0 || newDeath >= (node.segmentFrames || 0)) continue;
+            var scan = scanNodeDeath(tree, adapter, node, pending);
+            if (!scan || scan.death < 0) continue;
+            var oldSeg = node.segmentFrames || 0;
+            // v78：统一口径。死亡帧 k 表示第 k 帧是死态，安全执行到 k-1 帧。
+            // 只有实际缩短当前段才触发 commitHit；off-by-one 不再漏判。
+            var safeFrames = safeFramesForDeath(scan.death, oldSeg);
+            if (safeFrames >= oldSeg) continue;
             // 提前死亡：本节点及全部子节点作废。
-            var oldSeg = node.segmentFrames;
             while (node.children.length) detachChild(tree, node.children[0]);
             node.status = 'dead';
-            node.segmentFrames = newDeath;
+            node.fullDead = true;
+            node.segmentFrames = safeFrames;
+            node.fullDeathFrame = scan.death;
+            node.deathAuthority = scan.authority;
+            node.rolloutDeathFrame = scan.death;
+            node.tEndSec = tree.rootAbsT + (node.rolloutStartT || 0) + safeFrames * FRAME_DT;
             node.exhausted = true;
             prunedCount++;
-            pushEvent('prune', 'n' + (node.id || '?') + '@' + newDeath + '/' + oldSeg);
+            pushEvent('prune', 'n' + (node.id || '?') + '@' + scan.death + '/' + oldSeg +
+                ' safe=' + safeFrames + ' ' + scan.authority);
             if (node === tree.commitNode) commitHit = true;
             // v52：剪掉的分支如果正是父节点 planned next，父节点必须重选 next，
             // 否则金线/正常提交会指向一个 exhausted 节点。
@@ -1170,11 +1221,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!node || !r || !r.perFrameScores) return false;
         node.perFrameScores = r.perFrameScores.slice();
         var planned = plannedFramesOf(node);
-        var actual = planned;
-        if (r.dead) {
-            if (r.deathFrame === 1) actual = 1;
-            else if (r.deathFrame >= 2) actual = Math.min(r.deathFrame - 1, planned);
-        }
+        var actual = r.dead
+            ? safeFramesForDeath(r.deathFrame, planned)
+            : planned;
         if (actual < planned) {
             recordStructure(tree, 'death-shorten',
                 'n' + (node.id || '?') + ' planned=' + planned + ' death=' + r.deathFrame + ' actual=' + actual);
@@ -1481,7 +1530,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             c.freshSig = nodeWindowSig(adapter, c, tree.threats || []);
             // v77：Rust rescore 只产出候选死亡帧；最终执行路线会由 JS
             // 融合世界确认后改写为 'fused'。此处仅标记候选，不冒充权威。
-            c.deathAuthority = r.rustCandidate ? 'rust-candidate' : 'fused';
+            // v78：Rust rescore 与 Rust 物理预测都只算候选；JS 融合才是权威。
+            c.deathAuthority = (r.rustCandidate || r.rustPhysics)
+                ? 'rust-candidate'
+                : (r.deathAuthority || 'fused');
             c.dataVersion++;
             updated++;
             if (c.fullDeathFrame !== oldFd) {
@@ -1682,6 +1734,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var oldFd = node.fullDeathFrame;
         if (r.samples && r.samples.length) node.rolloutSamples = r.samples;
         applyRolloutScore(tree, node, r);
+        tree.stats.jsConfirmCount = (tree.stats.jsConfirmCount || 0) + 1;
+        if (node.fullDeathFrame > 0 && (oldFd <= 0 || node.fullDeathFrame < oldFd)) {
+            tree.stats.jsConfirmEarlier = (tree.stats.jsConfirmEarlier || 0) + 1;
+        } else if (oldFd > 0 && node.fullDeathFrame > oldFd) {
+            tree.stats.jsConfirmLater = (tree.stats.jsConfirmLater || 0) + 1;
+        } else if (oldFd > 0 && node.fullDeathFrame <= 0) {
+            tree.stats.jsConfirmCleared = (tree.stats.jsConfirmCleared || 0) + 1;
+        }
         node.deathAuthority = r.deathAuthority || 'fused';
         node.scoreCache = null;
         node.freshSig = nodeWindowSig(adapter, node, tree.threats || []);
@@ -2316,6 +2376,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         cfg: cfg
                     });
                 if (rustScored && rustScored.length === ops.length) {
+                    tree.stats.rustScoredBatches = (tree.stats.rustScoredBatches || 0) + 1;
                     var okAll = true;
                     for (var ri = 0; ri < rustScored.length; ri++) {
                         if (!rustScored[ri] || !rustScored[ri].perFrameScores ||
@@ -2332,8 +2393,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         return rustScored;
                     }
                 }
+                tree.stats.rustScoredFallbacks = (tree.stats.rustScoredFallbacks || 0) + 1;
             } catch (eRustScored) {
                 // 静默回退 JS scorePaths。
+                tree.stats.rustScoredFallbacks = (tree.stats.rustScoredFallbacks || 0) + 1;
             }
         }
         if (VantageScoring.scorePaths) {
@@ -2354,11 +2417,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var segF = probe.segmentFrames;
         var childDead = r.dead && r.deathFrame >= 0 && r.deathFrame <= segF;
         var plannedEnd = segF;
-        var actualEnd = plannedEnd;
-        if (r.dead) {
-            if (r.deathFrame === 1) actualEnd = 1;
-            else if (r.deathFrame >= 2) actualEnd = Math.min(r.deathFrame - 1, segF);
-        }
+        var actualEnd = r.dead ? safeFramesForDeath(r.deathFrame, segF) : plannedEnd;
         var endIdx = actualEnd;
         var s = r.samples && r.samples[endIdx];
         if (!s) s = r.samples ? r.samples[r.samples.length - 1] : parent.simState.tank;
@@ -2368,12 +2427,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         };
         var child = createTreeNode(parent, ops[opIdx].inputs, childState);
         child.plannedFrames = segF;   // v49：计划帧数永远等于探段结果，死亡不缩短
-        // v51：实际执行帧数 —— fd=-1 计划；fd=1 真死保持1；fd>=2 死亡帧-1 且不超过计划。
-        var actualFrames = segF;
-        if (r.dead) {
-            if (r.deathFrame === 1) actualFrames = 1;
-            else if (r.deathFrame >= 2) actualFrames = Math.min(r.deathFrame - 1, segF);
-        }
+        // v51：实际执行帧数 —— v78 统一 safeFramesForDeath 口径。
+        var actualFrames = r.dead ? safeFramesForDeath(r.deathFrame, segF) : segF;
         child.segmentFrames = actualFrames;
         child.segmentScore = probe.cum
             ? probe.cum[opIdx][Math.min(actualFrames, probe.cum[opIdx].length - 1)]
@@ -2381,7 +2436,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         child.baseExt = (r.totalScore || 0) - child.segmentScore;   // 恒定延伸基线
         child.rolloutTotal = (r.totalScore || 0);                 // v52：75帧全累积总分
         child.perFrameScores = r.perFrameScores ? r.perFrameScores.slice() : null; // v75
-        child.deathAuthority = r.deathAuthority || '';            // v60：死亡判定权威来源
+        child.deathAuthority = r.deathAuthority ||
+            (r.rustPhysics ? 'rust-candidate' : 'fused');   // v78：Rust物理只作候选，JS融合为权威
         child.subtreeBest = child.segmentScore + Math.max(0, child.baseExt);  // = totalScore
         child.status = childDead ? 'dead' : 'alive';
         child.fullDead = !!r.dead;                    // 完整75帧是否死亡
@@ -2415,6 +2471,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** v49：本段计划帧数（取不到 plannedFrames 的旧节点回退到实际帧数）。 */
     function plannedFramesOf(n) {
         return Math.max(1, n.plannedFrames || n.segmentFrames || 0);
+    }
+
+    /** v78：统一“实际执行帧数”口径。
+     *  fd<0 → 执行完整计划段；
+     *  fd=1 → 只执行 1 帧（真死候选）；
+     *  fd>=2 → 最多执行到死亡帧前 1 帧。 */
+    function safeFramesForDeath(fd, planned) {
+        if (!(fd >= 0)) return planned;
+        if (fd === 1) return 1;
+        return Math.min(fd - 1, planned);
     }
 
     /** v52：节点自身 75 帧全累积总分；旧节点无字段时按 segmentScore+baseExt 还原。 */
@@ -3009,7 +3075,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 for (var pj = 0; pj < partial.length; pj++) {
                     partial[pj].opIndex = slice.idx + pj;
                     partial[pj].opName = ops[slice.idx + pj].name;
-                    partial[pj].deathAuthority = partial[pj].rustPhysics ? 'rust-candidate' : 'fused';   // v60/v77：scorePaths；Rust物理只算候选
+                    partial[pj].deathAuthority = partial[pj].deathAuthority ||
+                        (partial[pj].rustPhysics ? 'rust-candidate' : 'fused');   // v60/v77/v78
                     slice.results.push(partial[pj]);
                 }
                 slice.idx += partial.length;
@@ -3361,6 +3428,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     if (arr[i]) txPose(arr[i]);
                 }
             }
+            // v78：刚性重摆改变了节点轨迹相对子弹/墙的几何关系；
+            // 旧死亡结论与旧分数不能继续视为有效。清空新鲜度标记，
+            // 由后续 refresh/rescore 按新几何重算。
+            n.freshSig = '';
+            n.scoreCache = null;
             count++;
             for (var c = 0; c < n.children.length; c++) txNode(n.children[c]);
         }
@@ -3588,6 +3660,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         { freshRoot: true, results: results });
                 }
             }
+            // v78：最终执行路线必须在记录提交信息、退休兄弟、转入 reserve
+            // 之前确认完毕，避免诊断记录与 reserve 拓扑建立在未确认候选上。
+            keepBest = confirmExecutionRoutePick(tree, adapter, keepBest, prev);
+
             // v47 reserve/reuse：新根层未选中候选转入 reserve，不删除不补位。
             // 旧根 8 兄弟（prev 的兄弟）仍按正常坍缩删除，语义不变。
             recordCommitInfo(tree, prev.children, tree._lastFreshReason || 'commit', keepBest);
@@ -3613,9 +3689,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // 活动树不会因为换道只剩 root+commitNode 两个节点。
             reactivateMatchingReserves(tree, adapter, prev, tree.threats);
             pruneExpiredReserves(tree);
-
-            // v77：最终执行路线死亡结论必须在写入执行状态前由 JS 融合世界确认。
-            keepBest = confirmExecutionRoutePick(tree, adapter, keepBest, prev);
 
             // 极端兜底：reserve 全部失效时，若根层只有被选中者且它是叶子，
             // 扩一层保证下一段有候选可比较（growStep 仍是每 tick 只扩一个叶子）。
@@ -3788,7 +3861,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 for (var pj = 0; pj < partial.length; pj++) {
                     partial[pj].opIndex = slice.idx + pj;
                     partial[pj].opName = ops[slice.idx + pj].name;
-                    partial[pj].deathAuthority = partial[pj].rustPhysics ? 'rust-candidate' : 'fused';   // v60/v77：scorePaths；Rust物理只算候选
+                    partial[pj].deathAuthority = partial[pj].deathAuthority ||
+                        (partial[pj].rustPhysics ? 'rust-candidate' : 'fused');   // v60/v77/v78
                     slice.results.push(partial[pj]);
                 }
                 slice.idx += partial.length;
@@ -4055,6 +4129,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
             // v68：恢复 v52 全树重选语义；但精确死亡来自融合世界。
             rerouteTreeForCurrentThreats(tree, adapter);
+            // v78：全树更新可能用 Rust 候选改写了当前执行节点；同 tick
+            // 先由 JS 融合确认，再让后续 segmentEndDue 消费其结束时间。
+            if (tree.commitNode && tree.commitNode.deathAuthority === 'rust-candidate') {
+                confirmExecutionNodeDeath(tree, adapter, tree.commitNode);
+            }
             tree.threatDirty = false;
             // v39：仅当“当前段是静止且新弹很快会进入威胁圈”时才提前结束。
             // 一般新弹仍让当前段自然跑完，避免 v37 前的树图频闪。
@@ -4445,5 +4524,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v78：rolloutNine 优先走 vt_score_paths 九操作 Rust 评分 + JS执行路线死亡确认 + 无弹生长开关 + v76节点计数修复）');
+    console.log('[Vantage Tree] 模块已加载（段制 v79：死亡边界/权威标记/重摆失效修复 + v78 Rust评分 + JS执行路线死亡确认 + 无弹生长开关）');
 })(typeof window !== 'undefined' ? window : this);

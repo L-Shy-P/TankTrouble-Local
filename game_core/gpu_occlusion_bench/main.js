@@ -241,7 +241,17 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
   const resp = await fetch(wgslUrl);
   if (!resp.ok) throw new Error('无法加载 occlusion.wgsl: ' + resp.status);
   const shaderCode = await resp.text();
-  const shaderModule = device.createShaderModule({ code: shaderCode });
+
+  // 捕获 shader/管线/提交阶段的校验错误，避免只看到后续
+  // mapAsync 的“Invalid Buffer due to a previous error”间接报错。
+  device.pushErrorScope('validation');
+  let shaderModule;
+  try {
+    shaderModule = device.createShaderModule({ code: shaderCode });
+  } catch (e) {
+    const scopeErr = await device.popErrorScope();
+    throw new Error('WGSL 编译失败：' + (scopeErr ? scopeErr.message : e.message));
+  }
 
   const poseCount = poses.length;
   const MAX_ARCS_PER_BULLET = 16;
@@ -331,6 +341,10 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
   pass.end();
   device.queue.submit([encoder.finish()]);
   await device.queue.onSubmittedWorkDone();
+  const dispatchErr = await device.popErrorScope();
+  if (dispatchErr) {
+    throw new Error('WebGPU 调度校验失败：' + dispatchErr.message);
+  }
 
   async function mapRead(buffer, Ctor) {
     await buffer.mapAsync(GPUMapMode.READ);

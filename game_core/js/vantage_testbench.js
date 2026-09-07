@@ -10,7 +10,7 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
- * 2026-09-07 v61（配合桥 v10 / 沙箱 v33 / 树 v78）：
+ * 2026-09-07 v63（配合桥 v10 / 沙箱 v33 / 树 v79 / scoring v32；面板显示 Rust评分/JS确认统计）：
  *   Rust 九操作评分 vt_score_paths 接入树 rolloutNine；版本号同步。
  * 2026-09-07 v60（配合桥 v9 / 沙箱 v32 / 树 v77）：
  *   实验区新增“无弹生长”复选框，绑定 VantageTree.setGrowWithoutThreatsEnabled；
@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v61';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v63';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2622,7 +2622,13 @@
                 ' 对齐败' + tr.stats.alignFails + '<br>' +
                 '生长 ' + fmt(tr.stats.growMs, 1) + 'ms' +
                 (tr.stats.growSkips ? '（跳' + tr.stats.growSkips + '帧）' : '') +
-                (tr.stats.nodeCountFixes ? ' 计数修复' + tr.stats.nodeCountFixes : '');
+                (tr.stats.nodeCountFixes ? ' 计数修复' + tr.stats.nodeCountFixes : '') +
+                '<br>Rust评分 ' + (tr.stats.rustScoredBatches || 0) +
+                ' 回退' + (tr.stats.rustScoredFallbacks || 0) +
+                ' | JS确认 ' + (tr.stats.jsConfirmCount || 0) +
+                ' 提前' + (tr.stats.jsConfirmEarlier || 0) +
+                ' 延后' + (tr.stats.jsConfirmLater || 0) +
+                ' 清除' + (tr.stats.jsConfirmCleared || 0);
             if (tr.diag) {
                 var lastDesync = tr.diag.bulletDesyncs.length
                     ? tr.diag.bulletDesyncs[tr.diag.bulletDesyncs.length - 1] : null;

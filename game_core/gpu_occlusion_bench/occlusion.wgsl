@@ -41,9 +41,14 @@ struct Params {
 @group(0) @binding(5) var<uniform> params: Params;
 
 fn normAngle(a: f32) -> f32 {
-  var x = a % params.twoPi;
-  if (x < 0.0) {
+  // WGSL 的浮点取余写法在部分实现上会触发 shader 校验错误；
+  // 这里用纯加减完成同样语义，兼容性和正确性都更稳。
+  var x = a;
+  while (x < 0.0) {
     x = x + params.twoPi;
+  }
+  while (x >= params.twoPi) {
+    x = x - params.twoPi;
   }
   return x;
 }

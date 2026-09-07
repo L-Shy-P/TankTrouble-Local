@@ -2362,8 +2362,10 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
 
         if (!batch || batch.length !== operations.length) {
             for (var fj = 0; fj < operations.length; fj++) {
-                results.push(scorePath(adapter, parentSimState,
-                    operations[fj].inputs, frames, threats, cfg));
+                var fallbackR = scorePath(adapter, parentSimState,
+                    operations[fj].inputs, frames, threats, cfg);
+                fallbackR.deathAuthority = 'check';   // v78：单路径回退非融合批量权威
+                results.push(fallbackR);
             }
             return results;
         }
@@ -2379,7 +2381,9 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
                 samples: batch[j].samples,
                 // v29：Rust 物理预测的死亡帧只是候选；透传给树，
                 // 最终执行路线由 JS 融合世界确认。
-                rustPhysics: batch[j].rustPhysics === true
+                rustPhysics: batch[j].rustPhysics === true,
+                // v78：批量融合世界结果直接给出权威标记。
+                deathAuthority: batch[j].rustPhysics ? 'rust-candidate' : 'fused'
             });
         }
         var frameDt = (adapter.constants && adapter.constants.FRAME_DT)
@@ -2478,6 +2482,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v31：vt_score_paths 接入 rolloutNine + scorePaths 透传 rustPhysics 候选标记 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);
