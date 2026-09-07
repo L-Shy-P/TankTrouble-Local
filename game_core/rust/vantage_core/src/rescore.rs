@@ -88,10 +88,16 @@ pub struct RescoreNodeInput {
     pub moving: bool,
     pub start_t: f64,
     pub frames: usize,
-    /// Previous per-frame net scores for this node.  When `Some` and its
-    /// length equals `scored_frames()`, only frames affected by newly-added
-    /// threats are recomputed; unaffected frames are copied verbatim.
+    /// Previous per-frame net scores for this node.  When `Some`, only
+    /// frames affected by newly-added threats are recomputed; unaffected
+    /// frames are copied verbatim.  A previous death may shorten the score
+    /// vector to the old death frame (see `previous_death_frame`).
     pub previous_scores: Option<Vec<f64>>,
+    /// Previous death frame from the last full verification pass.  When
+    /// incremental scoring is active (`previous_scores` is `Some`) this is
+    /// used as the carried-over old-bullet death conclusion; new bullets may
+    /// only move the merged death earlier.
+    pub previous_death_frame: Option<i32>,
 }
 
 impl RescoreNodeInput {
@@ -102,11 +108,17 @@ impl RescoreNodeInput {
             start_t,
             frames,
             previous_scores: None,
+            previous_death_frame: None,
         }
     }
 
     pub fn with_previous_scores(mut self, previous_scores: Vec<f64>) -> Self {
         self.previous_scores = Some(previous_scores);
+        self
+    }
+
+    pub fn with_previous_death_frame(mut self, previous_death_frame: i32) -> Self {
+        self.previous_death_frame = Some(previous_death_frame);
         self
     }
 
@@ -766,10 +778,24 @@ where
     let scoring_cfg = scoring::ScoringConfig::default();
     let max_i = node.scored_frames();
 
+    // Incremental scoring may run from two shapes of previous score vectors:
+    //  * alive last round: length == max_i;
+    //  * died at old_death last round: length == old_death (death frame kept
+    //    as the final entry).  New bullets can only move a death earlier, so
+    //    frames after old_death need not be recomputed.
+    let old_death = node.previous_death_frame.unwrap_or(-1);
+    let old_death_idx = if old_death > 0 { old_death as usize } else { 0usize };
+
     let use_previous = node
         .previous_scores
         .as_ref()
-        .map(|p| p.len() == max_i && p.iter().all(|v| v.is_finite()))
+        .map(|p| {
+            p.iter().all(|v| v.is_finite())
+                && ((old_death_idx == 0 && p.len() == max_i)
+                    || (old_death_idx > 0
+                        && old_death_idx <= max_i
+                        && p.len() == old_death_idx))
+        })
         .unwrap_or(false);
     let affected = if use_previous {
         new_threat_affected_frames(node, threats, cfg)
@@ -777,12 +803,30 @@ where
         vec![false; max_i + 1]
     };
 
+    // In the old-death incremental case only frames 1..old_death matter.
+    let limit = if use_previous && old_death_idx > 0 {
+        old_death_idx
+    } else {
+        max_i
+    };
+
     let mut total_score = 0.0;
-    let mut per_frame_scores = Vec::with_capacity(max_i);
+    let mut per_frame_scores = Vec::with_capacity(limit);
     let mut prev_pose = node.samples[0];
 
-    for i in 1..=max_i {
+    for i in 1..=limit {
         let s = node.samples[i];
+
+        if use_previous && i == limit && old_death_idx > 0 {
+            // Old-bullet death frame is authoritative for old threats; new
+            // bullets cannot make it later.  Keep the previous death-frame
+            // score so the merged (JS-side) result stays consistent.
+            let v = -cfg.death_penalty;
+            total_score += v;
+            per_frame_scores.push(v);
+            prev_pose = s;
+            continue;
+        }
 
         if use_previous && !affected[i] {
             let v = node.previous_scores.as_ref().unwrap()[i - 1];
@@ -1223,19 +1267,42 @@ pub fn rescore_nodes(
         .map(|th| threat_track_coarse_chunks(th, COARSE_BLOCK_FRAMES))
         .collect();
 
+    // Incremental death verification: when a node carries previous scores it
+    // means only newly-added threats changed.  Old-bullet death conclusions
+    // are carried over by the caller; the verification world is only run for
+    // `is_new` threats.  New bullets can only move a death earlier, never
+    // later, so the JS side merges this candidate with the previous frame.
+    let new_threats: Vec<RescoreThreatInput> = threats
+        .iter()
+        .filter(|th| th.is_new)
+        .cloned()
+        .collect();
+    let new_danger_chunks: Vec<Vec<ThreatCoarseChunk>> = new_threats
+        .iter()
+        .map(|th| threat_track_coarse_chunks(th, COARSE_BLOCK_FRAMES))
+        .collect();
+
     let mut outputs = Vec::with_capacity(nodes.len());
     for node in nodes {
+        let incremental = node.previous_scores.is_some();
+        let (verify_threats, verify_chunks): (&[RescoreThreatInput], &[Vec<ThreatCoarseChunk>]) =
+            if incremental {
+                (new_threats.as_slice(), new_danger_chunks.as_slice())
+            } else {
+                (threats, danger_chunks.as_slice())
+            };
+
         let mut out = score_stored_node(node, threats, cfg, threat_bullet_pos)?;
         if node.scored_frames() > 0 && node.samples.len() >= 2 {
             let danger = danger_frames_for_samples_with_chunks(
                 &node.samples,
-                threats,
+                verify_threats,
                 node.start_t,
                 RESCORE_DT,
-                &danger_chunks,
+                verify_chunks,
             );
             let (death_frame, verified_frames) =
-                verify_death_for_node(cache, walls, node, threats, &danger)?;
+                verify_death_for_node(cache, walls, node, verify_threats, &danger)?;
             if death_frame > 0 {
                 let death_idx = death_frame as usize;
                 if death_idx <= out.per_frame_scores.len() {
@@ -1898,5 +1965,129 @@ mod tests {
         assert_eq!(incremental[0].total_score, full[0].total_score);
         assert_eq!(incremental[0].death_frame, full[0].death_frame);
         assert!(full[0].death_frame > 0, "test scene should die");
+    }
+
+    #[test]
+    fn incremental_death_verification_skips_old_bullets() {
+        let walls = arena_walls();
+        let samples: Vec<TankPoseLike> =
+            (0..=40).map(|_| TankPoseLike::new(5.0, 8.0, 0.0)).collect();
+        let node = RescoreNodeInput::new(samples, false, 0.0, 40);
+        let cfg = RescoreConfig::default();
+        let old_threat = RescoreThreatInput::new(1)
+            .with_path(path_pts(&[(5.0, 12.0), (5.0, -10.0)]), 18.0)
+            .with_bullet_radius(0.25)
+            .with_life_left_seconds(10.0)
+            .with_is_new(false);
+
+        let full = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node.clone()],
+            &[old_threat.clone()],
+            &cfg,
+        )
+        .unwrap();
+        assert!(full[0].death_frame > 0, "full scene should die");
+        assert!(full[0].verified_frames > 0, "full scene should verify frames");
+
+        let prev = score_stored_node(&node, &[], &cfg, threat_bullet_pos)
+            .unwrap()
+            .per_frame_scores;
+        let incremental = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node
+                .clone()
+                .with_previous_scores(prev)
+                .with_previous_death_frame(-1)],
+            &[old_threat],
+            &cfg,
+        )
+        .unwrap();
+        assert_eq!(incremental[0].death_frame, -1,
+            "old bullets must not be re-verified in incremental mode");
+        assert_eq!(incremental[0].verified_frames, 0,
+            "old bullets must not be re-verified in incremental mode");
+    }
+
+    #[test]
+    fn incremental_death_new_bullet_moves_death_earlier() {
+        let walls = arena_walls();
+        let samples: Vec<TankPoseLike> =
+            (0..=40).map(|_| TankPoseLike::new(5.0, 8.0, 0.0)).collect();
+        let node = RescoreNodeInput::new(samples, false, 0.0, 40);
+        let cfg = RescoreConfig::default();
+        let prev = score_stored_node(&node, &[], &cfg, threat_bullet_pos)
+            .unwrap()
+            .per_frame_scores;
+        let new_threat = RescoreThreatInput::new(2)
+            .with_path(path_pts(&[(5.0, 12.0), (5.0, -10.0)]), 18.0)
+            .with_bullet_radius(0.25)
+            .with_life_left_seconds(10.0)
+            .with_is_new(true);
+
+        let incremental = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node
+                .clone()
+                .with_previous_scores(prev)
+                .with_previous_death_frame(-1)],
+            &[new_threat.clone()],
+            &cfg,
+        )
+        .unwrap();
+        let full = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node],
+            &[new_threat],
+            &cfg,
+        )
+        .unwrap();
+        assert_eq!(incremental[0].death_frame, full[0].death_frame);
+        assert!(incremental[0].death_frame > 0, "new bullet should kill");
+        assert_eq!(incremental[0].per_frame_scores, full[0].per_frame_scores);
+        assert_eq!(incremental[0].total_score, full[0].total_score);
+    }
+
+    #[test]
+    fn incremental_death_old_death_carried_when_new_bullet_far() {
+        let walls = arena_walls();
+        let samples: Vec<TankPoseLike> =
+            (0..=40).map(|_| TankPoseLike::new(5.0, 8.0, 0.0)).collect();
+        let node = RescoreNodeInput::new(samples, false, 0.0, 40);
+        let cfg = RescoreConfig::default();
+        let old_death = 30i32;
+        // Previous per-frame scores are truncated at the old death frame,
+        // exactly like VantageTree.applyRolloutScore stores them.
+        let prev: Vec<f64> = (0..old_death).map(|_| 0.0).collect();
+        let old_threat = RescoreThreatInput::new(1)
+            .with_path(path_pts(&[(5.0, 12.0), (5.0, -10.0)]), 18.0)
+            .with_bullet_radius(0.25)
+            .with_life_left_seconds(10.0)
+            .with_is_new(false);
+        let far_threat = RescoreThreatInput::new(2)
+            .with_path(path_pts(&[(100.0, 100.0), (100.0, 80.0)]), 10.0)
+            .with_is_new(true);
+
+        let incremental = rescore_nodes(
+            &mut VerificationCache::new(),
+            &walls,
+            &[node
+                .clone()
+                .with_previous_scores(prev)
+                .with_previous_death_frame(old_death)],
+            &[old_threat, far_threat],
+            &cfg,
+        )
+        .unwrap();
+        assert_eq!(incremental[0].death_frame, -1,
+            "new far bullet must not produce an earlier death candidate");
+        assert_eq!(incremental[0].verified_frames, 0,
+            "new far bullet must not trigger death verification");
+        assert_eq!(incremental[0].per_frame_scores.len(), old_death as usize);
+        assert_eq!(incremental[0].per_frame_scores.last(), Some(&0.0));
     }
 }

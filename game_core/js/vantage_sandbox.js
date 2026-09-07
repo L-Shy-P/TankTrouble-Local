@@ -30,6 +30,10 @@
  * 2026-08-23 v27（弹道模拟提前停）：
  *   simulateBulletTracks 在所有被模拟子弹都已 active=false 后直接 break，
  *   不再空转 Box2D Step；混弹时由寿命最长的弹决定继续。
+ * 2026-09-07 v32（ABI v5 + 增量死亡验证只看新子弹 + JS 执行路线融合确认）：
+ *   rescoreTankSamples 透传 previousDeathFrame 并标记 rustCandidate/rustIncremental；
+ *   simulateTankBatch 为 Rust 物理预测打 rustPhysics 候选标记；新增
+ *   simulateTankBatchJsFused 供树对最终执行路线做 JS 融合死亡确认。
  * 2026-09-05 v31（Rust vt_rescore_nodes ABI v4：帧级增量评分）：
  *   adapter.rescoreTankSamples(nodes, threats, cfg, pendingThreats) 透传
  *   nodes[].previousScores 与 threats[].isNew；Rust 只重算新弹能影响的
@@ -1472,11 +1476,28 @@
                 if (RUST_PHYSICS_ENABLED) {
                     try {
                         var rustBatch = simulateRustBatch(gameController, aiId, operations, durationFrames, opt);
-                        if (rustBatch) return rustBatch;
+                        if (rustBatch) {
+                            // v32：Rust 物理预测的死亡帧只是候选；打标后由
+                            // scorePaths 透传，树在最终执行路线上做 JS 融合确认。
+                            for (var ri = 0; ri < rustBatch.length; ri++) {
+                                rustBatch[ri].rustPhysics = true;
+                            }
+                            return rustBatch;
+                        }
                     } catch (eRust) {
                         console.warn('[VantageSandbox] Rust 物理预测失败，回退融合世界:', eRust);
                     }
                 }
+                return simulateFusedBatch(gameController, aiId, operations, durationFrames, opt);
+            },
+
+            /**
+             * v32：强制 JS 融合世界的批量坦克模拟（不经过 Rust 物理开关）。
+             * 供树对最终执行路线做死亡权威确认；不可用时返回 null。
+             */
+            simulateTankBatchJsFused: function(state, operations, durationFrames, opt) {
+                opt = opt || {};
+                if (!opt.startPose) opt.startPose = state;
                 return simulateFusedBatch(gameController, aiId, operations, durationFrames, opt);
             },
 
@@ -1565,6 +1586,9 @@
                     };
                     if (nodes[bni].previousScores !== undefined && nodes[bni].previousScores !== null) {
                         bn.previousScores = nodes[bni].previousScores;
+                        if (nodes[bni].previousDeathFrame !== undefined && nodes[bni].previousDeathFrame !== null) {
+                            bn.previousDeathFrame = nodes[bni].previousDeathFrame;
+                        }
                     }
                     bridgeNodes.push(bn);
                 }
@@ -1598,13 +1622,17 @@
                     }
                     var pfs = rn.perFrameScores || [];
                     var frameCount = pfs.length;
+                    var incremental = !!(nodes[ni].previousScores !== undefined &&
+                        nodes[ni].previousScores !== null);
                     mapped.push({
                         samples: nodes[ni].samples,
                         dead: rn.deathFrame > 0,
                         deathFrame: rn.deathFrame,
                         perFrameScores: pfs.slice(0, frameCount),
                         totalScore: rn.totalScore,
-                        frameCount: frameCount
+                        frameCount: frameCount,
+                        rustCandidate: true,
+                        rustIncremental: incremental
                     });
                 }
                 return mapped;
@@ -1779,6 +1807,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v31：Rust 帧级增量重评分 rescoreTankSamples + Rust 融合 rollouts opt-in 预测 + JS 融合死亡权威回退）');
+    console.log('[Vantage Sandbox] 模块已加载（v32：增量死亡验证只看新子弹 + simulateTankBatchJsFused 执行路线 JS 融合确认 + Rust 物理预测打标 rustPhysics）');
 
 })(typeof window !== 'undefined' ? window : this);

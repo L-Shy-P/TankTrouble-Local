@@ -10,6 +10,9 @@
  * 2026-08-23 v50（树事件标签补全）：
  *   treeEventMeta 增加 lazy-layer-updated / lazy-frontier /
  *   lazy-outside-updated 的事件颜色、简称与名称。
+ * 2026-09-07 v60（配合桥 v9 / 沙箱 v32 / 树 v77）：
+ *   实验区新增“无弹生长”复选框，绑定 VantageTree.setGrowWithoutThreatsEnabled；
+ *   开启后树在无 threats 时继续生长（无子弹纯数据搬运/更新性能实验）。
  * 2026-09-07 v59（配合桥 v8 / 沙箱 v31 / 树 v76）：
  *   Rust vt_rescore_nodes 升级 ABI v4：节点可携带 previousScores，
  *   新弹帧级增量评分；testbench 仅版本号同步。
@@ -62,7 +65,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v59';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v60';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -111,7 +114,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2037,6 +2040,7 @@
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-springRope"> 弹簧绳</label> ' +
             '<label style="cursor:pointer;color:#89b4fa;margin-left:8px"><input type="checkbox" data-act="exp-rustMinimal"> Rust最小</label> ' +
             '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-rustPhysics"> Rust物理</label> ' +
+            '<label style="cursor:pointer;color:#a6e3a1;margin-left:8px"><input type="checkbox" data-act="exp-growWithoutThreats"> 无弹生长</label> ' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
         _expCtrl = {
@@ -2046,6 +2050,7 @@
             springRope: expRow.querySelector('[data-act="exp-springRope"]'),
             rustMinimal: expRow.querySelector('[data-act="exp-rustMinimal"]'),
             rustPhysics: expRow.querySelector('[data-act="exp-rustPhysics"]'),
+            growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
         };
@@ -2214,6 +2219,15 @@
                 VantageRustBridge.init().catch(function(e) {
                     console.warn('[Testbench] VantageRustBridge init failed:', e);
                 });
+            }
+            updatePanel();
+            return;
+        }
+        // —— v60 无弹生长开关（配合树 v77）：无子弹时也把树长满做性能实验 ——
+        if (act === 'exp-growWithoutThreats') {
+            state.exp.growWithoutThreats = srcEl.checked;
+            if (typeof VantageTree !== 'undefined') {
+                VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
             }
             updatePanel();
             return;
@@ -2458,9 +2472,11 @@
         if (_expCtrl.springRope && _expCtrl.springRope.checked !== state.exp.springRope) _expCtrl.springRope.checked = state.exp.springRope;
         if (_expCtrl.rustMinimal && _expCtrl.rustMinimal.checked !== state.exp.rustMinimal) _expCtrl.rustMinimal.checked = state.exp.rustMinimal;
         if (_expCtrl.rustPhysics && _expCtrl.rustPhysics.checked !== state.exp.rustPhysics) _expCtrl.rustPhysics.checked = state.exp.rustPhysics;
-        // v47/v49：UI 与树配置保持一致；初始化/同步时都同步一次。
+        if (_expCtrl.growWithoutThreats && _expCtrl.growWithoutThreats.checked !== state.exp.growWithoutThreats) _expCtrl.growWithoutThreats.checked = state.exp.growWithoutThreats;
+        // v47/v49/v60：UI 与树配置保持一致；初始化/同步时都同步一次。
         if (typeof VantageTree !== 'undefined') VantageTree.setLaneEnabled(state.exp.lane);
         if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
+        if (typeof VantageTree !== 'undefined') VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
         }
@@ -2898,11 +2914,12 @@
         }
     };
 
-    // v41/v49：模块加载时同步一次树内车道/弹簧绳开关，保证 UI 与树初始一致。
+    // v41/v49/v60：模块加载时同步一次树内车道/弹簧绳/无弹生长开关，保证 UI 与树初始一致。
     if (typeof VantageTree !== 'undefined') {
         try { VantageTree.setLaneEnabled(state.exp.lane); } catch (eLaneInit) {}
         try { VantageTree.setSpringRopeEnabled(state.exp.springRope); } catch (eSpringInit) {}
         try { VantageTree.setRustMinimalEnabled(state.exp.rustMinimal); } catch (eRustMinInit) {}
+        try { VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats); } catch (eGrowInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
     if (typeof VantageSandbox !== 'undefined') {

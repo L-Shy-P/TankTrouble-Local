@@ -1,6 +1,15 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v77（增量死亡验证只看新子弹 + JS 权威确认 + 无弹生长开关）：
+ *   ① tryRustRescoreLayer/Batch 对 stale 完全由新增子弹引起的节点传
+ *      previousDeathFrame；Rust 死亡验证只跑 isNew 新弹，旧弹死亡帧
+ *      沿用上一轮结论；JS 侧合并旧死亡帧与 Rust 新候选死亡帧取更早者。
+ *   ② Rust 死亡帧只作为候选（deathAuthority='rust-candidate'）；最终
+ *      被选中执行/当前 commitNode 的死亡结论在写入执行状态前由 JS
+ *      融合世界确认（只确认执行路线，不全树复核）。
+ *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
+ *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
  * 2026-09-07 v76（修复批处理节点计数负数 + Rust 粗筛跨帧跳跃）：
  *   ① detachChild 幂等：摘除子树时断开内部 parent 链；invalidateDescendants
  *      对已摘除残留只清理不二次扣数；applyLayerResults 写回前校验节点仍
@@ -287,6 +296,7 @@
     var _lanePenaltyRatio = 0;      // v47：树内车道压分开关状态（跨树保持）
     var _springRopeEnabled = false; // v57：弹簧绳修复后暂默认关，面板可开
     var _rustMinimalEnabled = false; // v69：Rust 最小决策实验开关（默认关）
+    var _growWithoutThreatsEnabled = false; // v77：无子弹也生长树实验开关（默认关）
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -309,6 +319,8 @@
         springRopeEnabled: false,         // v57：弹簧绳修复后暂默认关；setSpringRopeEnabled
         rustMinimalEnabled: false,         // v69：Rust 最小决策选择 next；默认关。
                                           // 会写入 tree.cfg。
+        growWithoutThreats: false,        // v77：无子弹也生长树实验开关；默认关，
+                                          // 保持 v57 grow-no-threat 行为。
         alignPosTol: 0.5,                 // 段末软对齐提示阈值（米）
         alignRotTol: 5 * Math.PI / 180,   // 段末软对齐提示阈值（弧度）
         alignHardPosTol: 3.0,             // 超过才整树重建；软超差只保留结构继续跑
@@ -320,6 +332,10 @@
         var out = {}, k;
         for (k in TREE_DEFAULTS) out[k] = TREE_DEFAULTS[k];
         if (cfg) for (k in cfg) out[k] = cfg[k];
+        // v77：无弹生长模块开关跨树保持；显式传 cfg 时仍以调用方为准。
+        if (!cfg || cfg.growWithoutThreats === undefined) {
+            out.growWithoutThreats = _growWithoutThreatsEnabled;
+        }
         return out;
     }
 
@@ -646,6 +662,7 @@
         tree.cfg.lanePenaltyRatio = _lanePenaltyRatio;   // v47：跨树保持开关状态
         tree.cfg.springRopeEnabled = _springRopeEnabled; // v53：跨树保持弹簧绳开关状态
         tree.cfg.rustMinimalEnabled = _rustMinimalEnabled; // v69：Rust 最小决策
+        tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled; // v77：无弹生长
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
         tree.root.id = 0;
@@ -1274,44 +1291,45 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 都有有效 rolloutSamples 时返回结果；任何不可用都返回 null，
      * 由 refreshFusedLayer 回退原 VantageScoring.scorePaths。
      */
-    function tryRustRescoreLayer(tree, adapter, stale) {
-        if (!adapter || typeof adapter.rescoreTankSamples !== 'function') return null;
-        if (!tree || (tree.cfg && tree.cfg.springRopeEnabled === true)) return null;
-        if (!stale || !stale.length) return null;
-
-        var nodes = [];
-        var i, c, k, s;
-        for (i = 0; i < stale.length; i++) {
-            c = stale[i];
-            if (!c || !Array.isArray(c.rolloutSamples) ||
-                    c.rolloutSamples.length < 2 || c.rolloutSamples.length > 76) {
-                return null;
-            }
-            for (k = 0; k < c.rolloutSamples.length; k++) {
-                s = c.rolloutSamples[k];
-                if (!s || typeof s !== 'object' ||
-                        !isFinite(Number(s.x)) || !isFinite(Number(s.y)) ||
-                        !isFinite(Number(s.rot))) {
-                    return null;
-                }
-            }
-            var onlyPending = nodeStaleOnlyByPending(
-                c.freshSig || '',
-                nodeWindowSig(adapter, c, tree.threats || []),
-                tree._pendingThreats || []
-            );
-            var nodeInput = {
-                samples: c.rolloutSamples,
-                moving: isMovingInputs(c.inputs),
-                startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
-                frames: EVAL_FRAMES
-            };
-            if (onlyPending && Array.isArray(c.perFrameScores)) {
-                nodeInput.previousScores = c.perFrameScores;
-            }
-            nodes.push(nodeInput);
+    function validRescoreNode(c) {
+        if (!c || !Array.isArray(c.rolloutSamples) ||
+                c.rolloutSamples.length < 2 || c.rolloutSamples.length > 76) {
+            return false;
         }
+        for (var k = 0; k < c.rolloutSamples.length; k++) {
+            var s = c.rolloutSamples[k];
+            if (!s || typeof s !== 'object' ||
+                    !isFinite(Number(s.x)) || !isFinite(Number(s.y)) ||
+                    !isFinite(Number(s.rot))) {
+                return false;
+            }
+        }
+        return true;
+    }
 
+    /** v77：构造单个节点的 rescore 输入；onlyPending 节点携带增量缓存。 */
+    function buildRescoreNodeInput(tree, adapter, c) {
+        var onlyPending = nodeStaleOnlyByPending(
+            c.freshSig || '',
+            nodeWindowSig(adapter, c, tree.threats || []),
+            tree._pendingThreats || []
+        );
+        var nodeInput = {
+            samples: c.rolloutSamples,
+            moving: isMovingInputs(c.inputs),
+            startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
+            frames: EVAL_FRAMES
+        };
+        if (onlyPending && Array.isArray(c.perFrameScores)) {
+            nodeInput.previousScores = c.perFrameScores;
+            if (typeof c.fullDeathFrame === 'number') {
+                nodeInput.previousDeathFrame = c.fullDeathFrame;
+            }
+        }
+        return nodeInput;
+    }
+
+    function callRescoreAdapter(adapter, tree, nodes) {
         var results;
         try {
             results = adapter.rescoreTankSamples(
@@ -1320,10 +1338,54 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 treeScoringCfg(tree),
                 tree._pendingThreats || []
             );
-        } catch (eRustLayer) {
-            results = null;
+        } catch (eRust) {
+            return null;
         }
-        if (!results || results.length !== stale.length) return null;
+        if (!results || results.length !== nodes.length) return null;
+        return results;
+    }
+
+    function tryRustRescoreLayer(tree, adapter, stale) {
+        if (!adapter || typeof adapter.rescoreTankSamples !== 'function') return null;
+        if (!tree || (tree.cfg && tree.cfg.springRopeEnabled === true)) return null;
+        if (!stale || !stale.length) return null;
+
+        var incNodes = [], incIdx = [];
+        var fullNodes = [], fullIdx = [];
+        var i, c, nodeInput;
+        for (i = 0; i < stale.length; i++) {
+            c = stale[i];
+            if (!validRescoreNode(c)) return null;
+            nodeInput = buildRescoreNodeInput(tree, adapter, c);
+            if (nodeInput.previousScores !== undefined && nodeInput.previousScores !== null) {
+                incNodes.push(nodeInput);
+                incIdx.push(i);
+            } else {
+                fullNodes.push(nodeInput);
+                fullIdx.push(i);
+            }
+        }
+
+        var results = new Array(stale.length);
+        var j, groupResults;
+        if (incNodes.length) {
+            groupResults = callRescoreAdapter(adapter, tree, incNodes);
+            if (!groupResults) return null;
+            for (j = 0; j < groupResults.length; j++) {
+                groupResults[j].rustCandidate = true;
+                groupResults[j].rustIncremental = true;
+                results[incIdx[j]] = groupResults[j];
+            }
+        }
+        if (fullNodes.length) {
+            groupResults = callRescoreAdapter(adapter, tree, fullNodes);
+            if (!groupResults) return null;
+            for (j = 0; j < groupResults.length; j++) {
+                groupResults[j].rustCandidate = true;
+                groupResults[j].rustIncremental = false;
+                results[fullIdx[j]] = groupResults[j];
+            }
+        }
         return { results: results, usedRust: true };
     }
 
@@ -1352,6 +1414,46 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return { stale: stale, ops: ops };
     }
 
+    /**
+     * v77：JS 侧合并旧死亡帧与 Rust 新候选死亡帧。
+     * 旧结论 = 上一轮 fullDeathFrame + 上一轮 perFrameScores；
+     * Rust 新候选 = 只验证新弹得到的 deathFrame。取更早者；旧结论胜出时
+     * 沿用旧 perFrameScores（长度=旧死亡帧），避免 Rust 全长分数把已截断
+     * 的死亡帧分数又拉长。
+     */
+    function mergeIncrementalRescoreDeath(c, r) {
+        var oldFd = (typeof c.fullDeathFrame === 'number') ? c.fullDeathFrame : -1;
+        var newFd = (r && typeof r.deathFrame === 'number') ? r.deathFrame : -1;
+        var mergedFd = oldFd;
+        if (newFd > 0 && (oldFd <= 0 || newFd < oldFd)) mergedFd = newFd;
+
+        var pfs = null;
+        if (mergedFd === oldFd && oldFd > 0 && Array.isArray(c.perFrameScores)) {
+            pfs = c.perFrameScores;
+        } else if (mergedFd === newFd && newFd > 0 && Array.isArray(r.perFrameScores)) {
+            pfs = r.perFrameScores;
+        } else if (Array.isArray(r.perFrameScores)) {
+            pfs = r.perFrameScores;
+        } else if (Array.isArray(c.perFrameScores)) {
+            pfs = c.perFrameScores;
+        } else {
+            return null;
+        }
+
+        var total = 0;
+        for (var k = 0; k < pfs.length; k++) total += Number(pfs[k]) || 0;
+        return {
+            samples: r.samples,
+            perFrameScores: pfs.slice(),
+            totalScore: total,
+            dead: mergedFd > 0,
+            deathFrame: mergedFd,
+            frameCount: pfs.length,
+            rustCandidate: true,
+            rustIncremental: true
+        };
+    }
+
     /** v70：把已算好的 results 写回一父层候选节点；返回更新数。 */
     function applyLayerResults(tree, adapter, parent, stale, results) {
         if (!results || results.length !== stale.length) return 0;
@@ -1365,11 +1467,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // 已失效/已脱离当前父层的候选一律跳过，防止二次写回、二次扣数。
             if (c.invalid || c.parent !== parent || !isActiveTreeNode(tree, c)) continue;
             var oldFd = c.fullDeathFrame;
+            if (r.rustIncremental) {
+                r = mergeIncrementalRescoreDeath(c, r);
+                if (!r) continue;
+            }
             if (r.samples && r.samples.length) c.rolloutSamples = r.samples;
             applyRolloutScore(tree, c, r);
             c.scoreCache = null;
             c.freshSig = nodeWindowSig(adapter, c, tree.threats || []);
-            c.deathAuthority = 'fused';
+            // v77：Rust rescore 只产出候选死亡帧；最终执行路线会由 JS
+            // 融合世界确认后改写为 'fused'。此处仅标记候选，不冒充权威。
+            c.deathAuthority = r.rustCandidate ? 'rust-candidate' : 'fused';
             c.dataVersion++;
             updated++;
             if (c.fullDeathFrame !== oldFd) {
@@ -1430,82 +1538,174 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (tree.cfg && tree.cfg.springRopeEnabled === true) return null;
         if (!parents || !parents.length) return { used: true, updated: 0 };
 
-        var jobs = [];
-        var allNodes = [];
-        var i, j, k, c, s;
+        var incAllNodes = [], fullAllNodes = [];
+        var incJobs = [], fullJobs = [];
+        var i, j, c;
         for (i = 0; i < parents.length; i++) {
             var parent = parents[i];
             if (!parent || parent.invalid || parent.exhausted) continue;
             var collected = collectStaleForLayer(tree, adapter, parent);
             if (!collected.stale.length) continue;
+            var incStale = [], fullStale = [];
             for (j = 0; j < collected.stale.length; j++) {
                 c = collected.stale[j];
-                if (!c || !Array.isArray(c.rolloutSamples) ||
-                        c.rolloutSamples.length < 2 || c.rolloutSamples.length > 76) {
-                    return null;
+                if (!validRescoreNode(c)) return null;
+                var nodeInput = buildRescoreNodeInput(tree, adapter, c);
+                if (nodeInput.previousScores !== undefined && nodeInput.previousScores !== null) {
+                    incStale.push(c);
+                    incAllNodes.push(nodeInput);
+                } else {
+                    fullStale.push(c);
+                    fullAllNodes.push(nodeInput);
                 }
-                for (k = 0; k < c.rolloutSamples.length; k++) {
-                    s = c.rolloutSamples[k];
-                    if (!s || typeof s !== 'object' ||
-                            !isFinite(Number(s.x)) || !isFinite(Number(s.y)) ||
-                            !isFinite(Number(s.rot))) {
-                        return null;
-                    }
-                }
-                var onlyPending = nodeStaleOnlyByPending(
-                    c.freshSig || '',
-                    nodeWindowSig(adapter, c, tree.threats || []),
-                    tree._pendingThreats || []
-                );
-                var nodeInput = {
-                    samples: c.rolloutSamples,
-                    moving: isMovingInputs(c.inputs),
-                    startT: (typeof c.rolloutStartT === 'number') ? c.rolloutStartT : 0,
-                    frames: EVAL_FRAMES
-                };
-                if (onlyPending && Array.isArray(c.perFrameScores)) {
-                    nodeInput.previousScores = c.perFrameScores;
-                }
-                allNodes.push(nodeInput);
             }
-            jobs.push({ parent: parent, stale: collected.stale, offset: allNodes.length - collected.stale.length });
+            if (incStale.length) {
+                incJobs.push({ parent: parent, stale: incStale, offset: incAllNodes.length - incStale.length });
+            }
+            if (fullStale.length) {
+                fullJobs.push({ parent: parent, stale: fullStale, offset: fullAllNodes.length - fullStale.length });
+            }
         }
-        if (!jobs.length) return { used: true, updated: 0 };
+        if (!incJobs.length && !fullJobs.length) return { used: true, updated: 0 };
 
         var cfg = treeScoringCfg(tree);
         var threats = tree.threats || [];
-        var allResults = [];
         var CHUNK = 512;
-        for (var start = 0; start < allNodes.length; start += CHUNK) {
-            var chunk = allNodes.slice(start, start + CHUNK);
-            var chunkResults;
-            try {
-                chunkResults = adapter.rescoreTankSamples(
-                    chunk,
-                    threats,
-                    cfg,
-                    tree._pendingThreats || []
-                );
-            } catch (eBatch) {
-                return null;
+        function runRescoreChunked(nodes) {
+            var allResults = [];
+            for (var start = 0; start < nodes.length; start += CHUNK) {
+                var chunk = nodes.slice(start, start + CHUNK);
+                var chunkResults;
+                try {
+                    chunkResults = adapter.rescoreTankSamples(
+                        chunk,
+                        threats,
+                        cfg,
+                        tree._pendingThreats || []
+                    );
+                } catch (eBatch) {
+                    return null;
+                }
+                if (!chunkResults || chunkResults.length !== chunk.length) return null;
+                allResults = allResults.concat(chunkResults);
             }
-            if (!chunkResults || chunkResults.length !== chunk.length) return null;
-            allResults = allResults.concat(chunkResults);
+            if (allResults.length !== nodes.length) return null;
+            return allResults;
         }
-        if (allResults.length !== allNodes.length) return null;
+
+        var incResults = incAllNodes.length ? runRescoreChunked(incAllNodes) : [];
+        if (incResults === null) return null;
+        var fullResults = fullAllNodes.length ? runRescoreChunked(fullAllNodes) : [];
+        if (fullResults === null) return null;
 
         var updated = 0;
-        for (i = 0; i < jobs.length; i++) {
-            var job = jobs[i];
-            var jobResults = allResults.slice(job.offset, job.offset + job.stale.length);
+        var job, jobResults, jj;
+        for (i = 0; i < incJobs.length; i++) {
+            job = incJobs[i];
+            jobResults = incResults.slice(job.offset, job.offset + job.stale.length);
+            for (jj = 0; jj < jobResults.length; jj++) {
+                jobResults[jj].rustCandidate = true;
+                jobResults[jj].rustIncremental = true;
+            }
+            updated += applyLayerResults(tree, adapter, job.parent, job.stale, jobResults);
+        }
+        for (i = 0; i < fullJobs.length; i++) {
+            job = fullJobs[i];
+            jobResults = fullResults.slice(job.offset, job.offset + job.stale.length);
+            for (jj = 0; jj < jobResults.length; jj++) {
+                jobResults[jj].rustCandidate = true;
+                jobResults[jj].rustIncremental = false;
+            }
             updated += applyLayerResults(tree, adapter, job.parent, job.stale, jobResults);
         }
         // v76：批量写回后强制按真实拓扑重数一次。任何多重摘除/计数漂移
         // 都在这里被当场纠正，绝不带着错误计数进入下一轮生长调度。
         recountActiveNodes(tree);
         recordStructure(tree, 'rust-rescore-batch',
-            'parents=' + jobs.length + ' nodes=' + allNodes.length + ' updated=' + updated);
+            'parents=' + (incJobs.length + fullJobs.length) +
+            ' nodes=' + (incAllNodes.length + fullAllNodes.length) +
+            ' inc=' + incAllNodes.length + ' updated=' + updated);
         return { used: true, updated: updated };
+    }
+
+    /**
+     * v77：用 JS 融合世界确认单节点死亡结论。
+     * 只用于最终执行路线上的节点；通过临时适配器把 simulateTankBatch
+     * 强制替换为 adapter.simulateTankBatchJsFused，确保绝不走 Rust 物理。
+     * 返回 scorePaths 口径结果；JS 融合不可用时自动回退 scorePath（check）。
+     */
+    function confirmNodeDeathWithJsFused(tree, adapter, node) {
+        if (!tree || !node || !node.inputs || !node.rolloutSamples || !node.rolloutSamples.length) return null;
+        if (!adapter || typeof adapter.simulateTankBatchJsFused !== 'function') return null;
+        if (!VantageScoring || !VantageScoring.scorePaths) return null;
+        var frames = Math.min(EVAL_FRAMES, node.rolloutSamples.length - 1);
+        if (frames < 1) return null;
+        var startSample = node.rolloutSamples[0];
+        var simState = {
+            tank: { x: startSample.x, y: startSample.y, rot: startSample.rot },
+            tGlobal: (typeof node.rolloutStartT === 'number') ? node.rolloutStartT : 0
+        };
+        var jsAdapter = Object.create(adapter);
+        var fusedBatchOk = false;
+        jsAdapter.simulateTankBatch = function(state, operations, durationFrames, opt) {
+            var b = adapter.simulateTankBatchJsFused(state, operations, durationFrames, opt);
+            if (b) fusedBatchOk = true;
+            return b;
+        };
+        var results = VantageScoring.scorePaths(jsAdapter, simState,
+            [{ name: node.opName || 'confirm', inputs: node.inputs }], frames,
+            tree.threats || [], treeScoringCfg(tree));
+        var r = results && results[0];
+        if (!r) return null;
+        r.deathAuthority = fusedBatchOk ? 'fused' : 'check';
+        return r;
+    }
+
+    /**
+     * v77：把 JS 融合世界确认结果写回节点。只有 deathAuthority 为
+     * 'rust-candidate' 的节点才需要确认；确认后改标 'fused'（或回退
+     * 'check'），并同步分数/死亡帧/回传父链。
+     */
+    function confirmExecutionNodeDeath(tree, adapter, node) {
+        if (!tree || !node) return false;
+        if (node.deathAuthority !== 'rust-candidate') return false;
+        var r = confirmNodeDeathWithJsFused(tree, adapter, node);
+        if (!r) {
+            recordStructure(tree, 'js-death-confirm-fail',
+                'n' + (node.id || '?') + ' authority=' + node.deathAuthority);
+            return false;
+        }
+        var oldFd = node.fullDeathFrame;
+        if (r.samples && r.samples.length) node.rolloutSamples = r.samples;
+        applyRolloutScore(tree, node, r);
+        node.deathAuthority = r.deathAuthority || 'fused';
+        node.scoreCache = null;
+        node.freshSig = nodeWindowSig(adapter, node, tree.threats || []);
+        node.dataVersion++;
+        if (node.parent) backpropBest(node.parent);
+        recordStructure(tree, 'js-death-confirm',
+            'n' + (node.id || '?') + ' fd ' + oldFd + '→' + node.fullDeathFrame +
+            ' authority=' + node.deathAuthority);
+        return true;
+    }
+
+    /**
+     * v77：确认最终执行路线的死亡结论，并处理“Rust 候选 alive、JS 实为
+     * 1 帧真死”的罕见翻转：只要父层还有其他非 1 帧死候选就重选一次。
+     */
+    function confirmExecutionRoutePick(tree, adapter, chosen, parent) {
+        if (!chosen || !parent) return chosen;
+        var guard = 0;
+        while (chosen && guard < parent.children.length) {
+            if (chosen.deathAuthority !== 'rust-candidate') break;
+            confirmExecutionNodeDeath(tree, adapter, chosen);
+            if (chosen.fullDeathFrame !== 1) break;
+            var alt = pickBestChildByRolloutTotal(parent.children, chosen);
+            if (!alt || alt.fullDeathFrame === 1) break;
+            chosen = alt;
+            guard++;
+        }
+        return chosen;
     }
 
     /** v68：当前提交层重评分。只做本层，不做惰性链。 */
@@ -1516,6 +1716,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var oldNext = parent.next;
         refreshFusedLayer(tree, adapter, parent);
         var newNext = pickBestChildByRolloutTotal(parent.children);
+        // v77：Rust rescore 的死亡帧只是候选；被选中为 next 的节点在写入
+        // 执行路线前，必须由 JS 融合世界确认死亡结论。
+        newNext = confirmExecutionRoutePick(tree, adapter, newNext, parent);
         parent.next = newNext;
         if (oldNext !== newNext) {
             recordStructure(tree, 'next-retarget',
@@ -2254,7 +2457,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // v60：刚由融合世界算出的节点，威胁集合未变时视为 fresh，
             // 不得马上用静态 checkDeath 覆盖融合传感器/CCD 的死亡结论。
             var curSig = nodeWindowSig(adapter, n, threats);
-            if (n.deathAuthority === 'fused' && n.freshSig && n.freshSig === curSig) {
+            if ((n.deathAuthority === 'fused' || n.deathAuthority === 'rust-candidate') &&
+                n.freshSig && n.freshSig === curSig) {
                 return false;
             }
             return true;
@@ -2532,12 +2736,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 仅排除 invalid/exhausted；有非真死候选时跳过 fullDeathFrame===1 的真死候选。
      * 软死不额外偏置，靠总分自然排序。
      */
-    function pickBestChildByRolloutTotal(children) {
+    function pickBestChildByRolloutTotal(children, exclude) {
         var i, c;
         var anyActive = false, allTrueDead = true;
         for (i = 0; i < children.length; i++) {
             c = children[i];
-            if (!c || c.invalid || c.exhausted) continue;
+            if (!c || c.invalid || c.exhausted || c === exclude) continue;
             anyActive = true;
             if (c.fullDeathFrame !== 1) { allTrueDead = false; break; }
         }
@@ -2545,7 +2749,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var best = null, bestTotal = -Infinity;
         for (i = 0; i < children.length; i++) {
             c = children[i];
-            if (!c || c.invalid || c.exhausted) continue;
+            if (!c || c.invalid || c.exhausted || c === exclude) continue;
             if (!allTrueDead && c.fullDeathFrame === 1) continue;
             var total = fullRolloutTotalOf(c);
             if (!best || total > bestTotal) {
@@ -2769,7 +2973,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 for (var pj = 0; pj < partial.length; pj++) {
                     partial[pj].opIndex = slice.idx + pj;
                     partial[pj].opName = ops[slice.idx + pj].name;
-                    partial[pj].deathAuthority = 'fused';   // v60：scorePaths=融合世界权威
+                    partial[pj].deathAuthority = partial[pj].rustPhysics ? 'rust-candidate' : 'fused';   // v60/v77：scorePaths；Rust物理只算候选
                     slice.results.push(partial[pj]);
                 }
                 slice.idx += partial.length;
@@ -2898,9 +3102,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         // v57：无子弹不预测。没有威胁时树不延伸、不开展开切片；
         // 首次提交仍可建立根层 9 候选并选静止。
+        // v77：实验开关 growWithoutThreats 开启时，无威胁也继续生长，
+        // 用于无子弹场景的纯数据搬运/更新性能实验；默认关闭保持 v57 行为。
         if (!tree.threats || !tree.threats.length) {
-            recordGrowStall(tree, 'grow-no-threat', 'no-threats');
-            return;
+            if (!tree.cfg.growWithoutThreats) {
+                recordGrowStall(tree, 'grow-no-threat', 'no-threats');
+                return;
+            }
         }
         ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount >= tree.cfg.maxNodes) {
@@ -3370,6 +3578,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             reactivateMatchingReserves(tree, adapter, prev, tree.threats);
             pruneExpiredReserves(tree);
 
+            // v77：最终执行路线死亡结论必须在写入执行状态前由 JS 融合世界确认。
+            keepBest = confirmExecutionRoutePick(tree, adapter, keepBest, prev);
+
             // 极端兜底：reserve 全部失效时，若根层只有被选中者且它是叶子，
             // 扩一层保证下一段有候选可比较（growStep 仍是每 tick 只扩一个叶子）。
             if (prev.children.length < 2 &&
@@ -3481,6 +3692,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         var best = pickBestChildByRolloutTotal(root.children);
         if (!best) return false;
+        // v77：freshRoot 若走了 Rust 物理预测，选中节点仍需 JS 融合世界确认。
+        best = confirmExecutionRoutePick(tree, adapter, best, root);
 
         // v46 根修：完整 9 候选留档，但不再删 8 兄弟——它们就是下一段
         // 提交的比较集和根层活预览。旧逻辑让首次提交后树立刻只剩 2 节点。
@@ -3539,7 +3752,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 for (var pj = 0; pj < partial.length; pj++) {
                     partial[pj].opIndex = slice.idx + pj;
                     partial[pj].opName = ops[slice.idx + pj].name;
-                    partial[pj].deathAuthority = 'fused';   // v60：scorePaths=融合世界权威
+                    partial[pj].deathAuthority = partial[pj].rustPhysics ? 'rust-candidate' : 'fused';   // v60/v77：scorePaths；Rust物理只算候选
                     slice.results.push(partial[pj]);
                 }
                 slice.idx += partial.length;
@@ -4132,6 +4345,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _rustMinimalEnabled;
     }
 
+    /** v77：无子弹也生长树实验开关；跨树保持，并同步当前活树。 */
+    function setGrowWithoutThreatsEnabled(v) {
+        _growWithoutThreatsEnabled = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled;
+        return _growWithoutThreatsEnabled;
+    }
+
     // ============================================================
     // 导出（03 七节接口契约）
     // ============================================================
@@ -4161,6 +4381,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setLaneEnabled: setLaneEnabled,
         setSpringRopeEnabled: setSpringRopeEnabled,
         setRustMinimalEnabled: setRustMinimalEnabled,
+        setGrowWithoutThreatsEnabled: setGrowWithoutThreatsEnabled,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
         threatCoarseBox: threatCoarseBox,
@@ -4188,5 +4409,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v76：节点计数修复 + Rust粗筛跨帧跳跃 + v75帧级增量评分 + v68同步语义 + Rust批量层刷新）');
+    console.log('[Vantage Tree] 模块已加载（段制 v77：增量死亡验证只看新子弹 + JS执行路线死亡确认 + 无弹生长开关 + v76节点计数修复）');
 })(typeof window !== 'undefined' ? window : this);

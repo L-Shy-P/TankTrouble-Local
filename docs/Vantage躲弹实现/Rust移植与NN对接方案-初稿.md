@@ -499,3 +499,59 @@ C. JS 精确物理 + Rust 树/评分/NN
 - `cargo test`：77 passed。
 - `diff_tree_nodecount.js` PASS。
 - `diff_rescore.js / diff_rollout.js / diff_rescore_bridge.js / diff_rollout_bridge.js / diff_rollout_rescore_edge.js` 全部 PASS。
+
+## 二十七、第九波 v77：增量死亡验证只看新子弹 + JS 执行路线死亡确认 + 无弹生长开关
+
+### 问题
+v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重跑：即使节点 stale
+完全由新增子弹引起，`danger_frames` 与 `verify_death_for_node` 仍把全部 threats
+喂给融合验证世界，旧子弹死亡场景的增量优势被死亡验证吃光。同时 Rust 死亡帧
+被直接当成执行权威写入节点，违反“最终死亡结论必须由 JS 游戏同款融合世界确认”的
+既定规则。
+
+### 修改（Rust wasm / bridge v9 / sandbox v32 / tree v77 / scoring v30 / testbench v60）
+- `vt_rescore_nodes` ABI v5 新增 `node_has_prev_scores` 与 `prev_death_frame`：
+  节点可携带上一轮死亡帧。`vt_version()` 返回 5。
+- `score_stored_node` 支持两种增量缓存形状：上轮存活（分数长度=scored_frames）或
+  上轮死亡（分数长度=旧死亡帧）。旧死亡帧视为旧弹权威，只重算旧死亡帧之前的
+  受影响帧；旧死亡帧之后不再补算。
+- `rescore_nodes` 在节点携带 previousScores 时进入增量死亡验证：只对
+  `is_new` 的新增威胁做 danger 粗筛与融合验证，旧子弹死亡帧由 JS 侧沿用；
+  Rust 输出 deathFrame 仅为新弹候选帧（无新弹或新弹不致死时输出 -1）。
+- JS `applyLayerResults` 合并旧死亡帧（`c.fullDeathFrame`）与 Rust 新候选帧：
+  新弹只可能让死亡更早，取更早者；旧结论胜出时沿用旧 `perFrameScores`（截断到
+  旧死亡帧），新结论胜出时用 Rust 截断后的 `perFrameScores`。
+- `tryRustRescoreLayer` / `tryRustRescoreBatch` 把 stale 节点按“仅新弹引起”与
+  “全量刷新”分组调用 adapter，保证增量节点真的只验新弹；混合批次不再退化为
+  整批全量。
+- Rust 死亡帧只标 `deathAuthority='rust-candidate'`，不冒充 JS 融合权威。
+  `nodeIsStale` 同步承认该标记为 fresh。
+- 最终执行路线确认：`confirmNodeDeathWithJsFused` 通过临时适配器强制走
+  `adapter.simulateTankBatchJsFused`（sandbox v32 新增，永不经过 Rust 物理开关），
+  用 `VantageScoring.scorePaths` 对选中节点重算 JS 融合死亡结论。
+  `refreshCandidateScores` 在写 `parent.next` 前确认，`commit` 在写
+  `tree.commitNode`/执行状态前对 `keepBest` 确认；只确认最终执行路线，
+  不对全树每个节点做 JS 复核。
+- `scorePaths` 透传 `rustPhysics` 候选标记（scoring v30）：Rust 物理预测的
+  死亡帧同样只作候选，进入执行路线前由 JS 融合确认。
+- 新增 `TREE_DEFAULTS.growWithoutThreats=false` 与
+  `VantageTree.setGrowWithoutThreatsEnabled(v)`；默认关闭保持 v57
+  `grow-no-threat` 行为，开启后 `growStep` 在无 threats 时继续生长，
+  供无子弹纯数据搬运/更新性能实验。testbench 实验区新增“无弹生长”复选框，
+  模块加载时同步初始状态。
+- 版本：tree v77、bridge v9、sandbox v32、scoring v30、testbench v60、
+  index.html 同步；WASM 重新构建。
+
+### 新增/更新测试
+- Rust：`incremental_death_verification_skips_old_bullets`（旧弹不重验）、
+  `incremental_death_new_bullet_moves_death_earlier`（新弹提前）、
+  `incremental_death_old_death_carried_when_new_bullet_far`（旧死亡沿用）。
+- JS：`rust/diff_incremental_death_merge.js` 覆盖旧死亡沿用、新弹提前、
+  执行路线 JS 融合确认三个场景。
+- 差分脚本版本检查更新为 ABI v5。
+
+### 验证
+- `cargo test`：80 passed。
+- `diff_tree_nodecount.js` PASS。
+- `diff_rescore.js / diff_rollout.js / diff_rescore_bridge.js / diff_rollout_bridge.js / diff_rollout_rescore_edge.js` 全部 PASS。
+- 新增 `rust/diff_incremental_death_merge.js` PASS。

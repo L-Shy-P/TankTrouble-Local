@@ -2374,7 +2374,10 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
                 deathFrame: -1,
                 perFrameScores: [],
                 frameCount: 0,
-                samples: batch[j].samples
+                samples: batch[j].samples,
+                // v29：Rust 物理预测的死亡帧只是候选；透传给树，
+                // 最终执行路线由 JS 融合世界确认。
+                rustPhysics: batch[j].rustPhysics === true
             });
         }
         var frameDt = (adapter.constants && adapter.constants.FRAME_DT)
@@ -2473,6 +2476,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v28：真实子弹缺失折线时兜底为直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v30：scorePaths 透传 rustPhysics 候选标记 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);

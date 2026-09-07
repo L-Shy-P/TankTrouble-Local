@@ -16,7 +16,7 @@ pub mod tree;
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
-    4
+    5
 }
 
 /// Flat-buffer fused rollout batch ABI.
@@ -224,7 +224,7 @@ pub extern "C" fn vt_rollout_batch(
     }
 }
 
-/// Flat-buffer incremental rescore + death-verification ABI (v4).
+/// Flat-buffer incremental rescore + death-verification ABI (v5).
 ///
 /// See `rescore.rs` for the pure struct definitions.  All geometry is `f64`.
 /// Fixed limits: nodes <= 512, samples per node <= 76, scored frames <= 75,
@@ -290,6 +290,8 @@ pub extern "C" fn vt_rescore_nodes(
     spring_rope_enabled: u8,
     prev_per_frame_scores: *const f64,
     threat_is_new: *const u8,
+    node_has_prev_scores: *const u8,
+    prev_death_frame: *const i32,
     out_per_frame_scores: *mut f64,
     out_total_score: *mut f64,
     out_death_frame: *mut i32,
@@ -322,6 +324,8 @@ pub extern "C" fn vt_rescore_nodes(
             || frames.is_null()
             || wall_vert_counts.is_null()
             || wall_verts.is_null()
+            || node_has_prev_scores.is_null()
+            || prev_death_frame.is_null()
             || out_per_frame_scores.is_null()
             || out_total_score.is_null()
             || out_death_frame.is_null()
@@ -404,6 +408,24 @@ pub extern "C" fn vt_rescore_nodes(
             walls.push(WallPoly { vertices: verts });
         }
 
+        let has_prev_scores_slice =
+            unsafe { std::slice::from_raw_parts(node_has_prev_scores, node_count_u) };
+        let prev_death_slice =
+            unsafe { std::slice::from_raw_parts(prev_death_frame, node_count_u) };
+        let mut any_has_prev = false;
+        for ni in 0..node_count_u {
+            if has_prev_scores_slice[ni] != 0 {
+                any_has_prev = true;
+            }
+            let pdf = prev_death_slice[ni];
+            if !(-1..=MAX_RESCORE_FRAMES as i32).contains(&pdf) {
+                return 0;
+            }
+        }
+        if any_has_prev && prev_per_frame_scores.is_null() {
+            return 0;
+        }
+
         let prev_pfs_slice = if prev_per_frame_scores.is_null() {
             None
         } else {
@@ -426,10 +448,19 @@ pub extern "C" fn vt_rescore_nodes(
                 sample_offset += 1;
             }
             let scored = (frames_slice[ni] as usize).min(sc.saturating_sub(1));
-            let previous_scores = prev_pfs_slice.map(|slice| {
+            let has_prev = has_prev_scores_slice[ni] != 0;
+            let previous_scores = if has_prev {
+                let slice = prev_pfs_slice.as_ref().unwrap();
                 let base = ni * MAX_RESCORE_FRAMES;
-                slice[base..base + scored].to_vec()
-            });
+                Some(slice[base..base + scored].to_vec())
+            } else {
+                None
+            };
+            let previous_death_frame = if has_prev {
+                Some(prev_death_slice[ni])
+            } else {
+                None
+            };
             let node = RescoreNodeInput::new(
                 samples,
                 moving_slice[ni] != 0,
@@ -438,6 +469,10 @@ pub extern "C" fn vt_rescore_nodes(
             );
             let node = match previous_scores {
                 Some(p) => node.with_previous_scores(p),
+                None => node,
+            };
+            let node = match previous_death_frame {
+                Some(d) => node.with_previous_death_frame(d),
                 None => node,
             };
             nodes.push(node);
@@ -944,7 +979,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 4);
+        assert_eq!(vt_version(), 5);
     }
 
     #[test]
@@ -958,6 +993,8 @@ mod tests {
         let frames = [2u32];
         let wall_counts = [0u32];
         let wall_verts = [0.0f64];
+        let has_prev = [0u8; 64];
+        let prev_death = [-1i32; 64];
         let mut out_pfs = vec![0.0f64; 64 * 75];
         let mut out_total = vec![0.0f64; 64];
         let mut out_death = vec![0i32; 64];
@@ -997,6 +1034,8 @@ mod tests {
             0,
             std::ptr::null(),
             std::ptr::null(),
+            has_prev.as_ptr(),
+            prev_death.as_ptr(),
             out_pfs.as_mut_ptr(),
             out_total.as_mut_ptr(),
             out_death.as_mut_ptr(),
@@ -1029,6 +1068,8 @@ mod tests {
         prev[0] = 39.47841760435743;
         prev[1] = 39.47841760435743;
         let threat_is_new: [u8; 0] = [];
+        let has_prev = [1u8];
+        let prev_death = [-1i32];
         let mut out_pfs = vec![0.0f64; 64 * 75];
         let mut out_total = vec![0.0f64; 64];
         let mut out_death = vec![0i32; 64];
@@ -1068,6 +1109,8 @@ mod tests {
             0,
             prev.as_ptr(),
             threat_is_new.as_ptr(),
+            has_prev.as_ptr(),
+            prev_death.as_ptr(),
             out_pfs.as_mut_ptr(),
             out_total.as_mut_ptr(),
             out_death.as_mut_ptr(),
@@ -1095,6 +1138,8 @@ mod tests {
         let frames = [2u32];
         let wall_counts = [0u32];
         let wall_verts = [0.0f64];
+        let has_prev = [0u8; 64];
+        let prev_death = [-1i32; 64];
         let mut out_pfs = vec![0.0f64; 64 * 75];
         let mut out_total = vec![0.0f64; 64];
         let mut out_death = vec![0i32; 64];
@@ -1134,6 +1179,8 @@ mod tests {
             0,
             std::ptr::null(),
             std::ptr::null(),
+            has_prev.as_ptr(),
+            prev_death.as_ptr(),
             out_pfs.as_mut_ptr(),
             out_total.as_mut_ptr(),
             out_death.as_mut_ptr(),

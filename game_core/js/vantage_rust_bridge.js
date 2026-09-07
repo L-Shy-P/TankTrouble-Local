@@ -5,7 +5,7 @@
  * Exposes:
  *   - version()
  *   - rolloutBatch(...)         (ABI v2: vt_rollout_batch)
- *   - rescoreNodes(...)         (ABI v4: vt_rescore_nodes, bridge v6)
+ *   - rescoreNodes(...)         (ABI v5: vt_rescore_nodes, bridge v9)
  *   - buildWallRects(...)
  *   - sweepDangerFrames(...)
  *   - minimalDecide(...)
@@ -80,7 +80,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=8';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=9';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -423,14 +423,15 @@
 
         /**
          * Incremental rescore + death-verification batch over stored rollout
-         * samples (ABI v4).
+         * samples (ABI v5).
          *
          * JS API:
          *   input = {
          *     cacheId: <integer 0..2^32-1>,
          *     walls: [{verts:[[x,y],...]}],       // 0..1024 walls, 3..8 verts
          *     nodes: [{samples:[{x,y,rot}...], moving:bool, startT:number,
-         *              frames:int, previousScores?:[0..75]}], // 1..512 nodes
+         *              frames:int, previousScores?:[0..75],
+         *              previousDeathFrame?:-1..75}], // 1..512 nodes
          *     threats: [{track:[{x,y,alive}...]?, path:[[x,y]...]?,
          *                speed, anchorOffset, bulletRadius, lifeLeftSeconds,
          *                isNew?:bool}],
@@ -499,6 +500,7 @@
                 var nodeStartT = [];
                 var nodeMoving = [];
                 var nodePreviousScores = [];
+                var nodePreviousDeathFrames = [];
                 var anyNodePrev = false;
                 var allNodesPrev = true;
                 var totalSamples = 0;
@@ -543,9 +545,19 @@
                             }
                         }
                         nodePreviousScores.push(node.previousScores);
+                        if (node.previousDeathFrame !== undefined && node.previousDeathFrame !== null) {
+                            var pdf = Number(node.previousDeathFrame);
+                            if (!Number.isInteger(pdf) || pdf < -1 || pdf > 75) {
+                                throw badInput('nodes[' + i + '].previousDeathFrame must be an integer in [-1, 75]');
+                            }
+                            nodePreviousDeathFrames.push(pdf);
+                        } else {
+                            nodePreviousDeathFrames.push(-1);
+                        }
                         anyNodePrev = true;
                     } else {
                         nodePreviousScores.push(null);
+                        nodePreviousDeathFrames.push(-1);
                         allNodesPrev = false;
                     }
                     for (k = 0; k < sc; k++) {
@@ -698,7 +710,11 @@
                 var lifeLeftBytes = Math.max(1, threatCount) * 8;
                 // Only pass a previous-score block when every node has one;
                 // a single null pointer cannot represent a per-node None.
+                // v9: hasPrev/prevDeath are always passed and tell Rust which
+                // nodes actually carry incremental state.
                 var prevPfsBytes = allNodesPrev ? nodeCount * 75 * 8 : 0;
+                var nodeHasPrevBytes = nodeCount;
+                var prevDeathBytes = nodeCount * 4;
                 var threatIsNewBytes = threatCount > 0 ? threatCount : 0;
                 var outPfsBytes = nodeCount * 75 * 8;
                 var outTotalBytes = nodeCount * 8;
@@ -735,6 +751,9 @@
                 var bulletRadiusBase = off; off += bulletRadiusBytes;
                 var lifeLeftBase = off; off += lifeLeftBytes;
                 var prevPfsBase = off; off += prevPfsBytes;
+                var nodeHasPrevBase = off; off += nodeHasPrevBytes;
+                off = align4(off);
+                var prevDeathBase = off; off += prevDeathBytes;
                 var threatIsNewBase = off; off += threatIsNewBytes;
                 off = align8(off);
                 var outPfsBase = off; off += outPfsBytes;
@@ -766,6 +785,8 @@
                 bulletRadiusBase += base;
                 lifeLeftBase += base;
                 prevPfsBase += base;
+                nodeHasPrevBase += base;
+                prevDeathBase += base;
                 threatIsNewBase += base;
                 outPfsBase += base;
                 outTotalBase += base;
@@ -810,6 +831,13 @@
                             prevPfs[pvBase + k] = Number(pv[k]);
                         }
                     }
+                }
+
+                var nodeHasPrev = new Uint8Array(this._memory.buffer, nodeHasPrevBase, nodeCount);
+                var prevDeath = new Int32Array(this._memory.buffer, prevDeathBase, nodeCount);
+                for (i = 0; i < nodeCount; i++) {
+                    nodeHasPrev[i] = nodePreviousScores[i] !== null ? 1 : 0;
+                    prevDeath[i] = nodePreviousDeathFrames[i];
                 }
 
                 if (wallCount > 0) {
@@ -884,6 +912,7 @@
                     lanePenaltyRatio, springRopeEnabled,
                     allNodesPrev ? prevPfsBase : 0,
                     threatCount > 0 ? threatIsNewBase : 0,
+                    nodeHasPrevBase, prevDeathBase,
                     outPfsBase, outTotalBase, outDeathBase, outVerifiedBase, outOkBase
                 );
                 if (ret !== 1) {
@@ -1214,6 +1243,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v8: v4 ABI + danger/affected coarse skip blocks, incremental previousScores/isNew, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v9: v5 ABI + incremental death verification only for new bullets via previousDeathFrame, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);
