@@ -279,17 +279,32 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
     size: bulletData.byteLength,
     usage: usage.STORAGE | usage.COPY_DST,
   });
+  // WebGPU 规范：带 MAP_READ 的 buffer 只能再带 COPY_DST，不能直接作
+  // storage/copy-src。因此计算写进 storage，再用 copyBufferToBuffer
+  // 搬到可映射回读 buffer。
   const arcsBuffer = device.createBuffer({
     size: Math.max(4, poseCount * maxArcsPerPose * 2 * 4),
-    usage: usage.STORAGE | usage.COPY_SRC | usage.MAP_READ,
+    usage: usage.STORAGE | usage.COPY_DST,
   });
   const arcCountsBuffer = device.createBuffer({
     size: Math.max(4, poseCount * 4),
-    usage: usage.STORAGE | usage.COPY_SRC | usage.MAP_READ,
+    usage: usage.STORAGE | usage.COPY_DST,
   });
   const fullOcclusionBuffer = device.createBuffer({
     size: Math.max(4, poseCount * 4),
-    usage: usage.STORAGE | usage.COPY_SRC | usage.MAP_READ,
+    usage: usage.STORAGE | usage.COPY_DST,
+  });
+  const arcsReadbackBuffer = device.createBuffer({
+    size: arcsBuffer.size,
+    usage: usage.MAP_READ | usage.COPY_DST,
+  });
+  const arcCountsReadbackBuffer = device.createBuffer({
+    size: arcCountsBuffer.size,
+    usage: usage.MAP_READ | usage.COPY_DST,
+  });
+  const fullOcclusionReadbackBuffer = device.createBuffer({
+    size: fullOcclusionBuffer.size,
+    usage: usage.MAP_READ | usage.COPY_DST,
   });
 
   device.queue.writeBuffer(poseBuffer, 0, poseData);
@@ -339,6 +354,9 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
   pass.setBindGroup(0, bindGroup);
   pass.dispatchWorkgroups(Math.ceil(poseCount / 64));
   pass.end();
+  encoder.copyBufferToBuffer(arcsBuffer, 0, arcsReadbackBuffer, 0, arcsBuffer.size);
+  encoder.copyBufferToBuffer(arcCountsBuffer, 0, arcCountsReadbackBuffer, 0, arcCountsBuffer.size);
+  encoder.copyBufferToBuffer(fullOcclusionBuffer, 0, fullOcclusionReadbackBuffer, 0, fullOcclusionBuffer.size);
   device.queue.submit([encoder.finish()]);
   await device.queue.onSubmittedWorkDone();
   const dispatchErr = await device.popErrorScope();
@@ -353,9 +371,9 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
     return copy;
   }
 
-  const arcCounts = await mapRead(arcCountsBuffer, Uint32Array);
-  const fullOcclusion = await mapRead(fullOcclusionBuffer, Uint32Array);
-  const arcFloats = await mapRead(arcsBuffer, Float32Array);
+  const arcCounts = await mapRead(arcCountsReadbackBuffer, Uint32Array);
+  const fullOcclusion = await mapRead(fullOcclusionReadbackBuffer, Uint32Array);
+  const arcFloats = await mapRead(arcsReadbackBuffer, Float32Array);
 
   const gpuScores = new Float64Array(poseCount);
   for (let p = 0; p < poseCount; p++) {

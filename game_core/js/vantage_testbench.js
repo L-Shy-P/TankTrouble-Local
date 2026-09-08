@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v63';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v64';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -116,7 +116,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, growLayers: 1, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -225,7 +225,7 @@
                 ctx.state.gameController.lastUpdate = new Date();
             }
             state.sandbox = null;
-            state.expandedSet = {};
+            // v63：取消暂停时保留折叠区展开状态；运行态树详情不再每次自动收起。
             state.expandedThreat = null;
             _perfDead = false;         // 熔断解除：暂停修复现场后恢复运行重试
             state.errRun = null;
@@ -2043,6 +2043,7 @@
             '<label style="cursor:pointer;color:#89b4fa;margin-left:8px"><input type="checkbox" data-act="exp-rustMinimal"> Rust最小</label> ' +
             '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-rustPhysics"> Rust物理</label> ' +
             '<label style="cursor:pointer;color:#a6e3a1;margin-left:8px"><input type="checkbox" data-act="exp-growWithoutThreats"> 无弹生长</label> ' +
+            '<span style="color:#89b4fa;margin-left:8px">层/帧 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers" style="color:#f9e2af">1层</span></span>' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
         _expCtrl = {
@@ -2053,6 +2054,8 @@
             rustMinimal: expRow.querySelector('[data-act="exp-rustMinimal"]'),
             rustPhysics: expRow.querySelector('[data-act="exp-rustPhysics"]'),
             growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
+            growLayers: expRow.querySelector('[data-act="exp-growLayers"]'),
+            growLayersSpan: expRow.querySelector('span[id="vt-exp-growLayers"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
         };
@@ -2062,6 +2065,14 @@
                 state.exp.evalFrames = Math.max(1, Math.min(300, parseInt(_expCtrl.slider.value, 10) || 75));
                 if (_expCtrl.framesSpan) {
                     _expCtrl.framesSpan.textContent = state.exp.evalFrames + '帧';
+                }
+            });
+        }
+        if (_expCtrl.growLayers) {
+            _expCtrl.growLayers.addEventListener('input', function() {
+                state.exp.growLayers = Math.max(1, Math.min(6, parseInt(_expCtrl.growLayers.value, 10) || 1));
+                if (_expCtrl.growLayersSpan) {
+                    _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
                 }
             });
         }
@@ -2231,6 +2242,16 @@
             if (typeof VantageTree !== 'undefined') {
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
             }
+            updatePanel();
+            return;
+        }
+        // —— v80 每帧生长层数滑块（1~6，完整9候选/层）——
+        if (act === 'exp-growLayers') {
+            state.exp.growLayers = Math.max(1, Math.min(6, parseInt(srcEl.value, 10) || 1));
+            if (typeof VantageTree !== 'undefined') {
+                VantageTree.setGrowLayersPerTick(state.exp.growLayers);
+            }
+            if (_expCtrl.growLayersSpan) _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
             updatePanel();
             return;
         }
@@ -2475,10 +2496,13 @@
         if (_expCtrl.rustMinimal && _expCtrl.rustMinimal.checked !== state.exp.rustMinimal) _expCtrl.rustMinimal.checked = state.exp.rustMinimal;
         if (_expCtrl.rustPhysics && _expCtrl.rustPhysics.checked !== state.exp.rustPhysics) _expCtrl.rustPhysics.checked = state.exp.rustPhysics;
         if (_expCtrl.growWithoutThreats && _expCtrl.growWithoutThreats.checked !== state.exp.growWithoutThreats) _expCtrl.growWithoutThreats.checked = state.exp.growWithoutThreats;
+        if (_expCtrl.growLayers && parseInt(_expCtrl.growLayers.value, 10) !== state.exp.growLayers) _expCtrl.growLayers.value = String(state.exp.growLayers);
+        if (_expCtrl.growLayersSpan && _expCtrl.growLayersSpan.textContent !== state.exp.growLayers + '层') _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
         // v47/v49/v60：UI 与树配置保持一致；初始化/同步时都同步一次。
         if (typeof VantageTree !== 'undefined') VantageTree.setLaneEnabled(state.exp.lane);
         if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
         if (typeof VantageTree !== 'undefined') VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
+        if (typeof VantageTree !== 'undefined') VantageTree.setGrowLayersPerTick(state.exp.growLayers);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
         }
@@ -2928,6 +2952,7 @@
         try { VantageTree.setSpringRopeEnabled(state.exp.springRope); } catch (eSpringInit) {}
         try { VantageTree.setRustMinimalEnabled(state.exp.rustMinimal); } catch (eRustMinInit) {}
         try { VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats); } catch (eGrowInit) {}
+        try { VantageTree.setGrowLayersPerTick(state.exp.growLayers); } catch (eLayersInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
     if (typeof VantageSandbox !== 'undefined') {

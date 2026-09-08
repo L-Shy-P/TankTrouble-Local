@@ -14,6 +14,11 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v80（软死执行时长≤死亡帧一半 + 每帧多层生长实验）：
+ *   ① TREE_DEFAULTS.deathDurationRatio=0.5；safeFramesForDeath 对 fd>=2
+ *      限制实际执行帧数 ≤ floor(fd×ratio)，AI 更频繁换路；
+ *   ② TREE_DEFAULTS.growLayersPerTick=1；setGrowLayersPerTick 与
+ *      testbench 层/帧滑块（1~6）可一次生长多层完整 9 候选。
  * 2026-09-07 v79（修复执行段死亡边界 + 权威标记漏洞 + 重摆后失效）：
  *   ① 统一 safeFramesForDeath 口径，修掉 invalidateStaleNodes 差一帧执行到死；
  *   ② 当前执行节点即时死亡扫描优先走 JS 融合权威，并写全死亡帧/结束时间；
@@ -315,6 +320,8 @@
     var _springRopeEnabled = false; // v57：弹簧绳修复后暂默认关，面板可开
     var _rustMinimalEnabled = false; // v69：Rust 最小决策实验开关（默认关）
     var _growWithoutThreatsEnabled = false; // v77：无子弹也生长树实验开关（默认关）
+    var _deathDurationRatio = 0.5;            // v80：软死节点执行时长不超过死亡帧的一半
+    var _growLayersPerTick = 1;               // v80：每 tick 最多生长多少层（完整9候选）
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -328,6 +335,8 @@
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
         maxNodes: 500,                    // 节点数上限（主人定 500）
+        deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
+        growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         minGrowTicks: 3,                  // v43：每段至少给 3 个真实帧用于生长。
                                           // 帧率低时 3~4 帧段实际只有 1 步，树每段
                                           // 只能长 1 层、坍缩又删 8 条，深度永远 1。
@@ -680,6 +689,8 @@
         tree.cfg.lanePenaltyRatio = _lanePenaltyRatio;   // v47：跨树保持开关状态
         tree.cfg.springRopeEnabled = _springRopeEnabled; // v53：跨树保持弹簧绳开关状态
         tree.cfg.rustMinimalEnabled = _rustMinimalEnabled; // v69：Rust 最小决策
+        tree.cfg.deathDurationRatio = _deathDurationRatio; // v80
+        tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
         tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled; // v77：无弹生长
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
@@ -1145,7 +1156,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var oldSeg = node.segmentFrames || 0;
             // v78：统一口径。死亡帧 k 表示第 k 帧是死态，安全执行到 k-1 帧。
             // 只有实际缩短当前段才触发 commitHit；off-by-one 不再漏判。
-            var safeFrames = safeFramesForDeath(scan.death, oldSeg);
+            var safeFrames = safeFramesForDeath(tree, scan.death, oldSeg);
             if (safeFrames >= oldSeg) continue;
             // 提前死亡：本节点及全部子节点作废。
             while (node.children.length) detachChild(tree, node.children[0]);
@@ -1222,7 +1233,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         node.perFrameScores = r.perFrameScores.slice();
         var planned = plannedFramesOf(node);
         var actual = r.dead
-            ? safeFramesForDeath(r.deathFrame, planned)
+            ? safeFramesForDeath(tree, r.deathFrame, planned)
             : planned;
         if (actual < planned) {
             recordStructure(tree, 'death-shorten',
@@ -2417,7 +2428,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var segF = probe.segmentFrames;
         var childDead = r.dead && r.deathFrame >= 0 && r.deathFrame <= segF;
         var plannedEnd = segF;
-        var actualEnd = r.dead ? safeFramesForDeath(r.deathFrame, segF) : plannedEnd;
+        var actualEnd = r.dead ? safeFramesForDeath(tree, r.deathFrame, segF) : plannedEnd;
         var endIdx = actualEnd;
         var s = r.samples && r.samples[endIdx];
         if (!s) s = r.samples ? r.samples[r.samples.length - 1] : parent.simState.tank;
@@ -2428,7 +2439,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var child = createTreeNode(parent, ops[opIdx].inputs, childState);
         child.plannedFrames = segF;   // v49：计划帧数永远等于探段结果，死亡不缩短
         // v51：实际执行帧数 —— v78 统一 safeFramesForDeath 口径。
-        var actualFrames = r.dead ? safeFramesForDeath(r.deathFrame, segF) : segF;
+        var actualFrames = r.dead ? safeFramesForDeath(tree, r.deathFrame, segF) : segF;
         child.segmentFrames = actualFrames;
         child.segmentScore = probe.cum
             ? probe.cum[opIdx][Math.min(actualFrames, probe.cum[opIdx].length - 1)]
@@ -2473,14 +2484,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return Math.max(1, n.plannedFrames || n.segmentFrames || 0);
     }
 
-    /** v78：统一“实际执行帧数”口径。
+    /** v78/v80：统一“实际执行帧数”口径。
      *  fd<0 → 执行完整计划段；
      *  fd=1 → 只执行 1 帧（真死候选）；
-     *  fd>=2 → 最多执行到死亡帧前 1 帧。 */
-    function safeFramesForDeath(fd, planned) {
+     *  fd>=2 → 不超过“死亡帧的一半”，也绝不超过死亡帧前 1 帧。
+     *  v80 起软死操作时长上限 = floor(fd × deathDurationRatio)，
+     *  让 AI 更频繁换路，而不是按住一个操作直到接近死亡。 */
+    function safeFramesForDeath(tree, fd, planned) {
         if (!(fd >= 0)) return planned;
         if (fd === 1) return 1;
-        return Math.min(fd - 1, planned);
+        var ratio = (tree && tree.cfg && typeof tree.cfg.deathDurationRatio === 'number')
+            ? tree.cfg.deathDurationRatio : 0.5;
+        if (!(ratio > 0) || ratio >= 1) return Math.min(fd - 1, planned);
+        return Math.min(fd - 1, Math.max(1, Math.floor(fd * ratio)), planned);
     }
 
     /** v52：节点自身 75 帧全累积总分；旧节点无字段时按 segmentScore+baseExt 还原。 */
@@ -3230,20 +3246,34 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             return;
         }
 
-        // 融合世界可用：直接每帧同步扩一层（恢复 v28 节奏）。
-        // 性能问题已由 checkDeath 预筛 + 评分远弹粗筛解决，不在这里改架构。
+        // 融合世界可用：每 tick 最多同步扩 growLayersPerTick 层（v80），
+        // 默认 1 层保持原节奏；每层仍是完整 9 候选分叉。
         if (fusedBatchReady(adapter)) {
+            var layersPerTick = Math.max(1, Math.min(6,
+                Math.floor(tree.cfg.growLayersPerTick || 1)));
             var t0 = performance.now();
-            if (expandLeaf(tree, leaf, adapter, threats)) {
-                applyRetreatAfterExpand(tree, leaf, adapter);
-                var ms = performance.now() - t0;
-                tree.stats.growMs = tree.stats.growMs * 0.8 + ms * 0.2;
-                // 门槛只留作 60ms 级熔断保护。
-                if (tree.stats.growMs > 60) tree._growSkip = true;
-            } else {
-                recordStructure(tree, 'expand-fail',
-                    'leaf=' + (leaf.opName || leaf.id) + ' nodes=' + tree.nodeCount);
+            var grown = 0;
+            while (grown < layersPerTick &&
+                   tree.nodeCount + 9 <= tree.cfg.maxNodes) {
+                var growLeaf = pickGrowLeaf(tree, adapter);
+                if (!growLeaf) {
+                    if (grown === 0) {
+                        recordGrowStall(tree, 'grow-no-leaf', 'tip=none');
+                    }
+                    break;
+                }
+                if (!expandLeaf(tree, growLeaf, adapter, threats)) {
+                    recordStructure(tree, 'expand-fail',
+                        'leaf=' + (growLeaf.opName || growLeaf.id) + ' nodes=' + tree.nodeCount);
+                    break;
+                }
+                applyRetreatAfterExpand(tree, growLeaf, adapter);
+                grown++;
             }
+            var ms = performance.now() - t0;
+            tree.stats.growMs = tree.stats.growMs * 0.8 + ms * 0.2;
+            // 门槛只留作 60ms 级熔断保护；多层生长同样共用。
+            if (tree.stats.growMs > 60) tree._growSkip = true;
             return;
         }
 
@@ -4467,6 +4497,24 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _growWithoutThreatsEnabled;
     }
 
+    /** v80：软死节点执行时长上限比例（死亡帧 × ratio，向下取整）。 */
+    function setDeathDurationRatio(v) {
+        var n = Number(v);
+        if (!isFinite(n)) n = 0.5;
+        _deathDurationRatio = Math.max(0.1, Math.min(1.0, n));
+        if (_tree && _tree.cfg) _tree.cfg.deathDurationRatio = _deathDurationRatio;
+        return _deathDurationRatio;
+    }
+
+    /** v80：每 tick 最多生长的完整节点层数（1~6）。 */
+    function setGrowLayersPerTick(v) {
+        var n = Math.round(Number(v));
+        if (!isFinite(n)) n = 1;
+        _growLayersPerTick = Math.max(1, Math.min(6, n));
+        if (_tree && _tree.cfg) _tree.cfg.growLayersPerTick = _growLayersPerTick;
+        return _growLayersPerTick;
+    }
+
     // ============================================================
     // 导出（03 七节接口契约）
     // ============================================================
@@ -4497,6 +4545,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setSpringRopeEnabled: setSpringRopeEnabled,
         setRustMinimalEnabled: setRustMinimalEnabled,
         setGrowWithoutThreatsEnabled: setGrowWithoutThreatsEnabled,
+        setDeathDurationRatio: setDeathDurationRatio,
+        setGrowLayersPerTick: setGrowLayersPerTick,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
         threatCoarseBox: threatCoarseBox,
@@ -4524,5 +4574,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v79：死亡边界/权威标记/重摆失效修复 + v78 Rust评分 + JS执行路线死亡确认 + 无弹生长开关）');
+    console.log('[Vantage Tree] 模块已加载（段制 v80：死亡时长上限50% + 每帧多层生长开关 + v79死亡权威修复 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);

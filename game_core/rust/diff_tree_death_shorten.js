@@ -45,8 +45,8 @@ tree.threats=[threat]; tree._pendingThreats=[threat]; tree._hasOffsetThreats=tru
 const adapter={simulateTankBatchJsFused:function(){return [{dead:true,deathFrame:10,rustPhysics:false}];},simulateTankBatch:function(){return [{dead:true,deathFrame:10,rustPhysics:false}];}};
 const hit=VT.invalidateStaleNodes(tree,adapter);
 if(hit!==true) throw new Error('expected commitHit true');
-if(node.segmentFrames!==9) throw new Error('segmentFrames should be 9, got '+node.segmentFrames);
+if(node.segmentFrames!==5) throw new Error('segmentFrames should be 5 (fd10 * 0.5), got '+node.segmentFrames);
 if(node.fullDeathFrame!==10) throw new Error('fullDeathFrame should be 10');
 if(node.deathAuthority!=='fused') throw new Error('authority should be fused');
-if(Math.abs(node.tEndSec-0.18)>1e-9) throw new Error('tEndSec should be 0.18');
+if(Math.abs(node.tEndSec-0.10)>1e-9) throw new Error('tEndSec should be 0.10');
 console.log('diff_tree_death_shorten PASS (seg='+node.segmentFrames+' fd='+node.fullDeathFrame+' tEnd='+node.tEndSec+')');
