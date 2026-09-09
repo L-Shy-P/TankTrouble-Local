@@ -284,15 +284,15 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
   // 搬到可映射回读 buffer。
   const arcsBuffer = device.createBuffer({
     size: Math.max(4, poseCount * maxArcsPerPose * 2 * 4),
-    usage: usage.STORAGE | usage.COPY_DST,
+    usage: usage.STORAGE | usage.COPY_SRC | usage.COPY_DST,
   });
   const arcCountsBuffer = device.createBuffer({
     size: Math.max(4, poseCount * 4),
-    usage: usage.STORAGE | usage.COPY_DST,
+    usage: usage.STORAGE | usage.COPY_SRC | usage.COPY_DST,
   });
   const fullOcclusionBuffer = device.createBuffer({
     size: Math.max(4, poseCount * 4),
-    usage: usage.STORAGE | usage.COPY_DST,
+    usage: usage.STORAGE | usage.COPY_SRC | usage.COPY_DST,
   });
   const arcsReadbackBuffer = device.createBuffer({
     size: arcsBuffer.size,
