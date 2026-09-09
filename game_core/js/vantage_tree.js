@@ -14,6 +14,11 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v81（深层选路实验开关）：
+ *   ① TREE_DEFAULTS.deepSelectEnabled=false；开启后 next/commit
+ *      优先按 subtreeBest（含后代路线）选择根层孩子；
+ *   ② 路线平均分在开关开启时改用 segmentFrames 作分母；
+ *   ③ commit-deep-select 事件与 deepSelects 统计可观测。
  * 2026-09-07 v80（软死执行时长≤死亡帧一半 + 每帧多层生长实验）：
  *   ① TREE_DEFAULTS.deathDurationRatio=0.5；safeFramesForDeath 对 fd>=2
  *      限制实际执行帧数 ≤ floor(fd×ratio)，AI 更频繁换路；
@@ -322,6 +327,7 @@
     var _growWithoutThreatsEnabled = false; // v77：无子弹也生长树实验开关（默认关）
     var _deathDurationRatio = 0.5;            // v80：软死节点执行时长不超过死亡帧的一半
     var _growLayersPerTick = 1;               // v80：每 tick 最多生长多少层（完整9候选）
+    var _deepSelectEnabled = false;           // v81：深层选路实验开关（默认关）
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -337,6 +343,7 @@
         maxNodes: 500,                    // 节点数上限（主人定 500）
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
+        deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
         minGrowTicks: 3,                  // v43：每段至少给 3 个真实帧用于生长。
                                           // 帧率低时 3~4 帧段实际只有 1 步，树每段
                                           // 只能长 1 层、坍缩又删 8 条，深度永远 1。
@@ -661,7 +668,7 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0 },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0 },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -691,6 +698,7 @@
         tree.cfg.rustMinimalEnabled = _rustMinimalEnabled; // v69：Rust 最小决策
         tree.cfg.deathDurationRatio = _deathDurationRatio; // v80
         tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
+        tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
         tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled; // v77：无弹生长
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
@@ -1790,7 +1798,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var parent = tree.commitNode;
         var oldNext = parent.next;
         refreshFusedLayer(tree, adapter, parent);
-        var newNext = pickBestChildByRolloutTotal(parent.children);
+        var newNext;
+        if (tree.cfg.deepSelectEnabled) {
+            recomputeSubtreeBestPostOrder(tree);
+            newNext = pickBest(parent.children);
+        } else {
+            newNext = pickBestChildByRolloutTotal(parent.children);
+        }
         // v77：Rust rescore 的死亡帧只是候选；被选中为 next 的节点在写入
         // 执行路线前，必须由 JS 融合世界确认死亡结论。
         newNext = confirmExecutionRoutePick(tree, adapter, newNext, parent);
@@ -1865,11 +1879,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             for (var ci = 0; ci < n.children.length; ci++) recollect(n.children[ci]);
         })(tree.root);
 
+        // v81：深层选路开启时先做后序回传，再按 subtreeBest 选 next。
+        if (tree.cfg.deepSelectEnabled) recomputeSubtreeBestPostOrder(tree);
+
         var nextChanged = 0;
         for (i = 0; i < activeParents.length; i++) {
             p = activeParents[i];
             var oldNext = p.next;
-            var newNext = pickBestChildByRolloutTotal(p.children);
+            var newNext = tree.cfg.deepSelectEnabled
+                ? pickBest(p.children)
+                : pickBestChildByRolloutTotal(p.children);
             p.next = newNext;
             if (oldNext !== newNext) nextChanged++;
         }
@@ -2506,19 +2525,26 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return (n.segmentScore || 0) + (n.baseExt || 0);
     }
 
-    /** v49：本段平均分 = 本段累计得分 ÷ 本段计划帧数。 */
-    function segmentAvgOf(n) {
-        if (!n) return -Infinity;
-        return (n.segmentScore || 0) / plannedFramesOf(n);
+    /** v81：路线评估用实际执行帧数还是计划帧数。深层选路开启时，
+     *  v80 半死亡时长节点按实际执行帧评估，避免软死分支被低估。 */
+    function effectiveFramesOf(n) {
+        if (_deepSelectEnabled && n && n.segmentFrames > 0) return n.segmentFrames;
+        return plannedFramesOf(n);
     }
 
-    /** v49：叶路径平均分 = 路径上（不含 root）所有节点累计得分之和 ÷ 计划帧数之和。 */
+    /** v49：本段平均分。 */
+    function segmentAvgOf(n) {
+        if (!n) return -Infinity;
+        return (n.segmentScore || 0) / effectiveFramesOf(n);
+    }
+
+    /** v49：叶路径平均分 = 路径上（不含 root）所有节点累计得分之和 ÷ 有效帧数之和。 */
     function routeAvgOfLeaf(tree, leaf) {
         var sumScore = 0, sumFrames = 0;
         var n = leaf;
         while (n && n !== tree.root) {
             sumScore += (n.segmentScore || 0);
-            sumFrames += plannedFramesOf(n);
+            sumFrames += effectiveFramesOf(n);
             n = n.parent;
         }
         return sumFrames > 0 ? sumScore / sumFrames : -Infinity;
@@ -2798,6 +2824,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             recordStructure(tree, 'rust-minimal-select',
                 'n' + (leaf.id || '?') + ' next→n' + (rustPick.kid.id || '?') +
                 ' seg=' + (rustPick.decision.segmentFrames || 0));
+        } else if (leaf && tree.cfg.deepSelectEnabled) {
+            // v81：深层选路实验：next 按 subtreeBest（含后代路线）选。
+            leaf.next = pickBest(newKids);
         } else {
             // v52：最新 9 个叶子按“75 帧全累积总分”自然比较选 next；
             // 不比较祖先历史累计，只看每个候选自己未来 75 帧的总分。
@@ -3607,14 +3636,24 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             refreshCandidateScores(tree, adapter);
 
             // v49：正常提交直接采用 planned next，不再用 subtreeBest 全局重选。
+            // v81：深层选路实验开启时，优先按 subtreeBest（含后代）选根层孩子。
             var keepBest = null;
-            if (prev.next && prev.children.indexOf(prev.next) >= 0 &&
+            if (tree.cfg.deepSelectEnabled && prev.children.length) {
+                keepBest = pickBest(prev.children);
+                if (keepBest && keepBest !== prev.next) {
+                    tree.stats.deepSelects = (tree.stats.deepSelects || 0) + 1;
+                    recordStructure(tree, 'commit-deep-select',
+                        (prev.next ? (prev.next.opName || ('n' + prev.next.id)) : '-') +
+                        ' → ' + (keepBest.opName || ('n' + keepBest.id)));
+                }
+            }
+            if (!keepBest && prev.next && prev.children.indexOf(prev.next) >= 0 &&
                 !prev.next.exhausted && !prev.next.invalid &&
                 prev.next.fullDeathFrame !== 1) {
                 keepBest = prev.next;
                 recordStructure(tree, 'commit-follow-next',
                     'n' + (keepBest.id || '?') + ' ' + (keepBest.opName || '?'));
-            } else {
+            } else if (!keepBest) {
                 // v54：next 失效进入 fallback 前，先确保当前比较层 fresh。
                 ensureLayerFresh(tree, adapter, prev);
                 // next 无效或 1 帧真死：先做 3 层范围回退。
@@ -3829,7 +3868,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 'fresh nodeCount=' + tree.nodeCount + ' max=' + tree.cfg.maxNodes);
             return false;
         }
-        var best = pickBestChildByRolloutTotal(root.children);
+        var best = tree.cfg.deepSelectEnabled
+            ? pickBest(root.children)
+            : pickBestChildByRolloutTotal(root.children);
         if (!best) return false;
         // v77：freshRoot 若走了 Rust 物理预测，选中节点仍需 JS 融合世界确认。
         best = confirmExecutionRoutePick(tree, adapter, best, root);
@@ -4506,6 +4547,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _deathDurationRatio;
     }
 
+    /** v81：深层选路实验开关；默认关闭，开启后 subtreeBest 参与 next/commit。 */
+    function setDeepSelectEnabled(v) {
+        _deepSelectEnabled = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.deepSelectEnabled = _deepSelectEnabled;
+        return _deepSelectEnabled;
+    }
+
     /** v80：每 tick 最多生长的完整节点层数（1~6）。 */
     function setGrowLayersPerTick(v) {
         var n = Math.round(Number(v));
@@ -4547,6 +4595,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setGrowWithoutThreatsEnabled: setGrowWithoutThreatsEnabled,
         setDeathDurationRatio: setDeathDurationRatio,
         setGrowLayersPerTick: setGrowLayersPerTick,
+        setDeepSelectEnabled: setDeepSelectEnabled,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
         threatCoarseBox: threatCoarseBox,
@@ -4574,5 +4623,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v80：死亡时长上限50% + 每帧多层生长开关 + v79死亡权威修复 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v81：深层选路实验开关 + v80死亡时长上限50% + 每帧多层生长 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);

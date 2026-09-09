@@ -639,3 +639,8 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
   路径统一。
 - `growLayersPerTick`：1~6，testbench 滑块调节每 tick 生长层数。
 - GPU 基准修复 MapRead buffer usage 与 WGSL 浮点取余问题。
+
+## 三十、第十二波 v81：深层选路实验
+- 修复深层节点不参与常规提交选路的结构断层，提供默认关闭的
+  `deepSelectEnabled` 实验开关与 testbench “深层选路”复选框。
+- 开启后按子树最优回传值选 next/commit，并统一软死路线平均分口径。
