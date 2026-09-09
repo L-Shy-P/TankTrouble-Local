@@ -14,6 +14,11 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v82（真死回退真正改道）：
+ *   ① applyRetreatAfterExpand 把 retreat target 写回祖先 next；
+ *   ② 当前执行节点的下一层全真死时同 tick
+ *      强制提前结束当前段重新选路；
+ *   ③ 新增 retreatReroutes 统计与 retreat-reroute 结构事件。
  * 2026-09-07 v81（深层选路实验开关）：
  *   ① TREE_DEFAULTS.deepSelectEnabled=false；开启后 next/commit
  *      优先按 subtreeBest（含后代路线）选择根层孩子；
@@ -668,7 +673,7 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0 },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0 },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -3232,13 +3237,41 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             pushEvent('retreat', '真死回退@' + (leaf.opName || leaf.id));
             if (tree._expandSlice && tree._expandSlice.leaf === leaf) tree._expandSlice = null;
         }
-        recordStructure(tree, 'true-dead-retreat',
-            'leaf=' + (leaf.opName || leaf.id) + ' onPath=' + onPath +
-            ' target=' + (rt ? (rt.leaf.id || '?') : 'none'));
+
+        // v81 修复：回退结果必须写回祖先 next，否则只标 exhausted、
+        // 丢掉了 retreat target，下一次 commitPath/grow 仍会往死枝走。
         if (rt) {
+            var retreatChild = childUnderParent(rt.leaf, rt.ancestor);
+            if (retreatChild && rt.ancestor.children.indexOf(retreatChild) >= 0) {
+                var oldRetreatNext = rt.ancestor.next;
+                if (oldRetreatNext !== retreatChild) {
+                    rt.ancestor.next = retreatChild;
+                    tree.stats.retreatReroutes = (tree.stats.retreatReroutes || 0) + 1;
+                    recordStructure(tree, 'retreat-reroute',
+                        (oldRetreatNext ? (oldRetreatNext.opName || ('n' + oldRetreatNext.id)) : '-') +
+                        ' → ' + (retreatChild.opName || ('n' + retreatChild.id)) +
+                        ' ancestor=' + (rt.ancestor.opName || ('n' + rt.ancestor.id)));
+                }
+            }
             recordStructure(tree, 'retreat-depth',
                 'depth=' + rt.depth + ' target=' + (rt.leaf.id || '?'));
         }
+
+        // 当前执行节点已经真死（下一层全 1 帧死），不能等自然段末；
+        // 同 tick 强制结束当前段，让 commit 回退/重选。
+        if (leaf === tree.commitNode ||
+            (rt && rt.ancestor === tree.root &&
+             (!tree.commitNode || rt.ancestor.next !== tree.commitNode))) {
+            if (tree.commitNode) {
+                tree.commitNode.tEndSec = _timeAcc;
+                tree._forcedReselect = true;
+                pushEvent('force', '真死回退提前结束@' + (leaf.opName || leaf.id));
+            }
+        }
+
+        recordStructure(tree, 'true-dead-retreat',
+            'leaf=' + (leaf.opName || leaf.id) + ' onPath=' + onPath +
+            ' target=' + (rt ? (rt.leaf.id || '?') : 'none'));
         backpropBest(leaf.parent);
         return rt ? rt.leaf : null;
     }
@@ -4623,5 +4656,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v81：深层选路实验开关 + v80死亡时长上限50% + 每帧多层生长 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v82：真死回退真正改道 + v81深层选路实验 + 半死亡时长上限 + 多层生长 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);

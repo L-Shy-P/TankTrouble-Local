@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v65';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v66';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2656,6 +2656,7 @@
                 ' | 展开' + tr.stats.expands +
                 ' 提交' + tr.stats.commits +
                 ' 重建' + tr.stats.rebuilds + ' 回退' + (tr.stats.retreats || 0) +
+                (tr.stats.retreatReroutes ? ' 改道' + tr.stats.retreatReroutes : '') +
                 ' 对齐败' + tr.stats.alignFails + '<br>' +
                 '生长 ' + fmt(tr.stats.growMs, 1) + 'ms' +
                 (tr.stats.growSkips ? '（跳' + tr.stats.growSkips + '帧）' : '') +

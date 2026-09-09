@@ -232,8 +232,17 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
   if (!navigator.gpu) {
     throw new Error('此浏览器不支持 WebGPU');
   }
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('requestAdapter 返回 null');
+  let adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) {
+    try {
+      adapter = await navigator.gpu.requestAdapter({ forceFallbackAdapter: true });
+    } catch (eFallback) {
+      adapter = null;
+    }
+  }
+  if (!adapter) {
+    throw new Error('requestAdapter 返回 null（即使强制 fallback 也不可用；请检查浏览器 WebGPU/硬件加速设置）');
+  }
   const device = await adapter.requestDevice();
   if (!device) throw new Error('requestDevice 返回 null');
 
