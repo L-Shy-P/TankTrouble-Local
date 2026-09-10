@@ -14,6 +14,8 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v87（超强配置诊断）：
+ *   新增 stats.refineSplits，记录超限细化发生次数。
  * 2026-09-07 v86（节点上限开关真正穿透所有加节点路径）：
  *   修复 attachResults/expandLeaf/startExpandSlice/commit 仍硬用 maxNodes
  *   导致“关了节点限也只能长到 420~500”的问题；
@@ -700,7 +702,7 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, growStalls: {} },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, refineSplits: 0, growStalls: {} },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -3395,6 +3397,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!leaf && tree.cfg.refineBeyondLimits === true) {
             leaf = splitLongSegmentLeaf(tree, threats);
             if (leaf) {
+                tree.stats.refineSplits = (tree.stats.refineSplits || 0) + 1;
                 recordStructure(tree, 'refine-split',
                     'from=' + (leaf.opName || leaf.id) + ' frames=' + leaf.segmentFrames);
             }
@@ -4794,5 +4797,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v86：节点上限开关真正穿透 + v85视界开关/超限细化 + 软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v87：细化次数统计 + v86节点上限穿透 + 视界开关/超限细化 + 软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);

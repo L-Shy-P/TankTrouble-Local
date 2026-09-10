@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v70';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v71';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2049,6 +2049,7 @@
             '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-nodeCap"> 节点限</label>' +
             '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-horizonCap"> 视界限</label>' +
             '<label style="cursor:pointer;color:#f5c2e7;margin-left:8px"><input type="checkbox" data-act="exp-refineBeyond"> 超限细化</label>' +
+            '<button data-act="exp-presetStrong" style="margin-left:8px;cursor:pointer;background:#45475a;color:#f5c2e7;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">超强预设</button>' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
         _expCtrl = {
@@ -2270,6 +2271,26 @@
             if (typeof VantageTree !== 'undefined') {
                 VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
             }
+            updatePanel();
+            return;
+        }
+        // —— v87 一键恢复用户实测最强配置（仅改实验项，不改评分/死亡逻辑）——
+        if (act === 'exp-presetStrong') {
+            state.exp.growLayers = 1;
+            state.exp.nodeCap = false;
+            state.exp.horizonCap = true;
+            state.exp.refineBeyond = true;
+            state.exp.growWithoutThreats = true;
+            state.exp.deepSelect = false;
+            if (typeof VantageTree !== 'undefined') {
+                VantageTree.setGrowLayersPerTick(state.exp.growLayers);
+                VantageTree.setNodeCapEnabled(state.exp.nodeCap);
+                VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
+                VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
+                VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
+                VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
+            }
+            syncExpControls();
             updatePanel();
             return;
         }
@@ -2671,6 +2692,15 @@
                 '/' + ((tr.cfg && tr.cfg.maxNodes) || 500) +
                 '</b> | 储备 <b>' + (tr.reserveCount || 0) +
                 '</b> | 视界 <b style="color:#94e2d5">' + fmt(tr.horizonSec, 2) + 's</b></div>');
+            var ecfg = (tr && tr.cfg) ? tr.cfg : {};
+            html.push('<div style="padding:1px 0;color:#6c7086;font-size:11px">配置 ' +
+                '层/帧' + (ecfg.growLayersPerTick || 1) +
+                ' 节点限' + ((ecfg.nodeCapEnabled === false) ? '关' : '开') +
+                ' 视界限' + ((ecfg.horizonCapEnabled === false) ? '关' : '开') +
+                ' 细化' + (ecfg.refineBeyondLimits ? '开' : '关') +
+                ' 无弹' + (ecfg.growWithoutThreats ? '开' : '关') +
+                ' 深层' + (ecfg.deepSelectEnabled ? '开' : '关') +
+                ' | 细化次数 ' + (tr.stats.refineSplits || 0) + '</div>');
         } else {
             html.push('<div style="padding:1px 0;color:#585b70">树未开（AI操控下拉选「树」）</div>');
         }
