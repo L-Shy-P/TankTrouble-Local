@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v69';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v70';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。

@@ -14,6 +14,10 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v86（节点上限开关真正穿透所有加节点路径）：
+ *   修复 attachResults/expandLeaf/startExpandSlice/commit 仍硬用 maxNodes
+ *   导致“关了节点限也只能长到 420~500”的问题；
+ *   现在统一由 canAddTreeNodes 判断，关限或超限细化时真正允许超出 maxNodes。
  * 2026-09-07 v85（节点/视界上限开关 + 超限细化）：
  *   ① TREE_DEFAULTS.nodeCapEnabled/horizonCapEnabled 默认开启，
  *      可分别关闭节点上限与时间视界限制；
@@ -2341,6 +2345,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return false;
     }
 
+    /** v86：统一的节点数上限判断。
+     *  关闭节点上限或开启超限细化时，允许继续加节点。 */
+    function canAddTreeNodes(tree, count) {
+        if (!tree || !tree.cfg) return false;
+        if (tree.cfg.nodeCapEnabled === false) return true;
+        if (tree.cfg.refineBeyondLimits === true) return true;
+        return tree.nodeCount + count <= tree.cfg.maxNodes;
+    }
+
     /** v30：每次 commit 后记录节点数曲线（正常坍缩下应为锯齿上行）。 */
     function recordShape(tree, label) {
         var maxDepth = 0;
@@ -2839,7 +2852,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function attachResults(tree, leaf, results, threats) {
         if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
         ensureNonNegativeNodeCount(tree);
-        if (tree.nodeCount + results.length > tree.cfg.maxNodes) return 0;
+        if (!canAddTreeNodes(tree, results.length)) return 0;
         var ecfg = effectiveExpandCfg(tree);
         tree.diag.lastEffTMin = ecfg.tMin;
         tree.diag.lastEffDt = _lastWorldDt;
@@ -2878,7 +2891,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function expandLeaf(tree, leaf, adapter, threats) {
         if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
         ensureNonNegativeNodeCount(tree);
-        if (tree.nodeCount + 9 > tree.cfg.maxNodes) return 0;
+        if (!canAddTreeNodes(tree, 9)) return 0;
         var results = rolloutNine(tree, adapter, leaf.simState, threats);
         return attachResults(tree, leaf, results, threats);
     }
@@ -3123,7 +3136,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function startExpandSlice(tree, leaf, adapter, threats) {
         if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return false;
         ensureNonNegativeNodeCount(tree);
-        if (tree.nodeCount + 9 > tree.cfg.maxNodes) return false;
+        if (!canAddTreeNodes(tree, 9)) return false;
         tree._expandSlice = {
             leaf: leaf,
             adapter: adapter,
@@ -3374,9 +3387,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
         }
         ensureNonNegativeNodeCount(tree);
-        if (tree.cfg.nodeCapEnabled !== false &&
-            tree.nodeCount >= tree.cfg.maxNodes &&
-            tree.cfg.refineBeyondLimits !== true) {
+        if (!canAddTreeNodes(tree, 9)) {
             recordGrowStall(tree, 'grow-maxnodes', 'nodeCount=' + tree.nodeCount);
             return;
         }
@@ -3406,10 +3417,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 Math.floor(tree.cfg.growLayersPerTick || 1)));
             var t0 = performance.now();
             var grown = 0;
-            while (grown < layersPerTick &&
-                   (tree.nodeCount + 9 <= tree.cfg.maxNodes ||
-                    tree.cfg.nodeCapEnabled === false ||
-                    tree.cfg.refineBeyondLimits === true)) {
+            while (grown < layersPerTick && canAddTreeNodes(tree, 9)) {
                 // 第一次用前面已选/细化出来的 leaf；后续再重新选。
                 var growLeaf = (grown === 0) ? leaf : pickGrowLeaf(tree, adapter);
                 if (!growLeaf) {
@@ -3892,7 +3900,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // 扩一层保证下一段有候选可比较（growStep 仍是每 tick 只扩一个叶子）。
             if (prev.children.length < 2 &&
                 keepBest.status === 'alive' && keepBest.children.length === 0) {
-                if (tree.nodeCount + 9 <= tree.cfg.maxNodes) {
+                if (canAddTreeNodes(tree, 9)) {
                     expandLeaf(tree, keepBest, adapter, tree.threats);
                 } else {
                     recordGrowStall(tree, 'commit-grow-maxnodes', 'keepBest leaf');
@@ -4786,5 +4794,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v85：节点/视界开关 + 超限细化长操作 + v84节点上限可调 + 软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v86：节点上限开关真正穿透 + v85视界开关/超限细化 + 软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);
