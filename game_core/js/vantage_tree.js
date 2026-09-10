@@ -14,6 +14,12 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v85（节点/视界上限开关 + 超限细化）：
+ *   ① TREE_DEFAULTS.nodeCapEnabled/horizonCapEnabled 默认开启，
+ *      可分别关闭节点上限与时间视界限制；
+ *   ② TREE_DEFAULTS.refineBeyondLimits 默认关闭，开启后
+ *      即使视界/节点上限触发也会把长操作叶拆成
+ *      更短的同操作前缀叶，并从中间帧继续展开 9 候选。
  * 2026-09-07 v84（节点上限可调 + 到视界后继续长兄弟叶）：
  *   ① TREE_DEFAULTS.maxNodes 默认 500，新增 setMaxNodes(100~3000)
  *      与 testbench “节点上限”滑块；
@@ -344,6 +350,9 @@
     var _growLayersPerTick = 1;               // v80：每 tick 最多生长多少层（完整9候选）
     var _deepSelectEnabled = false;           // v81：深层选路实验开关（默认关）
     var _maxNodes = 500;                     // v84：节点数上限，可由 testbench 滑块调整
+    var _nodeCapEnabled = true;              // v85：节点数上限开关
+    var _horizonCapEnabled = true;           // v85：时间视界上限开关
+    var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -357,6 +366,9 @@
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
         maxNodes: 500,                    // 节点数上限（v84 起可调，默认仍 500）
+        nodeCapEnabled: true,             // v85：节点数上限是否生效
+        horizonCapEnabled: true,          // v85：时间视界是否生效
+        refineBeyondLimits: false,        // v85：达到上限后继续细化长操作
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
@@ -716,6 +728,9 @@
         tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
         tree.cfg.maxNodes = _maxNodes;                     // v84
+        tree.cfg.nodeCapEnabled = _nodeCapEnabled;         // v85
+        tree.cfg.horizonCapEnabled = _horizonCapEnabled;   // v85
+        tree.cfg.refineBeyondLimits = _refineBeyondLimits; // v85
         tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled; // v77：无弹生长
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
@@ -3028,6 +3043,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function isGrowableLeaf(tree, n) {
         if (!n || isTerminalDead(n) || n.exhausted || n.invalid) return false;
         if (n.children.length > 0) return false;
+        if (tree.cfg.horizonCapEnabled === false) return true;
         return n.tEndSec - tree.root.tEndSec < tree.cfg.horizonSec;
     }
 
@@ -3289,6 +3305,59 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return rt ? rt.leaf : null;
     }
 
+    /**
+     * v85：把一个长操作叶拆成“更短的同操作前缀叶”。
+     * 这不是延长视界，而是在原操作中间插入一个可分叉节点；
+     * 原长操作保留为兄弟，新短叶从中间帧继续展开 9 候选。
+     */
+    function splitLongSegmentLeaf(tree, threats) {
+        if (!tree || !tree.root || !tree.leaves || !tree.leaves.length) return null;
+        var best = null, bestFrames = 0;
+        for (var i = 0; i < tree.leaves.length; i++) {
+            var leaf = tree.leaves[i];
+            if (!leaf || !leaf.parent || leaf.children.length > 0) continue;
+            if (!leaf.rolloutSamples || leaf.rolloutSamples.length < 3) continue;
+            var frames = Math.max(1, leaf.segmentFrames || 0);
+            if (frames > bestFrames) { best = leaf; bestFrames = frames; }
+        }
+        if (!best || bestFrames < 6) return null;
+        var splitAt = Math.max(3, Math.floor(bestFrames / 2));
+        if (splitAt >= bestFrames || splitAt >= best.rolloutSamples.length) return null;
+        var sample = best.rolloutSamples[splitAt];
+        if (!sample) return null;
+        var newNode = createTreeNode(best.parent, best.inputs, {
+            tank: { x: sample.x, y: sample.y, rot: sample.rot },
+            tGlobal: (best.rolloutStartT || 0) + splitAt * FRAME_DT
+        });
+        newNode.plannedFrames = splitAt;
+        newNode.segmentFrames = splitAt;
+        newNode.rolloutSamples = best.rolloutSamples.slice(0, splitAt + 1);
+        newNode.perFrameScores = Array.isArray(best.perFrameScores)
+            ? best.perFrameScores.slice(0, splitAt) : null;
+        var sum = 0;
+        if (newNode.perFrameScores) {
+            for (var k = 0; k < newNode.perFrameScores.length; k++) {
+                sum += Number(newNode.perFrameScores[k]) || 0;
+            }
+        }
+        newNode.segmentScore = sum;
+        newNode.rolloutTotal = sum;
+        newNode.baseExt = 0;
+        newNode.subtreeBest = sum;
+        newNode.status = 'alive';
+        newNode.fullDead = false;
+        newNode.fullDeathFrame = -1;
+        newNode.rolloutDeathFrame = -1;
+        newNode.deathAuthority = best.deathAuthority || 'fused';
+        newNode.rolloutStartT = best.rolloutStartT;
+        newNode.tEndSec = tree.rootAbsT + (best.rolloutStartT || 0) + splitAt * FRAME_DT;
+        newNode.opName = best.opName;
+        newNode.threats = threats || best.threats || null;
+        newNode.freshSig = nodeWindowSig(null, newNode, threats || tree.threats || []);
+        attachChild(tree, best.parent, newNode);
+        return newNode;
+    }
+
     function growStep(tree, adapter, threats) {
         if (tree._expandSlice) {
             stepExpandSlice(tree, adapter);
@@ -3305,11 +3374,20 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
         }
         ensureNonNegativeNodeCount(tree);
-        if (tree.nodeCount >= tree.cfg.maxNodes) {
+        if (tree.cfg.nodeCapEnabled !== false &&
+            tree.nodeCount >= tree.cfg.maxNodes &&
+            tree.cfg.refineBeyondLimits !== true) {
             recordGrowStall(tree, 'grow-maxnodes', 'nodeCount=' + tree.nodeCount);
             return;
         }
         var leaf = pickGrowLeaf(tree, adapter);
+        if (!leaf && tree.cfg.refineBeyondLimits === true) {
+            leaf = splitLongSegmentLeaf(tree, threats);
+            if (leaf) {
+                recordStructure(tree, 'refine-split',
+                    'from=' + (leaf.opName || leaf.id) + ' frames=' + leaf.segmentFrames);
+            }
+        }
         if (!leaf) {
             recordGrowStall(tree, 'grow-no-leaf', 'tip=none');
             return;
@@ -3329,8 +3407,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var t0 = performance.now();
             var grown = 0;
             while (grown < layersPerTick &&
-                   tree.nodeCount + 9 <= tree.cfg.maxNodes) {
-                var growLeaf = pickGrowLeaf(tree, adapter);
+                   (tree.nodeCount + 9 <= tree.cfg.maxNodes ||
+                    tree.cfg.nodeCapEnabled === false ||
+                    tree.cfg.refineBeyondLimits === true)) {
+                // 第一次用前面已选/细化出来的 leaf；后续再重新选。
+                var growLeaf = (grown === 0) ? leaf : pickGrowLeaf(tree, adapter);
                 if (!growLeaf) {
                     if (grown === 0) {
                         recordGrowStall(tree, 'grow-no-leaf', 'tip=none');
@@ -4595,6 +4676,27 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _deathDurationRatio;
     }
 
+    /** v85：节点数上限开关。 */
+    function setNodeCapEnabled(v) {
+        _nodeCapEnabled = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.nodeCapEnabled = _nodeCapEnabled;
+        return _nodeCapEnabled;
+    }
+
+    /** v85：时间视界开关。 */
+    function setHorizonCapEnabled(v) {
+        _horizonCapEnabled = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.horizonCapEnabled = _horizonCapEnabled;
+        return _horizonCapEnabled;
+    }
+
+    /** v85：达到上限后继续细化长操作。 */
+    function setRefineBeyondLimits(v) {
+        _refineBeyondLimits = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.refineBeyondLimits = _refineBeyondLimits;
+        return _refineBeyondLimits;
+    }
+
     /** v84：调整活动节点数上限（100~3000）。 */
     function setMaxNodes(v) {
         var n = Math.round(Number(v));
@@ -4654,6 +4756,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setGrowLayersPerTick: setGrowLayersPerTick,
         setDeepSelectEnabled: setDeepSelectEnabled,
         setMaxNodes: setMaxNodes,
+        setNodeCapEnabled: setNodeCapEnabled,
+        setHorizonCapEnabled: setHorizonCapEnabled,
+        setRefineBeyondLimits: setRefineBeyondLimits,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
         threatCoarseBox: threatCoarseBox,
@@ -4681,5 +4786,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v84：节点上限可调 + 到视界后继续长兄弟叶 + v83软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v85：节点/视界开关 + 超限细化长操作 + v84节点上限可调 + 软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);
