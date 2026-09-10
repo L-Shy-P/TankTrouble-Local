@@ -232,16 +232,9 @@ async function runGpu(poses, bullets, frameCount, bulletsPerFrame) {
   if (!navigator.gpu) {
     throw new Error('此浏览器不支持 WebGPU');
   }
-  let adapter = await navigator.gpu.requestAdapter();
+  const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) {
-    try {
-      adapter = await navigator.gpu.requestAdapter({ forceFallbackAdapter: true });
-    } catch (eFallback) {
-      adapter = null;
-    }
-  }
-  if (!adapter) {
-    throw new Error('requestAdapter 返回 null（即使强制 fallback 也不可用；请检查浏览器 WebGPU/硬件加速设置）');
+    throw new Error('requestAdapter 返回 null；请检查浏览器 WebGPU/硬件加速设置');
   }
   const device = await adapter.requestDevice();
   if (!device) throw new Error('requestDevice 返回 null');
@@ -419,6 +412,7 @@ async function runBenchmark() {
   const frames = parseInt(document.getElementById('frames').value, 10) || 75;
   const bulletsPerFrame = parseInt(document.getElementById('bullets').value, 10) || 20;
   const seed = parseInt(document.getElementById('seed').value, 10) || 20260816;
+  const useGpu = !!(document.getElementById('enableGpu') && document.getElementById('enableGpu').checked);
   const poseCount = ops * frames;
 
   const scene = generateScene(ops, frames, bulletsPerFrame, seed);
@@ -437,15 +431,32 @@ async function runBenchmark() {
   }
   const jsMs = performance.now() - jsStart;
 
-  // GPU f32 arcs + CPU interval merge.
-  let gpu;
-  try {
-    const gpuStart = performance.now();
-    gpu = await runGpu(scene.poses, scene.bullets, frames, bulletsPerFrame);
-    gpu.gpuMs = performance.now() - gpuStart;
-  } catch (e) {
-    status.textContent = 'GPU 不可用：' + (e && e.message ? e.message : e);
-    detail.textContent = 'JS 精确 f64 对照已计算，但 GPU 路径未运行。请使用支持 WebGPU 的浏览器（Chrome 113+/Edge 113+）重新打开本页。';
+  // GPU f32 arcs + CPU interval merge. GPU is opt-in because some drivers
+  // can reset while creating adapters/devices.
+  let gpu = null;
+  if (useGpu) {
+    if (!window.confirm('即将运行 WebGPU 基准。若显卡驱动不稳定，可能黑屏或重置。继续？')) {
+      status.textContent = '已取消 GPU 基准。';
+      detail.textContent = '默认仅运行 JS 精确对照；如需 GPU，请勾选“启用GPU”后再点击运行。';
+      return;
+    }
+    try {
+      const gpuStart = performance.now();
+      gpu = await runGpu(scene.poses, scene.bullets, frames, bulletsPerFrame);
+      gpu.gpuMs = performance.now() - gpuStart;
+    } catch (e) {
+      status.textContent = 'GPU 不可用：' + (e && e.message ? e.message : e);
+      detail.textContent = '已保留 JS 精确 f64 对照；GPU 路径未运行。为避免驱动重置，本页不会自动重试。';
+      return;
+    }
+  } else {
+    status.textContent = 'JS 精确 f64 对照完成（GPU 未启用）';
+    table.innerHTML =
+      '<tr><th>项目</th><th>值</th></tr>' +
+      '<tr><td>输入规模</td><td>' + ops + ' 操作 × ' + frames + ' 帧 = ' + poseCount +
+        ' 位姿，每帧 ' + bulletsPerFrame + ' 弹</td></tr>' +
+      '<tr><td>JS 精确 f64 用时</td><td>' + jsMs.toFixed(2) + ' ms</td></tr>';
+    detail.textContent = '默认不运行 GPU。勾选“启用GPU”并点击运行，才会调用 WebGPU。';
     return;
   }
 
@@ -481,6 +492,6 @@ async function runBenchmark() {
 
 window.addEventListener('DOMContentLoaded', function () {
   document.getElementById('run').addEventListener('click', runBenchmark);
-  document.getElementById('gpuSupport').textContent = (navigator.gpu) ? 'WebGPU 可用' : 'WebGPU 不可用';
-  runBenchmark();
+  document.getElementById('gpuSupport').textContent = (navigator.gpu) ? 'WebGPU 可用（默认不运行）' : 'WebGPU 不可用';
+  document.getElementById('status').textContent = '待运行（默认仅 JS；GPU 需手动启用）';
 });

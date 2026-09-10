@@ -26,7 +26,8 @@
     <label>帧数 <input id="frames" type="number" value="75" min="1" max="300"></label>
     <label>每帧子弹数 <input id="bullets" type="number" value="20" min="0" max="128"></label>
     <label>随机种子 <input id="seed" type="number" value="20260816"></label>
-    <button id="run">重新运行</button>
+    <label style="color:#b45309"><input id="enableGpu" type="checkbox" style="width:auto"> 启用GPU（可能触发驱动重置/黑屏，默认关闭）</label>
+    <button id="run">运行基准</button>
   </div>
   <div id="gpuSupport"></div>
   <div id="status"></div>

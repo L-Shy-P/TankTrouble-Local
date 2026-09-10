@@ -14,6 +14,12 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v84（节点上限可调 + 到视界后继续长兄弟叶）：
+ *   ① TREE_DEFAULTS.maxNodes 默认 500，新增 setMaxNodes(100~3000)
+ *      与 testbench “节点上限”滑块；
+ *   ② 路径到达视界不再直接停止生长，改为
+ *      全局 fallback 继续生长尚未到视界的兄弟叶；
+ *   ③ 新增 growStalls 统计，面板可看 maxnodes/no-leaf/skip 原因。
  * 2026-09-07 v83（软死叶子可继续生长）：
  *   ① 修复 status=dead 但 fd>=2 被当成不可生长的结构性问题；
  *   ② 软死叶子从安全执行末帧继续展开 9 候选；
@@ -337,6 +343,7 @@
     var _deathDurationRatio = 0.5;            // v80：软死节点执行时长不超过死亡帧的一半
     var _growLayersPerTick = 1;               // v80：每 tick 最多生长多少层（完整9候选）
     var _deepSelectEnabled = false;           // v81：深层选路实验开关（默认关）
+    var _maxNodes = 500;                     // v84：节点数上限，可由 testbench 滑块调整
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -349,7 +356,7 @@
         horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
-        maxNodes: 500,                    // 节点数上限（主人定 500）
+        maxNodes: 500,                    // 节点数上限（v84 起可调，默认仍 500）
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
@@ -677,7 +684,7 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0 },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, growStalls: {} },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -708,6 +715,7 @@
         tree.cfg.deathDurationRatio = _deathDurationRatio; // v80
         tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
+        tree.cfg.maxNodes = _maxNodes;                     // v84
         tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled; // v77：无弹生长
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
@@ -3059,15 +3067,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var i, d, j, anc, kids, leaf;
         var tip = path[path.length - 1];
 
-        // ① v48.1：路径 tip 到达视界但结构健康 → 停止生长，不把预算浪费到兄弟分支。
-        if (tip && tip.status !== 'dead' && !tip.exhausted && !tip.invalid &&
-            tip.children.length === 0 &&
-            tip.tEndSec - tree.root.tEndSec >= tree.cfg.horizonSec) {
-            recordStructure(tree, 'grow-priority', 'path-horizon-stop n' + (tip.id || '?'));
-            return null;
-        }
-
-        // ② 当前路线优先（tip 健康且未到视界时会在这里命中）
+        // v84：路径 tip 到达视界时不再直接停止生长。树会继续走全局
+        // fallback，把预算用于尚未到视界的兄弟叶子；只有所有可选叶子
+        // 都到视界/不可生长时才真正停止。
+        // ① 当前路线优先（tip 健康且未到视界时会在这里命中）
         for (i = 0; i < path.length; i++) {
             if (isGrowableLeaf(tree, path[i])) {
                 recordStructure(tree, 'grow-priority', 'path n' + (path[i].id || '?'));
@@ -3462,6 +3465,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var h = tree.diag.growHistory || (tree.diag.growHistory = []);
         h.push({ t: _timeAcc, code: code, detail: detail || '', nodeCount: tree.nodeCount });
         if (h.length > 120) h.shift();
+        tree.stats.growStalls = tree.stats.growStalls || {};
+        tree.stats.growStalls[code] = (tree.stats.growStalls[code] || 0) + 1;
     }
 
     /**
@@ -4590,6 +4595,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _deathDurationRatio;
     }
 
+    /** v84：调整活动节点数上限（100~3000）。 */
+    function setMaxNodes(v) {
+        var n = Math.round(Number(v));
+        if (!isFinite(n)) n = 500;
+        _maxNodes = Math.max(100, Math.min(3000, n));
+        if (_tree && _tree.cfg) _tree.cfg.maxNodes = _maxNodes;
+        return _maxNodes;
+    }
+
     /** v81：深层选路实验开关；默认关闭，开启后 subtreeBest 参与 next/commit。 */
     function setDeepSelectEnabled(v) {
         _deepSelectEnabled = !!v;
@@ -4639,6 +4653,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setDeathDurationRatio: setDeathDurationRatio,
         setGrowLayersPerTick: setGrowLayersPerTick,
         setDeepSelectEnabled: setDeepSelectEnabled,
+        setMaxNodes: setMaxNodes,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
         threatCoarseBox: threatCoarseBox,
@@ -4666,5 +4681,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v83：软死叶子可继续生长 + v82真死回退改道 + 深层选路实验 + 半死亡时长上限 + 多层生长 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v84：节点上限可调 + 到视界后继续长兄弟叶 + v83软死续树 + 真死回退改道 + 深层选路实验 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);

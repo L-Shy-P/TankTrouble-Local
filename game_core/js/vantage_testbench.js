@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v67';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v68';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -116,7 +116,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, growLayers: 1, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, growLayers: 1, maxNodes: 500, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2045,6 +2045,7 @@
             '<label style="cursor:pointer;color:#f5c2e7;margin-left:8px"><input type="checkbox" data-act="exp-deepSelect"> 深层选路</label> ' +
             '<label style="cursor:pointer;color:#a6e3a1;margin-left:8px"><input type="checkbox" data-act="exp-growWithoutThreats"> 无弹生长</label> ' +
             '<span style="color:#89b4fa;margin-left:8px">层/帧 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers" style="color:#f9e2af">1层</span></span>' +
+            '<span style="color:#89dceb;margin-left:8px">节点上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes" style="color:#f9e2af">500</span></span>' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
         _expCtrl = {
@@ -2058,6 +2059,8 @@
             growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
             growLayers: expRow.querySelector('[data-act="exp-growLayers"]'),
             growLayersSpan: expRow.querySelector('span[id="vt-exp-growLayers"]'),
+            maxNodes: expRow.querySelector('[data-act="exp-maxNodes"]'),
+            maxNodesSpan: expRow.querySelector('span[id="vt-exp-maxNodes"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
         };
@@ -2075,6 +2078,14 @@
                 state.exp.growLayers = Math.max(1, Math.min(6, parseInt(_expCtrl.growLayers.value, 10) || 1));
                 if (_expCtrl.growLayersSpan) {
                     _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
+                }
+            });
+        }
+        if (_expCtrl.maxNodes) {
+            _expCtrl.maxNodes.addEventListener('input', function() {
+                state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.maxNodes.value, 10) || 500));
+                if (_expCtrl.maxNodesSpan) {
+                    _expCtrl.maxNodesSpan.textContent = String(state.exp.maxNodes);
                 }
             });
         }
@@ -2253,6 +2264,16 @@
             if (typeof VantageTree !== 'undefined') {
                 VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
             }
+            updatePanel();
+            return;
+        }
+        // —— v84 节点数上限滑块（100~3000）——
+        if (act === 'exp-maxNodes') {
+            state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 500));
+            if (typeof VantageTree !== 'undefined') {
+                VantageTree.setMaxNodes(state.exp.maxNodes);
+            }
+            if (_expCtrl.maxNodesSpan) _expCtrl.maxNodesSpan.textContent = String(state.exp.maxNodes);
             updatePanel();
             return;
         }
@@ -2510,11 +2531,14 @@
         if (_expCtrl.growWithoutThreats && _expCtrl.growWithoutThreats.checked !== state.exp.growWithoutThreats) _expCtrl.growWithoutThreats.checked = state.exp.growWithoutThreats;
         if (_expCtrl.growLayers && parseInt(_expCtrl.growLayers.value, 10) !== state.exp.growLayers) _expCtrl.growLayers.value = String(state.exp.growLayers);
         if (_expCtrl.growLayersSpan && _expCtrl.growLayersSpan.textContent !== state.exp.growLayers + '层') _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
+        if (_expCtrl.maxNodes && parseInt(_expCtrl.maxNodes.value, 10) !== state.exp.maxNodes) _expCtrl.maxNodes.value = String(state.exp.maxNodes);
+        if (_expCtrl.maxNodesSpan && _expCtrl.maxNodesSpan.textContent !== String(state.exp.maxNodes)) _expCtrl.maxNodesSpan.textContent = String(state.exp.maxNodes);
         // v47/v49/v60：UI 与树配置保持一致；初始化/同步时都同步一次。
         if (typeof VantageTree !== 'undefined') VantageTree.setLaneEnabled(state.exp.lane);
         if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
         if (typeof VantageTree !== 'undefined') VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
         if (typeof VantageTree !== 'undefined') VantageTree.setGrowLayersPerTick(state.exp.growLayers);
+        if (typeof VantageTree !== 'undefined') VantageTree.setMaxNodes(state.exp.maxNodes);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
@@ -2526,6 +2550,19 @@
             var txt = state.exp.evalFrames + '帧';
             if (_expCtrl.framesSpan.textContent !== txt) _expCtrl.framesSpan.textContent = txt;
         }
+    }
+
+    /** v84：生长停滞原因摘要。 */
+    function growStallText(stalls) {
+        if (!stalls) return '-';
+        var keys = Object.keys(stalls);
+        if (!keys.length) return '-';
+        keys.sort(function(a, b) { return stalls[b] - stalls[a]; });
+        var out = [];
+        for (var i = 0; i < keys.length && i < 4; i++) {
+            out.push(keys[i] + ':' + stalls[keys[i]]);
+        }
+        return out.join(' ');
     }
 
     /** v7.7 配色：耗时/帧率分档（绿=健康 黄=注意 红=紧张） */
@@ -2600,6 +2637,8 @@
         // —— 主页 ⑤ 树节点 + ⑥ 视界 ——
         if (tr) {
             html.push('<div style="padding:1px 0;color:#94e2d5">树 节点 <b>' + tr.nodeCount +
+                '/' + ((tr.cfg && tr.cfg.maxNodes) || 500) +
+                '</b> | 储备 <b>' + (tr.reserveCount || 0) +
                 '</b> | 视界 <b style="color:#94e2d5">' + fmt(tr.horizonSec, 2) + 's</b></div>');
         } else {
             html.push('<div style="padding:1px 0;color:#585b70">树未开（AI操控下拉选「树」）</div>');
@@ -2661,6 +2700,7 @@
                 '生长 ' + fmt(tr.stats.growMs, 1) + 'ms' +
                 (tr.stats.growSkips ? '（跳' + tr.stats.growSkips + '帧）' : '') +
                 (tr.stats.nodeCountFixes ? ' 计数修复' + tr.stats.nodeCountFixes : '') +
+                '<br>生长停 ' + growStallText(tr.stats.growStalls) +
                 '<br>Rust评分 ' + (tr.stats.rustScoredBatches || 0) +
                 ' 回退' + (tr.stats.rustScoredFallbacks || 0) +
                 ' | JS确认 ' + (tr.stats.jsConfirmCount || 0) +
@@ -2968,6 +3008,7 @@
         try { VantageTree.setRustMinimalEnabled(state.exp.rustMinimal); } catch (eRustMinInit) {}
         try { VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats); } catch (eGrowInit) {}
         try { VantageTree.setGrowLayersPerTick(state.exp.growLayers); } catch (eLayersInit) {}
+        try { VantageTree.setMaxNodes(state.exp.maxNodes); } catch (eMaxNodesInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
