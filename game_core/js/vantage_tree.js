@@ -14,6 +14,10 @@
  *      融合世界确认（只确认执行路线，不全树复核）。
  *   ③ TREE_DEFAULTS.growWithoutThreats=false；setGrowWithoutThreatsEnabled
  *      开启后 growStep 在无 threats 时继续生长（默认关闭，保持 v57 行为）。
+ * 2026-09-07 v83（软死叶子可继续生长）：
+ *   ① 修复 status=dead 但 fd>=2 被当成不可生长的结构性问题；
+ *   ② 软死叶子从安全执行末帧继续展开 9 候选；
+ *   ③ 只有 1 帧真死才禁止生长；金线与 leaves 同步允许软死叶。
  * 2026-09-07 v82（真死回退真正改道）：
  *   ① applyRetreatAfterExpand 把 retreat target 写回祖先 next；
  *   ② 当前执行节点的下一层全真死时同 tick
@@ -2232,7 +2236,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         parent.children.push(child);
         var pi = tree.leaves.indexOf(parent);
         if (pi >= 0) tree.leaves.splice(pi, 1);
-        if (child.status !== 'dead') tree.leaves.push(child);
+        if (!isTerminalDead(child)) tree.leaves.push(child);
         backpropBest(parent);
         return child;
     }
@@ -2289,7 +2293,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             count++;
             n.depth = depth;
             if (!n.children.length) {
-                if (n.status !== 'dead') leaves.push(n);
+                if (!isTerminalDead(n)) leaves.push(n);
             } else {
                 for (var j = 0; j < n.children.length; j++) rec(n.children[j], depth + 1);
             }
@@ -2560,6 +2564,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return !!n && !n.invalid && !n.exhausted;
     }
 
+    /** v82：终局叶 = 1 帧真死。软死（fd>=2）不是终局：
+     *  该节点仍可从安全执行末帧继续展开下一层。 */
+    function isTerminalDead(n) {
+        return !!n && n.fullDeathFrame >= 0 && n.fullDeathFrame <= 1;
+    }
+
     // ============================================================
     // v54：惰性金线刷新 —— stale 判定 / 层更新 / 前沿查找 / 预算
     // ============================================================
@@ -2804,7 +2814,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * @returns {number} 新增节点数（0=失败/上限）
      */
     function attachResults(tree, leaf, results, threats) {
-        if (!leaf || leaf.status === 'dead' || leaf.children.length > 0) return 0;
+        if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
         ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount + results.length > tree.cfg.maxNodes) return 0;
         var ecfg = effectiveExpandCfg(tree);
@@ -2843,7 +2853,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     function expandLeaf(tree, leaf, adapter, threats) {
-        if (!leaf || leaf.status === 'dead' || leaf.children.length > 0) return 0;
+        if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
         ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount + 9 > tree.cfg.maxNodes) return 0;
         var results = rolloutNine(tree, adapter, leaf.simState, threats);
@@ -2931,7 +2941,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var alive = [], i;
         for (i = 0; i < children.length; i++) {
             var c = children[i];
-            if (c && !c.exhausted && !c.invalid && c.status === 'alive') alive.push(c);
+            if (c && !c.exhausted && !c.invalid && !isTerminalDead(c)) alive.push(c);
         }
         if (alive.length) return pickBest(alive);
         return null;
@@ -3008,7 +3018,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  评分回传后 argmax 链可随时换道，不再是 v4 的单线"只延伸前"） */
     /** v48：可生长叶子条件。 */
     function isGrowableLeaf(tree, n) {
-        if (!n || n.status === 'dead' || n.exhausted || n.invalid) return false;
+        if (!n || isTerminalDead(n) || n.exhausted || n.invalid) return false;
         if (n.children.length > 0) return false;
         return n.tEndSec - tree.root.tEndSec < tree.cfg.horizonSec;
     }
@@ -3033,7 +3043,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     /** v49：收集某棵子树里的所有可生长叶子；不穿过 dead 内部节点。 */
     function collectGrowableLeaves(tree, n, out) {
-        if (!n || n.invalid || n.exhausted || n.status === 'dead') return;
+        if (!n || n.invalid || n.exhausted || isTerminalDead(n)) return;
         if (isGrowableLeaf(tree, n)) { out.push(n); return; }
         for (var i = 0; i < n.children.length; i++) collectGrowableLeaves(tree, n.children[i], out);
     }
@@ -3092,7 +3102,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 与 testbench 自动模式的切片口径一致。
      */
     function startExpandSlice(tree, leaf, adapter, threats) {
-        if (!leaf || leaf.status === 'dead' || leaf.children.length > 0) return false;
+        if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return false;
         ensureNonNegativeNodeCount(tree);
         if (tree.nodeCount + 9 > tree.cfg.maxNodes) return false;
         tree._expandSlice = {
@@ -4656,5 +4666,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v82：真死回退真正改道 + v81深层选路实验 + 半死亡时长上限 + 多层生长 + Rust评分 + JS执行路线确认）');
+    console.log('[Vantage Tree] 模块已加载（段制 v83：软死叶子可继续生长 + v82真死回退改道 + 深层选路实验 + 半死亡时长上限 + 多层生长 + Rust评分 + JS执行路线确认）');
 })(typeof window !== 'undefined' ? window : this);
