@@ -67,7 +67,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v71';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v72';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -116,7 +116,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, growLayers: 1, maxNodes: 500, nodeCap: true, horizonCap: true, refineBeyond: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, growLayers: 1, maxNodes: 500, nodeCap: true, horizonCap: true, refineBeyond: false, continuousRefine: false, retreatDepth: 3, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2049,6 +2049,8 @@
             '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-nodeCap"> 节点限</label>' +
             '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-horizonCap"> 视界限</label>' +
             '<label style="cursor:pointer;color:#f5c2e7;margin-left:8px"><input type="checkbox" data-act="exp-refineBeyond"> 超限细化</label>' +
+            '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-continuousRefine"> 持续细化</label>' +
+            '<span style="color:#cba6f7;margin-left:8px">回退层 <input type="range" data-act="exp-retreatDepth" min="1" max="8" step="1" value="3" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-retreatDepth" style="color:#f9e2af">3层</span></span>' +
             '<button data-act="exp-presetStrong" style="margin-left:8px;cursor:pointer;background:#45475a;color:#f5c2e7;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">超强预设</button>' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
@@ -2068,6 +2070,9 @@
             nodeCap: expRow.querySelector('[data-act="exp-nodeCap"]'),
             horizonCap: expRow.querySelector('[data-act="exp-horizonCap"]'),
             refineBeyond: expRow.querySelector('[data-act="exp-refineBeyond"]'),
+            continuousRefine: expRow.querySelector('[data-act="exp-continuousRefine"]'),
+            retreatDepth: expRow.querySelector('[data-act="exp-retreatDepth"]'),
+            retreatDepthSpan: expRow.querySelector('span[id="vt-exp-retreatDepth"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
         };
@@ -2280,6 +2285,8 @@
             state.exp.nodeCap = false;
             state.exp.horizonCap = true;
             state.exp.refineBeyond = true;
+            state.exp.continuousRefine = false;
+            state.exp.retreatDepth = 3;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
             if (typeof VantageTree !== 'undefined') {
@@ -2287,6 +2294,8 @@
                 VantageTree.setNodeCapEnabled(state.exp.nodeCap);
                 VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
                 VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
+                VantageTree.setContinuousRefine(state.exp.continuousRefine);
+                VantageTree.setRetreatDepth(state.exp.retreatDepth);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
                 VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
             }
@@ -2310,6 +2319,21 @@
         if (act === 'exp-refineBeyond') {
             state.exp.refineBeyond = srcEl.checked;
             if (typeof VantageTree !== 'undefined') VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
+            updatePanel();
+            return;
+        }
+        // —— v88 持续细化：不依赖“无普通叶”，每 tick 主动拆一次长操作 ——
+        if (act === 'exp-continuousRefine') {
+            state.exp.continuousRefine = srcEl.checked;
+            if (typeof VantageTree !== 'undefined') VantageTree.setContinuousRefine(state.exp.continuousRefine);
+            updatePanel();
+            return;
+        }
+        // —— v88 回退深度：真死回退向上搜索层数（1~8）——
+        if (act === 'exp-retreatDepth') {
+            state.exp.retreatDepth = Math.max(1, Math.min(8, parseInt(srcEl.value, 10) || 3));
+            if (typeof VantageTree !== 'undefined') VantageTree.setRetreatDepth(state.exp.retreatDepth);
+            if (_expCtrl.retreatDepthSpan) _expCtrl.retreatDepthSpan.textContent = String(state.exp.retreatDepth) + '层';
             updatePanel();
             return;
         }
@@ -2582,6 +2606,9 @@
         if (_expCtrl.nodeCap && _expCtrl.nodeCap.checked !== state.exp.nodeCap) _expCtrl.nodeCap.checked = state.exp.nodeCap;
         if (_expCtrl.horizonCap && _expCtrl.horizonCap.checked !== state.exp.horizonCap) _expCtrl.horizonCap.checked = state.exp.horizonCap;
         if (_expCtrl.refineBeyond && _expCtrl.refineBeyond.checked !== state.exp.refineBeyond) _expCtrl.refineBeyond.checked = state.exp.refineBeyond;
+        if (_expCtrl.continuousRefine && _expCtrl.continuousRefine.checked !== state.exp.continuousRefine) _expCtrl.continuousRefine.checked = state.exp.continuousRefine;
+        if (_expCtrl.retreatDepth && parseInt(_expCtrl.retreatDepth.value, 10) !== state.exp.retreatDepth) _expCtrl.retreatDepth.value = String(state.exp.retreatDepth);
+        if (_expCtrl.retreatDepthSpan && _expCtrl.retreatDepthSpan.textContent !== state.exp.retreatDepth + '层') _expCtrl.retreatDepthSpan.textContent = state.exp.retreatDepth + '层';
         // v47/v49/v60：UI 与树配置保持一致；初始化/同步时都同步一次。
         if (typeof VantageTree !== 'undefined') VantageTree.setLaneEnabled(state.exp.lane);
         if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
@@ -2591,6 +2618,8 @@
         if (typeof VantageTree !== 'undefined') VantageTree.setNodeCapEnabled(state.exp.nodeCap);
         if (typeof VantageTree !== 'undefined') VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
         if (typeof VantageTree !== 'undefined') VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
+        if (typeof VantageTree !== 'undefined') VantageTree.setContinuousRefine(state.exp.continuousRefine);
+        if (typeof VantageTree !== 'undefined') VantageTree.setRetreatDepth(state.exp.retreatDepth);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
@@ -2698,8 +2727,10 @@
                 ' 节点限' + ((ecfg.nodeCapEnabled === false) ? '关' : '开') +
                 ' 视界限' + ((ecfg.horizonCapEnabled === false) ? '关' : '开') +
                 ' 细化' + (ecfg.refineBeyondLimits ? '开' : '关') +
+                ' 持续' + (ecfg.continuousRefine ? '开' : '关') +
                 ' 无弹' + (ecfg.growWithoutThreats ? '开' : '关') +
                 ' 深层' + (ecfg.deepSelectEnabled ? '开' : '关') +
+                ' 回退' + ((ecfg.retreatDepth || 3) + '层') +
                 ' | 细化次数 ' + (tr.stats.refineSplits || 0) + '</div>');
         } else {
             html.push('<div style="padding:1px 0;color:#585b70">树未开（AI操控下拉选「树」）</div>');
@@ -3073,6 +3104,8 @@
         try { VantageTree.setNodeCapEnabled(state.exp.nodeCap); } catch (eNodeCapInit) {}
         try { VantageTree.setHorizonCapEnabled(state.exp.horizonCap); } catch (eHorizonCapInit) {}
         try { VantageTree.setRefineBeyondLimits(state.exp.refineBeyond); } catch (eRefineInit) {}
+        try { VantageTree.setContinuousRefine(state.exp.continuousRefine); } catch (eContRefineInit) {}
+        try { VantageTree.setRetreatDepth(state.exp.retreatDepth); } catch (eRetreatDepthInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
