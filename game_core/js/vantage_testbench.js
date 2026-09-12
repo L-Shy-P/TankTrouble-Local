@@ -1,7 +1,7 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
- * 2026-09-07 v73（配合树 v89 / 沙箱 v34）：
+ * 2026-09-07 v74（配合树 v90 / 沙箱 v34）：
  *   Rust 物理默认开启；实验区新增“预热上限”、“回退节点”、“回退帧”；
  *   回退滑块改为 input 实时落值，避免拖动时被面板刷新弹回。
  * 2026-08-23 v48（配合树 v52：节点详情显示 rolloutTotal；新事件标签）：
@@ -70,7 +70,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v73';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v74';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -1239,7 +1239,7 @@
         if (_tv) return _tv;
         var el = document.createElement('div');
         el.id = 'vt-treeview';
-        el.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99998;' +
+        el.style.cssText = 'position:fixed;left:0;top:0;z-index:99998;' +
             'background:rgba(20,22,34,0.94);border:1px solid #6c7086;border-radius:6px;' +
             'color:#cdd6f4;font:11px/1.5 Consolas,monospace;pointer-events:auto;display:none';
         var head = document.createElement('div');
@@ -1293,7 +1293,8 @@
             el: el, canvas: canvas, ctx: canvas.getContext('2d'),
             info: info, view: view,
             followChk: head.querySelector('[data-tv="follow"]'),
-            selected: null, layout: null
+            selected: null, layout: null,
+            userMoved: false
         };
 
         // 关闭 / 跟随
@@ -1311,13 +1312,24 @@
             head.addEventListener('mousedown', function(e) {
                 if (e.target && e.target.dataset && e.target.dataset.tv) return;
                 var r = el.getBoundingClientRect();
+                _tv.userMoved = true;
                 hd = { dx: e.clientX - r.left, dy: e.clientY - r.top };
                 e.preventDefault();
             });
+            head.addEventListener('dblclick', function() {
+                _tv.userMoved = false;
+                placeTreeView();
+            });
             document.addEventListener('mousemove', function(e) {
                 if (!hd) return;
-                el.style.left = Math.max(0, e.clientX - hd.dx) + 'px';
-                el.style.top = Math.max(0, e.clientY - hd.dy) + 'px';
+                var w = el.offsetWidth || 540;
+                var h = el.offsetHeight || 430;
+                var vw = window.innerWidth || 1920;
+                var vh = window.innerHeight || 1080;
+                var left = Math.max(0, Math.min(Math.max(0, vw - w), e.clientX - hd.dx));
+                var top = Math.max(0, Math.min(Math.max(0, vh - h), e.clientY - hd.dy));
+                el.style.left = left + 'px';
+                el.style.top = top + 'px';
             });
             document.addEventListener('mouseup', function() { hd = null; });
         })();
@@ -1373,10 +1385,54 @@
         return tv;
     }
 
+    /** v90：树图默认不占左侧，优先贴在主面板左边（面板关闭时贴右边缘），
+     *  并且始终夹在视口内；拖动后标记为用户位置，窗口缩放只做夹取不重置。 */
+    function placeTreeView() {
+        if (!_tv || !_tv.el) return;
+        var el = _tv.el;
+        if (state.treeViewOn !== true || el.style.display === 'none') return;
+        var w = el.offsetWidth || 540;
+        var h = el.offsetHeight || 430;
+        var vw = window.innerWidth || 1920;
+        var vh = window.innerHeight || 1080;
+        var margin = 8;
+        var left;
+        if (state.panelOn && _panel) {
+            var pr = _panel.getBoundingClientRect();
+            left = pr.left - w - margin;
+        } else {
+            left = vw - w - margin;
+        }
+        left = Math.max(margin, Math.min(Math.max(margin, vw - w - margin), left));
+        var top = Math.max(margin, Math.min(Math.max(margin, vh - h - margin), margin));
+        el.style.left = left + 'px';
+        el.style.top = top + 'px';
+        _tv.userMoved = false;
+    }
+
+    /** v90：用户拖动过树图后，窗口缩小也要保证标题栏还能抓到。 */
+    function clampTreeView() {
+        if (!_tv || !_tv.el) return;
+        var el = _tv.el;
+        var w = el.offsetWidth || 540;
+        var h = el.offsetHeight || 430;
+        var vw = window.innerWidth || 1920;
+        var vh = window.innerHeight || 1080;
+        var left = parseFloat(el.style.left);
+        var top = parseFloat(el.style.top);
+        if (!isFinite(left)) left = 0;
+        if (!isFinite(top)) top = 0;
+        left = Math.max(0, Math.min(Math.max(0, vw - w), left));
+        top = Math.max(0, Math.min(Math.max(0, vh - h), top));
+        el.style.left = left + 'px';
+        el.style.top = top + 'px';
+    }
+
     function toggleTreeView() {
         state.treeViewOn = !state.treeViewOn;
         if (state.treeViewOn) {
             ensureTreeView().el.style.display = 'block';
+            placeTreeView();
             drawTree();
         } else if (_tv) {
             _tv.el.style.display = 'none';
@@ -1959,24 +2015,25 @@
         el.id = 'vt-bench-panel';
         el.style.cssText = [
             'position:fixed', 'top:8px', 'right:8px', 'z-index:99999',
-            'width:340px', 'max-height:92vh',
+            'width:360px', 'max-height:92vh',
             'background:rgba(20,22,34,0.92)', 'color:#cdd6f4',
             'font:11px/1.6 Consolas,monospace',
             'border:1px solid #6c7086', 'border-radius:6px',
-            'pointer-events:auto', 'display:none'
+            'pointer-events:auto', 'display:none',
+            'flex-direction:column', 'overflow:hidden'
         ].join(';');
 
         // —— 标题栏（持久，可拖动）——
         var head = document.createElement('div');
         head.id = 'vt-bench-head';
-        head.style.cssText = 'cursor:move;user-select:none;padding:6px 10px;border-bottom:1px solid #45475a;background:rgba(30,32,48,0.95);border-radius:6px 6px 0 0';
+        head.style.cssText = 'flex:0 0 auto;cursor:move;user-select:none;padding:6px 10px;border-bottom:1px solid #45475a;background:rgba(30,32,48,0.95);border-radius:6px 6px 0 0';
         head.innerHTML = '<b style="color:#f5c2e7">Vantage 调试工作台</b>' +
             '<span id="vt-status" style="float:right;color:#a6e3a1">运行中</span>';
         el.appendChild(head);
 
         // —— 按钮行（持久，鼠标操作）——
         var bar = document.createElement('div');
-        bar.style.cssText = 'padding:4px 8px;border-bottom:1px solid #45475a;display:flex;gap:4px;flex-wrap:wrap';
+        bar.style.cssText = 'flex:0 0 auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;gap:4px;flex-wrap:wrap';
         var defs = [
             ['pause', '⏸ 暂停'],
             ['step1', '+1帧'],
@@ -1998,7 +2055,7 @@
         // —— AI 操控区（v6.1 持久控件层：只建一次，永不重建——
         //     v6 曾随数据区每帧 innerHTML 重建，下拉一打开就被销毁）——
         var ctrl = document.createElement('div');
-        ctrl.style.cssText = 'padding:4px 8px;border-bottom:1px solid #45475a';
+        ctrl.style.cssText = 'flex:0 0 auto;padding:4px 8px;border-bottom:1px solid #45475a';
         ctrl.innerHTML = '<b style="color:#f5c2e7">AI 操控</b> ' +
             '<button data-act="aiop-toggle" style="cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:2px 8px;font:inherit">已静止（点击启用）</button>' +
             ' <label style="cursor:pointer;color:#89b4fa"><input type="checkbox" data-act="aiop-auto"> 自动（每轮最高分）</label> ' +
@@ -2036,28 +2093,52 @@
 
         // —— 实验模式区（v7.4→v7.6 持久控件层：固定帧勾选+滑块、车道压分、软死）——
         var expRow = document.createElement('div');
-        expRow.style.cssText = 'padding:3px 8px;border-bottom:1px solid #45475a';
-        expRow.innerHTML = '<b style="color:#f5c2e7">实验</b> ' +
-            '<label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-fixed75"> 固定帧模拟</label> ' +
-            '<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> ' +
-            '<span id="vt-exp-frames" style="color:#f9e2af">75帧</span><br>' +
-            '<label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-lane"> 车道压分(轨迹评分)</label> ' +
-            '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-springRope"> 弹簧绳</label> ' +
-            '<label style="cursor:pointer;color:#89b4fa;margin-left:8px"><input type="checkbox" data-act="exp-rustMinimal"> Rust最小</label> ' +
-            '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-rustPhysics"> Rust物理</label> ' +
-            '<label style="cursor:pointer;color:#f5c2e7;margin-left:8px"><input type="checkbox" data-act="exp-deepSelect"> 深层选路</label> ' +
-            '<label style="cursor:pointer;color:#a6e3a1;margin-left:8px"><input type="checkbox" data-act="exp-growWithoutThreats"> 无弹生长</label> ' +
-            '<span style="color:#89b4fa;margin-left:8px">层/帧 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers" style="color:#f9e2af">1层</span></span>' +
-            '<span style="color:#89dceb;margin-left:8px">节点上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes" style="color:#f9e2af">500</span></span>' +
-            '<span style="color:#a6e3a1;margin-left:8px">预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes" style="color:#f9e2af">500</span></span>' +
-            '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-nodeCap"> 节点限</label>' +
-            '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-horizonCap"> 视界限</label>' +
-            '<label style="cursor:pointer;color:#f5c2e7;margin-left:8px"><input type="checkbox" data-act="exp-refineBeyond"> 超限细化</label>' +
-            '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-continuousRefine"> 持续细化</label>' +
-            '<span style="color:#cba6f7;margin-left:8px">回退节点 <input type="range" data-act="exp-retreatNodes" min="1" max="32" step="1" value="3" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-retreatNodes" style="color:#f9e2af">3点</span></span>' +
-            '<span style="color:#cba6f7;margin-left:8px">回退帧 <input type="range" data-act="exp-retreatFrames" min="10" max="200" step="10" value="200" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-retreatFrames" style="color:#f9e2af">200帧</span></span>' +
-            '<button data-act="exp-presetStrong" style="margin-left:8px;cursor:pointer;background:#45475a;color:#f5c2e7;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">超强预设</button>' +
-            '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
+        expRow.id = 'vt-exp-rows';
+        expRow.style.cssText = 'flex:0 0 auto;max-height:44vh;overflow:auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;flex-direction:column;gap:3px';
+        function expItem(html) {
+            return '<span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap">' + html + '</span>';
+        }
+        function expLine(label, color, id, html) {
+            return '<div id="' + id + '" style="display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px;line-height:1.7">' +
+                '<b style="flex:0 0 40px;color:' + color + '">' + label + '</b>' + html + '</div>';
+        }
+        expRow.innerHTML =
+            // 评分/死亡：所有模式通用
+            expLine('评分', '#f5c2e7', 'vt-exp-scoreRow',
+                expItem('<label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-fixed75"> 固定帧模拟</label>') +
+                expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="color:#f9e2af">75帧</span>') +
+                expItem('<label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-lane"> 车道压分</label>') +
+                expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-springRope"> 弹簧绳</label></span>') +
+                expItem('<label style="cursor:pointer;color:#fab387"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分</label>')
+            ) +
+            // Rust 模式：Rust物理是全局执行开关，弹簧绳不支持的提示放这里
+            expLine('Rust', '#89b4fa', 'vt-exp-rustRow',
+                expItem('<label style="cursor:pointer;color:#89b4fa"><input type="checkbox" data-act="exp-rustPhysics"> Rust物理</label>') +
+                expItem('<span id="vt-exp-rustNote" style="color:#6c7086;display:none">Rust不支持的评分项会自动回退JS；弹簧绳已隐藏</span>')
+            ) +
+            // 生长/节点：只在“树”模式显示
+            expLine('生长', '#89dceb', 'vt-exp-treeRow',
+                expItem('<label style="cursor:pointer;color:#a6e3a1"><input type="checkbox" data-act="exp-growWithoutThreats"> 无弹生长</label>') +
+                expItem('层/帧 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers" style="color:#f9e2af">1层</span>') +
+                expItem('节点上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes" style="color:#f9e2af">500</span>') +
+                expItem('预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes" style="color:#f9e2af">500</span>') +
+                expItem('<label style="cursor:pointer;color:#89dceb"><input type="checkbox" data-act="exp-nodeCap"> 节点限</label>') +
+                expItem('<label style="cursor:pointer;color:#89dceb"><input type="checkbox" data-act="exp-horizonCap"> 视界限</label>') +
+                expItem('<label style="cursor:pointer;color:#f5c2e7"><input type="checkbox" data-act="exp-refineBeyond"> 超限细化</label>') +
+                expItem('<label style="cursor:pointer;color:#cba6f7"><input type="checkbox" data-act="exp-continuousRefine"> 持续细化</label>')
+            ) +
+            // 回退：只在“树”模式显示
+            expLine('回退', '#cba6f7', 'vt-exp-retreatRow',
+                expItem('回退节点 <input type="range" data-act="exp-retreatNodes" min="1" max="32" step="1" value="3" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatNodes" style="color:#f9e2af">3点</span>') +
+                expItem('回退帧 <input type="range" data-act="exp-retreatFrames" min="10" max="600" step="10" value="200" style="width:96px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatFrames" style="color:#f9e2af">200帧</span>')
+            ) +
+            // 选路：只在“树”模式显示
+            expLine('选路', '#a6e3a1', 'vt-exp-routeRow',
+                expItem('<label style="cursor:pointer;color:#89b4fa"><input type="checkbox" data-act="exp-rustMinimal"> Rust最小决策</label>') +
+                expItem('<label style="cursor:pointer;color:#f5c2e7"><input type="checkbox" data-act="exp-deepSelect"> 深层选路</label>') +
+                expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:#f5c2e7;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">超强预设</button>')
+            ) +
+            '<div id="vt-exp-treeHint" style="display:none;color:#6c7086;padding-left:48px">选择 AI 操控「树」后显示生长、回退、选路参数</div>';
         el.appendChild(expRow);
         _expCtrl = {
             f75: expRow.querySelector('[data-act="exp-fixed75"]'),
@@ -2083,8 +2164,18 @@
             retreatFrames: expRow.querySelector('[data-act="exp-retreatFrames"]'),
             retreatFramesSpan: expRow.querySelector('span[id="vt-exp-retreatFrames"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
-            framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
+            framesSpan: expRow.querySelector('span[id="vt-exp-frames"]'),
+            // 分类行/条件显示引用
+            scoreRow: expRow.querySelector('#vt-exp-scoreRow'),
+            rustRow: expRow.querySelector('#vt-exp-rustRow'),
+            treeRow: expRow.querySelector('#vt-exp-treeRow'),
+            retreatRow: expRow.querySelector('#vt-exp-retreatRow'),
+            routeRow: expRow.querySelector('#vt-exp-routeRow'),
+            treeHint: expRow.querySelector('#vt-exp-treeHint'),
+            springItem: expRow.querySelector('#vt-exp-springItem'),
+            rustNote: expRow.querySelector('#vt-exp-rustNote')
         };
+
         // 滑块 input：实时数字（change 委托落值+重跑，防抖不叠加）
         if (_expCtrl.slider) {
             _expCtrl.slider.addEventListener('input', function() {
@@ -2130,7 +2221,7 @@
         }
         if (_expCtrl.retreatFrames) {
             _expCtrl.retreatFrames.addEventListener('input', function() {
-                state.exp.retreatFrames = Math.max(10, Math.min(200, parseInt(_expCtrl.retreatFrames.value, 10) || 200));
+                state.exp.retreatFrames = Math.max(10, Math.min(600, parseInt(_expCtrl.retreatFrames.value, 10) || 200));
                 if (_expCtrl.retreatFramesSpan) {
                     _expCtrl.retreatFramesSpan.textContent = String(state.exp.retreatFrames) + '帧';
                 }
@@ -2140,7 +2231,7 @@
         // —— 数据区（每帧刷新，无交互控件，重建无害）——
         var body = document.createElement('div');
         body.id = 'vt-data';
-        body.style.cssText = 'padding:6px 10px;max-height:calc(92vh - 130px);overflow:auto';
+        body.style.cssText = 'flex:1 1 auto;min-height:120px;padding:6px 10px;overflow:auto';
         el.appendChild(body);
         _panelBody = body;
 
@@ -2171,11 +2262,20 @@
         });
         document.addEventListener('mousemove', function(e) {
             if (!_drag) return;
-            el.style.left = Math.max(0, e.clientX - _drag.dx) + 'px';
-            el.style.top = Math.max(0, e.clientY - _drag.dy) + 'px';
+            var w = el.offsetWidth || 360;
+            var h = el.offsetHeight || 600;
+            var vw = window.innerWidth || 1920;
+            var vh = window.innerHeight || 1080;
+            var left = Math.max(0, Math.min(Math.max(0, vw - w), e.clientX - _drag.dx));
+            var top = Math.max(0, Math.min(Math.max(0, vh - h), e.clientY - _drag.dy));
+            el.style.left = left + 'px';
+            el.style.top = top + 'px';
             el.style.right = 'auto';
         });
-        document.addEventListener('mouseup', function() { _drag = null; });
+        document.addEventListener('mouseup', function() {
+            _drag = null;
+            if (_tv && state.treeViewOn && !_tv.userMoved) placeTreeView();
+        });
 
         // 事件委托（内容区 + 按钮行）。
         // v7.3 关键：用 mousedown 不用 click——运行态数据区每帧 innerHTML 重建，
@@ -2285,6 +2385,12 @@
         // vt_rescore_nodes（adapter.rescoreTankSamples）增量重评分。
         if (act === 'exp-rustPhysics') {
             state.exp.rustPhysics = srcEl.checked;
+            // v90：Rust 路径不支持弹簧绳；开启 Rust 物理时自动关掉弹簧绳，
+            // 避免隐藏的复选框还在偷偷影响评分路径。
+            if (state.exp.rustPhysics && state.exp.springRope) {
+                state.exp.springRope = false;
+                if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(false);
+            }
             if (typeof VantageSandbox !== 'undefined') {
                 try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhys) {}
             }
@@ -2326,6 +2432,7 @@
             state.exp.warmupMaxNodes = 500;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
+            if (state.exp.rustPhysics) state.exp.springRope = false;
             if (typeof VantageTree !== 'undefined') {
                 VantageTree.setGrowLayersPerTick(state.exp.growLayers);
                 VantageTree.setNodeCapEnabled(state.exp.nodeCap);
@@ -2378,7 +2485,7 @@
         }
         // —— v89 回退帧数：真死回退最多向上多少帧（10~200）——
         if (act === 'exp-retreatFrames') {
-            state.exp.retreatFrames = Math.max(10, Math.min(200, parseInt(srcEl.value, 10) || 200));
+            state.exp.retreatFrames = Math.max(10, Math.min(600, parseInt(srcEl.value, 10) || 200));
             if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
             if (_expCtrl.retreatFramesSpan) _expCtrl.retreatFramesSpan.textContent = String(state.exp.retreatFrames) + '帧';
             updatePanel();
@@ -2592,10 +2699,11 @@
     function updatePanelInner() {
         var el = ensurePanel();
         if (!state.panelOn) { el.style.display = 'none'; return; }
-        el.style.display = 'block';
+        el.style.display = 'flex';
         syncButtonLabels();
         syncAiControl();
         syncExpControls();
+        syncExpVisibility();
         if (!_panelBody) return;
 
         var html = [];
@@ -2641,6 +2749,23 @@
             }
         }
         if (_aiCtrl.nowSpan && _aiCtrl.nowSpan.textContent !== txt) _aiCtrl.nowSpan.textContent = txt;
+        syncExpVisibility();
+    }
+
+    /** v90：按当前 AI 模式 / Rust 模式显示对应的实验参数，避免无关项挤在一起。
+     *  树模式：显示生长、回退、选路；非树模式隐藏并给一行提示。
+     *  Rust物理：Rust 路径不支持弹簧绳，直接隐藏弹簧绳并显示提示。 */
+    function syncExpVisibility() {
+        if (!_expCtrl) return;
+        var treeMode = !!(state.aiControl && state.aiControl.tree);
+        var treeRows = [_expCtrl.treeRow, _expCtrl.retreatRow, _expCtrl.routeRow];
+        for (var i = 0; i < treeRows.length; i++) {
+            if (treeRows[i]) treeRows[i].style.display = treeMode ? 'flex' : 'none';
+        }
+        if (_expCtrl.treeHint) _expCtrl.treeHint.style.display = treeMode ? 'none' : 'block';
+        var rustOn = !!state.exp.rustPhysics;
+        if (_expCtrl.springItem) _expCtrl.springItem.style.display = rustOn ? 'none' : 'inline-flex';
+        if (_expCtrl.rustNote) _expCtrl.rustNote.style.display = rustOn ? 'inline-flex' : 'none';
     }
 
     /** v7.4→v7.6 同步持久实验模式控件（只改属性，不重建 DOM） */
@@ -2724,8 +2849,26 @@
     }
 
     /** v7.7 面板：主页六项（帧率/用时/基准/操作+分/树节点/视界）+ 全折叠区 */
+    /** v90：面板内嵌的新人速查。完整版在 docs/Vantage躲弹实现/面板使用指南-新人版.md */
+    function panelGuideHtml() {
+        var h = [];
+        h.push('<div style="line-height:1.7">');
+        h.push('<b style="color:#f5c2e7">按键</b> B 面板 / P 暂停 / T 树图 / V 标注 / E 导出<br>');
+        h.push('<b style="color:#89b4fa">模式</b> AI 操控选“自动”=9 操作最高分；选“树”=预测树。只有树模式才显示生长/回退/选路。<br>');
+        h.push('<b style="color:#89dceb">评分类</b> 固定帧模拟 + 帧数、车道压分、弹簧绳、死亡不扣分。<br>');
+        h.push('<b style="color:#89b4fa">Rust类</b> Rust物理默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳会隐藏并关闭。<br>');
+        h.push('<b style="color:#89dceb">生长类</b> 无弹生长、层/帧、节点上限、预热上限、节点限、视界限、超限细化、持续细化。<br>');
+        h.push('<b style="color:#cba6f7">回退类</b> 回退节点 1~32、回退帧 10~600；谁先到就从哪里找替代路线。<br>');
+        h.push('<b style="color:#a6e3a1">树图</b> 默认贴面板左侧；标题栏可拖，双击标题栏回到默认位置，滚轮缩放，点节点看详情。<br>');
+        h.push('<b style="color:#fab387">最稳起手</b> Rust物理开、层/帧1、节点上限500、预热上限500、回退节点3、回退帧200、持续细化关。');
+        h.push('</div>');
+        return h.join('');
+    }
+
     function renderBody() {
         var html = [];
+        // 新人速查放在最上面；即使还没进入对局也能打开看
+        html.push(foldRow('guide', '📖 新人上手指南（点开）', panelGuideHtml()));
         var paused = state.paused;
         var src = paused ? state.lastSnapshot : state.live;
         var aiDead = false;
@@ -2754,6 +2897,7 @@
         if (aiDead) stTag = '<span style="color:#f38ba8">☠ 阵亡</span>';
         else if (paused) stTag = '<span style="color:#f38ba8">⏸ 帧' + state.frameCount + '</span>';
         else stTag = '<span style="color:#a6e3a1">▶</span>';
+        html.push('<div style="margin:2px 0 1px;color:#6c7086">── 运行 / 性能 ──</div>');
         html.push('<div style="padding:1px 0">' + stTag +
             ' <b style="font-size:14px;color:' + colFps(state.fps) + '">' + (state.fps > 0 ? Math.round(state.fps) : '-') + ' FPS</b>' +
             ' ' + expBadge + '</div>');
@@ -2762,10 +2906,12 @@
             fmt(state.perfLightMs, 1) + 'ms</b> | 9op <b style="color:' + colMs(state.perfNineMs) + '">' +
             fmt(state.perfNineMs, 1) + 'ms</b> ×' + state.perfNineCount + '</div>');
         // —— 主页 ③ 基准 + 段长 ——
+        html.push('<div style="margin:2px 0 1px;color:#6c7086">── 计分 / 基准 ──</div>');
         html.push('<div style="padding:1px 0">基准 <b style="color:#f9e2af">' + bt.baseTimeFrames + '帧</b>' +
             '<span style="color:#6c7086">(' + fmt(bt.baseTimeSec) + 's)</span>' +
             (seg ? ' | 段 <b style="color:#cba6f7">' + seg.segmentFrames + '帧</b>' : '') + '</div>');
         // —— 主页 ④ 操作 + 分数 ——
+        html.push('<div style="margin:2px 0 1px;color:#6c7086">── 当前决策 ──</div>');
         var bestHtml;
         if (tr && tr.commitNode) {
             bestHtml = '<b style="color:#94e2d5">树·' + tr.commitNode.opName + '</b>';
@@ -2777,6 +2923,7 @@
         }
         html.push('<div style="padding:1px 0;font-size:12px">执行 ' + bestHtml + '</div>');
         // —— 主页 ⑤ 树节点 + ⑥ 视界 ——
+        html.push('<div style="margin:2px 0 1px;color:#6c7086">── 树 / 节点 ──</div>');
         if (tr) {
             var capTxt = (tr.cfg && tr.cfg.nodeCapEnabled === false)
                 ? (' | 预热≤' + ((tr.cfg.warmupMaxNodes) || 500))
@@ -3079,6 +3226,7 @@
             state.panelOn = !state.panelOn;
             if (state.panelOn) { _perfDead = false; state.errRun = null; }   // 重开面板重试
             try { updatePanel(); } catch (eB) { console.error('[Testbench] 面板刷新异常:', eB); }
+            if (_tv && state.treeViewOn && !_tv.userMoved) placeTreeView();
             return;
         }
         if (k === 'v' || k === 'V') { e.preventDefault(); state.vizOn = !state.vizOn; renderViz(); syncButtonLabels(); return; }
@@ -3185,6 +3333,14 @@
             console.warn('[Testbench] VantageRustBridge init failed:', e);
         });
     }
+
+    // v90：窗口尺寸变化时，未手动移动过树图就重新贴到面板左侧/屏幕右侧；
+    // 手动移动过则只保证标题栏还在视口内。
+    window.addEventListener('resize', function() {
+        if (!_tv) return;
+        if (_tv.userMoved) clampTreeView();
+        else placeTreeView();
+    });
 
     console.log('[Testbench] Vantage 调试工作台 ' + TB_VERSION +
         ' 已加载：B 开面板（运行中=性能测试）P 暂停后自动 9 操作');

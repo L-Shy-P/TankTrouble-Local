@@ -1,11 +1,13 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v90（回退帧上限 600 + 面板交互整理）：
+ *   回退帧范围从 10~200 扩到 10~600，默认仍为 200。
  * 2026-09-07 v89（无弹预热上限 + 回退量双单位）：
  *   ① 新增 warmupMaxNodes（默认 500）：无子弹预热阶段独立节点上限，
  *      即使关闭“节点限”或开启“超限细化”也不能无限预热；有子弹后解除；
  *   ② 真死回退量拆成两个单位：retreatNodes（1~32，默认 3）与
- *      retreatFrames（10~200，默认 200）；每向上爬一层同时累计段长，
+ *      retreatFrames（10~600，默认 200）；每向上爬一层同时累计段长，
  *      先碰到哪个上限就从哪里开始找替代路线；
  *   ③ 旧 setRetreatDepth/retreatDepth 保留为 retreatNodes 的兼容别名。
  *
@@ -378,7 +380,7 @@
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
-    var _retreatFrames = 200;                // v89：真死回退最多向上多少帧（10~200）
+    var _retreatFrames = 200;                // v90：真死回退最多向上多少帧（10~600）
     var _warmupMaxNodes = 500;               // v89：无子弹预热阶段的节点上限
     var _retreatDepth = 3;                   // v88 旧接口别名：等价于 retreatNodes
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
@@ -399,7 +401,7 @@
         refineBeyondLimits: false,        // v85：达到上限后继续细化长操作
         continuousRefine: false,          // v88：持续细化（不依赖无叶触发）
         retreatNodes: 3,                  // v89：真死回退最多向上多少节点（1~32）
-        retreatFrames: 200,               // v89：真死回退最多向上多少帧（10~200）
+        retreatFrames: 200,               // v90：真死回退最多向上多少帧（10~600）
         warmupMaxNodes: 500,              // v89：无子弹预热阶段节点上限（100~3000）
         retreatDepth: 3,                  // v88 旧接口兼容；新代码优先读 retreatNodes
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
@@ -3275,7 +3277,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var nodeLimit = Math.max(1, Math.min(32,
             Math.floor((tree.cfg && (tree.cfg.retreatNodes != null
                 ? tree.cfg.retreatNodes : tree.cfg.retreatDepth)) || 3)));
-        var frameLimit = Math.max(10, Math.min(200,
+        var frameLimit = Math.max(10, Math.min(600,
             Math.floor((tree.cfg && tree.cfg.retreatFrames) || 200)));
         var i;
         while (A && A !== tree.root && A.parent && depth < nodeLimit) {
@@ -4818,11 +4820,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _retreatNodes;
     }
 
-    /** v89：真死回退最多向上多少帧（10~200）。 */
+    /** v90：真死回退最多向上多少帧（10~600）。 */
     function setRetreatFrames(v) {
         var n = Math.round(Number(v));
         if (!isFinite(n)) n = 200;
-        _retreatFrames = Math.max(10, Math.min(200, n));
+        _retreatFrames = Math.max(10, Math.min(600, n));
         if (_tree && _tree.cfg) _tree.cfg.retreatFrames = _retreatFrames;
         return _retreatFrames;
     }
@@ -4943,5 +4945,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v89：无弹预热上限 + 回退双单位(节点/帧) + v88持续细化 + v86节点上限穿透 + 软死续树 + 真死回退改道 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v90：回退帧上限600 + 无弹预热上限 + v88持续细化 + 节点上限穿透 + 软死续树 + 真死回退改道 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

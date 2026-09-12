@@ -61,6 +61,16 @@ game_core/js/vantage_testbench.js Debug/test workbench
 
 The debug workbench can pause the game, step frame-by-frame, inspect the prediction tree, and export diagnostics.
 
+## Using the Vantage panel
+
+New to Vantage? Read the beginner-friendly panel guide:
+
+```text
+docs/Vantage躲弹实现/面板使用指南-新人版.md
+```
+
+It explains every button, the difference between the automatic mode and the tree mode, what each experiment category means, how to move/reset the tree view, and a safe recommended starting configuration. The panel also contains a collapsible “新人上手指南” section with the same quick reference.
+
 ## License
 
 The repository code is under the MIT license in `LICENSE`.

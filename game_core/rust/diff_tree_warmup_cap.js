@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// v89 regression: no-bullet warmup must stop at warmupMaxNodes even when the
+// v90 regression: no-bullet warmup must stop at warmupMaxNodes even when the
 // normal node cap is off, and the limit must lift as soon as bullets exist.
 'use strict';
 const fs=require('fs'),path=require('path'),vm=require('vm');

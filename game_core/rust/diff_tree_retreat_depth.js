@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// v89 regression: retreat amount has two independent units (nodes and frames).
+// v90 regression: retreat amount has two independent units (nodes and frames).
 // Node limit picks how many ancestors to climb; frame limit stops earlier when
 // the undone segments already add up to the frame budget.
 'use strict';
@@ -77,19 +77,19 @@ function build(nodeLimit,frameLimit){
     if(c.tree.root.next===c.B) throw new Error('frames=10: should not jump to global B');
 }
 
-// D. frame limit 200: budget is not reached, node limit also large → root/B.
+// D. frame limit 600: budget is not reached, node limit also large → root/B.
 {
-    const c=build(32,200);
+    const c=build(32,600);
     const rt=VT.applyRetreatAfterExpand(c.tree,c.D,{});
-    if(rt===null) throw new Error('frames=200: retreat target not found');
-    if(c.tree.root.next!==c.B) throw new Error('frames=200: root.next should point to global B');
+    if(rt===null) throw new Error('frames=600: retreat target not found');
+    if(c.tree.root.next!==c.B) throw new Error('frames=600: root.next should point to global B');
 }
 
 // setters clamp to the documented ranges; old setRetreatDepth stays an alias.
 if(VT.setRetreatNodes(0)!==1) throw new Error('retreatNodes low clamp should be 1');
 if(VT.setRetreatNodes(99)!==32) throw new Error('retreatNodes high clamp should be 32');
 if(VT.setRetreatFrames(5)!==10) throw new Error('retreatFrames low clamp should be 10');
-if(VT.setRetreatFrames(999)!==200) throw new Error('retreatFrames high clamp should be 200');
+if(VT.setRetreatFrames(999)!==600) throw new Error('retreatFrames high clamp should be 600');
 if(VT.setRetreatDepth(5)!==5) throw new Error('setRetreatDepth alias should map to nodes');
 VT.setRetreatNodes(3);VT.setRetreatFrames(200);VT.setRetreatDepth(3);
-console.log('diff_tree_retreat_depth PASS (nodes=1 local C, nodes=3 global B, frames=10 local C, frames=200 global B, clamp ok)');
+console.log('diff_tree_retreat_depth PASS (nodes=1 local C, nodes=3 global B, frames=10 local C, frames=600 global B, clamp 1..32 / 10..600)');
