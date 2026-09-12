@@ -1,8 +1,10 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v79：
+ *   面板/树图仍然支持任意空白处拖动，但鼠标始终使用默认样式。
  * 2026-09-07 v78：
- *   默认使用重置配置；面板/树图空白处可拖动并显示拖动光标；树图文字优化。
+ *   默认使用重置配置；面板/树图空白处可拖动；树图文字优化。
  * 2026-09-07 v77（配合树 v91 / 沙箱 v34）：
  *   分类标题居中并加灰色分割线；“推荐预设”改为“重置配置”；
  *   面板可任意空白处拖动；压缩运行/树区冗余文字。
@@ -80,7 +82,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v78';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v79';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -1253,7 +1255,7 @@
             'background:rgba(20,22,34,0.94);border:1px solid #6c7086;border-radius:6px;' +
             'color:#cdd6f4;font:11px/1.5 Consolas,monospace;pointer-events:auto;display:none';
         var head = document.createElement('div');
-        head.style.cssText = 'padding:4px 8px;border-bottom:1px solid #45475a;cursor:move;user-select:none';
+        head.style.cssText = 'padding:4px 8px;border-bottom:1px solid #45475a;cursor:default;user-select:none';
         head.innerHTML = '<b style="color:#94e2d5">预测树</b> ' +
             '<label style="cursor:pointer;color:#89b4fa"><input type="checkbox" data-tv="follow" checked> 跟随</label>' +
             '<span style="color:#6c7086"> 拖空白=移动窗口 · 画布拖=平移 · 滚轮=缩放 · 点节点=详情</span>' +
@@ -1351,10 +1353,7 @@
             });
             document.addEventListener('mouseup', function() { hd = null; });
         })();
-        el.addEventListener('mousemove', function(e) {
-            el.style.cursor = isTreeViewInteractive(e.target) ? 'default' : 'move';
-        });
-        el.addEventListener('mouseleave', function() { el.style.cursor = 'default'; });
+        // v79：拖动功能保留，但树图各处保持默认光标，不再显示移动图标。
 
         // 滚轮缩放（光标时间锚定；缩放不再取消跟随，只保留用户缩放倍率）
         canvas.addEventListener('wheel', function(e) {
@@ -2056,7 +2055,7 @@
         // —— 标题栏（持久，可拖动）——
         var head = document.createElement('div');
         head.id = 'vt-bench-head';
-        head.style.cssText = 'flex:0 0 auto;cursor:move;user-select:none;padding:6px 10px;border-bottom:1px solid #45475a;background:rgba(30,32,48,0.95);border-radius:6px 6px 0 0';
+        head.style.cssText = 'flex:0 0 auto;cursor:default;user-select:none;padding:6px 10px;border-bottom:1px solid #45475a;background:rgba(30,32,48,0.95);border-radius:6px 6px 0 0';
         head.innerHTML = '<b style="color:#f5c2e7">Vantage 调试工作台</b>' +
             '<span id="vt-status" style="float:right;color:#a6e3a1">运行中</span>';
         el.appendChild(head);
@@ -2406,11 +2405,7 @@
             _drag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
             e.preventDefault();
         });
-        // v77：空白区域显示“可拖动”光标；控件区域恢复默认光标。
-        el.addEventListener('mousemove', function(e) {
-            el.style.cursor = isPanelInteractive(e.target) ? 'default' : 'move';
-        });
-        el.addEventListener('mouseleave', function() { el.style.cursor = 'default'; });
+        // v79：拖动功能保留，但不再改变鼠标样式；面板各处保持默认光标。
         document.addEventListener('mousemove', function(e) {
             if (!_drag) return;
             // v90：面板不再限制在屏幕内，允许拖出视口。
