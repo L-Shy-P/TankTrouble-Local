@@ -1,6 +1,14 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v89（无弹预热上限 + 回退量双单位）：
+ *   ① 新增 warmupMaxNodes（默认 500）：无子弹预热阶段独立节点上限，
+ *      即使关闭“节点限”或开启“超限细化”也不能无限预热；有子弹后解除；
+ *   ② 真死回退量拆成两个单位：retreatNodes（1~32，默认 3）与
+ *      retreatFrames（10~200，默认 200）；每向上爬一层同时累计段长，
+ *      先碰到哪个上限就从哪里开始找替代路线；
+ *   ③ 旧 setRetreatDepth/retreatDepth 保留为 retreatNodes 的兼容别名。
+ *
  * 2026-09-07 v88（持续细化独立开关 + 回退深度可调）：
  *   ① TREE_DEFAULTS.continuousRefine=false；开启后不依赖“无普通叶”触发，
  *      每 tick 在正常生长之外追加一次“拆长操作→展开前缀”，可与节点限/
@@ -369,7 +377,10 @@
     var _horizonCapEnabled = true;           // v85：时间视界上限开关
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
-    var _retreatDepth = 3;                   // v88：真死回退向上搜索层数
+    var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
+    var _retreatFrames = 200;                // v89：真死回退最多向上多少帧（10~200）
+    var _warmupMaxNodes = 500;               // v89：无子弹预热阶段的节点上限
+    var _retreatDepth = 3;                   // v88 旧接口别名：等价于 retreatNodes
     var MAX_RESERVE_ANCHOR_DELTA = 1.0;  // v47：reserve 跨时间锚复用的最大锚差（秒）
 
     /** 树参数（03 九节，待实测标定） */
@@ -387,7 +398,10 @@
         horizonCapEnabled: true,          // v85：时间视界是否生效
         refineBeyondLimits: false,        // v85：达到上限后继续细化长操作
         continuousRefine: false,          // v88：持续细化（不依赖无叶触发）
-        retreatDepth: 3,                  // v88：真死回退向上搜索层数
+        retreatNodes: 3,                  // v89：真死回退最多向上多少节点（1~32）
+        retreatFrames: 200,               // v89：真死回退最多向上多少帧（10~200）
+        warmupMaxNodes: 500,              // v89：无子弹预热阶段节点上限（100~3000）
+        retreatDepth: 3,                  // v88 旧接口兼容；新代码优先读 retreatNodes
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
@@ -751,7 +765,10 @@
         tree.cfg.horizonCapEnabled = _horizonCapEnabled;   // v85
         tree.cfg.refineBeyondLimits = _refineBeyondLimits; // v85
         tree.cfg.continuousRefine = _continuousRefine;     // v88
-        tree.cfg.retreatDepth = _retreatDepth;             // v88
+        tree.cfg.retreatNodes = _retreatNodes;             // v89
+        tree.cfg.retreatFrames = _retreatFrames;           // v89
+        tree.cfg.warmupMaxNodes = _warmupMaxNodes;         // v89
+        tree.cfg.retreatDepth = _retreatNodes;             // v88 旧字段保持可读
         tree.cfg.growWithoutThreats = _growWithoutThreatsEnabled; // v77：无弹生长
         tree.root = createTreeNode(null, null, rootState);
         tree.root.status = 'alive';
@@ -2362,10 +2379,24 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return false;
     }
 
+    /** v89：无子弹预热阶段是否已经到上限。
+     *  这是独立于“节点限”开关的硬上限：即使关了节点上限，
+     *  没有子弹时也不能无限预热；有子弹后该上限自动解除。 */
+    function warmupCapReached(tree, count) {
+        if (!tree || !tree.cfg) return false;
+        if (tree.cfg.growWithoutThreats !== true) return false;
+        if (tree.threats && tree.threats.length) return false;
+        var cap = Math.max(100, Math.min(3000,
+            Math.floor(tree.cfg.warmupMaxNodes || 500)));
+        return tree.nodeCount + (count || 0) > cap;
+    }
+
     /** v86：统一的节点数上限判断。
-     *  关闭节点上限或开启超限细化时，允许继续加节点。 */
+     *  v89：无弹预热上限优先于“节点限关闭/超限细化”，防止无限预热。
+     *  有子弹时，关闭节点上限或开启超限细化仍允许继续加节点。 */
     function canAddTreeNodes(tree, count) {
         if (!tree || !tree.cfg) return false;
+        if (warmupCapReached(tree, count)) return false;
         if (tree.cfg.nodeCapEnabled === false) return true;
         if (tree.cfg.refineBeyondLimits === true) return true;
         return tree.nodeCount + count <= tree.cfg.maxNodes;
@@ -3237,10 +3268,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!tree || !deadNode) return null;
         var A = deadNode;
         var depth = 0;
-        var maxUp = Math.max(1, Math.min(8, (tree.cfg && tree.cfg.retreatDepth) || 3));
+        var framesBack = 0;
+        // v89：回退量同时受“节点数”和“帧数”两个单位限制：
+        //   每向上爬一层，累计这一层要撤销的段长；
+        //   先碰到节点上限或帧上限就先停，再从这里向上找替代路线。
+        var nodeLimit = Math.max(1, Math.min(32,
+            Math.floor((tree.cfg && (tree.cfg.retreatNodes != null
+                ? tree.cfg.retreatNodes : tree.cfg.retreatDepth)) || 3)));
+        var frameLimit = Math.max(10, Math.min(200,
+            Math.floor((tree.cfg && tree.cfg.retreatFrames) || 200)));
         var i;
-        for (i = 0; i < maxUp; i++) {
-            if (!A.parent || A === tree.root) { A = tree.root; break; }
+        while (A && A !== tree.root && A.parent && depth < nodeLimit) {
+            if (depth > 0 && framesBack >= frameLimit) break;
+            framesBack += Math.max(1, A.segmentFrames || A.plannedFrames || 0);
             A = A.parent;
             depth++;
         }
@@ -3257,7 +3297,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     bestLeaf = info.leaf; bestAvg = info.avg; bestTime = time; bestId = info.leaf.id;
                 }
             }
-            if (bestLeaf) return { leaf: bestLeaf, depth: depth, ancestor: A };
+            if (bestLeaf) return { leaf: bestLeaf, depth: depth, ancestor: A, framesBack: framesBack };
             if (A === tree.root) return null;
             A = A.parent;
             depth++;
@@ -3314,7 +3354,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 }
             }
             recordStructure(tree, 'retreat-depth',
-                'depth=' + rt.depth + ' target=' + (rt.leaf.id || '?'));
+                'nodes=' + rt.depth + ' frames=' + (rt.framesBack || 0) +
+                ' target=' + (rt.leaf.id || '?'));
         }
 
         // 当前执行节点已经真死（下一层全 1 帧死），不能等自然段末；
@@ -3411,7 +3452,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         ensureNonNegativeNodeCount(tree);
         if (!canAddTreeNodes(tree, 9)) {
-            recordGrowStall(tree, 'grow-maxnodes', 'nodeCount=' + tree.nodeCount);
+            if (warmupCapReached(tree, 9)) {
+                recordGrowStall(tree, 'grow-warmup-cap',
+                    'nodeCount=' + tree.nodeCount +
+                    ' warmupCap=' + (tree.cfg.warmupMaxNodes || 500));
+            } else {
+                recordGrowStall(tree, 'grow-maxnodes', 'nodeCount=' + tree.nodeCount);
+            }
             return;
         }
         if (tree._growSkip) {
@@ -4758,13 +4805,40 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _continuousRefine;
     }
 
-    /** v88：真死回退向上搜索层数（1~8）。 */
-    function setRetreatDepth(v) {
+    /** v89：真死回退最多向上多少节点（1~32）。 */
+    function setRetreatNodes(v) {
         var n = Math.round(Number(v));
         if (!isFinite(n)) n = 3;
-        _retreatDepth = Math.max(1, Math.min(8, n));
-        if (_tree && _tree.cfg) _tree.cfg.retreatDepth = _retreatDepth;
-        return _retreatDepth;
+        _retreatNodes = Math.max(1, Math.min(32, n));
+        _retreatDepth = _retreatNodes;   // 旧别名同步
+        if (_tree && _tree.cfg) {
+            _tree.cfg.retreatNodes = _retreatNodes;
+            _tree.cfg.retreatDepth = _retreatNodes;
+        }
+        return _retreatNodes;
+    }
+
+    /** v89：真死回退最多向上多少帧（10~200）。 */
+    function setRetreatFrames(v) {
+        var n = Math.round(Number(v));
+        if (!isFinite(n)) n = 200;
+        _retreatFrames = Math.max(10, Math.min(200, n));
+        if (_tree && _tree.cfg) _tree.cfg.retreatFrames = _retreatFrames;
+        return _retreatFrames;
+    }
+
+    /** v89：无子弹预热阶段的节点上限（100~3000）。 */
+    function setWarmupMaxNodes(v) {
+        var n = Math.round(Number(v));
+        if (!isFinite(n)) n = 500;
+        _warmupMaxNodes = Math.max(100, Math.min(3000, n));
+        if (_tree && _tree.cfg) _tree.cfg.warmupMaxNodes = _warmupMaxNodes;
+        return _warmupMaxNodes;
+    }
+
+    /** v88 旧接口：真死回退向上搜索层数，等价于 setRetreatNodes。 */
+    function setRetreatDepth(v) {
+        return setRetreatNodes(v);
     }
 
     /** v85：达到上限后继续细化长操作。 */
@@ -4837,6 +4911,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setHorizonCapEnabled: setHorizonCapEnabled,
         setRefineBeyondLimits: setRefineBeyondLimits,
         setContinuousRefine: setContinuousRefine,
+        setRetreatNodes: setRetreatNodes,
+        setRetreatFrames: setRetreatFrames,
+        setWarmupMaxNodes: setWarmupMaxNodes,
+        warmupCapReached: warmupCapReached,
         setRetreatDepth: setRetreatDepth,
         reactivateMatchingReserves: reactivateMatchingReserves,
         invalidateStaleNodes: invalidateStaleNodes,
@@ -4865,5 +4943,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v88：持续细化独立开关 + 回退深度可调 + v87细化次数统计 + v86节点上限穿透 + 软死续树 + 真死回退改道 + 深层选路实验 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v89：无弹预热上限 + 回退双单位(节点/帧) + v88持续细化 + v86节点上限穿透 + 软死续树 + 真死回退改道 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

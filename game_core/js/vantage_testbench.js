@@ -1,6 +1,9 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v73（配合树 v89 / 沙箱 v34）：
+ *   Rust 物理默认开启；实验区新增“预热上限”、“回退节点”、“回退帧”；
+ *   回退滑块改为 input 实时落值，避免拖动时被面板刷新弹回。
  * 2026-08-23 v48（配合树 v52：节点详情显示 rolloutTotal；新事件标签）：
  *   tree 选路已改 75 帧全累积总分，工作台同步显示 n.rolloutTotal；
  *   树事件增加 global-reroute / next-retarget / next-pruned-retarget 标签。
@@ -67,7 +70,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v72';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v73';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -116,7 +119,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: false, growWithoutThreats: false, growLayers: 1, maxNodes: 500, nodeCap: true, horizonCap: true, refineBeyond: false, continuousRefine: false, retreatDepth: 3, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: false, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: true, horizonCap: true, refineBeyond: false, continuousRefine: false, retreatNodes: 3, retreatFrames: 200, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2046,11 +2049,13 @@
             '<label style="cursor:pointer;color:#a6e3a1;margin-left:8px"><input type="checkbox" data-act="exp-growWithoutThreats"> 无弹生长</label> ' +
             '<span style="color:#89b4fa;margin-left:8px">层/帧 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers" style="color:#f9e2af">1层</span></span>' +
             '<span style="color:#89dceb;margin-left:8px">节点上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes" style="color:#f9e2af">500</span></span>' +
+            '<span style="color:#a6e3a1;margin-left:8px">预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes" style="color:#f9e2af">500</span></span>' +
             '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-nodeCap"> 节点限</label>' +
             '<label style="cursor:pointer;color:#89dceb;margin-left:8px"><input type="checkbox" data-act="exp-horizonCap"> 视界限</label>' +
             '<label style="cursor:pointer;color:#f5c2e7;margin-left:8px"><input type="checkbox" data-act="exp-refineBeyond"> 超限细化</label>' +
             '<label style="cursor:pointer;color:#cba6f7;margin-left:8px"><input type="checkbox" data-act="exp-continuousRefine"> 持续细化</label>' +
-            '<span style="color:#cba6f7;margin-left:8px">回退层 <input type="range" data-act="exp-retreatDepth" min="1" max="8" step="1" value="3" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-retreatDepth" style="color:#f9e2af">3层</span></span>' +
+            '<span style="color:#cba6f7;margin-left:8px">回退节点 <input type="range" data-act="exp-retreatNodes" min="1" max="32" step="1" value="3" style="width:66px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-retreatNodes" style="color:#f9e2af">3点</span></span>' +
+            '<span style="color:#cba6f7;margin-left:8px">回退帧 <input type="range" data-act="exp-retreatFrames" min="10" max="200" step="10" value="200" style="width:86px;vertical-align:middle;cursor:pointer;background:#313244"> <span id="vt-exp-retreatFrames" style="color:#f9e2af">200帧</span></span>' +
             '<button data-act="exp-presetStrong" style="margin-left:8px;cursor:pointer;background:#45475a;color:#f5c2e7;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">超强预设</button>' +
             '<label style="cursor:pointer;color:#fab387;margin-left:8px"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分(停算)</label>';
         el.appendChild(expRow);
@@ -2067,12 +2072,16 @@
             growLayersSpan: expRow.querySelector('span[id="vt-exp-growLayers"]'),
             maxNodes: expRow.querySelector('[data-act="exp-maxNodes"]'),
             maxNodesSpan: expRow.querySelector('span[id="vt-exp-maxNodes"]'),
+            warmupMaxNodes: expRow.querySelector('[data-act="exp-warmupMaxNodes"]'),
+            warmupMaxNodesSpan: expRow.querySelector('span[id="vt-exp-warmupMaxNodes"]'),
             nodeCap: expRow.querySelector('[data-act="exp-nodeCap"]'),
             horizonCap: expRow.querySelector('[data-act="exp-horizonCap"]'),
             refineBeyond: expRow.querySelector('[data-act="exp-refineBeyond"]'),
             continuousRefine: expRow.querySelector('[data-act="exp-continuousRefine"]'),
-            retreatDepth: expRow.querySelector('[data-act="exp-retreatDepth"]'),
-            retreatDepthSpan: expRow.querySelector('span[id="vt-exp-retreatDepth"]'),
+            retreatNodes: expRow.querySelector('[data-act="exp-retreatNodes"]'),
+            retreatNodesSpan: expRow.querySelector('span[id="vt-exp-retreatNodes"]'),
+            retreatFrames: expRow.querySelector('[data-act="exp-retreatFrames"]'),
+            retreatFramesSpan: expRow.querySelector('span[id="vt-exp-retreatFrames"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]')
         };
@@ -2098,6 +2107,32 @@
                 state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.maxNodes.value, 10) || 500));
                 if (_expCtrl.maxNodesSpan) {
                     _expCtrl.maxNodesSpan.textContent = String(state.exp.maxNodes);
+                }
+            });
+        }
+        // v89：预热上限 + 回退量两个滑块也走 input 实时落值，
+        // 否则拖动过程中 updatePanel 的 syncExpControls 会把滑块弹回旧值。
+        if (_expCtrl.warmupMaxNodes) {
+            _expCtrl.warmupMaxNodes.addEventListener('input', function() {
+                state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.warmupMaxNodes.value, 10) || 500));
+                if (_expCtrl.warmupMaxNodesSpan) {
+                    _expCtrl.warmupMaxNodesSpan.textContent = String(state.exp.warmupMaxNodes);
+                }
+            });
+        }
+        if (_expCtrl.retreatNodes) {
+            _expCtrl.retreatNodes.addEventListener('input', function() {
+                state.exp.retreatNodes = Math.max(1, Math.min(32, parseInt(_expCtrl.retreatNodes.value, 10) || 3));
+                if (_expCtrl.retreatNodesSpan) {
+                    _expCtrl.retreatNodesSpan.textContent = String(state.exp.retreatNodes) + '点';
+                }
+            });
+        }
+        if (_expCtrl.retreatFrames) {
+            _expCtrl.retreatFrames.addEventListener('input', function() {
+                state.exp.retreatFrames = Math.max(10, Math.min(200, parseInt(_expCtrl.retreatFrames.value, 10) || 200));
+                if (_expCtrl.retreatFramesSpan) {
+                    _expCtrl.retreatFramesSpan.textContent = String(state.exp.retreatFrames) + '帧';
                 }
             });
         }
@@ -2286,7 +2321,9 @@
             state.exp.horizonCap = true;
             state.exp.refineBeyond = true;
             state.exp.continuousRefine = false;
-            state.exp.retreatDepth = 3;
+            state.exp.retreatNodes = 3;
+            state.exp.retreatFrames = 200;
+            state.exp.warmupMaxNodes = 500;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
             if (typeof VantageTree !== 'undefined') {
@@ -2295,7 +2332,9 @@
                 VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
                 VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
                 VantageTree.setContinuousRefine(state.exp.continuousRefine);
-                VantageTree.setRetreatDepth(state.exp.retreatDepth);
+                VantageTree.setRetreatNodes(state.exp.retreatNodes);
+                VantageTree.setRetreatFrames(state.exp.retreatFrames);
+                VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
                 VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
             }
@@ -2329,11 +2368,27 @@
             updatePanel();
             return;
         }
-        // —— v88 回退深度：真死回退向上搜索层数（1~8）——
-        if (act === 'exp-retreatDepth') {
-            state.exp.retreatDepth = Math.max(1, Math.min(8, parseInt(srcEl.value, 10) || 3));
-            if (typeof VantageTree !== 'undefined') VantageTree.setRetreatDepth(state.exp.retreatDepth);
-            if (_expCtrl.retreatDepthSpan) _expCtrl.retreatDepthSpan.textContent = String(state.exp.retreatDepth) + '层';
+        // —— v89 回退节点数：真死回退最多向上多少节点（1~32）——
+        if (act === 'exp-retreatNodes') {
+            state.exp.retreatNodes = Math.max(1, Math.min(32, parseInt(srcEl.value, 10) || 3));
+            if (typeof VantageTree !== 'undefined') VantageTree.setRetreatNodes(state.exp.retreatNodes);
+            if (_expCtrl.retreatNodesSpan) _expCtrl.retreatNodesSpan.textContent = String(state.exp.retreatNodes) + '点';
+            updatePanel();
+            return;
+        }
+        // —— v89 回退帧数：真死回退最多向上多少帧（10~200）——
+        if (act === 'exp-retreatFrames') {
+            state.exp.retreatFrames = Math.max(10, Math.min(200, parseInt(srcEl.value, 10) || 200));
+            if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
+            if (_expCtrl.retreatFramesSpan) _expCtrl.retreatFramesSpan.textContent = String(state.exp.retreatFrames) + '帧';
+            updatePanel();
+            return;
+        }
+        // —— v89 无弹预热上限（100~3000）——
+        if (act === 'exp-warmupMaxNodes') {
+            state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 500));
+            if (typeof VantageTree !== 'undefined') VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
+            if (_expCtrl.warmupMaxNodesSpan) _expCtrl.warmupMaxNodesSpan.textContent = String(state.exp.warmupMaxNodes);
             updatePanel();
             return;
         }
@@ -2603,23 +2658,29 @@
         if (_expCtrl.growLayersSpan && _expCtrl.growLayersSpan.textContent !== state.exp.growLayers + '层') _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
         if (_expCtrl.maxNodes && parseInt(_expCtrl.maxNodes.value, 10) !== state.exp.maxNodes) _expCtrl.maxNodes.value = String(state.exp.maxNodes);
         if (_expCtrl.maxNodesSpan && _expCtrl.maxNodesSpan.textContent !== String(state.exp.maxNodes)) _expCtrl.maxNodesSpan.textContent = String(state.exp.maxNodes);
+        if (_expCtrl.warmupMaxNodes && parseInt(_expCtrl.warmupMaxNodes.value, 10) !== state.exp.warmupMaxNodes) _expCtrl.warmupMaxNodes.value = String(state.exp.warmupMaxNodes);
+        if (_expCtrl.warmupMaxNodesSpan && _expCtrl.warmupMaxNodesSpan.textContent !== String(state.exp.warmupMaxNodes)) _expCtrl.warmupMaxNodesSpan.textContent = String(state.exp.warmupMaxNodes);
         if (_expCtrl.nodeCap && _expCtrl.nodeCap.checked !== state.exp.nodeCap) _expCtrl.nodeCap.checked = state.exp.nodeCap;
         if (_expCtrl.horizonCap && _expCtrl.horizonCap.checked !== state.exp.horizonCap) _expCtrl.horizonCap.checked = state.exp.horizonCap;
         if (_expCtrl.refineBeyond && _expCtrl.refineBeyond.checked !== state.exp.refineBeyond) _expCtrl.refineBeyond.checked = state.exp.refineBeyond;
         if (_expCtrl.continuousRefine && _expCtrl.continuousRefine.checked !== state.exp.continuousRefine) _expCtrl.continuousRefine.checked = state.exp.continuousRefine;
-        if (_expCtrl.retreatDepth && parseInt(_expCtrl.retreatDepth.value, 10) !== state.exp.retreatDepth) _expCtrl.retreatDepth.value = String(state.exp.retreatDepth);
-        if (_expCtrl.retreatDepthSpan && _expCtrl.retreatDepthSpan.textContent !== state.exp.retreatDepth + '层') _expCtrl.retreatDepthSpan.textContent = state.exp.retreatDepth + '层';
+        if (_expCtrl.retreatNodes && parseInt(_expCtrl.retreatNodes.value, 10) !== state.exp.retreatNodes) _expCtrl.retreatNodes.value = String(state.exp.retreatNodes);
+        if (_expCtrl.retreatNodesSpan && _expCtrl.retreatNodesSpan.textContent !== state.exp.retreatNodes + '点') _expCtrl.retreatNodesSpan.textContent = state.exp.retreatNodes + '点';
+        if (_expCtrl.retreatFrames && parseInt(_expCtrl.retreatFrames.value, 10) !== state.exp.retreatFrames) _expCtrl.retreatFrames.value = String(state.exp.retreatFrames);
+        if (_expCtrl.retreatFramesSpan && _expCtrl.retreatFramesSpan.textContent !== state.exp.retreatFrames + '帧') _expCtrl.retreatFramesSpan.textContent = state.exp.retreatFrames + '帧';
         // v47/v49/v60：UI 与树配置保持一致；初始化/同步时都同步一次。
         if (typeof VantageTree !== 'undefined') VantageTree.setLaneEnabled(state.exp.lane);
         if (typeof VantageTree !== 'undefined') VantageTree.setSpringRopeEnabled(state.exp.springRope);
         if (typeof VantageTree !== 'undefined') VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
         if (typeof VantageTree !== 'undefined') VantageTree.setGrowLayersPerTick(state.exp.growLayers);
         if (typeof VantageTree !== 'undefined') VantageTree.setMaxNodes(state.exp.maxNodes);
+        if (typeof VantageTree !== 'undefined') VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
         if (typeof VantageTree !== 'undefined') VantageTree.setNodeCapEnabled(state.exp.nodeCap);
         if (typeof VantageTree !== 'undefined') VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
         if (typeof VantageTree !== 'undefined') VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
         if (typeof VantageTree !== 'undefined') VantageTree.setContinuousRefine(state.exp.continuousRefine);
-        if (typeof VantageTree !== 'undefined') VantageTree.setRetreatDepth(state.exp.retreatDepth);
+        if (typeof VantageTree !== 'undefined') VantageTree.setRetreatNodes(state.exp.retreatNodes);
+        if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
@@ -2717,8 +2778,11 @@
         html.push('<div style="padding:1px 0;font-size:12px">执行 ' + bestHtml + '</div>');
         // —— 主页 ⑤ 树节点 + ⑥ 视界 ——
         if (tr) {
+            var capTxt = (tr.cfg && tr.cfg.nodeCapEnabled === false)
+                ? (' | 预热≤' + ((tr.cfg.warmupMaxNodes) || 500))
+                : ('/' + ((tr.cfg && tr.cfg.maxNodes) || 500));
             html.push('<div style="padding:1px 0;color:#94e2d5">树 节点 <b>' + tr.nodeCount +
-                '/' + ((tr.cfg && tr.cfg.maxNodes) || 500) +
+                capTxt +
                 '</b> | 储备 <b>' + (tr.reserveCount || 0) +
                 '</b> | 视界 <b style="color:#94e2d5">' + fmt(tr.horizonSec, 2) + 's</b></div>');
             var ecfg = (tr && tr.cfg) ? tr.cfg : {};
@@ -2729,8 +2793,10 @@
                 ' 细化' + (ecfg.refineBeyondLimits ? '开' : '关') +
                 ' 持续' + (ecfg.continuousRefine ? '开' : '关') +
                 ' 无弹' + (ecfg.growWithoutThreats ? '开' : '关') +
+                ' 预热' + ((ecfg.warmupMaxNodes || 500)) +
                 ' 深层' + (ecfg.deepSelectEnabled ? '开' : '关') +
-                ' 回退' + ((ecfg.retreatDepth || 3) + '层') +
+                ' 回退' + ((ecfg.retreatNodes || ecfg.retreatDepth || 3) + '点/' +
+                    (ecfg.retreatFrames || 200) + '帧') +
                 ' | 细化次数 ' + (tr.stats.refineSplits || 0) + '</div>');
         } else {
             html.push('<div style="padding:1px 0;color:#585b70">树未开（AI操控下拉选「树」）</div>');
@@ -3105,7 +3171,9 @@
         try { VantageTree.setHorizonCapEnabled(state.exp.horizonCap); } catch (eHorizonCapInit) {}
         try { VantageTree.setRefineBeyondLimits(state.exp.refineBeyond); } catch (eRefineInit) {}
         try { VantageTree.setContinuousRefine(state.exp.continuousRefine); } catch (eContRefineInit) {}
-        try { VantageTree.setRetreatDepth(state.exp.retreatDepth); } catch (eRetreatDepthInit) {}
+        try { VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes); } catch (eWarmupInit) {}
+        try { VantageTree.setRetreatNodes(state.exp.retreatNodes); } catch (eRetreatNodesInit) {}
+        try { VantageTree.setRetreatFrames(state.exp.retreatFrames); } catch (eRetreatFramesInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。

@@ -686,3 +686,28 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
   `rust/diff_tree_retreat_depth.js`。
 - 边界：持续细化开启后计算量和节点增速明显上升，默认关闭；未改任何
   默认 AI 行为。
+
+## 三十八、第二十波 v89：Rust 物理默认开 + 预热上限 + 回退双单位
+- `VantageSandbox` 的 Rust 物理预测默认开启（`RUST_PHYSICS_ENABLED=true`），
+  bridge 未就绪或任何 Rust 路径失败仍回退 JS 融合世界；最终执行路线的
+  死亡确认仍留给 JS 融合世界。
+- 新增 `warmupMaxNodes`（默认 500，100~3000）：
+  - 只约束“无子弹 + 无弹生长开启”的预热阶段；
+  - 关节点限/开超限细化都不能突破它；
+  - 子弹出现后自动解除；
+  - 面板“预热上限”滑块，停滞原因显示 `grow-warmup-cap`。
+- 回退量升级为两个独立单位：
+  - `retreatNodes`（1~32，默认 3）：最多向上爬多少节点；
+  - `retreatFrames`（10~200，默认 200）：最多向上撤销多少帧段长；
+  - 每爬一层累计该层段长，先到哪个上限就从哪里开始找替代路线；
+    找不到仍继续向根，保留保命行为；
+  - 旧 `setRetreatDepth`/`retreatDepth` 作为 `retreatNodes` 兼容别名保留。
+- testbench v73：
+  - Rust 物理默认勾选；
+  - 新增“预热上限”“回退节点”“回退帧”三个滑块；
+  - 三个滑块全部监听 `input` 实时写回，修复拖动时被每帧面板同步弹回的问题；
+  - 超强预设重置为预热 500、回退节点 3、回退帧 200。
+- 新增/重写回归：`rust/diff_tree_warmup_cap.js`、
+  `rust/diff_tree_retreat_depth.js`。
+- 当前版本：tree v89、sandbox v34、testbench v73、scoring v32、bridge v10、
+  Rust ABI v6、index.html `?v=` 同步。

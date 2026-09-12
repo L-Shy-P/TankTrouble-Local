@@ -1,6 +1,9 @@
 /**
  * Vantage Sandbox — 物理沙箱适配器（阶段①）
  *
+ * 2026-09-07 v34（Rust 物理默认开）：
+ *   RUST_PHYSICS_ENABLED 默认 true；VantageRustBridge 未就绪或任何 Rust
+ *   路径失败时仍自动回退 JS 融合世界，死亡权威不变。
  * 2026-08-16 v17（path[0] 活引用修复 + 诊断锚点快照）：
  *   getProjectilePaths/bulletPath 返回前把 B2DUtils.calculatePath 的
  *   每个 path 点深拷贝为 {x,y}。原 path[0] 是 b2body.GetPosition() 的
@@ -580,9 +583,9 @@
     // 速度，子弹半径从真实 projectile fixture 读取。bullet-only 轨迹世界
     // 仍保留，只用于轨迹/威胁/车道查询。
     var FUSED_ENABLED = true;
-    // v28：Rust 融合 rollouts 为 opt-in 物理预测，默认关闭；JS 融合世界仍是
-    // 死亡权威与回退路径。Rust 只做预测，不在任何地方改判真实死亡。
-    var RUST_PHYSICS_ENABLED = false;
+    // v34：Rust 融合 rollouts 默认开启；JS 融合世界仍是死亡权威与回退路径。
+    // Rust 只做预测，不在任何地方改判真实死亡；桥未就绪时自动回退 JS。
+    var RUST_PHYSICS_ENABLED = true;
 
     function setFusedEnabled(v) {
         FUSED_ENABLED = !!v;
@@ -1963,6 +1966,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v33：vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认 + Rust 物理预测打标 rustPhysics）');
+    console.log('[Vantage Sandbox] 模块已加载（v34：Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
