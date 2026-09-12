@@ -1,6 +1,9 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v91（预测时长滑块 + 剪枝补偿）：
+ *   ① horizonSec 可在 1~15 秒调；② 新弹剪枝后可临时增加每帧生长层数，
+ *   由 pruneCompensateLayers（0~9）与 pruneCompensateFrames（1~60）控制。
  * 2026-09-07 v90（回退帧上限 600 + 面板交互整理）：
  *   回退帧范围从 10~200 扩到 10~600，默认仍为 200。
  * 2026-09-07 v89（无弹预热上限 + 回退量双单位）：
@@ -377,6 +380,9 @@
     var _maxNodes = 500;                     // v84：节点数上限，可由 testbench 滑块调整
     var _nodeCapEnabled = true;              // v85：节点数上限开关
     var _horizonCapEnabled = true;           // v85：时间视界上限开关
+    var _horizonSec = 8.0;                   // v91：预测时长上限（秒，1~15）
+    var _pruneCompensateLayers = 0;          // v91：新弹剪枝后每帧额外补偿层数（0~9）
+    var _pruneCompensateFrames = 1;          // v91：补偿持续帧数（1~60）
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -393,6 +399,8 @@
         tMin: 3,                          // 段长下限
         tMax: 30,                         // 段长上限
         horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
+        pruneCompensateLayers: 0,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
+        pruneCompensateFrames: 1,        // v91：补偿持续帧数（1~60）
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
         maxNodes: 500,                    // 节点数上限（v84 起可调，默认仍 500）
@@ -765,6 +773,9 @@
         tree.cfg.maxNodes = _maxNodes;                     // v84
         tree.cfg.nodeCapEnabled = _nodeCapEnabled;         // v85
         tree.cfg.horizonCapEnabled = _horizonCapEnabled;   // v85
+        tree.cfg.horizonSec = _horizonSec;                 // v91
+        tree.cfg.pruneCompensateLayers = _pruneCompensateLayers; // v91
+        tree.cfg.pruneCompensateFrames = _pruneCompensateFrames; // v91
         tree.cfg.refineBeyondLimits = _refineBeyondLimits; // v85
         tree.cfg.continuousRefine = _continuousRefine;     // v88
         tree.cfg.retreatNodes = _retreatNodes;             // v89
@@ -1183,6 +1194,32 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return a.t0 <= b.t1 && b.t0 <= a.t1 &&
             a.minX - margin <= b.maxX && b.minX - margin <= a.maxX &&
             a.minY - margin <= b.maxY && b.minY - margin <= a.maxY;
+    }
+
+    /** v91：记录新弹剪枝损失，并按配置给接下来几帧加生长补偿。
+     *  默认补偿层数=0、持续=1，等于不改变默认行为。 */
+    function notePruneLoss(tree, beforeCount, reason) {
+        if (!tree || !tree.cfg) return 0;
+        var lost = (beforeCount || 0) - (tree.nodeCount || 0);
+        if (lost <= 0) return 0;
+        var layers = Math.max(0, Math.min(9,
+            Math.floor(tree.cfg.pruneCompensateLayers || 0)));
+        if (layers <= 0) return lost;
+        var frames = Math.max(1, Math.min(60,
+            Math.floor(tree.cfg.pruneCompensateFrames || 1)));
+        tree._growBoost = {
+            layers: layers,
+            framesLeft: frames,
+            totalFrames: frames,
+            lost: lost,
+            reason: reason || ''
+        };
+        tree.stats.pruneCompensations = (tree.stats.pruneCompensations || 0) + 1;
+        tree.stats.pruneLostNodes = (tree.stats.pruneLostNodes || 0) + lost;
+        recordStructure(tree, 'grow-compensate',
+            'lost=' + lost + ' layers=' + layers + ' frames=' + frames +
+            (reason ? ' ' + reason : ''));
+        return lost;
     }
 
     /**
@@ -3500,6 +3537,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (fusedBatchReady(adapter)) {
             var layersPerTick = Math.max(1, Math.min(6,
                 Math.floor(tree.cfg.growLayersPerTick || 1)));
+            // v91：新弹剪枝后的临时生长补偿，叠加在正常层数上。
+            if (tree._growBoost && tree._growBoost.framesLeft > 0) {
+                var boostLayers = Math.max(0, Math.min(9, Math.floor(tree._growBoost.layers || 0)));
+                layersPerTick = Math.min(15, layersPerTick + boostLayers);
+                tree.stats.growBoostLayers = (tree.stats.growBoostLayers || 0) + boostLayers;
+                tree._growBoost.framesLeft--;
+                if (tree._growBoost.framesLeft <= 0) tree._growBoost = null;
+            }
             var t0 = performance.now();
             var grown = 0;
             while (grown < layersPerTick && canAddTreeNodes(tree, 9)) {
@@ -4427,10 +4472,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // 随后会用已追加新弹的 tree.threats 重开切片，避免新弹被旧切片
             // 忽略一层。
             tree._expandSlice = null;
+            var nodeCountBeforePrune = tree.nodeCount;
             attachNewThreats(tree, adapter, evalThreats);
             var commitHit = invalidateStaleNodes(tree, adapter);
             if (commitHit || !tree.commitNode) {
                 // 只有当前执行节点本身提前死亡（=受影响链就是整条活链）才根层重选。
+                notePruneLoss(tree, nodeCountBeforePrune, 'new-bullet-root-reselect');
                 pushEvent('fresh', commitHit ? 'newBulletCommitDead' : 'noCommitNode');
                 tree._lastFreshReason = commitHit ? 'newBulletCommitDead' : 'noCommitNode';
                 startCommitSlice(tree, adapter, evalThreats, tankState, { freshRoot: true });
@@ -4439,6 +4486,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
             // v68：恢复 v52 全树重选语义；但精确死亡来自融合世界。
             rerouteTreeForCurrentThreats(tree, adapter);
+            // v91：新弹导致的全树剪枝在这里结束后统一结算一次补偿。
+            notePruneLoss(tree, nodeCountBeforePrune, 'new-bullet-reroute');
             // v78：全树更新可能用 Rust 候选改写了当前执行节点；同 tick
             // 先由 JS 融合确认，再让后续 segmentEndDue 消费其结束时间。
             if (tree.commitNode && tree.commitNode.deathAuthority === 'rust-candidate') {
@@ -4469,8 +4518,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
         // 提交心跳：无 commitNode → 首次提交；段末 → 对齐检查 + 坍缩
         if (!tree.commitNode || segmentEndDue(tree, worldDt)) {
+            var nodeCountBeforeEndPrune = tree.nodeCount;
             if (tree._hasOffsetThreats) refreshCandidateScores(tree, adapter);
             var commitHit = invalidateStaleNodes(tree, adapter);
+            notePruneLoss(tree, nodeCountBeforeEndPrune, 'segment-end');
             var freshRoot = !tree.commitNode || !!tree.threatDirty || commitHit;   // 首次/弹消失/当前链提前死亡
             tree._lastFreshReason = !tree.commitNode ? 'initial'
                 : commitHit ? 'commitDead'
@@ -4800,6 +4851,34 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _horizonCapEnabled;
     }
 
+    /** v91：预测时长上限（秒，1~15）。 */
+    function setHorizonSec(v) {
+        var n = Number(v);
+        if (!isFinite(n)) n = 8.0;
+        n = Math.round(n * 10) / 10;
+        _horizonSec = Math.max(1.0, Math.min(15.0, n));
+        if (_tree && _tree.cfg) _tree.cfg.horizonSec = _horizonSec;
+        return _horizonSec;
+    }
+
+    /** v91：新弹剪枝后每帧额外补偿层数（0~9）。 */
+    function setPruneCompensateLayers(v) {
+        var n = Math.round(Number(v));
+        if (!isFinite(n)) n = 0;
+        _pruneCompensateLayers = Math.max(0, Math.min(9, n));
+        if (_tree && _tree.cfg) _tree.cfg.pruneCompensateLayers = _pruneCompensateLayers;
+        return _pruneCompensateLayers;
+    }
+
+    /** v91：剪枝补偿持续帧数（1~60）。 */
+    function setPruneCompensateFrames(v) {
+        var n = Math.round(Number(v));
+        if (!isFinite(n)) n = 1;
+        _pruneCompensateFrames = Math.max(1, Math.min(60, n));
+        if (_tree && _tree.cfg) _tree.cfg.pruneCompensateFrames = _pruneCompensateFrames;
+        return _pruneCompensateFrames;
+    }
+
     /** v88：持续细化开关；开启后每 tick 主动拆一次长操作。 */
     function setContinuousRefine(v) {
         _continuousRefine = !!v;
@@ -4911,6 +4990,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setMaxNodes: setMaxNodes,
         setNodeCapEnabled: setNodeCapEnabled,
         setHorizonCapEnabled: setHorizonCapEnabled,
+        setHorizonSec: setHorizonSec,
+        setPruneCompensateLayers: setPruneCompensateLayers,
+        setPruneCompensateFrames: setPruneCompensateFrames,
+        notePruneLoss: notePruneLoss,
         setRefineBeyondLimits: setRefineBeyondLimits,
         setContinuousRefine: setContinuousRefine,
         setRetreatNodes: setRetreatNodes,
@@ -4945,5 +5028,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v90：回退帧上限600 + 无弹预热上限 + v88持续细化 + 节点上限穿透 + 软死续树 + 真死回退改道 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v91：预测时长1~15秒 + 剪枝补偿 + 回退帧上限600 + 无弹预热上限 + 持续细化 + 节点上限穿透 + 真死回退改道 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

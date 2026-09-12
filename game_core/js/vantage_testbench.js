@@ -1,11 +1,11 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
- * 2026-09-07 v75（配合树 v90 / 沙箱 v34）：
+ * 2026-09-07 v76（配合树 v91 / 沙箱 v34）：
  *   树图默认贴地图右侧；面板/树图不再限制在屏幕内；
  *   实验项改为易懂名称、每类一种颜色、悬浮 0.5s 显示说明。
  * 2026-09-07 v74（配合树 v90 / 沙箱 v34）：
- *   Rust 物理默认开启；实验区新增“无弹预热上限”、“回退节点数”、“回退帧数”；
+ *   Rust 物理默认开启；实验区新增“预热上限”、“回退节点数”、“回退帧数”；
  *   回退滑块改为 input 实时落值，避免拖动时被面板刷新弹回。
  * 2026-08-23 v48（配合树 v52：节点详情显示 rolloutTotal；新事件标签）：
  *   tree 选路已改 75 帧全累积总分，工作台同步显示 n.rolloutTotal；
@@ -73,7 +73,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v75';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v76';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -122,7 +122,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: false, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: true, horizonCap: true, refineBeyond: false, continuousRefine: false, retreatNodes: 3, retreatFrames: 200, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: false, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: true, horizonCap: true, horizonSec: 8, refineBeyond: false, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2095,7 +2095,7 @@
             nowSpan: ctrl.querySelector('span[id="vt-aiop-now"]')
         };
 
-        // —— 实验模式区（v7.4→v7.6 持久控件层：固定帧勾选+滑块、路线穿弹扣分、软死）——
+        // —— 实验模式区（v7.4→v7.6 持久控件层：固定帧勾选+滑块、轨迹距离评分、软死）——
         var expRow = document.createElement('div');
         expRow.id = 'vt-exp-rows';
         expRow.style.cssText = 'flex:0 0 auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;flex-direction:column;gap:3px';
@@ -2111,25 +2111,26 @@
             expLine('评分', '#f5c2e7', 'vt-exp-scoreRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-fixed75"> 固定帧数评估</label>') +
                 expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="">75帧</span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 路线穿弹扣分</label>') +
-                expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;"><input type="checkbox" data-act="exp-springRope"> 弹簧绳距离惩罚</label></span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡帧不扣分</label>')
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 轨迹距离评分</label>') +
+                expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;"><input type="checkbox" data-act="exp-springRope"> 弹簧绳评分</label></span>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分</label>')
             ) +
-            // Rust 模式：Rust 物理预测是全局执行开关，弹簧绳距离惩罚不支持的提示放这里
+            // Rust 模式：Rust 物理预测是全局执行开关，弹簧绳评分不支持的提示放这里
             expLine('Rust', '#89b4fa', 'vt-exp-rustRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustPhysics"> Rust 物理预测</label>') +
-                expItem('<span id="vt-exp-rustNote" style="color:#6c7086;display:none">Rust不支持的评分项会自动回退JS；弹簧绳距离惩罚已隐藏</span>')
+                expItem('<span id="vt-exp-rustNote" style="color:#6c7086;display:none">Rust不支持的评分项会自动回退JS；弹簧绳评分已隐藏</span>')
             ) +
             // 生长/节点：只在“树”模式显示
-            expLine('生长', '#89dceb', 'vt-exp-treeRow',
+            expLine('生长', '#f9e2af', 'vt-exp-treeRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label>') +
-                expItem('每帧生长层数 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers" style="">1层</span>') +
-                expItem('节点上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes" style="">500</span>') +
-                expItem('无弹预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes" style="">500</span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap"> 节点上限开关</label>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 预测时长上限</label>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超限后继续细化</label>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 持续细分长段</label>')
+                expItem('每帧生长层数 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers">1层</span>') +
+                expItem('节点数量上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap"> 启用</label>') +
+                expItem('预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">500</span>') +
+                expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="8" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">8秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>') +
+                expItem('剪枝补偿层数 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="0" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers">0层</span>') +
+                expItem('补偿持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="1" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">1帧</span>')
             ) +
             // 回退：只在“树”模式显示
             expLine('回退', '#cba6f7', 'vt-exp-retreatRow',
@@ -2139,7 +2140,7 @@
             // 选路：只在“树”模式显示
             expLine('选路', '#a6e3a1', 'vt-exp-routeRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 深层结果选路</label>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">推荐预设</button>')
             ) +
             '<div id="vt-exp-treeHint" style="display:none;color:#6c7086;padding-left:48px">选择 AI 操控「树」后显示生长、回退、选路参数</div>';
@@ -2161,6 +2162,12 @@
             warmupMaxNodesSpan: expRow.querySelector('span[id="vt-exp-warmupMaxNodes"]'),
             nodeCap: expRow.querySelector('[data-act="exp-nodeCap"]'),
             horizonCap: expRow.querySelector('[data-act="exp-horizonCap"]'),
+            horizonSec: expRow.querySelector('[data-act="exp-horizonSec"]'),
+            horizonSecSpan: expRow.querySelector('span[id="vt-exp-horizonSec"]'),
+            pruneCompensateLayers: expRow.querySelector('[data-act="exp-pruneCompensateLayers"]'),
+            pruneCompensateLayersSpan: expRow.querySelector('span[id="vt-exp-pruneCompensateLayers"]'),
+            pruneCompensateFrames: expRow.querySelector('[data-act="exp-pruneCompensateFrames"]'),
+            pruneCompensateFramesSpan: expRow.querySelector('span[id="vt-exp-pruneCompensateFrames"]'),
             refineBeyond: expRow.querySelector('[data-act="exp-refineBeyond"]'),
             continuousRefine: expRow.querySelector('[data-act="exp-continuousRefine"]'),
             retreatNodes: expRow.querySelector('[data-act="exp-retreatNodes"]'),
@@ -2187,22 +2194,25 @@
             var tips = {
                 'exp-fixed75': '开启后，不管真实帧率怎么变，都按固定帧数评估每个操作，便于复现实验结果。',
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
-                'exp-lane': '开启后，如果坦克路线会穿过子弹轨迹，就额外扣分，让 AI 更主动避开弹道。',
-                'exp-springRope': '开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
-                'exp-nodeath': '实验用：死亡帧不再立刻扣分，只停止后续计分，便于观察软死路线。',
+                'exp-lane': '轨迹距离评分。开启后，会评估坦克路线与子弹轨迹的距离，靠得太近就额外扣分。',
+                'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
+                'exp-nodeath': '死亡不扣分。实验用：死亡帧不再立刻扣分，只停止后续计分，便于观察软死路线。',
                 'exp-rustPhysics': '默认开启。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
-                'exp-growWithoutThreats': '没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
+                'exp-growWithoutThreats': '无子弹时预热。没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
                 'exp-growLayers': '每个游戏帧最多新增多少层树节点。默认 1 层最稳；数值越大，生长越快，但计算压力也越大。',
                 'exp-maxNodes': '预测树最多保留多少个节点。数值越大，记得越远，但也会更耗内存和计算。',
                 'exp-warmupMaxNodes': '没有子弹时，预热阶段最多保留多少节点，防止开局等待过久导致卡顿。',
-                'exp-nodeCap': '是否启用“节点上限”。关闭后，战斗中可以超过这个上限，但无弹预热仍受“无弹预热上限”限制。',
-                'exp-horizonCap': '是否限制树的预测时间视界。开启后，超过这个时间就不再继续往前长，避免无限预测。',
+                'exp-nodeCap': '节点数量上限。是否启用这个上限。关闭后，战斗中可以超过它，但无弹药预热仍受“预热上限”限制。',
+                'exp-horizonSec': '预测时长上限，单位秒，范围 1~15 秒。数值越大，树看得越远，但计算量也越大。',
+                'exp-horizonCap': '是否启用预测时长上限。开启后，超过设定秒数就不再继续往前生长。',
                 'exp-refineBeyond': '达到节点或时长上限后，不再直接停止，而是继续把长操作拆得更细，寻找更多分叉。',
                 'exp-continuousRefine': '不等到达上限，每帧都额外拆一次长操作，让树更细腻；计算量和节点增长都会明显变大。',
+                'exp-pruneCompensateLayers': '新子弹出现导致节点被大量剪掉后，接下来几帧每帧额外多长多少层树节点。默认 0 层，等于关闭。',
+                'exp-pruneCompensateFrames': '剪枝补偿持续多少帧。默认 1 帧，范围 1~60。',
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
-                'exp-deepSelect': '让更深层的未来分数参与当前选择，而不是只看眼前一段。',
+                'exp-deepSelect': '全局选路。让更深层的未来分数参与当前选择，而不是只看眼前一段。',
                 'exp-presetStrong': '一键恢复当前实测比较强的配置组合。'
             };
             Object.keys(tips).forEach(function(k) {
@@ -2292,6 +2302,31 @@
                 state.exp.retreatFrames = Math.max(10, Math.min(600, parseInt(_expCtrl.retreatFrames.value, 10) || 200));
                 if (_expCtrl.retreatFramesSpan) {
                     _expCtrl.retreatFramesSpan.textContent = String(state.exp.retreatFrames) + '帧';
+                }
+            });
+        }
+        if (_expCtrl.horizonSec) {
+            _expCtrl.horizonSec.addEventListener('input', function() {
+                var v = parseFloat(_expCtrl.horizonSec.value);
+                state.exp.horizonSec = Math.max(1, Math.min(15, isFinite(v) ? v : 8));
+                if (_expCtrl.horizonSecSpan) {
+                    _expCtrl.horizonSecSpan.textContent = state.exp.horizonSec + '秒';
+                }
+            });
+        }
+        if (_expCtrl.pruneCompensateLayers) {
+            _expCtrl.pruneCompensateLayers.addEventListener('input', function() {
+                state.exp.pruneCompensateLayers = Math.max(0, Math.min(9, parseInt(_expCtrl.pruneCompensateLayers.value, 10) || 0));
+                if (_expCtrl.pruneCompensateLayersSpan) {
+                    _expCtrl.pruneCompensateLayersSpan.textContent = state.exp.pruneCompensateLayers + '层';
+                }
+            });
+        }
+        if (_expCtrl.pruneCompensateFrames) {
+            _expCtrl.pruneCompensateFrames.addEventListener('input', function() {
+                state.exp.pruneCompensateFrames = Math.max(1, Math.min(60, parseInt(_expCtrl.pruneCompensateFrames.value, 10) || 1));
+                if (_expCtrl.pruneCompensateFramesSpan) {
+                    _expCtrl.pruneCompensateFramesSpan.textContent = state.exp.pruneCompensateFrames + '帧';
                 }
             });
         }
@@ -2488,8 +2523,11 @@
             state.exp.growLayers = 1;
             state.exp.nodeCap = false;
             state.exp.horizonCap = true;
+            state.exp.horizonSec = 8;
             state.exp.refineBeyond = true;
             state.exp.continuousRefine = false;
+            state.exp.pruneCompensateLayers = 0;
+            state.exp.pruneCompensateFrames = 1;
             state.exp.retreatNodes = 3;
             state.exp.retreatFrames = 200;
             state.exp.warmupMaxNodes = 500;
@@ -2500,8 +2538,11 @@
                 VantageTree.setGrowLayersPerTick(state.exp.growLayers);
                 VantageTree.setNodeCapEnabled(state.exp.nodeCap);
                 VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
+                VantageTree.setHorizonSec(state.exp.horizonSec);
                 VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
                 VantageTree.setContinuousRefine(state.exp.continuousRefine);
+                VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
+                VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
                 VantageTree.setRetreatNodes(state.exp.retreatNodes);
                 VantageTree.setRetreatFrames(state.exp.retreatFrames);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
@@ -2522,6 +2563,30 @@
         if (act === 'exp-horizonCap') {
             state.exp.horizonCap = srcEl.checked;
             if (typeof VantageTree !== 'undefined') VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
+            updatePanel();
+            return;
+        }
+        // —— v91 预测时长上限滑块（1~15 秒）——
+        if (act === 'exp-horizonSec') {
+            var hv = parseFloat(srcEl.value);
+            state.exp.horizonSec = Math.max(1, Math.min(15, isFinite(hv) ? hv : 8));
+            if (typeof VantageTree !== 'undefined') VantageTree.setHorizonSec(state.exp.horizonSec);
+            if (_expCtrl.horizonSecSpan) _expCtrl.horizonSecSpan.textContent = state.exp.horizonSec + '秒';
+            updatePanel();
+            return;
+        }
+        // —— v91 剪枝补偿滑块（0~9 层 / 1~60 帧）——
+        if (act === 'exp-pruneCompensateLayers') {
+            state.exp.pruneCompensateLayers = Math.max(0, Math.min(9, parseInt(srcEl.value, 10) || 0));
+            if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
+            if (_expCtrl.pruneCompensateLayersSpan) _expCtrl.pruneCompensateLayersSpan.textContent = state.exp.pruneCompensateLayers + '层';
+            updatePanel();
+            return;
+        }
+        if (act === 'exp-pruneCompensateFrames') {
+            state.exp.pruneCompensateFrames = Math.max(1, Math.min(60, parseInt(srcEl.value, 10) || 1));
+            if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
+            if (_expCtrl.pruneCompensateFramesSpan) _expCtrl.pruneCompensateFramesSpan.textContent = state.exp.pruneCompensateFrames + '帧';
             updatePanel();
             return;
         }
@@ -2554,7 +2619,7 @@
             updatePanel();
             return;
         }
-        // —— v89 无弹预热上限（100~3000）——
+        // —— v89 预热上限（100~3000）——
         if (act === 'exp-warmupMaxNodes') {
             state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 500));
             if (typeof VantageTree !== 'undefined') VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
@@ -2850,6 +2915,12 @@
         if (_expCtrl.warmupMaxNodesSpan && _expCtrl.warmupMaxNodesSpan.textContent !== String(state.exp.warmupMaxNodes)) _expCtrl.warmupMaxNodesSpan.textContent = String(state.exp.warmupMaxNodes);
         if (_expCtrl.nodeCap && _expCtrl.nodeCap.checked !== state.exp.nodeCap) _expCtrl.nodeCap.checked = state.exp.nodeCap;
         if (_expCtrl.horizonCap && _expCtrl.horizonCap.checked !== state.exp.horizonCap) _expCtrl.horizonCap.checked = state.exp.horizonCap;
+        if (_expCtrl.horizonSec && parseFloat(_expCtrl.horizonSec.value) !== state.exp.horizonSec) _expCtrl.horizonSec.value = String(state.exp.horizonSec);
+        if (_expCtrl.horizonSecSpan && _expCtrl.horizonSecSpan.textContent !== state.exp.horizonSec + '秒') _expCtrl.horizonSecSpan.textContent = state.exp.horizonSec + '秒';
+        if (_expCtrl.pruneCompensateLayers && parseInt(_expCtrl.pruneCompensateLayers.value, 10) !== state.exp.pruneCompensateLayers) _expCtrl.pruneCompensateLayers.value = String(state.exp.pruneCompensateLayers);
+        if (_expCtrl.pruneCompensateLayersSpan && _expCtrl.pruneCompensateLayersSpan.textContent !== state.exp.pruneCompensateLayers + '层') _expCtrl.pruneCompensateLayersSpan.textContent = state.exp.pruneCompensateLayers + '层';
+        if (_expCtrl.pruneCompensateFrames && parseInt(_expCtrl.pruneCompensateFrames.value, 10) !== state.exp.pruneCompensateFrames) _expCtrl.pruneCompensateFrames.value = String(state.exp.pruneCompensateFrames);
+        if (_expCtrl.pruneCompensateFramesSpan && _expCtrl.pruneCompensateFramesSpan.textContent !== state.exp.pruneCompensateFrames + '帧') _expCtrl.pruneCompensateFramesSpan.textContent = state.exp.pruneCompensateFrames + '帧';
         if (_expCtrl.refineBeyond && _expCtrl.refineBeyond.checked !== state.exp.refineBeyond) _expCtrl.refineBeyond.checked = state.exp.refineBeyond;
         if (_expCtrl.continuousRefine && _expCtrl.continuousRefine.checked !== state.exp.continuousRefine) _expCtrl.continuousRefine.checked = state.exp.continuousRefine;
         if (_expCtrl.retreatNodes && parseInt(_expCtrl.retreatNodes.value, 10) !== state.exp.retreatNodes) _expCtrl.retreatNodes.value = String(state.exp.retreatNodes);
@@ -2865,8 +2936,11 @@
         if (typeof VantageTree !== 'undefined') VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
         if (typeof VantageTree !== 'undefined') VantageTree.setNodeCapEnabled(state.exp.nodeCap);
         if (typeof VantageTree !== 'undefined') VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
+        if (typeof VantageTree !== 'undefined') VantageTree.setHorizonSec(state.exp.horizonSec);
         if (typeof VantageTree !== 'undefined') VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
         if (typeof VantageTree !== 'undefined') VantageTree.setContinuousRefine(state.exp.continuousRefine);
+        if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
+        if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatNodes(state.exp.retreatNodes);
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
@@ -2918,12 +2992,12 @@
         h.push('<div style="line-height:1.7">');
         h.push('<b style="color:#f5c2e7">按键</b> B 面板 / P 暂停 / T 树图 / V 标注 / E 导出<br>');
         h.push('<b style="color:#89b4fa">模式</b> AI 操控选“自动”=9 操作最高分；选“树”=预测树。只有树模式才显示生长/回退/选路。<br>');
-        h.push('<b style="color:#89dceb">评分类</b> 固定帧数评估、路线穿弹扣分、弹簧绳距离惩罚、死亡帧不扣分。<br>');
-        h.push('<b style="color:#89b4fa">Rust类</b> Rust 物理预测默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳距离惩罚会隐藏并关闭。<br>');
-        h.push('<b style="color:#89dceb">生长类</b> 无子弹时预热、每帧生长层数、节点上限、无弹预热上限、节点上限开关、预测时长上限、超限后继续细化、持续细分长段。<br>');
+        h.push('<b style="color:#89dceb">评分类</b> 固定帧数评估、轨迹距离评分、弹簧绳评分、死亡不扣分。<br>');
+        h.push('<b style="color:#89b4fa">Rust类</b> Rust 物理预测默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳评分会隐藏并关闭。<br>');
+        h.push('<b style="color:#f9e2af">生长类</b> 无子弹时预热、每帧生长层数、节点数量上限、预热上限、预测时长上限（1~15 秒）、超上限细化长路径、细化长路径、剪枝补偿层数/持续帧数。<br>');
         h.push('<b style="color:#cba6f7">回退类</b> 回退节点数 1~32、回退帧数 10~600；谁先到就从哪里找替代路线。<br>');
         h.push('<b style="color:#a6e3a1">树图</b> 默认贴在地图右侧边缘，不遮地图；标题栏可拖，双击标题栏回到默认位置，滚轮缩放，点节点看详情。<br>');
-        h.push('<b style="color:#fab387">最稳起手</b> Rust 物理预测开、每帧生长层数 1、节点上限 500、无弹预热上限 500、回退节点数 3、回退帧数 200、持续细分长段关。');
+        h.push('<b style="color:#fab387">最稳起手</b> Rust 物理预测开、每帧生长层数 1、节点数量上限 500、预热上限 500、预测时长 8 秒、剪枝补偿 0 层/1 帧、回退节点数 3、回退帧数 200、细化长路径关。');
         h.push('</div>');
         return h.join('');
     }
@@ -2997,15 +3071,17 @@
                 '</b> | 视界 <b style="color:#94e2d5">' + fmt(tr.horizonSec, 2) + 's</b></div>');
             var ecfg = (tr && tr.cfg) ? tr.cfg : {};
             html.push('<div style="padding:1px 0;color:#6c7086;font-size:11px">配置 ' +
-                '每帧生长' + (ecfg.growLayersPerTick || 1) +
-                ' 节点上限' + ((ecfg.nodeCapEnabled === false) ? '关' : '开') +
-                ' 预测时长' + ((ecfg.horizonCapEnabled === false) ? '关' : '开') +
-                ' 超限细化' + (ecfg.refineBeyondLimits ? '开' : '关') +
-                ' 持续细分' + (ecfg.continuousRefine ? '开' : '关') +
-                ' 无弹预热' + (ecfg.growWithoutThreats ? '开' : '关') +
+                '每帧生长层数' + (ecfg.growLayersPerTick || 1) +
+                ' 节点数量上限' + ((ecfg.nodeCapEnabled === false) ? '关' : '开') +
+                ' 预测时长上限' + ((ecfg.horizonCapEnabled === false) ? '关' : '开') + '/' + (ecfg.horizonSec || 8) + 's' +
+                ' 超上限细化长路径' + (ecfg.refineBeyondLimits ? '开' : '关') +
+                ' 细化长路径' + (ecfg.continuousRefine ? '开' : '关') +
+                ' 无子弹时预热' + (ecfg.growWithoutThreats ? '开' : '关') +
                 ' 预热上限' + ((ecfg.warmupMaxNodes || 500)) +
-                ' 深层选路' + (ecfg.deepSelectEnabled ? '开' : '关') +
-                ' 回退量' + ((ecfg.retreatNodes || ecfg.retreatDepth || 3) + '点/' +
+                ' 剪枝补偿' + ((ecfg.pruneCompensateLayers || 0) + '层/' +
+                    (ecfg.pruneCompensateFrames || 1) + '帧') +
+                ' 全局选路' + (ecfg.deepSelectEnabled ? '开' : '关') +
+                ' 回退' + ((ecfg.retreatNodes || ecfg.retreatDepth || 3) + '点/' +
                     (ecfg.retreatFrames || 200) + '帧') +
                 ' | 细化次数 ' + (tr.stats.refineSplits || 0) + '</div>');
         } else {
@@ -3021,7 +3097,7 @@
             (fs.dead ? ' <span style="color:#f38ba8">判死</span>' : '') +
             ' | 遮蔽 ' + fmt(fs.occludedRad) + ' rad | 区间 ' + fs.freeIntervals.length + '<br>';
         if (!state.exp.lane) {
-            scoreDetail += '路线穿弹扣分: <span style="color:#6c7086">关</span><br>';
+            scoreDetail += '轨迹距离评分: <span style="color:#6c7086">关</span><br>';
         } else {
             var laneNow = (typeof VantageScoring.lanePenaltyFrame === 'function')
                 ? VantageScoring.lanePenaltyFrame(src.tankState, src.threats, 0) : null;
@@ -3030,7 +3106,7 @@
                 for (var li = 0; li < laneNow.perBullet.length; li++) {
                     if (laneNow.perBullet[li].p > 0) nCross++;
                 }
-                scoreDetail += '路线穿弹扣分 <b style="color:' + (laneNow.penalty > 0 ? '#fab387' : '#a6e3a1') + '">' +
+                scoreDetail += '轨迹距离评分 <b style="color:' + (laneNow.penalty > 0 ? '#fab387' : '#a6e3a1') + '">' +
                     fmt(laneNow.penalty, 1) + '</b>（' + nCross + '弹穿车）<br>';
             }
         }
@@ -3075,7 +3151,8 @@
                 ' 提前' + (tr.stats.jsConfirmEarlier || 0) +
                 ' 延后' + (tr.stats.jsConfirmLater || 0) +
                 ' 清除' + (tr.stats.jsConfirmCleared || 0) +
-                (tr.stats.deepSelects ? ' | 深层改选' + tr.stats.deepSelects : '');
+                (tr.stats.deepSelects ? ' | 深层改选' + tr.stats.deepSelects : '') +
+                (tr.stats.pruneCompensations ? ' | 剪枝补偿' + tr.stats.pruneCompensations + '次' : '');
             if (tr.diag) {
                 var lastDesync = tr.diag.bulletDesyncs.length
                     ? tr.diag.bulletDesyncs[tr.diag.bulletDesyncs.length - 1] : null;
@@ -3380,8 +3457,11 @@
         try { VantageTree.setMaxNodes(state.exp.maxNodes); } catch (eMaxNodesInit) {}
         try { VantageTree.setNodeCapEnabled(state.exp.nodeCap); } catch (eNodeCapInit) {}
         try { VantageTree.setHorizonCapEnabled(state.exp.horizonCap); } catch (eHorizonCapInit) {}
+        try { VantageTree.setHorizonSec(state.exp.horizonSec); } catch (eHorizonSecInit) {}
         try { VantageTree.setRefineBeyondLimits(state.exp.refineBeyond); } catch (eRefineInit) {}
         try { VantageTree.setContinuousRefine(state.exp.continuousRefine); } catch (eContRefineInit) {}
+        try { VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers); } catch (ePruneLayersInit) {}
+        try { VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames); } catch (ePruneFramesInit) {}
         try { VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes); } catch (eWarmupInit) {}
         try { VantageTree.setRetreatNodes(state.exp.retreatNodes); } catch (eRetreatNodesInit) {}
         try { VantageTree.setRetreatFrames(state.exp.retreatFrames); } catch (eRetreatFramesInit) {}
