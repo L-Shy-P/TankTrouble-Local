@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v78：
+ *   默认使用重置配置；面板/树图空白处可拖动并显示拖动光标；树图文字优化。
  * 2026-09-07 v77（配合树 v91 / 沙箱 v34）：
  *   分类标题居中并加灰色分割线；“推荐预设”改为“重置配置”；
  *   面板可任意空白处拖动；压缩运行/树区冗余文字。
@@ -78,7 +80,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v77';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v78';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -127,7 +129,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: false, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: true, horizonCap: true, horizonSec: 8, refineBeyond: false, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -1252,9 +1254,9 @@
             'color:#cdd6f4;font:11px/1.5 Consolas,monospace;pointer-events:auto;display:none';
         var head = document.createElement('div');
         head.style.cssText = 'padding:4px 8px;border-bottom:1px solid #45475a;cursor:move;user-select:none';
-        head.innerHTML = '<b style="color:#94e2d5">树视图</b> ' +
+        head.innerHTML = '<b style="color:#94e2d5">预测树</b> ' +
             '<label style="cursor:pointer;color:#89b4fa"><input type="checkbox" data-tv="follow" checked> 跟随</label>' +
-            '<span style="color:#6c7086"> 拖=平移 滚轮=缩放 点节点=详情</span>' +
+            '<span style="color:#6c7086"> 拖空白=移动窗口 · 画布拖=平移 · 滚轮=缩放 · 点节点=详情</span>' +
             '<button data-tv="export" style="cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:0 6px;margin-left:6px">导出诊断</button>' +
             '<button data-tv="close" style="float:right;cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:0 6px">×</button>';
         el.appendChild(head);
@@ -1271,7 +1273,7 @@
         el.appendChild(canvas);
         var info = document.createElement('div');
         info.style.cssText = 'padding:2px 8px 6px;color:#94e2d5;min-height:16px;white-space:pre-wrap';
-        info.textContent = '（点节点查看详情）';
+        info.textContent = '点击树上的节点查看详情；拖动树图空白处可移动窗口';
         info.addEventListener('click', function(e) {
             var t = e.target;
             while (t && t !== info && !(t.dataset && t.dataset.tvn)) t = t.parentNode;
@@ -1314,11 +1316,25 @@
             drawTree();
         });
 
-        // 标题栏拖动
+        // v77：树图任意空白处都能拖动；画布、按钮、复选框、节点详情按钮保持原交互。
+        function isTreeViewInteractive(t) {
+            var n = t;
+            while (n && n !== el) {
+                if (n.dataset && (n.dataset.tv || n.dataset.tvn)) return true;
+                var tag = (n.tagName || '').toLowerCase();
+                if (tag === 'button' || tag === 'input' || tag === 'select' ||
+                    tag === 'textarea' || tag === 'label' || tag === 'canvas' || tag === 'a') {
+                    return true;
+                }
+                n = n.parentNode;
+            }
+            return false;
+        }
         (function() {
             var hd = null;
-            head.addEventListener('mousedown', function(e) {
-                if (e.target && e.target.dataset && e.target.dataset.tv) return;
+            el.addEventListener('mousedown', function(e) {
+                if (e.button !== 0) return;
+                if (isTreeViewInteractive(e.target)) return;
                 var r = el.getBoundingClientRect();
                 _tv.userMoved = true;
                 hd = { dx: e.clientX - r.left, dy: e.clientY - r.top };
@@ -1330,12 +1346,15 @@
             });
             document.addEventListener('mousemove', function(e) {
                 if (!hd) return;
-                // v90：面板/树图不再限制在屏幕内，允许拖出视口。
                 el.style.left = (e.clientX - hd.dx) + 'px';
                 el.style.top = (e.clientY - hd.dy) + 'px';
             });
             document.addEventListener('mouseup', function() { hd = null; });
         })();
+        el.addEventListener('mousemove', function(e) {
+            el.style.cursor = isTreeViewInteractive(e.target) ? 'default' : 'move';
+        });
+        el.addEventListener('mouseleave', function() { el.style.cursor = 'default'; });
 
         // 滚轮缩放（光标时间锚定；缩放不再取消跟随，只保留用户缩放倍率）
         canvas.addEventListener('wheel', function(e) {
@@ -1463,7 +1482,7 @@
     function updateTreeNodeInfo() {
         if (!_tv) return;
         var n = _tv.selected;
-        if (!n || !n.simState) { _tv.info.textContent = '（点节点查看详情）'; return; }
+        if (!n || !n.simState) { _tv.info.textContent = '点击树上的节点查看详情；拖动树图空白处可移动窗口'; return; }
         var tp = state.treePreview;
         var frameTxt = tp && tp.node === n
             ? (' | 预览帧 ' + tp.frameIdx + '/' + (n.rolloutSamples.length - 1)) : '';
@@ -1478,13 +1497,13 @@
             ((typeof n.rolloutDeathFrame === 'number') ? n.rolloutDeathFrame : -1);
         var deathTxt, deathCol;
         if (deathFrame < 0) {
-            deathTxt = '75帧未死';
+            deathTxt = '75帧内未死';
             deathCol = '#a6e3a1';
         } else if (deathFrame === 1) {
             deathTxt = '1帧真死';
             deathCol = '#f38ba8';
         } else {
-            deathTxt = '75帧内死@' + deathFrame;
+            deathTxt = '75帧内死亡 @ 第' + deathFrame + '帧';
             deathCol = '#fab387';
         }
         var rawDeathTxt = (typeof n.rolloutDeathFrame === 'number' && n.rolloutDeathFrame >= 0)
@@ -1493,27 +1512,29 @@
         var rawTotal = (typeof n.rolloutTotal === 'number')
             ? n.rolloutTotal : (n.segmentScore || 0) + (n.baseExt || 0);
 
+        var statusTxt = n.status === 'dead' ? '段内死亡'
+            : (n.status === 'alive' ? '存活'
+            : (n.fullDead ? '软死' : (n.status || '未知')));
         _tv.info.innerHTML = '#' + n.id + ' ' + (n.opName || '根') +
             (n.exhausted ? ' <b style="color:#cba6f7">已回退</b>' : '') +
             ' <b style="color:' + (n.status === 'dead' ? '#f38ba8'
-                : n.fullDead ? '#fab387' : '#a6e3a1') + '">' +
-                (n.status === 'dead' ? '段内dead' : n.status) + '</b>' +
+                : n.fullDead ? '#fab387' : '#a6e3a1') + '">' + statusTxt + '</b>' +
             ' | <b style="color:' + deathCol + '">' + deathTxt + '</b>' +
-            ' <span style="color:#6c7086">(原始rollout死@' + rawDeathTxt + ')</span>' +
+            ' <span style="color:#6c7086">原始预测死帧 ' + rawDeathTxt + '</span>' +
             ' | 计划 ' + planned + '帧(' + (planned * 0.02).toFixed(2) + 's)' +
             ' | 实际 ' + actual + '帧(' + (actual * 0.02).toFixed(2) + 's)' +
-            ' | 段分 ' + (n.segmentScore || 0).toFixed(1) +
-            ' | 段均分 ' + avg.toFixed(2) +
-            ' | 延伸基线 ' + (n.baseExt || 0).toFixed(1) +
-            ' | <span style="color:#89b4fa">rollout总分 ' + rawTotal.toFixed(1) + '</span>' +
-            ' | <b style="color:#f9e2af">选路分(子树) ' + (n.subtreeBest || 0).toFixed(1) + '</b>' +
-            ' | 子 ' + n.children.length +
-            ' | next=' + nextTxt +
-            ' | 位(' + n.simState.tank.x.toFixed(1) + ',' + n.simState.tank.y.toFixed(1) + ',' +
+            ' | 本段得分 ' + (n.segmentScore || 0).toFixed(1) +
+            ' | 本段均分 ' + avg.toFixed(2) +
+            ' | 后续基线 ' + (n.baseExt || 0).toFixed(1) +
+            ' | <span style="color:#89b4fa">75帧总分 ' + rawTotal.toFixed(1) + '</span>' +
+            ' | <b style="color:#f9e2af">子树选路分 ' + (n.subtreeBest || 0).toFixed(1) + '</b>' +
+            ' | 子节点 ' + n.children.length +
+            ' | 下一步 ' + nextTxt +
+            ' | 位置(' + n.simState.tank.x.toFixed(1) + ',' + n.simState.tank.y.toFixed(1) + ',' +
             Math.round(n.simState.tank.rot * 180 / Math.PI) + '°)' + frameTxt +
-            '<br><button data-tvn="show" style="cursor:pointer;margin:2px 4px 0 0">渲染该节点</button>' +
-            '<button data-tvn="prev" style="cursor:pointer;margin:2px 4px 0 0">◀</button>' +
-            '<button data-tvn="next" style="cursor:pointer;margin:2px 4px 0 0">▶</button>';
+            '<br><button data-tvn="show" style="cursor:pointer;margin:2px 4px 0 0">预览该节点</button>' +
+            '<button data-tvn="prev" style="cursor:pointer;margin:2px 4px 0 0">◀ 上一步</button>' +
+            '<button data-tvn="next" style="cursor:pointer;margin:2px 4px 0 0">下一步 ▶</button>';
     }
 
     /** v47 只读诊断：找最近一次整根重置/大剪枝的可见原因。 */
@@ -2385,6 +2406,11 @@
             _drag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
             e.preventDefault();
         });
+        // v77：空白区域显示“可拖动”光标；控件区域恢复默认光标。
+        el.addEventListener('mousemove', function(e) {
+            el.style.cursor = isPanelInteractive(e.target) ? 'default' : 'move';
+        });
+        el.addEventListener('mouseleave', function() { el.style.cursor = 'default'; });
         document.addEventListener('mousemove', function(e) {
             if (!_drag) return;
             // v90：面板不再限制在屏幕内，允许拖出视口。
@@ -3020,7 +3046,7 @@
         h.push('<b style="color:#cba6f7">回退类</b> 回退节点数 1~32、回退帧数 10~600；谁先到就从哪里找替代路线。<br>');
         h.push('<b style="color:#a6e3a1">选路类</b> Rust 简化选路、全局选路、重置配置（回到作者 L_Shy_P 实测较强且性能不错的配置）。<br>');
         h.push('<b style="color:#a6e3a1">树图</b> 默认贴在地图右侧边缘，不遮地图；标题栏可拖，双击标题栏回到默认位置，滚轮缩放，点节点看详情。<br>');
-        h.push('<b style="color:#fab387">最稳起手</b> Rust 物理预测开、每帧生长层数 1、节点数量上限 500、预热上限 500、预测时长 8 秒、剪枝补偿 0 层/1 帧、回退节点数 3、回退帧数 200、细化长路径关。');
+        h.push('<b style="color:#fab387">最稳起手（默认）</b> Rust 物理预测开、每帧生长层数 1、节点数量上限 500、预热上限 500、预测时长 8 秒、剪枝补偿 0 层/1 帧、回退节点数 3、回退帧数 200、细化长路径关。');
         h.push('</div>');
         return h.join('');
     }

@@ -1,5 +1,6 @@
 /**
  * TankTrouble 本地模式补丁 — 在 ajax.js 加载后立即执行
+ * v3：移除本地部署不需要的 Cookie 同意提示条。
  */
 (function() {
     'use strict';
@@ -1910,7 +1911,18 @@
         return true;
     }
 
+    /** v3：本地部署不需要 Cookie 同意提示条，直接禁用。 */
+    function removeCookieConsent() {
+        if (typeof TankTrouble !== 'undefined' && TankTrouble.CookieBox) {
+            TankTrouble.CookieBox.checkForCookie = function() { return true; };
+            TankTrouble.CookieBox.show = function() {};
+        }
+        var cookieEl = document.getElementById('cookie');
+        if (cookieEl && cookieEl.parentNode) cookieEl.parentNode.removeChild(cookieEl);
+    }
+
     function applyDeferredPatches() {
+        removeCookieConsent();
         applyLocalLimits();
         applyAIStrengthConfig();
         patchUsersForLobbyAI();

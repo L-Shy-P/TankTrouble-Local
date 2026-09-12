@@ -754,5 +754,7 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - testbench v77：分类标题居中并加灰色分割线；“推荐预设”改名“重置配置”，
   悬浮描述为“将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置”；
   面板支持任意空白处拖动；运行/性能合成一行；删除树区重复的灰色配置行。
-- 版本：tree v91、testbench v77、sandbox v34、scoring v32、bridge v10、
-  Rust ABI v6、index.html `?v=` 同步。
+- testbench v78：默认直接使用重置配置；移除本地 Cookie 同意提示；
+  面板/树图空白处显示拖动光标；树图标题和节点详情文字改成更直白的中文。
+- 版本：tree v91、testbench v78、sandbox v34、local_patch v3、scoring v32、
+  bridge v10、Rust ABI v6、index.html `?v=` 同步。
