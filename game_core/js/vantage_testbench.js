@@ -1,7 +1,12 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v77（配合树 v91 / 沙箱 v34）：
+ *   分类标题居中并加灰色分割线；“推荐预设”改为“重置配置”；
+ *   面板可任意空白处拖动；压缩运行/树区冗余文字。
  * 2026-09-07 v76（配合树 v91 / 沙箱 v34）：
+ *   预测时长滑块（1~15 秒）、剪枝补偿层数/持续帧数；生长栏淡黄色。
+ * 2026-09-07 v75（配合树 v90 / 沙箱 v34）：
  *   树图默认贴地图右侧；面板/树图不再限制在屏幕内；
  *   实验项改为易懂名称、每类一种颜色、悬浮 0.5s 显示说明。
  * 2026-09-07 v74（配合树 v90 / 沙箱 v34）：
@@ -73,7 +78,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v76';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v77';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2103,8 +2108,10 @@
             return '<span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap">' + html + '</span>';
         }
         function expLine(label, color, id, html) {
-            return '<div id="' + id + '" style="display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px;line-height:1.7;color:' + color + '">' +
-                '<b style="flex:0 0 40px">' + label + '</b>' + html + '</div>';
+            return '<div id="' + id + '" style="display:flex;flex-direction:column;gap:3px;line-height:1.7;color:' + color + ';border-top:1px solid #45475a;margin-top:4px;padding-top:3px">' +
+                '<div style="text-align:center;font-weight:bold">' + label + '</div>' +
+                '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px">' + html + '</div>' +
+                '</div>';
         }
         expRow.innerHTML =
             // 评分/死亡：所有模式通用
@@ -2141,7 +2148,7 @@
             expLine('选路', '#a6e3a1', 'vt-exp-routeRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
-                expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">推荐预设</button>')
+                expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
             '<div id="vt-exp-treeHint" style="display:none;color:#6c7086;padding-left:48px">选择 AI 操控「树」后显示生长、回退、选路参数</div>';
         el.appendChild(expRow);
@@ -2213,7 +2220,7 @@
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
                 'exp-deepSelect': '全局选路。让更深层的未来分数参与当前选择，而不是只看眼前一段。',
-                'exp-presetStrong': '一键恢复当前实测比较强的配置组合。'
+                'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
             };
             Object.keys(tips).forEach(function(k) {
                 var el = expRow.querySelector('[data-act="' + k + '"]');
@@ -2356,9 +2363,24 @@
         document.body.appendChild(el);
         _panel = el;
 
-        // 拖动（标题栏按下；按钮不算）
-        head.addEventListener('mousedown', function(e) {
-            if (e.target && e.target.dataset && e.target.dataset.act) return;
+        // v91：允许从面板任意空白处拖动，不再只能抓标题栏。
+        // 输入框、按钮、下拉、标签、画布和带 data-act 的折叠行仍然走原有交互。
+        function isPanelInteractive(t) {
+            var n = t;
+            while (n && n !== el) {
+                if (n.dataset && n.dataset.act) return true;
+                var tag = (n.tagName || '').toLowerCase();
+                if (tag === 'button' || tag === 'input' || tag === 'select' ||
+                    tag === 'textarea' || tag === 'label' || tag === 'canvas' || tag === 'a') {
+                    return true;
+                }
+                n = n.parentNode;
+            }
+            return false;
+        }
+        el.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return;
+            if (isPanelInteractive(e.target)) return;
             var rect = el.getBoundingClientRect();
             _drag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
             e.preventDefault();
@@ -2518,7 +2540,7 @@
             updatePanel();
             return;
         }
-        // —— v87 一键恢复用户实测最强配置（仅改实验项，不改评分/死亡逻辑）——
+        // —— v87/v91 重置配置：恢复到作者实测较强且性能不错的实验项组合 ——
         if (act === 'exp-presetStrong') {
             state.exp.growLayers = 1;
             state.exp.nodeCap = false;
@@ -2996,6 +3018,7 @@
         h.push('<b style="color:#89b4fa">Rust类</b> Rust 物理预测默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳评分会隐藏并关闭。<br>');
         h.push('<b style="color:#f9e2af">生长类</b> 无子弹时预热、每帧生长层数、节点数量上限、预热上限、预测时长上限（1~15 秒）、超上限细化长路径、细化长路径、剪枝补偿层数/持续帧数。<br>');
         h.push('<b style="color:#cba6f7">回退类</b> 回退节点数 1~32、回退帧数 10~600；谁先到就从哪里找替代路线。<br>');
+        h.push('<b style="color:#a6e3a1">选路类</b> Rust 简化选路、全局选路、重置配置（回到作者 L_Shy_P 实测较强且性能不错的配置）。<br>');
         h.push('<b style="color:#a6e3a1">树图</b> 默认贴在地图右侧边缘，不遮地图；标题栏可拖，双击标题栏回到默认位置，滚轮缩放，点节点看详情。<br>');
         h.push('<b style="color:#fab387">最稳起手</b> Rust 物理预测开、每帧生长层数 1、节点数量上限 500、预热上限 500、预测时长 8 秒、剪枝补偿 0 层/1 帧、回退节点数 3、回退帧数 200、细化长路径关。');
         h.push('</div>');
@@ -3026,9 +3049,8 @@
         var tr = (typeof VantageTree !== 'undefined') ? VantageTree.getTree() : null;
         var seg = paused ? (state.sandbox && state.sandbox.segment) : src.segment;
 
-        // —— 主页 ① 状态行：帧率 + 状态 ——
+        // —— 主页 ① 运行 + 性能合成一行，去掉默认状态的冗余文字 ——
         var expBadge = (state.exp.fixed75 ? '<span style="color:#fab387">[固' + state.exp.evalFrames + '帧]</span>' : '') +
-            (state.exp.lane ? '' : '<span style="color:#fab387">[压分关]</span>') +
             (state.exp.noDeath ? '<span style="color:#fab387">[软死]</span>' : '');
         var stTag;
         if (aiDead) stTag = '<span style="color:#f38ba8">☠ 阵亡</span>';
@@ -3037,17 +3059,12 @@
         html.push('<div style="margin:2px 0 1px;color:#6c7086">── 运行 / 性能 ──</div>');
         html.push('<div style="padding:1px 0">' + stTag +
             ' <b style="font-size:14px;color:' + colFps(state.fps) + '">' + (state.fps > 0 ? Math.round(state.fps) : '-') + ' FPS</b>' +
+            ' <span style="color:#6c7086">|</span> 轻算 <b style="color:' + colMs(state.perfLightMs) + '">' +
+            fmt(state.perfLightMs, 1) + 'ms</b>' +
+            ' <span style="color:#6c7086">|</span> 9op <b style="color:' + colMs(state.perfNineMs) + '">' +
+            fmt(state.perfNineMs, 1) + 'ms</b> ×' + state.perfNineCount +
             ' ' + expBadge + '</div>');
-        // —— 主页 ② 用时行 ——
-        html.push('<div style="padding:1px 0">轻算 <b style="color:' + colMs(state.perfLightMs) + '">' +
-            fmt(state.perfLightMs, 1) + 'ms</b> | 9op <b style="color:' + colMs(state.perfNineMs) + '">' +
-            fmt(state.perfNineMs, 1) + 'ms</b> ×' + state.perfNineCount + '</div>');
-        // —— 主页 ③ 基准 + 段长 ——
-        html.push('<div style="margin:2px 0 1px;color:#6c7086">── 计分 / 基准 ──</div>');
-        html.push('<div style="padding:1px 0">基准 <b style="color:#f9e2af">' + bt.baseTimeFrames + '帧</b>' +
-            '<span style="color:#6c7086">(' + fmt(bt.baseTimeSec) + 's)</span>' +
-            (seg ? ' | 段 <b style="color:#cba6f7">' + seg.segmentFrames + '帧</b>' : '') + '</div>');
-        // —— 主页 ④ 操作 + 分数 ——
+        // —— 主页 ② 操作 + 分数 ——
         html.push('<div style="margin:2px 0 1px;color:#6c7086">── 当前决策 ──</div>');
         var bestHtml;
         if (tr && tr.commitNode) {
@@ -3068,22 +3085,9 @@
             html.push('<div style="padding:1px 0;color:#94e2d5">树 节点 <b>' + tr.nodeCount +
                 capTxt +
                 '</b> | 储备 <b>' + (tr.reserveCount || 0) +
-                '</b> | 视界 <b style="color:#94e2d5">' + fmt(tr.horizonSec, 2) + 's</b></div>');
-            var ecfg = (tr && tr.cfg) ? tr.cfg : {};
-            html.push('<div style="padding:1px 0;color:#6c7086;font-size:11px">配置 ' +
-                '每帧生长层数' + (ecfg.growLayersPerTick || 1) +
-                ' 节点数量上限' + ((ecfg.nodeCapEnabled === false) ? '关' : '开') +
-                ' 预测时长上限' + ((ecfg.horizonCapEnabled === false) ? '关' : '开') + '/' + (ecfg.horizonSec || 8) + 's' +
-                ' 超上限细化长路径' + (ecfg.refineBeyondLimits ? '开' : '关') +
-                ' 细化长路径' + (ecfg.continuousRefine ? '开' : '关') +
-                ' 无子弹时预热' + (ecfg.growWithoutThreats ? '开' : '关') +
-                ' 预热上限' + ((ecfg.warmupMaxNodes || 500)) +
-                ' 剪枝补偿' + ((ecfg.pruneCompensateLayers || 0) + '层/' +
-                    (ecfg.pruneCompensateFrames || 1) + '帧') +
-                ' 全局选路' + (ecfg.deepSelectEnabled ? '开' : '关') +
-                ' 回退' + ((ecfg.retreatNodes || ecfg.retreatDepth || 3) + '点/' +
-                    (ecfg.retreatFrames || 200) + '帧') +
-                ' | 细化次数 ' + (tr.stats.refineSplits || 0) + '</div>');
+                '</b> | 视界 <b style="color:#94e2d5">' + fmt(tr.horizonSec, 2) + 's</b>' +
+                (tr.stats.refineSplits ? ' | 细化 <b style="color:#94e2d5">' + tr.stats.refineSplits + '</b>' : '') +
+                '</div>');
         } else {
             html.push('<div style="padding:1px 0;color:#585b70">树未开（AI操控下拉选「树」）</div>');
         }
