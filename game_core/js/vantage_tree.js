@@ -1,6 +1,11 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v101（空场安全感知）：
+ *   杀戮场总开关 + 空场安全感知独立开关：
+ *   - 杀戮场开 + 空场开：所有时候都由杀戮场引导；
+ *   - 杀戮场开 + 空场关：只在有子弹时由杀戮场引导，无弹无寻路时静止；
+ *   - 杀戮场关：空场开关灰显且不生效。
  * 2026-09-07 v100（杀戮场地形引导）：
  *   ① 静态地形杀戮场：死路/出口少/边界格子分低，开阔格分高；
  *   ② 没有用户目标且有子弹时，目标分用杀戮场安全分；
@@ -418,6 +423,7 @@
     var _scoreOnlyPlanned = false;           // v98：评分范围仅限操作时长（false=固定75帧）
     var _killfieldEnabled = true;            // v100：杀戮场地形引导
     var _killfieldWeight = 0.5;              // v100：杀戮场权重（0~1）
+    var _emptyFieldSafety = false;           // v101：空场安全感知（无弹时也由杀戮场引导）
     var _killfieldGrid = null;               // v100：静态地形安全分格子表
     var _killfieldMazeRef = null;
     var _killfieldW = 0, _killfieldH = 0;
@@ -455,6 +461,7 @@
         scoreOnlyPlanned: false,          // v98：评分范围仅限操作时长（默认固定75帧）
         killfieldEnabled: true,           // v100：杀戮场地形引导
         killfieldWeight: 0.5,             // v100：杀戮场权重（0~1）
+        emptyFieldSafety: false,          // v101：空场安全感知
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
@@ -815,6 +822,7 @@
         tree.cfg.scoreOnlyPlanned = _scoreOnlyPlanned;   // v98
         tree.cfg.killfieldEnabled = _killfieldEnabled;   // v100
         tree.cfg.killfieldWeight = _killfieldWeight;     // v100
+        tree.cfg.emptyFieldSafety = _emptyFieldSafety;   // v101
         tree.cfg.targetMixEnabled = _targetMixEnabled;     // v94
         tree.cfg.targetMixRatio = _targetMixRatio;         // v94
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
@@ -3127,11 +3135,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  没有用户目标且有子弹时，才用杀戮场引导去更安全的地形。 */
     function objectiveScore(node) {
         if (!node || !node.simState || !node.simState.tank) return -Infinity;
-        if (_moveTarget) return moveTargetScore(node);
-        if (!_killfieldEnabled || _liveProjectilesNow <= 0) return -Infinity;
+        if (_moveTarget) return moveTargetScore(node);   // 用户寻路优先级最高
+        if (!_killfieldEnabled) return -Infinity;
+        // 空场安全感知：关掉时无子弹不引导；开启时无弹也引导。
+        if (_liveProjectilesNow <= 0 && !_emptyFieldSafety) return -Infinity;
         var kf = killfieldScoreAtTank(node.simState.tank);
         if (!isFinite(kf)) return -Infinity;
         return kf * _killfieldWeight;
+    }
+
+    /** v101：无弹无目标且空场安全感知没开时，平局优先静止。 */
+    function shouldPreferStaticOnTie() {
+        return _liveProjectilesNow === 0 && !_moveTarget &&
+            !(_killfieldEnabled && _emptyFieldSafety);
     }
 
     /** v94：混合模式下，把目标分按系数放大到安全分同量级后直接加进总分。 */
@@ -3201,7 +3217,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 }
                 if (!cDead || c.segmentFrames === best.segmentFrames) {
                     // v97：无弹且无点击目标时，平局优先静止，避免根层反复选前进/转向。
-                    if (_liveProjectilesNow === 0 && !_moveTarget) {
+                    if (shouldPreferStaticOnTie()) {
                         var cStatic = isStaticInputs(c.inputs), bStatic = isStaticInputs(best.inputs);
                         if (cStatic !== bStatic) {
                             if (cStatic) best = c;
@@ -3269,7 +3285,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 }
                 if (!cDead || c.segmentFrames === best.segmentFrames) {
                     // v97：无弹且无点击目标时，平局优先静止，避免无弹期乱选操作。
-                    if (_liveProjectilesNow === 0 && !_moveTarget) {
+                    if (shouldPreferStaticOnTie()) {
                         var cStatic2 = isStaticInputs(c.inputs), bStatic2 = isStaticInputs(best.inputs);
                         if (cStatic2 !== bStatic2) {
                             if (cStatic2) { best = c; bestTotal = total; }
@@ -5276,6 +5292,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _liveProjectilesNow;
     }
 
+    /** v101：空场安全感知——无子弹无寻路时也让杀戮场引导。 */
+    function setEmptyFieldSafety(v) {
+        _emptyFieldSafety = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.emptyFieldSafety = _emptyFieldSafety;
+        return _emptyFieldSafety;
+    }
+
     /** v100：杀戮场地形引导开关。 */
     function setKillfieldEnabled(v) {
         _killfieldEnabled = !!v;
@@ -5360,6 +5383,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setDeathDurationRatio: setDeathDurationRatio,
         setGrowLayersPerTick: setGrowLayersPerTick,
         setScoreOnlyPlanned: setScoreOnlyPlanned,
+        setEmptyFieldSafety: setEmptyFieldSafety,
         setKillfieldEnabled: setKillfieldEnabled,
         setKillfieldWeight: setKillfieldWeight,
         ensureKillfield: ensureKillfield,
@@ -5412,5 +5436,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v100：杀戮场地形引导 + 点击全树刷新 + 混合选路 + 无弹优先静止 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v101：杀戮场+空场安全感知 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

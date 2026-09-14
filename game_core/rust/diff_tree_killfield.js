@@ -46,5 +46,27 @@ if(VT.pickBestChildByRolloutTotal([openTile,deadTile])!==deadTile) {
 }
 VT.clearMoveTarget();
 VT.setLiveProjectilesNow(0);
+// Empty-field switch semantics:
+// killfield ON + empty OFF + no bullets -> static preference wins;
+// killfield ON + empty ON  + no bullets -> killfield guides (safe moving node);
+// killfield ON + empty OFF + bullets    -> killfield guides.
+const staticDanger=mk(3,5,5,50);            // dead-end tile, static
+const moveSafe=mk(4,25,5,50);               // open tile, moving
+moveSafe.inputs={forward:true,back:false,left:false,right:false};
+VT.setKillfieldEnabled(true);VT.setKillfieldWeight(1);VT.clearMoveTarget();
+VT.setLiveProjectilesNow(0);VT.setEmptyFieldSafety(false);
+if(VT.pickBestChildByRolloutTotal([staticDanger,moveSafe])!==staticDanger) {
+    throw new Error('empty OFF + no bullets should stay static');
+}
+VT.setEmptyFieldSafety(true);
+if(VT.pickBestChildByRolloutTotal([staticDanger,moveSafe])!==moveSafe) {
+    throw new Error('empty ON + no bullets should let killfield guide');
+}
+VT.setEmptyFieldSafety(false);VT.setLiveProjectilesNow(1);
+if(VT.pickBestChildByRolloutTotal([staticDanger,moveSafe])!==moveSafe) {
+    throw new Error('with bullets killfield should guide even when empty OFF');
+}
+
+VT.setLiveProjectilesNow(0);
 VT.setKillfieldEnabled(false);
-console.log('diff_tree_killfield PASS (dead-end avoided; user path dominates)');
+console.log('diff_tree_killfield PASS (dead-end avoided; user path dominates; empty-field rules)');

@@ -845,5 +845,15 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - 调试栏新增进房子/最远寻路按钮；句号键进房子，/ 键最远寻路。
 - 版本：tree v100、testbench v88、ai_vantage v8、local_patch v7、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十九、第三十一波 v101：空场安全感知
+- `killfieldEnabled` 与 `emptyFieldSafety` 两个独立开关：
+  - 都开：所有时候都由杀戮场引导；
+  - 杀戮场开、空场关：只在有子弹时引导，无弹无寻路静止；
+  - 杀戮场关：空场开关灰显且不生效。
+- 用户寻路（点击 / `/` / 句号）仍优先于杀戮场。
+- 回归 `diff_tree_killfield.js` 覆盖三种空场组合。
+- 版本：tree v101、testbench v89、ai_vantage v8、local_patch v7、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
 - testbench v86：自动寻路移到“调试”栏；/ 键兼容 key/code/keyCode；
   用户寻路优先级高于自动寻路；仅操作时长评分标注短视警告。
