@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v82：
+ *   新增混合选路开关与目标分系数；当前不生效的滑块自动变灰提示。
  * 2026-09-07 v81：
  *   面板默认出现在地图左侧并默认带树图；面板可移出屏幕。
  * 2026-09-07 v80：
@@ -86,7 +88,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v81';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v82';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -135,7 +137,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: false, targetMixRatio: 0.5, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2198,6 +2200,8 @@
             // 选路：只在“树”模式显示
             expLine('选路', '#a6e3a1', 'vt-exp-routeRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
+                expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="100" step="5" value="50" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
@@ -2210,6 +2214,9 @@
             springRope: expRow.querySelector('[data-act="exp-springRope"]'),
             rustMinimal: expRow.querySelector('[data-act="exp-rustMinimal"]'),
             rustPhysics: expRow.querySelector('[data-act="exp-rustPhysics"]'),
+            targetMix: expRow.querySelector('[data-act="exp-targetMix"]'),
+            targetMixRatio: expRow.querySelector('[data-act="exp-targetMixRatio"]'),
+            targetMixRatioSpan: expRow.querySelector('span[id="vt-exp-targetMixRatio"]'),
             deepSelect: expRow.querySelector('[data-act="exp-deepSelect"]'),
             growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
             growLayers: expRow.querySelector('[data-act="exp-growLayers"]'),
@@ -2270,6 +2277,8 @@
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
+                'exp-targetMix': '混合选路。开启后，目标位置分会直接加进安全总分，AI 可能为了靠近目标选择安全分稍低的操作；关闭时仍先选安全的，再在同分路线里选更接近目标的。',
+                'exp-targetMixRatio': '目标位置评分系数。只在混合选路开启时生效，数值越大，AI 越愿意为了靠近目标牺牲安全性；二阶段选路下改这个不影响结果。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
             };
@@ -2385,6 +2394,14 @@
                 state.exp.pruneCompensateFrames = Math.max(1, Math.min(60, parseInt(_expCtrl.pruneCompensateFrames.value, 10) || 1));
                 if (_expCtrl.pruneCompensateFramesSpan) {
                     _expCtrl.pruneCompensateFramesSpan.textContent = state.exp.pruneCompensateFrames + '帧';
+                }
+            });
+        }
+        if (_expCtrl.targetMixRatio) {
+            _expCtrl.targetMixRatio.addEventListener('input', function() {
+                state.exp.targetMixRatio = Math.max(0, Math.min(100, parseInt(_expCtrl.targetMixRatio.value, 10) || 0)) / 100;
+                if (_expCtrl.targetMixRatioSpan) {
+                    _expCtrl.targetMixRatioSpan.textContent = Math.round(state.exp.targetMixRatio * 100) + '%';
                 }
             });
         }
@@ -2584,6 +2601,25 @@
             updatePanel();
             return;
         }
+        // —— v94 混合选路：目标分直接进入安全总分 ——
+        if (act === 'exp-targetMix') {
+            state.exp.targetMix = srcEl.checked;
+            if (typeof VantageTree !== 'undefined') {
+                VantageTree.setTargetMixEnabled(state.exp.targetMix);
+            }
+            updatePanel();
+            return;
+        }
+        // —— v94 目标分占比系数（0~100%，仅混合模式生效）——
+        if (act === 'exp-targetMixRatio') {
+            state.exp.targetMixRatio = Math.max(0, Math.min(100, parseInt(srcEl.value, 10) || 0)) / 100;
+            if (typeof VantageTree !== 'undefined') {
+                VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
+            }
+            if (_expCtrl.targetMixRatioSpan) _expCtrl.targetMixRatioSpan.textContent = Math.round(state.exp.targetMixRatio * 100) + '%';
+            updatePanel();
+            return;
+        }
         // —— v81 深层选路实验开关 ——
         if (act === 'exp-deepSelect') {
             state.exp.deepSelect = srcEl.checked;
@@ -2605,6 +2641,8 @@
             state.exp.pruneCompensateFrames = 1;
             state.exp.retreatNodes = 3;
             state.exp.retreatFrames = 200;
+            state.exp.targetMix = false;
+            state.exp.targetMixRatio = 0.5;
             state.exp.warmupMaxNodes = 500;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
@@ -2620,6 +2658,8 @@
                 VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
                 VantageTree.setRetreatNodes(state.exp.retreatNodes);
                 VantageTree.setRetreatFrames(state.exp.retreatFrames);
+                VantageTree.setTargetMixEnabled(state.exp.targetMix);
+                VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
                 VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
@@ -2907,6 +2947,7 @@
         syncAiControl();
         syncExpControls();
         syncExpVisibility();
+        syncSliderActivity();
         if (!_panelBody) return;
 
         var html = [];
@@ -2971,6 +3012,25 @@
         if (_expCtrl.rustNote) _expCtrl.rustNote.style.display = rustOn ? 'inline-flex' : 'none';
     }
 
+    /** v94：把当前设置下不会生效的滑块变灰，但仍然可以拖动。 */
+    function syncSliderActivity() {
+        if (!_expCtrl) return;
+        function dim(input, inactive) {
+            if (!input) return;
+            var wrap = input.parentNode;
+            if (!wrap) return;
+            wrap.style.opacity = inactive ? '0.35' : '1';
+            wrap.style.filter = inactive ? 'grayscale(0.8)' : '';
+        }
+        var treeMode = !!(state.aiControl && state.aiControl.tree);
+        dim(_expCtrl.slider, !(state.exp.fixed75 || treeMode));
+        dim(_expCtrl.maxNodes, !(state.exp.nodeCap && !state.exp.refineBeyond));
+        dim(_expCtrl.warmupMaxNodes, !state.exp.growWithoutThreats);
+        dim(_expCtrl.horizonSec, !state.exp.horizonCap);
+        dim(_expCtrl.pruneCompensateFrames, !(state.exp.pruneCompensateLayers > 0));
+        dim(_expCtrl.targetMixRatio, !state.exp.targetMix);
+    }
+
     /** v7.4→v7.6 同步持久实验模式控件（只改属性，不重建 DOM） */
     function syncExpControls() {
         if (!_expCtrl) return;
@@ -2980,6 +3040,14 @@
         if (_expCtrl.springRope && _expCtrl.springRope.checked !== state.exp.springRope) _expCtrl.springRope.checked = state.exp.springRope;
         if (_expCtrl.rustMinimal && _expCtrl.rustMinimal.checked !== state.exp.rustMinimal) _expCtrl.rustMinimal.checked = state.exp.rustMinimal;
         if (_expCtrl.rustPhysics && _expCtrl.rustPhysics.checked !== state.exp.rustPhysics) _expCtrl.rustPhysics.checked = state.exp.rustPhysics;
+        if (_expCtrl.targetMix && _expCtrl.targetMix.checked !== state.exp.targetMix) _expCtrl.targetMix.checked = state.exp.targetMix;
+        if (_expCtrl.targetMixRatio) {
+            var tmrVal = Math.round((state.exp.targetMixRatio || 0) * 100);
+            if (parseInt(_expCtrl.targetMixRatio.value, 10) !== tmrVal) _expCtrl.targetMixRatio.value = String(tmrVal);
+        }
+        if (_expCtrl.targetMixRatioSpan && _expCtrl.targetMixRatioSpan.textContent !== Math.round((state.exp.targetMixRatio || 0) * 100) + '%') {
+            _expCtrl.targetMixRatioSpan.textContent = Math.round((state.exp.targetMixRatio || 0) * 100) + '%';
+        }
         if (_expCtrl.deepSelect && _expCtrl.deepSelect.checked !== state.exp.deepSelect) _expCtrl.deepSelect.checked = state.exp.deepSelect;
         if (_expCtrl.growWithoutThreats && _expCtrl.growWithoutThreats.checked !== state.exp.growWithoutThreats) _expCtrl.growWithoutThreats.checked = state.exp.growWithoutThreats;
         if (_expCtrl.growLayers && parseInt(_expCtrl.growLayers.value, 10) !== state.exp.growLayers) _expCtrl.growLayers.value = String(state.exp.growLayers);
@@ -3018,6 +3086,8 @@
         if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatNodes(state.exp.retreatNodes);
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
+        if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixEnabled(state.exp.targetMix);
+        if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
@@ -3527,6 +3597,8 @@
         try { VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes); } catch (eWarmupInit) {}
         try { VantageTree.setRetreatNodes(state.exp.retreatNodes); } catch (eRetreatNodesInit) {}
         try { VantageTree.setRetreatFrames(state.exp.retreatFrames); } catch (eRetreatFramesInit) {}
+        try { VantageTree.setTargetMixEnabled(state.exp.targetMix); } catch (eTargetMixInit) {}
+        try { VantageTree.setTargetMixRatio(state.exp.targetMixRatio); } catch (eTargetMixRatioInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。

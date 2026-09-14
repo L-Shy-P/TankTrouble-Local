@@ -782,3 +782,15 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - 打开面板默认同时打开树图。
 - 版本：tree v93、ai_vantage v8、testbench v81、local_patch v5、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十三、第二十五波 v95：混合选路 + 目标分系数 + 滑块灰显
+- 新增 `targetMixEnabled`：开启后目标分直接混入安全总分，允许安全分稍低但
+  更接近目标的操作胜出；关闭时保持“安全分优先，同分再比目标”的二阶段。
+- 新增 `targetMixRatio`（0~1，面板显示 0~100%）：目标分按该层最大安全分缩放；
+  只在混合模式生效，二阶段模式下改它不影响选路。
+- 混合模式安全底线：存在非 dead 候选时，不为了目标分去选 soft-dead 候选。
+- 目标分权重改为距离 70%、朝向 30%，避免原地转向不前进。
+- 新弹导致树 next 改道时，当前执行段提前结束，减少沿旧分支跑进危险区。
+- 面板滑块增加“灰显但不失效”提示：当前设置下不生效的滑块变灰，仍可拖动。
+- 版本：tree v95、testbench v82、ai_vantage v8、local_patch v5、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。

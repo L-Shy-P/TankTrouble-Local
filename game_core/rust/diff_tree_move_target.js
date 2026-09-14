@@ -52,8 +52,41 @@ if(!VT.clearMoveTarget() && VT.getMoveTarget()!==null) throw new Error('clearMov
     if(VT.pickBestChildByRolloutTotal([b,a])!==a) throw new Error('without target, id tie-break should be preserved');
 }
 
+// hybrid mode: target bonus can override a slightly lower safety score
+{
+    VT.clearMoveTarget();
+    VT.setTargetMixEnabled(false);
+    const safeFar=mk(20,0,0,0,100);
+    const unsafeNear=mk(21,55,55,0,90);
+    VT.setMoveTarget(5,5);
+    if(VT.pickBestChildByRolloutTotal([safeFar,unsafeNear])!==safeFar) {
+        throw new Error('two-phase mode must keep the higher safety score');
+    }
+    VT.setTargetMixEnabled(true);
+    VT.setTargetMixRatio(1);
+    if(VT.pickBestChildByRolloutTotal([safeFar,unsafeNear])!==unsafeNear) {
+        throw new Error('hybrid mode should allow target-near lower-safety node to win');
+    }
+    // two-phase ignores the coefficient: re-enable two-phase, high safety still wins
+    VT.setTargetMixEnabled(false);
+    VT.setTargetMixRatio(0);
+    if(VT.pickBestChildByRolloutTotal([safeFar,unsafeNear])!==safeFar) {
+        throw new Error('two-phase mode must ignore target coefficient');
+    }
+    // hybrid mode still refuses a soft-dead node when an alive node exists
+    const aliveSafe=mk(22,0,0,0,90);
+    const deadNear=mk(23,55,55,0,100);
+    deadNear.status='dead';deadNear.fullDeathFrame=20;
+    VT.setTargetMixEnabled(true);VT.setTargetMixRatio(1);
+    if(VT.pickBestChildByRolloutTotal([deadNear,aliveSafe])!==aliveSafe) {
+        throw new Error('hybrid mode must keep an alive candidate over a soft-dead one');
+    }
+    VT.setTargetMixEnabled(false);
+    VT.setTargetMixRatio(0.5);
+}
+
 VT.setMoveTarget(1,1);
 VT.reset();
 if(VT.getMoveTarget()!==null) throw new Error('reset should clear move target');
 if(cacheCleared<1) throw new Error('reset should clear sandbox caches');
-console.log('diff_tree_move_target PASS (target only breaks equal-safety ties; reset clears target/cache)');
+console.log('diff_tree_move_target PASS (tie-break + hybrid mix + reset cache clear)');

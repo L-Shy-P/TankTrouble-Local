@@ -1,6 +1,10 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v95（混合选路 + 新弹改道提前结束 + 混合安全底线）：
+ *   ① 混合选路开关与目标分系数：目标分按系数缩放后直接进安全总分；
+ *   ② 混合模式下只要还有非 dead 候选，就不为了目标去选 soft-dead 候选；
+ *   ③ 新弹导致树的 next 改道时，提前结束当前执行段，避免沿旧分支跑完。
  * 2026-09-07 v93（无弹点击走真实寻路 + 树目标平局裁决）：
  *   无子弹时点击目标由 AI 走迷宫最短路（会绕墙）；有子弹时忽略直接寻路，
  *   只让树在安全分平局时使用末端姿态目标分。
@@ -394,6 +398,8 @@
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
+    var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
+    var _targetMixRatio = 0.5;               // v94：目标分占比系数（0~1，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
     var _retreatFrames = 200;                // v90：真死回退最多向上多少帧（10~600）
     var _warmupMaxNodes = 500;               // v89：无子弹预热阶段的节点上限
@@ -423,6 +429,8 @@
         retreatDepth: 3,                  // v88 旧接口兼容；新代码优先读 retreatNodes
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
+        targetMixEnabled: false,          // v94：目标分直接混入选路总分
+        targetMixRatio: 0.5,              // v94：目标分占比系数（0~1）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
         minGrowTicks: 3,                  // v43：每段至少给 3 个真实帧用于生长。
                                           // 帧率低时 3~4 帧段实际只有 1 步，树每段
@@ -778,6 +786,8 @@
         tree.cfg.rustMinimalEnabled = _rustMinimalEnabled; // v69：Rust 最小决策
         tree.cfg.deathDurationRatio = _deathDurationRatio; // v80
         tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
+        tree.cfg.targetMixEnabled = _targetMixEnabled;     // v94
+        tree.cfg.targetMixRatio = _targetMixRatio;         // v94
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
         tree.cfg.maxNodes = _maxNodes;                     // v84
         tree.cfg.nodeCapEnabled = _nodeCapEnabled;         // v85
@@ -3008,7 +3018,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         var angleScore = 1 - Math.abs(diff) / Math.PI;   // 0~1，朝向越准越高
         var distScore = 1 / (1 + dist / tile);           // 0~1，越近越高
-        return angleScore * 0.7 + distScore * 0.3;
+        // 先鼓励真的往目标靠近（距离权重更高），朝向作为次要因素，
+        // 避免 AI 在远处只原地转向、不移动。
+        return distScore * 0.7 + angleScore * 0.3;
+    }
+
+    /** v94：混合模式下，把目标分按系数放大到安全分同量级后直接加进总分。 */
+    function targetMixBonus(node, scale) {
+        if (!_targetMixEnabled || !_moveTarget) return 0;
+        var fit = moveTargetScore(node);
+        if (!isFinite(fit) || fit < 0) return 0;
+        return _targetMixRatio * scale * fit;
     }
 
     /** argmax 平局裁定：alive > dead；双 dead 取段长长者（活最久）。
@@ -3030,12 +3050,35 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!(c.fullDeathFrame === 1)) { onlyImmediateDead = false; break; }
         }
         if (!anyActive) onlyImmediateDead = false;
+        // v94：混合选路的安全底线——只要还有非 dead 候选，就不选 dead 候选去换目标。
+        var anyNotDead = false;
+        if (_targetMixEnabled) {
+            for (i = 0; i < children.length; i++) {
+                c = children[i];
+                if (!c || c.exhausted || c.invalid) continue;
+                if (c.status !== 'dead') { anyNotDead = true; break; }
+            }
+        }
+        // v94：混合选路开启时，目标分按最大安全分缩放后直接加到每个候选上。
+        var targetScale = 0;
+        if (_targetMixEnabled && _moveTarget) {
+            for (i = 0; i < children.length; i++) {
+                c = children[i];
+                if (!c || c.exhausted || c.invalid) continue;
+                var absVal = Math.abs(c.subtreeBest || 0);
+                if (absVal > targetScale) targetScale = absVal;
+            }
+            if (targetScale <= 0) targetScale = 1;
+        }
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
             if (!onlyImmediateDead && c.fullDeathFrame === 1) continue;   // 有可苟候选时跳过立即真死
-            if (!best || c.subtreeBest > best.subtreeBest) { best = c; continue; }
-            if (c.subtreeBest === best.subtreeBest) {
+            if (_targetMixEnabled && anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            var cScore = c.subtreeBest + targetMixBonus(c, targetScale);
+            var bScore = best ? (best.subtreeBest + targetMixBonus(best, targetScale)) : -Infinity;
+            if (!best || cScore > bScore) { best = c; continue; }
+            if (cScore === bScore) {
                 var cDead = c.status === 'dead', bDead = best.status === 'dead';
                 if (cDead !== bDead) {
                     if (!cDead) best = c;
@@ -3061,20 +3104,36 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      */
     function pickBestChildByRolloutTotal(children, exclude) {
         var i, c;
-        var anyActive = false, allTrueDead = true;
+        var anyActive = false, allTrueDead = true, anyNotDead = false;
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
             anyActive = true;
-            if (c.fullDeathFrame !== 1) { allTrueDead = false; break; }
+            if (c.status !== 'dead') anyNotDead = true;
+            if (c.fullDeathFrame !== 1) allTrueDead = false;
         }
         if (!anyActive) allTrueDead = false;
+        // v94：混合选路开启时，目标分按最大安全分缩放后直接加到每个候选上。
+        var targetScale2 = 0;
+        if (_targetMixEnabled && _moveTarget) {
+            for (i = 0; i < children.length; i++) {
+                c = children[i];
+                if (!c || c.invalid || c.exhausted || c === exclude) continue;
+                if (!allTrueDead && c.fullDeathFrame === 1) continue;
+                if (_targetMixEnabled && anyNotDead && c.status === 'dead') continue;
+                var absTotal = Math.abs(fullRolloutTotalOf(c));
+                if (absTotal > targetScale2) targetScale2 = absTotal;
+            }
+            if (targetScale2 <= 0) targetScale2 = 1;
+        }
         var best = null, bestTotal = -Infinity;
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
             if (!allTrueDead && c.fullDeathFrame === 1) continue;
-            var total = fullRolloutTotalOf(c);
+            if (_targetMixEnabled && anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            var rawTotal = fullRolloutTotalOf(c);
+            var total = rawTotal + targetMixBonus(c, targetScale2);
             if (!best || total > bestTotal) {
                 best = c; bestTotal = total;
                 continue;
@@ -4552,25 +4611,38 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 confirmExecutionNodeDeath(tree, adapter, tree.commitNode);
             }
             tree.threatDirty = false;
-            // v39：仅当“当前段是静止且新弹很快会进入威胁圈”时才提前结束。
-            // 一般新弹仍让当前段自然跑完，避免 v37 前的树图频闪。
+            // v95：新弹改道后，如果当前执行分支已经不是树的 next，就提前结束
+            // 当前段，避免 AI 明知道要换路却还沿着旧操作跑完整段。
             var cmt = tree.commitNode;
-            if (cmt && cmt.inputs &&
+            var routeChanged = false;
+            if (cmt) {
+                // 找出 commitNode 所属的根层分支：从 commitNode 向上走到根的孩子。
+                var oldFirst = cmt;
+                while (oldFirst && oldFirst.parent && oldFirst.parent !== tree.root) {
+                    oldFirst = oldFirst.parent;
+                }
+                if (oldFirst && oldFirst.parent !== tree.root) oldFirst = null;
+                if (tree.root.next && oldFirst && tree.root.next !== oldFirst) {
+                    routeChanged = true;
+                }
+            }
+            // v39：静止段且新弹很快进入威胁圈时也提前结束。
+            var staticSoon = false;
+            if (!routeChanged && cmt && cmt.inputs &&
                 !cmt.inputs.forward && !cmt.inputs.back &&
                 !cmt.inputs.left && !cmt.inputs.right) {
                 var remain = Math.max(0, cmt.tEndSec - _timeAcc);
-                var soon = false;
                 for (var pi = 0; pi < tree._pendingThreats.length; pi++) {
                     var pth = tree._pendingThreats[pi];
                     if (pth.tIn == null) continue;
                     var absIn = tree.rootAbsT + (pth.anchorOffset || 0) + pth.tIn;
-                    if (absIn <= _timeAcc + Math.min(0.5, remain + 0.2)) { soon = true; break; }
+                    if (absIn <= _timeAcc + Math.min(0.5, remain + 0.2)) { staticSoon = true; break; }
                 }
-                if (soon) {
-                    tree.commitNode.tEndSec = _timeAcc;
-                    tree._forcedReselect = true;
-                    pushEvent('force', '静止段提前结束');
-                }
+            }
+            if (cmt && (routeChanged || staticSoon)) {
+                cmt.tEndSec = _timeAcc;
+                tree._forcedReselect = true;
+                pushEvent('force', routeChanged ? '新弹改道提前结束' : '静止段提前结束');
             }
         }
 
@@ -5021,6 +5093,23 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _maxNodes;
     }
 
+    /** v94：混合选路开关——目标分直接进入总分，可能牺牲一点安全换靠近目标。 */
+    function setTargetMixEnabled(v) {
+        _targetMixEnabled = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.targetMixEnabled = _targetMixEnabled;
+        return _targetMixEnabled;
+    }
+
+    /** v94：目标分占比系数（0~1），只在混合选路开启时生效。 */
+    function setTargetMixRatio(v) {
+        var n = Number(v);
+        if (!isFinite(n)) n = 0.5;
+        n = Math.round(n * 100) / 100;
+        _targetMixRatio = Math.max(0, Math.min(1, n));
+        if (_tree && _tree.cfg) _tree.cfg.targetMixRatio = _targetMixRatio;
+        return _targetMixRatio;
+    }
+
     /** v81：深层选路实验开关；默认关闭，开启后 subtreeBest 参与 next/commit。 */
     function setDeepSelectEnabled(v) {
         _deepSelectEnabled = !!v;
@@ -5069,6 +5158,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setGrowWithoutThreatsEnabled: setGrowWithoutThreatsEnabled,
         setDeathDurationRatio: setDeathDurationRatio,
         setGrowLayersPerTick: setGrowLayersPerTick,
+        setTargetMixEnabled: setTargetMixEnabled,
+        setTargetMixRatio: setTargetMixRatio,
         setDeepSelectEnabled: setDeepSelectEnabled,
         setMaxNodes: setMaxNodes,
         setNodeCapEnabled: setNodeCapEnabled,
@@ -5114,5 +5205,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v93：无弹点击寻路 + 有弹目标平局裁决 + 跨局缓存清理 + 预测时长1~15秒 + 剪枝补偿 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v95：混合选路 + 新弹改道提前结束 + 无弹点击寻路 + 跨局缓存清理 + 剪枝补偿 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
