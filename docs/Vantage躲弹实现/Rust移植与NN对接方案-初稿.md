@@ -824,5 +824,7 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - `fullRolloutTotalOf` 在该模式下按 `perFrameScores` 截断求和，不再直接使用 75 帧总分。
 - 新增 `/` 键：寻路到当前能走到的最远格子。
 - 新增“自动寻路”开关：无用户目标时自动去最近边界/封闭房子（1.8 秒检查一次）。
-- 版本：tree v98、testbench v85、ai_vantage v8、local_patch v7、sandbox v35、
+- 版本：tree v98、testbench v86、ai_vantage v8、local_patch v7、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+- testbench v86：自动寻路移到“调试”栏；/ 键兼容 key/code/keyCode；
+  用户寻路优先级高于自动寻路；仅操作时长评分标注短视警告。

@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v86：
+ *   自动寻路移到“调试”栏；/ 键兼容更多键盘布局；实验评分开关加短视警告。
  * 2026-09-07 v85：
  *   新增仅操作时长评分开关、自动寻路开关、/ 键最远寻路。
  * 2026-09-07 v84：
@@ -94,7 +96,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v85';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v86';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2237,9 +2239,13 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-autoPath"> 自动寻路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
+            ) +
+            // 调试：自动寻路 / 快捷键提示；不混进选路参数
+            expLine('调试', '#f38ba8', 'vt-exp-debugRow',
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-autoPath"> 自动寻路</label>') +
+                expItem('<span style="color:#6c7086">按 / 键 = 寻路到最远可达格</span>')
             ) +
             '<div id="vt-exp-treeHint" style="display:none;color:#6c7086;padding-left:48px">选择 AI 操控「树」后显示生长、回退、选路参数</div>';
         el.appendChild(expRow);
@@ -2296,7 +2302,7 @@
             expRow._vtTipBound = true;
             var tips = {
                 'exp-fixed75': '开启后，不管真实帧率怎么变，都按固定帧数评估每个操作，便于复现实验结果。',
-                'exp-scoreShort': '仅操作时长评分。开启后每个操作只看它自身时长内的帧分，不再固定看 75 帧；更容易发现先转向再前进这类组合技，但远期信息会变少。',
+                'exp-scoreShort': '仅操作时长评分（实验）。开启后只看操作自身时长内的帧分，不再固定看 75 帧；更容易发现先转向再前进这类组合技，但当前实测会让 AI 更短视、更晚躲弹，不建议常规开启。',
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
                 'exp-lane': '轨迹距离评分。开启后，会评估坦克路线与子弹轨迹的距离，靠得太近就额外扣分。',
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
@@ -3554,7 +3560,9 @@
         }
         var k = e.key;
         // v7：/ 键直接寻路到当前能走到的最远格子，省去鼠标点击。
-        if (k === '/') {
+        // 用 key/code/keyCode 三重判断，兼容输入法/键盘布局和旧浏览器。
+        var isSlash = (k === '/' || k === '?' || e.code === 'Slash' || e.keyCode === 191);
+        if (isSlash) {
             e.preventDefault();
             if (typeof TankTroubleLocalPatch !== 'undefined' &&
                 TankTroubleLocalPatch.setVantageFarTarget) {
