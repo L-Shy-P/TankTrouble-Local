@@ -1,6 +1,12 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v90（配合树 v102）：
+ *   显红改为“危险取值判定表”：只有真正会明显削弱 AI/明显卡顿的取值才红
+ *   （全局选路、仅操作时长评分、死亡不扣分取消、Rust 物理/简化选路、预测时长上限、
+ *   无子弹预热、混合选路、固定帧数极端值）；生长层数/上限/回退/剪枝/杀戮场这些
+ *   探索参数随便调，不红。
+ *   杀戮场权重滑块扩到 0~400%，默认 100%（= 一帧安全分同量级）。
  * 2026-09-07 v89：
  *   杀戮场 + 空场安全感知两个独立开关；空场开=所有时候引导，空场关=只在有子弹时引导。
  * 2026-09-07 v88：
@@ -103,7 +109,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v89';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v90';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -152,7 +158,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 0.5, emptyFieldSafety: false, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2125,21 +2131,56 @@
         horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
         pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
-        killfieldEnabled: true, killfieldWeight: 0.5, emptyFieldSafety: false,
+        killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false,
         scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
     };
     // data-act -> 状态字段；只列“危险/不建议随便动”的开关。
-    var RISK_MAP = {
-        'exp-scoreShort': 'scoreOnlyPlanned',
-        'exp-deepSelect': 'deepSelect',
-        'exp-rustMinimal': 'rustMinimal',
-        'exp-continuousRefine': 'continuousRefine',
-        'exp-refineBeyond': 'refineBeyond',
-        'exp-horizonCap': 'horizonCap',
-        'exp-growWithoutThreats': 'growWithoutThreats',
-        'exp-targetMix': 'targetMix',
-        'exp-killfield': 'killfieldEnabled'
+    // v102：改成“危险判定表”。显红只标那些真正会让 AI 明显变傻/明显变卡的
+    // 取值，不是“凡偏离默认都红”。生长层数、预热上限、预测时长、回退节点数、
+    // 剪枝补偿、杀戮场相关这些都算探索参数，随便调，不标红。
+    var DANGER_RULES = {
+        'exp-scoreShort': function(e) {
+            return e.scoreOnlyPlanned ? '只按操作自身时长评分，AI 会变短视、更晚躲弹' : null;
+        },
+        'exp-deepSelect': function(e) {
+            return e.deepSelect ? '全局选路当前版本会让 AI 极其明显地变呆傻' : null;
+        },
+        'exp-nodeath': function(e) {
+            return !e.noDeath ? '取消后评估会重新加死亡惩罚，AI 会变得过度保守' : null;
+        },
+        'exp-rustMinimal': function(e) {
+            return e.rustMinimal ? '只让 Rust 参与选路，不参与物理模拟，行为会偏差很大' : null;
+        },
+        'exp-rustPhysics': function(e) {
+            return !e.rustPhysics ? '关闭后物理预测回退 JS，AI 决策与性能都会明显变差' : null;
+        },
+        'exp-horizonCap': function(e) {
+            return !e.horizonCap ? '关掉预测时长上限会无限叠加节点，性能雪崩、AI 明显变卡' : null;
+        },
+        'exp-growWithoutThreats': function(e) {
+            return !e.growWithoutThreats ? '关掉无子弹预热后，子弹一出现才临时长树，卡顿集中爆发在关键时刻' : null;
+        },
+        'exp-targetMix': function(e) {
+            return !e.targetMix ? '关掉混合选路后，AI 只按安全分走，不再主动靠近目标' : null;
+        },
+        'exp-frames': function(e) {
+            var f = Number(e.evalFrames);
+            if (!isFinite(f) || f < 25 || f > 200) return '固定帧数偏离常用区间（25~200 帧），AI 会变傻或明显变卡';
+            return null;
+        }
     };
+
+    /** v102：当前设置里所有危险取值的说明（给浮层提示用）。 */
+    function dangerOfExp(exp) {
+        var e = exp || state.exp || {};
+        var hits = [];
+        Object.keys(DANGER_RULES).forEach(function(act) {
+            var msg = null;
+            try { msg = DANGER_RULES[act](e); } catch (eRule) { msg = null; }
+            if (msg) hits.push(msg);
+        });
+        return hits;
+    }
 
     function ensurePanel() {
         if (_panel) return _panel;
@@ -2292,7 +2333,7 @@
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-killfield"> 杀戮场引导</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-emptyFieldSafety"> 空场安全感知</label>') +
-                expItem('杀戮场权重 <input type="range" data-act="exp-killfieldWeight" min="0" max="100" step="5" value="50" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">50%</span>') +
+                expItem('杀戮场权重 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
@@ -2362,32 +2403,32 @@
             if (!expRow || expRow._vtTipBound) return;
             expRow._vtTipBound = true;
             var tips = {
-                'exp-fixed75': '开启后，不管真实帧率怎么变，都按固定帧数评估每个操作，便于复现实验结果。',
+                'exp-fixed75': '固定帧数评估（探索参数，不标红）。开启后不管真实帧率怎么变，都按滑块帧数评估每个操作，方便复现实验。注意：滑块帧数低于 25 会让 AI 变短视、高于 200 会明显变卡，只有极端取值才标红。',
                 'exp-scoreShort': '仅操作时长评分（实验）。开启后只看操作自身时长内的帧分，不再固定看 75 帧；更容易发现先转向再前进这类组合技，但当前实测会让 AI 更短视、更晚躲弹，不建议常规开启。',
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
                 'exp-lane': '轨迹距离评分。开启后，会评估坦克路线与子弹轨迹的距离，靠得太近就额外扣分。',
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
-                'exp-nodeath': '死亡不扣分，默认开启。树内评分本来就是死亡帧停止累计、不额外扣分；这里控制的是面板沙箱/固定帧评估的死亡扣分。取消勾选会让面板评估重新加上死亡惩罚。',
-                'exp-rustPhysics': '默认开启。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
-                'exp-growWithoutThreats': '无子弹时预热。和“预热上限”同组：关闭时一起变灰。没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
+                'exp-nodeath': '死亡不扣分，默认开启（危险项，取消会标红）。树内评分本来就是死亡帧停止累计、不额外扣分；这里控制的是面板沙箱/固定帧评估的死亡扣分。取消勾选后评估重新加死亡惩罚，AI 会变得过度保守。',
+                'exp-rustPhysics': '默认开启（危险项，关闭会标红）。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
+                'exp-growWithoutThreats': '无子弹时预热（危险项，关闭会标红）：关掉后子弹一出现才临时长树，卡顿集中爆发在关键时刻。和“预热上限”同组，关闭时一起变灰。',
                 'exp-growLayers': '每个游戏帧最多新增多少层树节点。默认 1 层最稳；数值越大，生长越快，但计算压力也越大。',
                 'exp-maxNodes': '预测树最多保留多少个节点。数值越大，记得越远，但也会更耗内存和计算。',
                 'exp-warmupMaxNodes': '预热上限。和“无子弹时预热”同组：不开预热的会一起变灰。没有子弹时最多保留多少节点，防止开局等待过久导致卡顿。',
                 'exp-nodeCap': '节点数量上限。开关和滑块同组：关闭时一起变灰。关闭后战斗中可以超过上限；如果同时开了“超上限细化长路径”，这个上限也会被绕过。',
                 'exp-horizonSec': '预测时长上限，单位秒，范围 1~15 秒。数值越大，树看得越远，但计算量也越大。',
-                'exp-horizonCap': '预测时长上限。开关和滑块同组：关闭时一起变灰。开启后，超过设定秒数就不再继续往前生长。',
+                'exp-horizonCap': '预测时长上限（危险项，关闭会标红）：关掉会无限叠加节点，性能雪崩、AI 明显变卡。开关和滑块同组，关闭时一起变灰。开启后，超过设定秒数就不再继续往前生长。',
                 'exp-refineBeyond': '达到节点或时长上限后，不再直接停止，而是继续把长操作拆得更细，寻找更多分叉。',
                 'exp-continuousRefine': '不等到达上限，每帧都额外拆一次长操作，让树更细腻；计算量和节点增长都会明显变大。',
                 'exp-pruneCompensateLayers': '新子弹出现导致节点被大量剪掉后，接下来几帧每帧额外多长多少层树节点。默认 0 层，等于关闭。',
                 'exp-pruneCompensateFrames': '剪枝补偿持续多少帧。默认 1 帧，范围 1~60。',
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
-                'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
-                'exp-targetMix': '混合选路。开启后，目标位置分会直接加进安全总分，AI 可能为了靠近目标选择安全分稍低的操作；关闭时仍先选安全的，再在同分路线里选更接近目标的。',
+                'exp-rustMinimal': '实验开关（危险，开启会标红）：只让 Rust 参与最终选路，不参与物理模拟和树结构，AI 行为偏差很大。适合单独测试 Rust 的选路效果。',
+                'exp-targetMix': '混合选路（危险项，关闭会标红）：关闭后 AI 只按安全分走，不再主动靠近任何目标，容易被对手牵制。开启后目标位置分会加进安全总分，可能为靠近目标选择安全分稍低的操作。',
                 'exp-targetMixRatio': '目标位置评分系数（0~300%）。只在混合选路开启时生效：0%=不看目标；30%=轻微引导；100%=目标与安全大致同权；200~300%=强目标引导，可能明显牺牲安全。二阶段选路下改这个不影响结果。',
                 'exp-killfield': '杀戮场引导（当前为静态地形层）：没有用户点击目标时，用死路/出口数/边界生成格子安全分，引导 AI 往更安全、更好跑的位置移动。用户点击或按 / 的寻路优先级更高；后续可再叠加子弹/对手射击覆盖。',
                 'exp-emptyFieldSafety': '空场安全感知。开启后：所有时候（即使没有子弹、没有用户寻路目标）都由杀戮场引导 AI 走安全地形。关闭后：只在有子弹时由杀戮场引导；无子弹且无寻路时保持静止。杀戮场引导关闭时此开关变灰且不生效。',
-                'exp-killfieldWeight': '杀戮场权重（0~100%）。越大，AI 越优先往杀戮场认为安全的地形走；只在杀戮场引导开启且没有用户目标时影响选路。',
+                'exp-killfieldWeight': '杀戮场权重（0~400%，默认 100%）。越大，AI 越优先往杀戮场认为安全的地形走；只在杀戮场引导开启且没有用户目标时影响选路。100% = 与一帧安全分同量级；400% = 地形偏好可能压过短时安全分。',
                 'exp-autoPath': '自动寻路。开启后，如果 AI 当前没有用户指定目标，它会自动寻找最近的边界/封闭房子并过去，方便压力测试；有用户点击目标时不会自动寻路。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
@@ -2517,7 +2558,7 @@
         }
         if (_expCtrl.killfieldWeight) {
             _expCtrl.killfieldWeight.addEventListener('input', function() {
-                state.exp.killfieldWeight = Math.max(0, Math.min(100, parseInt(_expCtrl.killfieldWeight.value, 10) || 0)) / 100;
+                state.exp.killfieldWeight = Math.max(0, Math.min(400, parseInt(_expCtrl.killfieldWeight.value, 10) || 0)) / 100;
                 if (_expCtrl.killfieldWeightSpan) {
                     _expCtrl.killfieldWeightSpan.textContent = Math.round(state.exp.killfieldWeight * 100) + '%';
                 }
@@ -2783,7 +2824,7 @@
             return;
         }
         if (act === 'exp-killfieldWeight') {
-            state.exp.killfieldWeight = Math.max(0, Math.min(100, parseInt(srcEl.value, 10) || 0)) / 100;
+            state.exp.killfieldWeight = Math.max(0, Math.min(400, parseInt(srcEl.value, 10) || 0)) / 100;
             if (typeof VantageTree !== 'undefined' && typeof VantageTree.setKillfieldWeight === 'function') {
                 VantageTree.setKillfieldWeight(state.exp.killfieldWeight);
             }
@@ -2815,7 +2856,7 @@
             state.exp.targetMix = true;
             state.exp.targetMixRatio = 0.5;
             state.exp.killfieldEnabled = true;
-            state.exp.killfieldWeight = 0.5;
+            state.exp.killfieldWeight = 1.0;
             state.exp.emptyFieldSafety = false;
             state.exp.scoreOnlyPlanned = false;
             state.exp.autoPath = false;
@@ -3209,31 +3250,26 @@
         }, 2600);
     }
 
-    /** v99：当前值偏离默认/作者预设的实验项常红；悬浮时 CSS 变红更明显。 */
+    /** v102：只给“危险取值”显红——不是所有偏离默认都红。
+     *  红标画在控件自身；从安全值切到危险值时弹一次浮层提示。 */
     function syncRiskHighlight() {
         if (!_expCtrl || !_expCtrl.expRow) return;
         var expRow = _expCtrl.expRow;
-        Object.keys(RISK_MAP).forEach(function(act) {
+        Object.keys(DANGER_RULES).forEach(function(act) {
             var el = expRow.querySelector('[data-act="' + act + '"]');
-            if (!el || !el.parentNode) return;
-            var key = RISK_MAP[act];
-            var cur = state.exp[key];
-            var def = DEFAULT_EXP[key];
-            var nonDefault;
-            if (typeof cur === 'number' && typeof def === 'number') {
-                nonDefault = Math.abs(cur - def) > 1e-9;
-            } else {
-                nonDefault = cur !== def;
-            }
+            if (!el) return;
+            var msg = null;
+            try { msg = DANGER_RULES[act](state.exp); } catch (eRule) { msg = null; }
+            var dangerous = !!msg;
             if (el.classList) {
-                if (nonDefault) el.classList.add('vt-risk');
+                if (dangerous) el.classList.add('vt-risk');
                 else el.classList.remove('vt-risk');
             }
             var prev = _riskSeen[act];
-            if (prev === false && nonDefault) {
-                showRiskToast('⚠ 设置已偏离作者预设，可能明显影响 AI 强度或性能。');
+            if (prev === false && dangerous) {
+                showRiskToast('⚠ ' + msg);
             }
-            _riskSeen[act] = nonDefault;
+            _riskSeen[act] = dangerous;
         });
     }
 

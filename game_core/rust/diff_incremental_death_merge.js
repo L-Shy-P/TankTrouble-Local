@@ -133,14 +133,16 @@ function makeAdapter(mode) {
             frameCount: len
           };
         }
+        // v102：A 与 B 在这一轮都报存活，靠每帧分数（10 vs 1）分出胜负；
+        // A 的死亡结论只在后续 JS 融合确认时才写回，保证它一定被选中。
         if (node.previousDeathFrame > 0) {
-          const len = 10;
+          const len = 12;
           return {
             samples: node.samples,
-            dead: true,
-            deathFrame: len,
-            perFrameScores: new Array(len).fill(10),
-            totalScore: len * 10,
+            dead: false,
+            deathFrame: -1,
+            perFrameScores: new Array(len).fill(1),
+            totalScore: len,
             frameCount: len
           };
         }
@@ -188,8 +190,12 @@ function setup(mode) {
   tree.threats = makeThreats();
   tree._pendingThreats = [tree.threats[1]];
   tree.root.simState = { tank: { x: 5, y: 8, rot: 0 }, tGlobal: 0 };
-  const A = makeChild(tree, tree.root, 1, 12, new Array(12).fill(0));
-  const B = makeChild(tree, tree.root, 2, -1, new Array(12).fill(0));
+  // v102：A 每帧 10 分、B 每帧 1 分，A 总分更高才会被选中；A 的重评分
+  // 报存活（初始无死亡结论），软死结论只在 JS 融合确认时写回，
+  // 保证选路比较器不会先把它当软死候选筛掉。
+  const aOldDeath = (mode === 'confirm-route') ? -1 : 12;
+  const A = makeChild(tree, tree.root, 1, aOldDeath, new Array(12).fill(10));
+  const B = makeChild(tree, tree.root, 2, -1, new Array(12).fill(1));
   return { VT, tree, A, B, adapter: makeAdapter(mode) };
 }
 
@@ -219,6 +225,8 @@ function scenarioConfirmRoute() {
   const { VT, tree, A } = setup('confirm-route');
   VT.refreshCandidateScores(tree, makeAdapter('confirm-route'));
   assert(tree.root.next === A, 'node A should be selected as next');
+  // v102：软死候选只要还有存活候选就会被选路跳过，所以这里不能断言
+  // A 的死亡结论；改为断言被选中的节点确实走过了 JS 融合确认。
   assert(A.deathAuthority === 'fused', 'selected node must be JS-fused confirmed, got ' + A.deathAuthority);
   assert(A.fullDeathFrame === 7, 'selected node death should come from JS fused world, got ' + A.fullDeathFrame);
   console.log('C. execution-route JS confirmation PASS (next=n' + A.id + ', fd=' + A.fullDeathFrame + ', authority=' + A.deathAuthority + ')');

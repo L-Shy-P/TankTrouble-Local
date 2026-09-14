@@ -1,6 +1,15 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v102（杀戮场真正进选路 + 空场距离梯度）：
+ *   ① 修 v101 真 bug：杀戮场分原本挂在“混合选路加成”上，而该加成的缩放系数
+ *      只在“有点击目标”时才算，没点击目标时恒为 0 —— 0 × 杀戮场分 = 0，
+ *      两个开关看着有其实一分都没进过选路（主人实测“空场开关没用”）；
+ *   ② 杀戮场分新增“到最近安全地形的步数”梯度：纯格子分在开阔地图里几乎处处
+ *      相同（所有操作同分），AI 永远不动；有距离梯度才会真的从墙角/死路挪出来；
+ *   ③ 杀戮场用“操作终点相对当前位置的安全提升量”打分：静止恒 0 分；
+ *   ④ 权重改 0~4（面板 0~400%，默认 1）：100% ≈ 最多一帧安全分的取舍空间，
+ *      400% ≈ 四帧；且缩放基准不超过候选安全分跨度的一半，压不过真安全分差。
  * 2026-09-07 v101（空场安全感知）：
  *   杀戮场总开关 + 空场安全感知独立开关：
  *   - 杀戮场开 + 空场开：所有时候都由杀戮场引导；
@@ -419,14 +428,17 @@
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
     var _liveProjectilesNow = 0;             // v97：真实世界当前子弹数（无弹时优先静止）
+    var _currentTile = null;                 // v102：真实世界坦克当前格子（杀戮场“有没有挪向安全区”的基准）
     var _moveTargetDirty = false;            // v98：点击目标变化后，触发全树刷新重选
     var _scoreOnlyPlanned = false;           // v98：评分范围仅限操作时长（false=固定75帧）
     var _killfieldEnabled = true;            // v100：杀戮场地形引导
-    var _killfieldWeight = 0.5;              // v100：杀戮场权重（0~1）
+    var _killfieldWeight = 1.0;              // v102：杀戮场权重（0~4，1=与一帧安全分同量级）
     var _emptyFieldSafety = false;           // v101：空场安全感知（无弹时也由杀戮场引导）
     var _killfieldGrid = null;               // v100：静态地形安全分格子表
     var _killfieldMazeRef = null;
     var _killfieldW = 0, _killfieldH = 0;
+    var _safeDistGrid = null;                // v102：每格到最近“安全地形”的步数（有梯度，能拉着 AI 走）
+    var _safeDistMax = 1;                    // v102：上面那张表的归一化上界
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -460,7 +472,7 @@
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         scoreOnlyPlanned: false,          // v98：评分范围仅限操作时长（默认固定75帧）
         killfieldEnabled: true,           // v100：杀戮场地形引导
-        killfieldWeight: 0.5,             // v100：杀戮场权重（0~1）
+        killfieldWeight: 1.0,             // v102：杀戮场权重（0~4）
         emptyFieldSafety: false,          // v101：空场安全感知
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
@@ -3085,7 +3097,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return !inputs || (!inputs.forward && !inputs.back && !inputs.left && !inputs.right);
     }
 
-    /** v100：构建静态地形杀戮场。迷宫换一次重建一次，节点只做 O(1) 查表。 */
+    /** v100：构建静态地形杀戮场。迷宫换一次重建一次，节点只做 O(1) 查表。
+     *  v102：额外算一张“到最近安全地形的步数”表——纯格子分在开阔地图里
+     *  几乎处处相同，选路时所有操作同分（=开关看着没用）；有距离梯度
+     *  AI 才会真的从墙角/死路里挪出来。 */
     function ensureKillfield(maze) {
         if (!_killfieldEnabled || !maze || !maze.getWidth || !maze.getHeight) return;
         if (_killfieldGrid && _killfieldMazeRef === maze) return;
@@ -3095,29 +3110,90 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var maxDead = (typeof Constants !== 'undefined' && Constants.AI &&
             typeof Constants.AI.MAZE_MAX_DEAD_END_PENALTY === 'number')
             ? Constants.AI.MAZE_MAX_DEAD_END_PENALTY : 5;
-        for (var i = 0; i < w; i++) {
-            for (var j = 0; j < h; j++) {
+        var i, j, d;
+        var openCount = new Array(w * h);
+        var walkable = new Array(w * h);
+        for (i = 0; i < w; i++) {
+            for (j = 0; j < h; j++) {
+                var idx = j * w + i;
                 var tile = { x: i, y: j };
-                if (!maze.isPositionInsideMaze(tile)) { grid[j * w + i] = 0; continue; }
+                if (!maze.isPositionInsideMaze(tile)) {
+                    grid[idx] = 0;
+                    openCount[idx] = 0;
+                    walkable[idx] = false;
+                    continue;
+                }
+                walkable[idx] = true;
                 var open = 0;
-                for (var d = 0; d < dirs.length; d++) {
+                for (d = 0; d < dirs.length; d++) {
                     var nb = { x: i + dirs[d][0], y: j + dirs[d][1] };
                     if (nb.x < 0 || nb.y < 0 || nb.x >= w || nb.y >= h) continue;
                     if (maze.isPositionInsideMaze(nb)) open++;
                 }
+                openCount[idx] = open;
                 var dead = (maze.getDeadEndPenalty ? (maze.getDeadEndPenalty(tile) || 0) : 0);
                 var deadScore = 1 - Math.min(1, dead / maxDead);
                 var openScore = open / 4;
                 var score = deadScore * 0.6 + openScore * 0.4;
                 if (i === 0 || j === 0 || i === w - 1 || j === h - 1) score -= 0.15;
                 if ((i === 0 || i === w - 1) && (j === 0 || j === h - 1)) score -= 0.1;
-                grid[j * w + i] = Math.max(0, Math.min(1, score));
+                grid[idx] = Math.max(0, Math.min(1, score));
             }
         }
+        // 安全地形 = 格子分足够高（路口/开阔区）。从这些格子做一次多源 BFS。
+        var SAFE_TILE_SCORE = 0.7;
+        var dist = new Array(w * h);
+        var queueI = [], queueJ = [];
+        for (i = 0; i < w; i++) {
+            for (j = 0; j < h; j++) {
+                var id2 = j * w + i;
+                if (!walkable[id2]) { dist[id2] = -1; continue; }
+                if (grid[id2] >= SAFE_TILE_SCORE || openCount[id2] >= 4) {
+                    dist[id2] = 0;
+                    queueI.push(i);
+                    queueJ.push(j);
+                } else {
+                    dist[id2] = -1;
+                }
+            }
+        }
+        var head = 0;
+        while (head < queueI.length) {
+            var ci = queueI[head], cj = queueJ[head];
+            head++;
+            var cd = dist[cj * w + ci];
+            for (d = 0; d < dirs.length; d++) {
+                var ni = ci + dirs[d][0], nj = cj + dirs[d][1];
+                if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+                var nidx = nj * w + ni;
+                if (!walkable[nidx] || dist[nidx] >= 0) continue;
+                dist[nidx] = cd + 1;
+                queueI.push(ni);
+                queueJ.push(nj);
+            }
+        }
+        var maxDist = 1;
+        for (i = 0; i < grid.length; i++) {
+            if (dist[i] > maxDist) maxDist = dist[i];
+        }
         _killfieldGrid = grid;
+        _safeDistGrid = dist;
+        _safeDistMax = maxDist;
         _killfieldMazeRef = maze;
         _killfieldW = w;
         _killfieldH = h;
+    }
+
+    /** v102：杀戮场引导分（0~1）。格子分（地形是否开阔）× 0.65 +
+     *  到安全区距离（越近越高）× 0.35。无梯度时后面的项也保证有区分度。 */
+    function killfieldScoreAtTile(tx, ty) {
+        if (!_killfieldGrid || tx < 0 || ty < 0 || tx >= _killfieldW || ty >= _killfieldH) return 0.5;
+        var idx = ty * _killfieldW + tx;
+        var base = _killfieldGrid[idx];
+        var d = _safeDistGrid ? _safeDistGrid[idx] : -1;
+        if (d < 0) return base;              // 到不了安全区（封闭角）：只用格子分
+        var distScore = 1 - d / (_safeDistMax + 1);
+        return base * 0.65 + distScore * 0.35;
     }
 
     function killfieldScoreAtTank(tank) {
@@ -3126,13 +3202,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             ? Constants.MAZE_TILE_SIZE.m : 10;
         var tx = Math.floor(tank.x / tileSize);
         var ty = Math.floor(tank.y / tileSize);
-        if (tx < 0 || ty < 0 || tx >= _killfieldW || ty >= _killfieldH) return -Infinity;
-        return _killfieldGrid[ty * _killfieldW + tx];
+        return killfieldScoreAtTile(tx, ty);
+    }
+
+    /** v102：把 (tileX, tileY) 换成杀戮场引导分；越界时退回 0.5（中立）。 */
+    function killfieldScoreAtTileSafe(tx, ty) {
+        if (!_killfieldGrid) return -Infinity;
+        if (tx < 0 || ty < 0 || tx >= _killfieldW || ty >= _killfieldH) return 0.5;
+        return killfieldScoreAtTile(tx, ty);
     }
 
     /** v100：统一目标分：
      *  用户指定目标时，目标优先，杀戮场不抢方向；
-     *  没有用户目标且有子弹时，才用杀戮场引导去更安全的地形。 */
+     *  没有用户目标时，由杀戮场引导去更安全的地形（有弹；无弹看空场开关）。 */
     function objectiveScore(node) {
         if (!node || !node.simState || !node.simState.tank) return -Infinity;
         if (_moveTarget) return moveTargetScore(node);   // 用户寻路优先级最高
@@ -3141,7 +3223,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (_liveProjectilesNow <= 0 && !_emptyFieldSafety) return -Infinity;
         var kf = killfieldScoreAtTank(node.simState.tank);
         if (!isFinite(kf)) return -Infinity;
-        return kf * _killfieldWeight;
+        return kf;                                       // 权重在加成环节乘，便于与安全分量配平
     }
 
     /** v101：无弹无目标且空场安全感知没开时，平局优先静止。 */
@@ -3150,12 +3232,70 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             !(_killfieldEnabled && _emptyFieldSafety);
     }
 
-    /** v94：混合模式下，把目标分按系数放大到安全分同量级后直接加进总分。 */
-    function targetMixBonus(node, scale) {
-        if (!_targetMixEnabled) return 0;
-        var fit = objectiveScore(node);
-        if (!isFinite(fit) || fit < 0) return 0;
-        return _targetMixRatio * scale * fit;
+    /** v102：目标分/杀戮场分的加成，两条完全不同的量纲分开算：
+     *  · 目标分（moveTargetScore，0~1）按 targetScaleOf 放大（v94 旧口径，保持不变）；
+     *  · 杀戮场分（0~1）按“一帧安全分”量级放大，权重 100% ≈ 最多一帧安全分的
+     *    取舍空间，400% ≈ 最多四帧。
+     *  杀戮场用的是“相对当前格子的安全提升量”：静止恒为 0，只有真的往更安全
+     *  的地形挪才拿得到分，所以不会出现“站着不动也加分”。 */
+    function objectiveBonus(node, targetScale, kfScale) {
+        if (_moveTarget) {
+            // 用户寻路优先：混合选路开启时目标分按系数直接进总分。
+            if (!_targetMixEnabled) return 0;
+            var fit = moveTargetScore(node);
+            if (!isFinite(fit)) return 0;
+            return _targetMixRatio * targetScale * fit;
+        }
+        if (!_killfieldEnabled) return 0;
+        // 空场安全感知：关掉时无子弹不引导；开启时无弹也引导（与 objectiveScore 同口径）。
+        if (_liveProjectilesNow <= 0 && !_emptyFieldSafety) return 0;
+        var here = -Infinity, there = -Infinity;
+        if (_currentTile) here = killfieldScoreAtTileSafe(_currentTile.x, _currentTile.y);
+        if (node && node.simState && node.simState.tank) {
+            there = killfieldScoreAtTank(node.simState.tank);
+        }
+        if (!isFinite(here) || !isFinite(there)) return 0;
+        return _killfieldWeight * kfScale * (there - here);
+    }
+
+    /** v94 旧口径（v102 保留）：目标分缩放基准 = 候选安全分绝对值的最大值。
+     *  目标分是 0~1 的“拟合度”，乘上它之后才和安全分同量级。 */
+    function targetScaleOf(children, exclude) {
+        var scale = 0;
+        if (children && children.length) {
+            for (var i = 0; i < children.length; i++) {
+                var c = children[i];
+                if (!c || c.invalid || c.exhausted || c === exclude) continue;
+                var absVal = Math.abs(Number(c.subtreeBest) || 0);
+                if (absVal > scale) scale = absVal;
+            }
+        }
+        return scale > 0 ? scale : 1;
+    }
+
+    /** v102：杀戮场加成缩放基准 = “一帧安全分”量级 (2π)² ≈ 39.4784，且不超过
+     *  候选安全分实际跨度的一半（安全分拉得很开时，地形偏好只能当近似平局
+     *  的补充，绝不喧宾夺主）。
+     *  （旧版这里只在“有点击目标”时才算系数，没点击目标时恒为 0 —— 杀戮场
+     *  一分都没进过选路，这才是主人说的“开关看着有其实没用”。） */
+    function killfieldScaleOf(children, exclude) {
+        var FRAME_SCORE = 39.4784;      // (2π)²：一整圈没被遮挡的单帧安全分
+        var span = 0;
+        if (children && children.length) {
+            var lo = Infinity, hi = -Infinity;
+            for (var i = 0; i < children.length; i++) {
+                var c = children[i];
+                if (!c || c.invalid || c.exhausted || c === exclude) continue;
+                var v = Number(c.subtreeBest) || 0;
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+            }
+            if (isFinite(lo) && isFinite(hi) && hi > lo) span = hi - lo;
+        }
+        // 无弹时空场里所有操作的安全分完全相同（span=0），这时也要给地形偏好
+        // 整帧的量级，否则杀戮场会再次被 0 乘没。
+        if (span <= 1e-9) return FRAME_SCORE;
+        return Math.max(1, Math.min(span * 0.5, FRAME_SCORE * 4));
     }
 
     /** argmax 平局裁定：alive > dead；双 dead 取段长长者（活最久）。
@@ -3186,24 +3326,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 if (c.status !== 'dead') { anyNotDead = true; break; }
             }
         }
-        // v94：混合选路开启时，目标分按最大安全分缩放后直接加到每个候选上。
-        var targetScale = 0;
-        if (_targetMixEnabled && _moveTarget) {
-            for (i = 0; i < children.length; i++) {
-                c = children[i];
-                if (!c || c.exhausted || c.invalid) continue;
-                var absVal = Math.abs(c.subtreeBest || 0);
-                if (absVal > targetScale) targetScale = absVal;
-            }
-            if (targetScale <= 0) targetScale = 1;
-        }
+        // v102：目标分/杀戮场分的缩放基准不再要求“有点击目标”（旧版恒 0，
+        // 导致杀戮场一分都没进过选路）。
+        // v102：目标分/杀戮场分各自的缩放基准（不再要求“有点击目标”，
+        // 旧版没点击目标时系数恒 0，杀戮场一分都没进过选路）。
+        var targetScale = targetScaleOf(children, null);
+        var kfScale = killfieldScaleOf(children, null);
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
             if (!onlyImmediateDead && c.fullDeathFrame === 1) continue;   // 有可苟候选时跳过立即真死
-            if (_targetMixEnabled && anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
-            var cScore = c.subtreeBest + targetMixBonus(c, targetScale);
-            var bScore = best ? (best.subtreeBest + targetMixBonus(best, targetScale)) : -Infinity;
+            if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            var cScore = c.subtreeBest + objectiveBonus(c, targetScale, kfScale);
+            var bScore = best ? (best.subtreeBest + objectiveBonus(best, targetScale, kfScale)) : -Infinity;
             if (!best || cScore > bScore) { best = c; continue; }
             if (cScore === bScore) {
                 var cDead = c.status === 'dead', bDead = best.status === 'dead';
@@ -3248,27 +3383,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (c.fullDeathFrame !== 1) allTrueDead = false;
         }
         if (!anyActive) allTrueDead = false;
-        // v94：混合选路开启时，目标分按最大安全分缩放后直接加到每个候选上。
-        var targetScale2 = 0;
-        if (_targetMixEnabled && _moveTarget) {
-            for (i = 0; i < children.length; i++) {
-                c = children[i];
-                if (!c || c.invalid || c.exhausted || c === exclude) continue;
-                if (!allTrueDead && c.fullDeathFrame === 1) continue;
-                if (_targetMixEnabled && anyNotDead && c.status === 'dead') continue;
-                var absTotal = Math.abs(fullRolloutTotalOf(c));
-                if (absTotal > targetScale2) targetScale2 = absTotal;
-            }
-            if (targetScale2 <= 0) targetScale2 = 1;
-        }
+        // v102：目标分/杀戮场分各自缩放（不再要求有点击目标）。
+        var targetScale2 = targetScaleOf(children, exclude);
+        var kfScale2 = killfieldScaleOf(children, exclude);
         var best = null, bestTotal = -Infinity;
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
             if (!allTrueDead && c.fullDeathFrame === 1) continue;
-            if (_targetMixEnabled && anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
             var rawTotal = fullRolloutTotalOf(c);
-            var total = rawTotal + targetMixBonus(c, targetScale2);
+            var total = rawTotal + objectiveBonus(c, targetScale2, kfScale2);
             if (!best || total > bestTotal) {
                 best = c; bestTotal = total;
                 continue;
@@ -4603,17 +4728,20 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
+        // v102：杀戮场“当前格子”基准——记真实世界里坦克站的这一格，
+        // 选路时用“操作终点相对它的安全提升”打分，静止永远是 0 分。
+        var tileM = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
+            ? Constants.MAZE_TILE_SIZE.m : 10;
+        setCurrentTile(Math.floor(tankState.x / tileM), Math.floor(tankState.y / tileM));
         // v100：杀戮场静态地形表；迷宫不变只构建一次，节点只查表。
         if (_killfieldEnabled && ai && ai.gameController && ai.gameController.getMaze) {
             try { ensureKillfield(ai.gameController.getMaze()); } catch (eKf) {}
         }
         if (_moveTarget) {
-            var tile = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
-                ? Constants.MAZE_TILE_SIZE.m : 10;
-            var tcx = (_moveTarget.x + 0.5) * tile;
-            var tcy = (_moveTarget.y + 0.5) * tile;
+            var tcx = (_moveTarget.x + 0.5) * tileM;
+            var tcy = (_moveTarget.y + 0.5) * tileM;
             var tdx = tankState.x - tcx, tdy = tankState.y - tcy;
-            if (tdx * tdx + tdy * tdy < tile * tile * 0.25) {
+            if (tdx * tdx + tdy * tdy < tileM * tileM * 0.25) {
                 clearMoveTarget();
                 if (ai && typeof ai.clearDebugTarget === 'function') {
                     try { ai.clearDebugTarget(); } catch (eClearTarget) {}
@@ -5292,6 +5420,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _liveProjectilesNow;
     }
 
+    /** v102：记录真实世界里坦克当前所在的格子，作为“有没有往安全地形挪”的基准点。 */
+    function setCurrentTile(tx, ty) {
+        var x = Math.floor(Number(tx)), y = Math.floor(Number(ty));
+        if (!isFinite(x) || !isFinite(y) || x < 0 || y < 0) { _currentTile = null; return null; }
+        _currentTile = { x: x, y: y };
+        return _currentTile;
+    }
+
     /** v101：空场安全感知——无子弹无寻路时也让杀戮场引导。 */
     function setEmptyFieldSafety(v) {
         _emptyFieldSafety = !!v;
@@ -5302,17 +5438,21 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** v100：杀戮场地形引导开关。 */
     function setKillfieldEnabled(v) {
         _killfieldEnabled = !!v;
-        if (!_killfieldEnabled) { _killfieldGrid = null; _killfieldMazeRef = null; }
+        if (!_killfieldEnabled) {
+            _killfieldGrid = null;
+            _killfieldMazeRef = null;
+            _safeDistGrid = null;
+        }
         if (_tree && _tree.cfg) _tree.cfg.killfieldEnabled = _killfieldEnabled;
         return _killfieldEnabled;
     }
 
-    /** v100：杀戮场权重（0~1）。 */
+    /** v102：杀戮场权重（0~4）。1 = 与一帧安全分同量级，0 = 完全不引导。 */
     function setKillfieldWeight(v) {
         var n = Number(v);
-        if (!isFinite(n)) n = 0.5;
+        if (!isFinite(n)) n = 1.0;
         n = Math.round(n * 100) / 100;
-        _killfieldWeight = Math.max(0, Math.min(1, n));
+        _killfieldWeight = Math.max(0, Math.min(4, n));
         if (_tree && _tree.cfg) _tree.cfg.killfieldWeight = _killfieldWeight;
         return _killfieldWeight;
     }
@@ -5389,6 +5529,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         setLiveProjectilesNow: setLiveProjectilesNow,
+        setCurrentTile: setCurrentTile,
         setTargetMixEnabled: setTargetMixEnabled,
         setTargetMixRatio: setTargetMixRatio,
         setDeepSelectEnabled: setDeepSelectEnabled,
@@ -5436,5 +5577,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v101：杀戮场+空场安全感知 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v102：杀戮场真正进选路 + 空场距离梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
