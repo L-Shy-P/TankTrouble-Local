@@ -3,6 +3,7 @@
  * 直接复制原版 Laika AI 类，只修改 update：无 debugTarget 时静止，有 debugTarget 时寻路移动
  * 后续阶段将把 update 内核替换为预测树帧循环（见 docs/Vantage躲弹实现/00-总体规划.md）
  *   死亡快照可记录凶器 projectileId/type，诊断“看不见的子弹”。
+ * 2026-09-07 v8：无弹点击走迷宫最短路，有弹点击只作树目标平局裁决。
  * 2026-08-23 v6：跨局/重生树重置。VantageAI.reset() 会清 VantageTree、
  *   置空 _vantageAdapter、重置 inputState；ROUND_CREATED 与 TANK_CREATED
  *   都走 reset()，避免旧树在下一局/下一条命继续驱动。
@@ -31,7 +32,21 @@ var VantageAI=Classy.newClass();VantageAI.fields({aiId:null,config:null,gameCont
             console.warn('[Vantage] 基准时间计算异常:', btErr);
         }
     }
+    // v8：无子弹时，点击目标允许走原来的迷宫最短路径寻路（真正会绕过墙）；
+    // 一旦场上有子弹，就只让树用目标分做平局裁决，不再直接接管驾驶。
+    var directNavigate = false;
     if (this.debugTarget) {
+        var noProjectiles = true;
+        try {
+            var ps = this.gameController.getProjectiles();
+            noProjectiles = !ps || Object.keys(ps).length === 0;
+        } catch (eProj) { noProjectiles = true; }
+        directNavigate = noProjectiles;
+    }
+    if (this.debugTarget && directNavigate) {
+        // 先让树照常 tick，树图/生长不会因为点击寻路而停摆；
+        // 再用迷宫最短路覆盖本帧 input，保证无弹点击能真正绕墙移动。
+        this._vantageManualControl(deltaTime);
         this._navigateToDebugTarget();
         this._updateInputToDoAction();
         this._updateAndRemovePerformedActions(deltaTime);
@@ -85,6 +100,9 @@ var VantageAI=Classy.newClass();VantageAI.fields({aiId:null,config:null,gameCont
 clearDebugTarget:function(){
     this.debugTarget = null;
     this.actions = [];
+    if (typeof VantageTree !== 'undefined' && VantageTree.clearMoveTarget) {
+        try { VantageTree.clearMoveTarget(); } catch (eCT) {}
+    }
     console.log('[Vantage] 清除调试目标');
 },
 _navigateToDebugTarget:function(){

@@ -2,6 +2,7 @@
  * TankTrouble 本地模式补丁 — 在 ajax.js 加载后立即执行
  * v3：移除本地部署不需要的 Cookie 同意提示条。
  * v4：点击地面只设置树评分目标，不再直接接管 AI 驾驶。
+ * v5：无子弹时点击地面同时启用旧迷宫最短路寻路；有子弹时只交给树评分。
  */
 (function() {
     'use strict';
@@ -2047,23 +2048,29 @@
         return null;
     }
 
-    /** v4：点击地面只设置“树评分目标”，不再直接接管 AI 驾驶。
-     *  树只在几个操作安全分完全相同时，用末端姿态与目标方向的接近程度做平局裁决。 */
+    /** v4/v5：点击地面同时设置：
+     *  ① 树评分目标（有子弹时只做安全分平局裁决）；
+     *  ② AI 调试寻路目标（无子弹时走迷宫最短路，真正绕墙寻路）。
+     *  一旦场上有子弹，AI 会忽略调试目标，回到树控制。 */
     function setVantageMoveTarget(tileX, tileY) {
         if (typeof VantageTree !== 'undefined' && VantageTree.setMoveTarget) {
             VantageTree.setMoveTarget(tileX, tileY);
-            // 清掉旧的“直接驾驶”调试目标，避免树和旧寻路同时抢输入。
-            if (typeof AIs !== 'undefined' && AIs.aiManagers) {
-                for (var i = 0; i < AIs.aiManagers.length; i++) {
-                    var m = AIs.aiManagers[i];
-                    if (m && m.isVantage && m.ai && typeof m.ai.clearDebugTarget === 'function') {
-                        m.ai.clearDebugTarget();
-                    }
+        }
+        var found = false;
+        if (typeof AIs !== 'undefined' && AIs.aiManagers) {
+            for (var i = 0; i < AIs.aiManagers.length; i++) {
+                var m = AIs.aiManagers[i];
+                if (m && m.isVantage && m.ai && typeof m.ai.setDebugTarget === 'function') {
+                    m.ai.setDebugTarget(tileX, tileY);
+                    found = true;
                 }
             }
-            return true;
         }
-        return setVantageDebugTarget(tileX, tileY);
+        if (!found && !(typeof VantageTree !== 'undefined' && VantageTree.setMoveTarget)) {
+            console.warn('[Vantage] 未找到Vantage AI实例');
+            return false;
+        }
+        return true;
     }
 
     /**

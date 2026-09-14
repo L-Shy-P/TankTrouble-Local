@@ -773,3 +773,12 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
   后续需要深层节点新鲜度校验；训练模式高压卡死未定位。
 - 版本：tree v92、testbench v80、sandbox v35、local_patch v4、scoring v32、
   bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十二、第二十四波 v93：无弹点击寻路 + 面板靠地图左侧
+- 无子弹时点击目标继续走 AI 原有迷宫最短路寻路；有子弹时忽略直接寻路，
+  只让树在安全总分平局时使用末端姿态目标分。
+- 树到达目标时同时清空 AI 调试目标与树目标。
+- 面板默认贴地图左侧边缘，和树图右侧对称；面板和树图都不夹回屏幕内。
+- 打开面板默认同时打开树图。
+- 版本：tree v93、ai_vantage v8、testbench v81、local_patch v5、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。

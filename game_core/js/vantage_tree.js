@@ -1,6 +1,9 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v93（无弹点击走真实寻路 + 树目标平局裁决）：
+ *   无子弹时点击目标由 AI 走迷宫最短路（会绕墙）；有子弹时忽略直接寻路，
+ *   只让树在安全分平局时使用末端姿态目标分。
  * 2026-09-07 v92（点击目标只做平局裁决 + 跨局缓存清理）：
  *   ① 点击地面不再直接接管 AI 驾驶；目标只作为安全分完全相同时的
  *      末端姿态平局裁决（位置越近、朝向越准分越高）；
@@ -4406,6 +4409,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var tdx = tankState.x - tcx, tdy = tankState.y - tcy;
             if (tdx * tdx + tdy * tdy < tile * tile * 0.25) {
                 clearMoveTarget();
+                if (ai && typeof ai.clearDebugTarget === 'function') {
+                    try { ai.clearDebugTarget(); } catch (eClearTarget) {}
+                }
             }
         }
 
@@ -5108,5 +5114,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v92：点击目标平局裁决 + 跨局缓存清理 + 预测时长1~15秒 + 剪枝补偿 + 真死回退改道 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v93：无弹点击寻路 + 有弹目标平局裁决 + 跨局缓存清理 + 预测时长1~15秒 + 剪枝补偿 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

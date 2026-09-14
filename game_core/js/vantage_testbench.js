@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v81：
+ *   面板默认出现在地图左侧并默认带树图；面板可移出屏幕。
  * 2026-09-07 v80：
  *   T 键开面板、Y 键开树图；全局选路加“当前会变弱”警告。
  * 2026-09-07 v79：
@@ -84,7 +86,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v80';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v81';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -1433,6 +1435,32 @@
                  width: right - left, height: bottom - top };
     }
 
+    /** v94：主面板默认贴在“地图左侧边缘”，和树图一样不夹回屏幕内。 */
+    function placePanel() {
+        if (!_panel || !state.panelOn) return;
+        var w = _panel.offsetWidth || 360;
+        var mapRect = getGameMapRect();
+        var left, top;
+        if (mapRect) {
+            left = mapRect.left - w - 8;
+            top = mapRect.top;
+        } else {
+            var canvas = document.querySelector('#phaserCanvasContainer canvas, canvas');
+            if (canvas && canvas.getBoundingClientRect) {
+                var cr = canvas.getBoundingClientRect();
+                left = cr.left - w - 8;
+                top = cr.top;
+            } else {
+                left = 8;
+                top = 8;
+            }
+        }
+        _panel.style.left = Math.round(left) + 'px';
+        _panel.style.top = Math.round(top) + 'px';
+        _panel.style.right = 'auto';
+        _panelUserMoved = false;
+    }
+
     /** v90：树图默认贴在“地图右侧边缘”，不夹回屏幕内。
      *  如果拿不到地图，就贴游戏画布右侧；再拿不到才贴屏幕右侧。 */
     function placeTreeView() {
@@ -2039,6 +2067,7 @@
     var _aiCtrl = null;   // v6.1 持久 AI 操控控件引用（永不重建）
     var _expCtrl = null;  // v7.4 持久实验模式控件引用（永不重建）
     var _drag = null;
+    var _panelUserMoved = false;   // v94：用户手动拖过面板后，窗口变化不再自动靠地图左侧
 
     function ensurePanel() {
         if (_panel) return _panel;
@@ -2404,6 +2433,7 @@
             if (e.button !== 0) return;
             if (isPanelInteractive(e.target)) return;
             var rect = el.getBoundingClientRect();
+            _panelUserMoved = true;
             _drag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
             e.preventDefault();
         });
@@ -3393,7 +3423,12 @@
             state.panelOn = !state.panelOn;
             if (state.panelOn) { _perfDead = false; state.errRun = null; }   // 重开面板重试
             try { updatePanel(); } catch (eB) { console.error('[Testbench] 面板刷新异常:', eB); }
-            if (_tv && state.treeViewOn && !_tv.userMoved) placeTreeView();
+            if (state.panelOn) {
+                if (!_panelUserMoved) placePanel();
+                if (!state.treeViewOn) toggleTreeView();   // v94：面板默认带树图
+            } else if (_tv && state.treeViewOn && !_tv.userMoved) {
+                placeTreeView();
+            }
             return;
         }
         if (k === 'v' || k === 'V') { e.preventDefault(); state.vizOn = !state.vizOn; renderViz(); syncButtonLabels(); return; }
@@ -3507,6 +3542,7 @@
     // v90：窗口尺寸变化时，未手动移动过树图就重新贴到面板左侧/屏幕右侧；
     // 手动移动过则只保证标题栏还在视口内。
     window.addEventListener('resize', function() {
+        if (state.panelOn && _panel && !_panelUserMoved) placePanel();
         if (!_tv || _tv.userMoved) return;
         placeTreeView();
     });
