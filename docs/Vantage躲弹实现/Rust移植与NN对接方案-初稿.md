@@ -814,3 +814,15 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - 回归：无弹平局优先静止。
 - 版本：tree v97、testbench v84、ai_vantage v8、local_patch v6、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十六、第二十八波 v98：点击全树刷新 + 评分范围开关 + 自动寻路
+- 点击目标后标记 `_moveTargetDirty`，tick 里 `rerouteTreeForCurrentThreats`
+  刷新全树并逐层重选，同时提前结束当前段，让 AI 更快开始按目标行动。
+- 新增 `scoreOnlyPlanned`：
+  - 关闭：固定 75 帧评分（原行为）；
+  - 开启：只累计节点自身计划/执行时长内的帧分，偏向短期组合技。
+- `fullRolloutTotalOf` 在该模式下按 `perFrameScores` 截断求和，不再直接使用 75 帧总分。
+- 新增 `/` 键：寻路到当前能走到的最远格子。
+- 新增“自动寻路”开关：无用户目标时自动去最近边界/封闭房子（1.8 秒检查一次）。
+- 版本：tree v98、testbench v85、ai_vantage v8、local_patch v7、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。

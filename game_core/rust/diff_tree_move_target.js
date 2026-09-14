@@ -65,6 +65,26 @@ if(!VT.clearMoveTarget() && VT.getMoveTarget()!==null) throw new Error('clearMov
     if(VT.pickBestChildByRolloutTotal([b,a])!==a) throw new Error('without target, id tie-break should be preserved');
 }
 
+// v98: score range switch (fixed 75 frames vs operation duration only)
+{
+    function mkScored(id,total,early) {
+        const n=mk(id,0,0,0,total);
+        n.plannedFrames=10;
+        n.segmentFrames=10;
+        n.perFrameScores=new Array(75).fill(0);
+        for(let k=0;k<10;k++) n.perFrameScores[k]=early;
+        n.rolloutTotal=total;
+        return n;
+    }
+    const a=mkScored(40,1000,10);   // fixed mode total 1000, duration total 100
+    const b=mkScored(41,500,20);    // fixed mode total 500, duration total 200
+    VT.setScoreOnlyPlanned(false);
+    if(VT.pickBestChildByRolloutTotal([a,b])!==a) throw new Error('fixed-75 mode should keep high full total');
+    VT.setScoreOnlyPlanned(true);
+    if(VT.pickBestChildByRolloutTotal([a,b])!==b) throw new Error('score-only-planned should compare duration frames only');
+    VT.setScoreOnlyPlanned(false);
+}
+
 // hybrid mode: target bonus can override a slightly lower safety score
 {
     VT.clearMoveTarget();

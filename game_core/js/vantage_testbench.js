@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v85：
+ *   新增仅操作时长评分开关、自动寻路开关、/ 键最远寻路。
  * 2026-09-07 v84：
  *   预热开关移到预热上限滑块右侧；配合无弹优先静止与点击寻路修正。
  * 2026-09-07 v83：
@@ -79,7 +81,7 @@
  *   - 运行中（面板开着时）每帧自动算 威胁+基准时间+单帧分+9操作，显示每帧计算耗时（性能测试）
  *   - B 键任意时刻可开面板（不再必须先暂停）；面板可拖动；暂停/步进/标注/导出 全部有鼠标按钮
  *
- * 键位（游戏侧）：P 暂停/恢复  N 递进一帧  Shift+N ×10  V 标注  T 面板  Y 树图  E 导出
+ * 键位（游戏侧）：P 暂停/恢复  N 递进一帧  Shift+N ×10  V 标注  T 面板  Y 树图  / 最远寻路  E 导出
  * 键位（沙箱侧）：→ 单帧  Shift+→ ×10  ← 回退  Home 起点  Esc 退出
  *
  * v11 变更（2026-08-15）：
@@ -92,7 +94,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v84';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v85';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -141,7 +143,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: false, targetMixRatio: 0.5, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: false, targetMixRatio: 0.5, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -276,6 +278,35 @@
             if (m && m.isVantage) return m;
         }
         return null;
+    }
+
+    var _autoPathTimer = null;
+
+    /** v7：自动寻路定时器——没有用户目标时，每隔一段时间找一个最近边界/房子。 */
+    function syncAutoPathTimer() {
+        if (_autoPathTimer) {
+            clearInterval(_autoPathTimer);
+            _autoPathTimer = null;
+        }
+        if (!state.exp.autoPath) return;
+        _autoPathTimer = setInterval(function() {
+            try {
+                if (!state.exp.autoPath || !inGameState()) return;
+                var m = findVantageManager();
+                if (!m || !m.ai) return;
+                var hasTarget = !!(m.ai.debugTarget);
+                if (typeof VantageTree !== 'undefined' && VantageTree.getMoveTarget) {
+                    hasTarget = hasTarget || !!VantageTree.getMoveTarget();
+                }
+                if (hasTarget) return;   // 已有用户寻路时不自动接管
+                if (typeof TankTroubleLocalPatch !== 'undefined' &&
+                    TankTroubleLocalPatch.setVantageAutoTarget) {
+                    TankTroubleLocalPatch.setVantageAutoTarget();
+                }
+            } catch (eAuto) {
+                console.warn('[Testbench] 自动寻路失败:', eAuto);
+            }
+        }, 1800);
     }
 
     function getAdapter(ai) {
@@ -2174,6 +2205,7 @@
             // 评分/死亡：所有模式通用
             expLine('评分', '#f5c2e7', 'vt-exp-scoreRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-fixed75"> 固定帧数评估</label>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-scoreShort"> 仅操作时长评分</label>') +
                 expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="">75帧</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 轨迹距离评分</label>') +
                 expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;"><input type="checkbox" data-act="exp-springRope"> 弹簧绳评分</label></span>') +
@@ -2205,6 +2237,7 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-autoPath"> 自动寻路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
@@ -2212,6 +2245,7 @@
         el.appendChild(expRow);
         _expCtrl = {
             f75: expRow.querySelector('[data-act="exp-fixed75"]'),
+            scoreShort: expRow.querySelector('[data-act="exp-scoreShort"]'),
             nd: expRow.querySelector('[data-act="exp-nodeath"]'),
             lane: expRow.querySelector('[data-act="exp-lane"]'),
             springRope: expRow.querySelector('[data-act="exp-springRope"]'),
@@ -2220,6 +2254,7 @@
             targetMix: expRow.querySelector('[data-act="exp-targetMix"]'),
             targetMixRatio: expRow.querySelector('[data-act="exp-targetMixRatio"]'),
             targetMixRatioSpan: expRow.querySelector('span[id="vt-exp-targetMixRatio"]'),
+            autoPath: expRow.querySelector('[data-act="exp-autoPath"]'),
             deepSelect: expRow.querySelector('[data-act="exp-deepSelect"]'),
             growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
             growLayers: expRow.querySelector('[data-act="exp-growLayers"]'),
@@ -2261,6 +2296,7 @@
             expRow._vtTipBound = true;
             var tips = {
                 'exp-fixed75': '开启后，不管真实帧率怎么变，都按固定帧数评估每个操作，便于复现实验结果。',
+                'exp-scoreShort': '仅操作时长评分。开启后每个操作只看它自身时长内的帧分，不再固定看 75 帧；更容易发现先转向再前进这类组合技，但远期信息会变少。',
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
                 'exp-lane': '轨迹距离评分。开启后，会评估坦克路线与子弹轨迹的距离，靠得太近就额外扣分。',
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
@@ -2282,6 +2318,7 @@
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
                 'exp-targetMix': '混合选路。开启后，目标位置分会直接加进安全总分，AI 可能为了靠近目标选择安全分稍低的操作；关闭时仍先选安全的，再在同分路线里选更接近目标的。',
                 'exp-targetMixRatio': '目标位置评分系数（0~300%）。只在混合选路开启时生效：0%=不看目标；30%=轻微引导；100%=目标与安全大致同权；200~300%=强目标引导，可能明显牺牲安全。二阶段选路下改这个不影响结果。',
+                'exp-autoPath': '自动寻路。开启后，如果 AI 当前没有用户指定目标，它会自动寻找最近的边界/封闭房子并过去，方便压力测试；有用户点击目标时不会自动寻路。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
             };
@@ -2534,6 +2571,13 @@
             updatePanel();
             return;
         }
+        // —— v98 仅操作时长评分开关 ——
+        if (act === 'exp-scoreShort') {
+            state.exp.scoreOnlyPlanned = srcEl.checked;
+            if (typeof VantageTree !== 'undefined') VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
+            updatePanel();
+            return;
+        }
         if (act === 'exp-nodeath') {
             state.exp.noDeath = srcEl.checked;
             if (state.paused) { runNineOps(); renderViz(); }
@@ -2623,6 +2667,13 @@
             updatePanel();
             return;
         }
+        // —— v7 自动寻路开关：无用户目标时自动去边界/房子 ——
+        if (act === 'exp-autoPath') {
+            state.exp.autoPath = srcEl.checked;
+            syncAutoPathTimer();
+            updatePanel();
+            return;
+        }
         // —— v81 深层选路实验开关 ——
         if (act === 'exp-deepSelect') {
             state.exp.deepSelect = srcEl.checked;
@@ -2646,6 +2697,8 @@
             state.exp.retreatFrames = 200;
             state.exp.targetMix = false;
             state.exp.targetMixRatio = 0.5;
+            state.exp.scoreOnlyPlanned = false;
+            state.exp.autoPath = false;
             state.exp.warmupMaxNodes = 500;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
@@ -2663,10 +2716,12 @@
                 VantageTree.setRetreatFrames(state.exp.retreatFrames);
                 VantageTree.setTargetMixEnabled(state.exp.targetMix);
                 VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
+                VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
                 VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
             }
+            syncAutoPathTimer();
             syncExpControls();
             updatePanel();
             return;
@@ -3044,6 +3099,7 @@
     function syncExpControls() {
         if (!_expCtrl) return;
         if (_expCtrl.f75 && _expCtrl.f75.checked !== state.exp.fixed75) _expCtrl.f75.checked = state.exp.fixed75;
+        if (_expCtrl.scoreShort && _expCtrl.scoreShort.checked !== state.exp.scoreOnlyPlanned) _expCtrl.scoreShort.checked = state.exp.scoreOnlyPlanned;
         if (_expCtrl.nd && _expCtrl.nd.checked !== state.exp.noDeath) _expCtrl.nd.checked = state.exp.noDeath;
         if (_expCtrl.lane && _expCtrl.lane.checked !== state.exp.lane) _expCtrl.lane.checked = state.exp.lane;
         if (_expCtrl.springRope && _expCtrl.springRope.checked !== state.exp.springRope) _expCtrl.springRope.checked = state.exp.springRope;
@@ -3058,6 +3114,7 @@
             _expCtrl.targetMixRatioSpan.textContent = Math.round((state.exp.targetMixRatio || 0) * 100) + '%';
         }
         if (_expCtrl.deepSelect && _expCtrl.deepSelect.checked !== state.exp.deepSelect) _expCtrl.deepSelect.checked = state.exp.deepSelect;
+        if (_expCtrl.autoPath && _expCtrl.autoPath.checked !== state.exp.autoPath) _expCtrl.autoPath.checked = state.exp.autoPath;
         if (_expCtrl.growWithoutThreats && _expCtrl.growWithoutThreats.checked !== state.exp.growWithoutThreats) _expCtrl.growWithoutThreats.checked = state.exp.growWithoutThreats;
         if (_expCtrl.growLayers && parseInt(_expCtrl.growLayers.value, 10) !== state.exp.growLayers) _expCtrl.growLayers.value = String(state.exp.growLayers);
         if (_expCtrl.growLayersSpan && _expCtrl.growLayersSpan.textContent !== state.exp.growLayers + '层') _expCtrl.growLayersSpan.textContent = state.exp.growLayers + '层';
@@ -3097,6 +3154,7 @@
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixEnabled(state.exp.targetMix);
         if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
+        if (typeof VantageTree !== 'undefined') VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
         if (typeof VantageSandbox !== 'undefined') {
             try { VantageSandbox.setRustPhysicsEnabled(state.exp.rustPhysics); } catch (eRustPhysSync) {}
@@ -3144,7 +3202,7 @@
     function panelGuideHtml() {
         var h = [];
         h.push('<div style="line-height:1.7">');
-        h.push('<b style="color:#f5c2e7">按键</b> T 面板 / P 暂停 / Y 树图 / V 标注 / E 导出<br>');
+        h.push('<b style="color:#f5c2e7">按键</b> T 面板 / P 暂停 / Y 树图 / V 标注 / E 导出 / <b style="color:#a6e3a1">/ 最远寻路</b><br>');
         h.push('<b style="color:#89b4fa">模式</b> AI 操控选“自动”=9 操作最高分；选“树”=预测树。只有树模式才显示生长/回退/选路。<br>');
         h.push('<b style="color:#89dceb">评分类</b> 固定帧数评估、轨迹距离评分、弹簧绳评分、死亡不扣分。<br>');
         h.push('<b style="color:#89b4fa">Rust类</b> Rust 物理预测默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳评分会隐藏并关闭。<br>');
@@ -3495,6 +3553,15 @@
             if (e.key === 'Escape') { e.preventDefault(); sbExit(); return; }
         }
         var k = e.key;
+        // v7：/ 键直接寻路到当前能走到的最远格子，省去鼠标点击。
+        if (k === '/') {
+            e.preventDefault();
+            if (typeof TankTroubleLocalPatch !== 'undefined' &&
+                TankTroubleLocalPatch.setVantageFarTarget) {
+                TankTroubleLocalPatch.setVantageFarTarget();
+            }
+            return;
+        }
         if (k === 'p' || k === 'P') { e.preventDefault(); togglePause(); return; }
         // v3：V/T/E 任意时刻可用（T 运行中开面板 = 性能测试模式；Y 树图）
         if (k === 't' || k === 'T') {
@@ -3577,7 +3644,7 @@
         },
         help: function() {
             console.log([
-                'P 暂停/恢复 | N 递进一帧 | Shift+N ×10 | V 标注 | T 面板 | Y 树图 | E 导出',
+                'P 暂停/恢复 | N 递进一帧 | Shift+N ×10 | V 标注 | T 面板 | Y 树图 | / 最远寻路 | E 导出',
                 'B 运行中开面板 = 每帧自动计算的性能测试模式（关面板即零开销）',
                 '沙箱内: → 单帧 | Shift+→ ×10 | ← 回退 | Home 起点 | Esc 退出',
                 '暂停后 9 操作自动算；面板按钮可全鼠标操作；标题栏可拖动',
@@ -3608,6 +3675,7 @@
         try { VantageTree.setRetreatFrames(state.exp.retreatFrames); } catch (eRetreatFramesInit) {}
         try { VantageTree.setTargetMixEnabled(state.exp.targetMix); } catch (eTargetMixInit) {}
         try { VantageTree.setTargetMixRatio(state.exp.targetMixRatio); } catch (eTargetMixRatioInit) {}
+        try { VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned); } catch (eScoreShortInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。
@@ -3627,6 +3695,8 @@
         if (!_tv || _tv.userMoved) return;
         placeTreeView();
     });
+
+    syncAutoPathTimer();
 
     console.log('[Testbench] Vantage 调试工作台 ' + TB_VERSION +
         ' 已加载：T 开面板（运行中=性能测试）P 暂停后自动 9 操作');

@@ -1,6 +1,9 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v98（点击后全树刷新重选 + 仅操作时长评分）：
+ *   ① 点击目标变化后标记 dirty，tick 里 reroute 全树、逐层重选并提前结束当前段；
+ *   ② scoreOnlyPlanned 开关：选路时只累计操作时长内帧分，不再固定看 75 帧。
  * 2026-09-07 v97（无弹无目标时优先静止）：
  *   安全分完全相同时，如果真实世界没有子弹且没有点击目标，优先选静止操作；
  *   避免无弹期反复选前进/转向、在墙角空转和触发反复提交。
@@ -406,6 +409,8 @@
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
     var _liveProjectilesNow = 0;             // v97：真实世界当前子弹数（无弹时优先静止）
+    var _moveTargetDirty = false;            // v98：点击目标变化后，触发全树刷新重选
+    var _scoreOnlyPlanned = false;           // v98：评分范围仅限操作时长（false=固定75帧）
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -437,6 +442,7 @@
         retreatDepth: 3,                  // v88 旧接口兼容；新代码优先读 retreatNodes
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
+        scoreOnlyPlanned: false,          // v98：评分范围仅限操作时长（默认固定75帧）
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
@@ -794,6 +800,7 @@
         tree.cfg.rustMinimalEnabled = _rustMinimalEnabled; // v69：Rust 最小决策
         tree.cfg.deathDurationRatio = _deathDurationRatio; // v80
         tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
+        tree.cfg.scoreOnlyPlanned = _scoreOnlyPlanned;   // v98
         tree.cfg.targetMixEnabled = _targetMixEnabled;     // v94
         tree.cfg.targetMixRatio = _targetMixRatio;         // v94
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
@@ -2688,6 +2695,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** v52：节点自身 75 帧全累积总分；旧节点无字段时按 segmentScore+baseExt 还原。 */
     function fullRolloutTotalOf(n) {
         if (!n) return -Infinity;
+        // v98：仅操作时长评分——只累计节点实际计划/执行段内的帧分，
+        // 不再把同一个操作的 75 帧远视总分全部算进去。
+        if (_scoreOnlyPlanned) {
+            var limit = Math.max(1, plannedFramesOf(n));
+            if (Array.isArray(n.perFrameScores) && n.perFrameScores.length) {
+                var upto = Math.min(limit, n.perFrameScores.length);
+                var sum = 0;
+                for (var si = 0; si < upto; si++) sum += Number(n.perFrameScores[si]) || 0;
+                return sum;
+            }
+            return (n.segmentScore || 0) + (n.baseExt || 0);
+        }
         if (typeof n.rolloutTotal === 'number') return n.rolloutTotal;
         return (n.segmentScore || 0) + (n.baseExt || 0);
     }
@@ -4615,6 +4634,24 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (worldDt > tree.diag.worldDtMax) tree.diag.worldDtMax = worldDt;
         runDiagnostics(tree, adapter, tankState);
 
+        // v98：点击目标变化后，立刻刷新全树分数并逐层重选；然后提前结束当前段，
+        // 让坦克马上开始按新目标行动，而不是等段末提交。
+        if (_tree && (_moveTargetDirty || _tree._moveTargetDirty)) {
+            _moveTargetDirty = false;
+            _tree._moveTargetDirty = false;
+            try {
+                rerouteTreeForCurrentThreats(_tree, adapter);
+                if (_tree.commitNode) {
+                    _tree.commitNode.tEndSec = _timeAcc;
+                    _tree._forcedReselect = true;
+                }
+                recordStructure(_tree, 'move-target-refresh',
+                    _moveTarget ? (_moveTarget.x + ',' + _moveTarget.y) : 'clear');
+            } catch (eTargetRefresh) {
+                console.warn('[Vantage] 点击目标全树刷新失败:', eTargetRefresh);
+            }
+        }
+
         // 决策/展开统一用限流后的 threats；没有新鲜需求时沿用锚定 threats。
         var evalThreats = threats || tree.threats || [];
 
@@ -4953,6 +4990,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _lastSeenWorldStep = null;
         _events = [];
         _moveTarget = null;   // v92：换局/重生不保留旧点击目标
+        _moveTargetDirty = false;
         _liveProjectilesNow = 0;
         if (typeof VantageSandbox !== 'undefined' && VantageSandbox.clearCaches) {
             try { VantageSandbox.clearCaches(); } catch (eCache) {}
@@ -5067,13 +5105,21 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var y = Math.round(Number(tileY));
         if (!isFinite(x) || !isFinite(y)) return null;
         _moveTarget = { x: x, y: y };
-        if (_tree) recordStructure(_tree, 'move-target', x + ',' + y);
+        _moveTargetDirty = true;   // v98：点击后全树重选
+        if (_tree) {
+            recordStructure(_tree, 'move-target', x + ',' + y);
+            _tree._moveTargetDirty = true;
+        }
         return _moveTarget;
     }
 
     function clearMoveTarget() {
         _moveTarget = null;
-        if (_tree) recordStructure(_tree, 'move-target-clear', '');
+        _moveTargetDirty = true;
+        if (_tree) {
+            recordStructure(_tree, 'move-target-clear', '');
+            _tree._moveTargetDirty = true;
+        }
         return null;
     }
 
@@ -5138,6 +5184,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _maxNodes = Math.max(100, Math.min(3000, n));
         if (_tree && _tree.cfg) _tree.cfg.maxNodes = _maxNodes;
         return _maxNodes;
+    }
+
+    /** v98：评分范围开关；true=只算操作时长内帧分，false=固定 75 帧。 */
+    function setScoreOnlyPlanned(v) {
+        _scoreOnlyPlanned = !!v;
+        if (_tree && _tree.cfg) _tree.cfg.scoreOnlyPlanned = _scoreOnlyPlanned;
+        return _scoreOnlyPlanned;
     }
 
     /** v94：混合选路开关——目标分直接进入总分，可能牺牲一点安全换靠近目标。 */
@@ -5205,6 +5258,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setGrowWithoutThreatsEnabled: setGrowWithoutThreatsEnabled,
         setDeathDurationRatio: setDeathDurationRatio,
         setGrowLayersPerTick: setGrowLayersPerTick,
+        setScoreOnlyPlanned: setScoreOnlyPlanned,
         setTargetMixEnabled: setTargetMixEnabled,
         setTargetMixRatio: setTargetMixRatio,
         setDeepSelectEnabled: setDeepSelectEnabled,
@@ -5252,5 +5306,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v97：无弹优先静止 + 真实子弹数预热判定 + 混合选路 + 跨局缓存清理 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v98：点击全树刷新 + 仅操作时长评分 + 无弹优先静止 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

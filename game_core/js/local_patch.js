@@ -4,6 +4,7 @@
  * v4：点击地面只设置树评分目标，不再直接接管 AI 驾驶。
  * v5：无子弹时点击地面同时启用旧迷宫最短路寻路；有子弹时只交给树评分。
  * v6：点击坐标换算不再依赖训练模式是否初始化。
+ * v7：新增自动寻路到最近边界/房子、/ 键寻路到最远格子。
  */
 (function() {
     'use strict';
@@ -2013,7 +2014,10 @@
         toggleMapFullscreen: toggleMapFullscreen,
         setMapFullscreen: setMapFullscreen,
         // Vantage调试：在游戏区域内点击地面时调用
-        setVantageDebugTarget: setVantageDebugTarget
+        setVantageDebugTarget: setVantageDebugTarget,
+        setVantageMoveTarget: setVantageMoveTarget,
+        setVantageAutoTarget: setVantageAutoTarget,
+        setVantageFarTarget: setVantageFarTarget
     };
 
     /**
@@ -2073,6 +2077,79 @@
         return null;
     }
 
+    /** v7：取当前 Vantage AI 所在格子和迷宫，供自动/快捷键寻路使用。 */
+    function vantagePathContext() {
+        if (typeof AIs === 'undefined' || !AIs.aiManagers) return null;
+        var ai = null;
+        for (var i = 0; i < AIs.aiManagers.length; i++) {
+            var m = AIs.aiManagers[i];
+            if (m && m.isVantage && m.ai) { ai = m.ai; break; }
+        }
+        if (!ai || !ai.gameController || !ai.gameController.getMaze) return null;
+        var tank = ai.gameController.getTank(ai.aiId);
+        var maze = ai.gameController.getMaze();
+        if (!tank || !maze) return null;
+        var tile = {
+            x: Math.floor(tank.getX() / Constants.MAZE_TILE_SIZE.m),
+            y: Math.floor(tank.getY() / Constants.MAZE_TILE_SIZE.m)
+        };
+        return { ai: ai, maze: maze, myTile: tile };
+    }
+
+    /** v7：收集当前能走到的格子；优先边界“房子”（死路罚分高），否则最近的边界。 */
+    function findVantageAutoTarget() {
+        var ctx = vantagePathContext();
+        if (!ctx || !ctx.maze.getWidth || !ctx.maze.getHeight) return null;
+        var maze = ctx.maze, my = ctx.myTile;
+        var w = maze.getWidth(), h = maze.getHeight();
+        var i, j, tile, dist;
+        var border = [], all = [];
+        for (i = 0; i < w; i++) {
+            for (j = 0; j < h; j++) {
+                tile = { x: i, y: j };
+                if (!maze.isPositionInsideMaze(tile)) continue;
+                dist = maze.getDistanceBetweenPositions(my, tile);
+                if (dist === false || !isFinite(dist)) continue;
+                all.push({ x: i, y: j, d: dist });
+                if (i === 0 || j === 0 || i === w - 1 || j === h - 1) {
+                    border.push({ x: i, y: j, d: dist });
+                }
+            }
+        }
+        function pick(list) {
+            if (!list.length) return null;
+            var best = null, bestDead = -Infinity, bestD = Infinity;
+            for (var k = 0; k < list.length; k++) {
+                var t = list[k];
+                var dead = (maze.getDeadEndPenalty && maze.getDeadEndPenalty(t)) || 0;
+                if (dead > bestDead || (dead === bestDead && t.d < bestD)) {
+                    best = t; bestDead = dead; bestD = t.d;
+                }
+            }
+            return best;
+        }
+        return pick(border.length ? border : all);
+    }
+
+    /** v7：找当前能走到的最远格子，供 / 键调试寻路。 */
+    function findVantageFarTarget() {
+        var ctx = vantagePathContext();
+        if (!ctx || !ctx.maze.getWidth || !ctx.maze.getHeight) return null;
+        var maze = ctx.maze, my = ctx.myTile;
+        var w = maze.getWidth(), h = maze.getHeight();
+        var best = null, bestD = -1;
+        for (var i = 0; i < w; i++) {
+            for (var j = 0; j < h; j++) {
+                var tile = { x: i, y: j };
+                if (!maze.isPositionInsideMaze(tile)) continue;
+                var d = maze.getDistanceBetweenPositions(my, tile);
+                if (d === false || !isFinite(d)) continue;
+                if (d > bestD) { best = tile; bestD = d; }
+            }
+        }
+        return best;
+    }
+
     /** v4/v5：点击地面同时设置：
      *  ① 树评分目标（有子弹时只做安全分平局裁决）；
      *  ② AI 调试寻路目标（无子弹时走迷宫最短路，真正绕墙寻路）。
@@ -2096,6 +2173,27 @@
             return false;
         }
         return true;
+    }
+
+    /** v7：自动寻路到最近的边界/房子；没有目标时才由面板开关调用。 */
+    function setVantageAutoTarget() {
+        var ctx = vantagePathContext();
+        var target = findVantageAutoTarget();
+        if (!target) return false;
+        // 已经站在目标格时不再重复下发，避免每 1.8 秒清一次又设一次。
+        if (ctx && ctx.myTile && target.x === ctx.myTile.x && target.y === ctx.myTile.y) {
+            return false;
+        }
+        console.log('[Vantage] 自动寻路目标 -> (' + target.x + ',' + target.y + ')');
+        return setVantageMoveTarget(target.x, target.y);
+    }
+
+    /** v7：/ 键寻路到能走到的最远格子。 */
+    function setVantageFarTarget() {
+        var target = findVantageFarTarget();
+        if (!target) return false;
+        console.log('[Vantage] 最远寻路目标 -> (' + target.x + ',' + target.y + ')');
+        return setVantageMoveTarget(target.x, target.y);
     }
 
     /**
