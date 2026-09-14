@@ -833,5 +833,17 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
   取消勾选=开启不扣分实验。
 - 版本：tree v98、testbench v87、ai_vantage v8、local_patch v7、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十八、第三十波 v100：杀戮场地形引导 + 面板标红修正
+- 新增静态地形杀戮场 `ensureKillfield(maze)`：按死路罚分、开放邻居数、
+  边界/角落惩罚生成 0~1 地形安全分格子表；迷宫换一次构建一次。
+- 新增 `objectiveScore`：用户点击/`/` 寻路时目标分优先；没有用户目标且
+  有子弹时使用杀戮场安全分；无弹无目标时不用杀戮场，继续优先静止。
+- 新增 `killfieldEnabled` / `killfieldWeight`，默认开、权重 50%。
+- 面板标红修正：只标危险开关；红色只染控件本体；悬浮更红；
+  警告改为固定浮层不挤压面板；死亡默认不扣分。
+- 调试栏新增进房子/最远寻路按钮；句号键进房子，/ 键最远寻路。
+- 版本：tree v100、testbench v88、ai_vantage v8、local_patch v7、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
 - testbench v86：自动寻路移到“调试”栏；/ 键兼容 key/code/keyCode；
   用户寻路优先级高于自动寻路；仅操作时长评分标注短视警告。

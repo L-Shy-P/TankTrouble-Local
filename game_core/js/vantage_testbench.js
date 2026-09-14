@@ -1,8 +1,11 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v88：
+ *   杀戮场引导开关/权重；危险项才标红（控件本体红、悬浮更红、提示浮层）；
+ *   死亡默认不扣分；调试栏加“进房子/最远寻路”按钮与句号键。
  * 2026-09-07 v87：
- *   偏离默认值的实验项常红 + 悬浮红 + 字幕警告；“死亡不扣分”改成正向“死亡扣分”。
+ *   偏离默认值的实验项常红 + 悬浮红 + 字幕警告。
  * 2026-09-07 v86：
  *   自动寻路移到“调试”栏；/ 键兼容更多键盘布局；实验评分开关加短视警告。
  * 2026-09-07 v85：
@@ -85,7 +88,7 @@
  *   - 运行中（面板开着时）每帧自动算 威胁+基准时间+单帧分+9操作，显示每帧计算耗时（性能测试）
  *   - B 键任意时刻可开面板（不再必须先暂停）；面板可拖动；暂停/步进/标注/导出 全部有鼠标按钮
  *
- * 键位（游戏侧）：P 暂停/恢复  N 递进一帧  Shift+N ×10  V 标注  T 面板  Y 树图  / 最远寻路  E 导出
+ * 键位（游戏侧）：P 暂停/恢复  N 递进一帧  Shift+N ×10  V 标注  T 面板  Y 树图  / 最远寻路  . 进房子  E 导出
  * 键位（沙箱侧）：→ 单帧  Shift+→ ×10  ← 回退  Home 起点  Esc 退出
  *
  * v11 变更（2026-08-15）：
@@ -98,7 +101,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v87';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v88';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -147,7 +150,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: false, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: false, targetMixRatio: 0.5, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 0.5, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2114,30 +2117,26 @@
     var _riskSeen = {};
     // v99：作者预设/默认值。任何实验控件偏离这些值都会常红并提示。
     var DEFAULT_EXP = {
-        fixed75: false, noDeath: false, lane: false, springRope: false,
+        fixed75: false, noDeath: true, lane: false, springRope: false,
         rustMinimal: false, rustPhysics: true, growWithoutThreats: true,
         growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false,
         horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
         pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
-        retreatFrames: 200, targetMix: false, targetMixRatio: 0.5,
+        retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
+        killfieldEnabled: true, killfieldWeight: 0.5,
         scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
     };
-    // data-act -> 状态字段；只列真正会改变 AI 行为的实验控件。
+    // data-act -> 状态字段；只列“危险/不建议随便动”的开关。
     var RISK_MAP = {
-        'exp-fixed75': 'fixed75', 'exp-frames': 'evalFrames', 'exp-lane': 'lane',
-        'exp-springRope': 'springRope', 'exp-nodeath': 'noDeath',
-        'exp-rustMinimal': 'rustMinimal', 'exp-rustPhysics': 'rustPhysics',
-        'exp-growWithoutThreats': 'growWithoutThreats', 'exp-growLayers': 'growLayers',
-        'exp-maxNodes': 'maxNodes', 'exp-warmupMaxNodes': 'warmupMaxNodes',
-        'exp-nodeCap': 'nodeCap', 'exp-horizonCap': 'horizonCap',
-        'exp-horizonSec': 'horizonSec', 'exp-refineBeyond': 'refineBeyond',
+        'exp-scoreShort': 'scoreOnlyPlanned',
+        'exp-deepSelect': 'deepSelect',
+        'exp-rustMinimal': 'rustMinimal',
         'exp-continuousRefine': 'continuousRefine',
-        'exp-pruneCompensateLayers': 'pruneCompensateLayers',
-        'exp-pruneCompensateFrames': 'pruneCompensateFrames',
-        'exp-retreatNodes': 'retreatNodes', 'exp-retreatFrames': 'retreatFrames',
-        'exp-targetMix': 'targetMix', 'exp-targetMixRatio': 'targetMixRatio',
-        'exp-scoreShort': 'scoreOnlyPlanned', 'exp-autoPath': 'autoPath',
-        'exp-deepSelect': 'deepSelect'
+        'exp-refineBeyond': 'refineBeyond',
+        'exp-horizonCap': 'horizonCap',
+        'exp-growWithoutThreats': 'growWithoutThreats',
+        'exp-targetMix': 'targetMix',
+        'exp-killfield': 'killfieldEnabled'
     };
 
     function ensurePanel() {
@@ -2158,15 +2157,18 @@
         if (!document.getElementById || !document.getElementById('vt-risk-style')) {
             var riskStyle = document.createElement('style');
             riskStyle.id = 'vt-risk-style';
-            riskStyle.textContent = '.vt-risk{background:rgba(243,139,168,0.10);border-radius:3px}' +
-                '.vt-risk:hover{background:rgba(243,139,168,0.35)}';
+            riskStyle.textContent = '.vt-risk{background:#f38ba8 !important;border-radius:3px;' +
+                'box-shadow:0 0 0 1px #f38ba8}' +
+                '.vt-risk:hover{background:#ff5c8a !important;box-shadow:0 0 0 2px #ff5c8a}';
             if (document.head && document.head.appendChild) document.head.appendChild(riskStyle);
         }
         var riskToast = document.createElement('div');
         riskToast.id = 'vt-risk-toast';
-        riskToast.style.cssText = 'display:none;padding:4px 8px;background:#5a1f2e;color:#f38ba8;' +
-            'border-bottom:1px solid #6c7086;font:11px/1.5 Consolas,monospace;text-align:center';
-        el.appendChild(riskToast);
+        // v100：提示做成固定浮层，不占面板布局，不会把面板顶下去。
+        riskToast.style.cssText = 'position:fixed;z-index:100002;left:50%;top:56px;transform:translateX(-50%);' +
+            'display:none;padding:5px 12px;background:#5a1f2e;color:#f38ba8;border:1px solid #f38ba8;' +
+            'border-radius:5px;font:12px/1.5 Consolas,monospace;text-align:center;pointer-events:none';
+        if (document.body && document.body.appendChild) document.body.appendChild(riskToast);
         _riskToast = riskToast;
 
         // —— 标题栏（持久，可拖动）——
@@ -2258,7 +2260,7 @@
                 expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="">75帧</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 轨迹距离评分</label>') +
                 expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;"><input type="checkbox" data-act="exp-springRope"> 弹簧绳评分</label></span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡扣分</label>')
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分</label>')
             ) +
             // Rust 模式：Rust 物理预测是全局执行开关，弹簧绳评分不支持的提示放这里
             expLine('Rust', '#89b4fa', 'vt-exp-rustRow',
@@ -2286,13 +2288,17 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-killfield"> 杀戮场引导</label>') +
+                expItem('杀戮场权重 <input type="range" data-act="exp-killfieldWeight" min="0" max="100" step="5" value="50" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">50%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
             // 调试：自动寻路 / 快捷键提示；不混进选路参数
             expLine('调试', '#f38ba8', 'vt-exp-debugRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-autoPath"> 自动寻路</label>') +
-                expItem('<span style="color:#6c7086">按 / 键 = 寻路到最远可达格</span>')
+                expItem('<button data-act="exp-goHouse" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">进房子</button>') +
+                expItem('<button data-act="exp-farPath" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">最远寻路</button>') +
+                expItem('<span style="color:#6c7086">句号键=进房子 · / 键=最远寻路</span>')
             ) +
             '<div id="vt-exp-treeHint" style="display:none;color:#6c7086;padding-left:48px">选择 AI 操控「树」后显示生长、回退、选路参数</div>';
         el.appendChild(expRow);
@@ -2308,6 +2314,9 @@
             targetMixRatio: expRow.querySelector('[data-act="exp-targetMixRatio"]'),
             targetMixRatioSpan: expRow.querySelector('span[id="vt-exp-targetMixRatio"]'),
             autoPath: expRow.querySelector('[data-act="exp-autoPath"]'),
+            killfield: expRow.querySelector('[data-act="exp-killfield"]'),
+            killfieldWeight: expRow.querySelector('[data-act="exp-killfieldWeight"]'),
+            killfieldWeightSpan: expRow.querySelector('span[id="vt-exp-killfieldWeight"]'),
             expRow: expRow,
             deepSelect: expRow.querySelector('[data-act="exp-deepSelect"]'),
             growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
@@ -2354,7 +2363,7 @@
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
                 'exp-lane': '轨迹距离评分。开启后，会评估坦克路线与子弹轨迹的距离，靠得太近就额外扣分。',
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
-                'exp-nodeath': '死亡扣分。默认开启：死亡帧扣 100000 分。取消勾选等于开启“死亡不扣分”实验，只适合观察软死路线，不建议正常使用。',
+                'exp-nodeath': '死亡不扣分，默认开启。树内评分本来就是死亡帧停止累计、不额外扣分；这里控制的是面板沙箱/固定帧评估的死亡扣分。取消勾选会让面板评估重新加上死亡惩罚。',
                 'exp-rustPhysics': '默认开启。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
                 'exp-growWithoutThreats': '无子弹时预热。和“预热上限”同组：关闭时一起变灰。没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
                 'exp-growLayers': '每个游戏帧最多新增多少层树节点。默认 1 层最稳；数值越大，生长越快，但计算压力也越大。',
@@ -2372,6 +2381,8 @@
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
                 'exp-targetMix': '混合选路。开启后，目标位置分会直接加进安全总分，AI 可能为了靠近目标选择安全分稍低的操作；关闭时仍先选安全的，再在同分路线里选更接近目标的。',
                 'exp-targetMixRatio': '目标位置评分系数（0~300%）。只在混合选路开启时生效：0%=不看目标；30%=轻微引导；100%=目标与安全大致同权；200~300%=强目标引导，可能明显牺牲安全。二阶段选路下改这个不影响结果。',
+                'exp-killfield': '杀戮场引导（当前为静态地形层）：没有用户点击目标时，用死路/出口数/边界生成格子安全分，引导 AI 往更安全、更好跑的位置移动。用户点击或按 / 的寻路优先级更高；后续可再叠加子弹/对手射击覆盖。',
+                'exp-killfieldWeight': '杀戮场权重（0~100%）。越大，AI 越优先往杀戮场认为安全的地形走；只在杀戮场引导开启且没有用户目标时影响选路。',
                 'exp-autoPath': '自动寻路。开启后，如果 AI 当前没有用户指定目标，它会自动寻找最近的边界/封闭房子并过去，方便压力测试；有用户点击目标时不会自动寻路。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
@@ -2496,6 +2507,14 @@
                 state.exp.targetMixRatio = Math.max(0, Math.min(300, parseInt(_expCtrl.targetMixRatio.value, 10) || 0)) / 100;
                 if (_expCtrl.targetMixRatioSpan) {
                     _expCtrl.targetMixRatioSpan.textContent = Math.round(state.exp.targetMixRatio * 100) + '%';
+                }
+            });
+        }
+        if (_expCtrl.killfieldWeight) {
+            _expCtrl.killfieldWeight.addEventListener('input', function() {
+                state.exp.killfieldWeight = Math.max(0, Math.min(100, parseInt(_expCtrl.killfieldWeight.value, 10) || 0)) / 100;
+                if (_expCtrl.killfieldWeightSpan) {
+                    _expCtrl.killfieldWeightSpan.textContent = Math.round(state.exp.killfieldWeight * 100) + '%';
                 }
             });
         }
@@ -2633,8 +2652,7 @@
             return;
         }
         if (act === 'exp-nodeath') {
-            // UI 是“死亡扣分”：勾选=正常扣分，取消=开启“死亡不扣分”实验。
-            state.exp.noDeath = !srcEl.checked;
+            state.exp.noDeath = srcEl.checked;
             if (state.paused) { runNineOps(); renderViz(); }
             updatePanel();
             return;
@@ -2722,10 +2740,41 @@
             updatePanel();
             return;
         }
+        // —— v100 调试寻路按钮 ——
+        if (act === 'exp-goHouse') {
+            if (typeof TankTroubleLocalPatch !== 'undefined' && TankTroubleLocalPatch.setVantageAutoTarget) {
+                TankTroubleLocalPatch.setVantageAutoTarget();
+            }
+            return;
+        }
+        if (act === 'exp-farPath') {
+            if (typeof TankTroubleLocalPatch !== 'undefined' && TankTroubleLocalPatch.setVantageFarTarget) {
+                TankTroubleLocalPatch.setVantageFarTarget();
+            }
+            return;
+        }
         // —— v7 自动寻路开关：无用户目标时自动去边界/房子 ——
         if (act === 'exp-autoPath') {
             state.exp.autoPath = srcEl.checked;
             syncAutoPathTimer();
+            updatePanel();
+            return;
+        }
+        // —— v100 杀戮场引导开关 + 权重 ——
+        if (act === 'exp-killfield') {
+            state.exp.killfieldEnabled = srcEl.checked;
+            if (typeof VantageTree !== 'undefined' && typeof VantageTree.setKillfieldEnabled === 'function') {
+                VantageTree.setKillfieldEnabled(state.exp.killfieldEnabled);
+            }
+            updatePanel();
+            return;
+        }
+        if (act === 'exp-killfieldWeight') {
+            state.exp.killfieldWeight = Math.max(0, Math.min(100, parseInt(srcEl.value, 10) || 0)) / 100;
+            if (typeof VantageTree !== 'undefined' && typeof VantageTree.setKillfieldWeight === 'function') {
+                VantageTree.setKillfieldWeight(state.exp.killfieldWeight);
+            }
+            if (_expCtrl.killfieldWeightSpan) _expCtrl.killfieldWeightSpan.textContent = Math.round(state.exp.killfieldWeight * 100) + '%';
             updatePanel();
             return;
         }
@@ -2750,10 +2799,16 @@
             state.exp.pruneCompensateFrames = 1;
             state.exp.retreatNodes = 3;
             state.exp.retreatFrames = 200;
-            state.exp.targetMix = false;
+            state.exp.targetMix = true;
             state.exp.targetMixRatio = 0.5;
+            state.exp.killfieldEnabled = true;
+            state.exp.killfieldWeight = 0.5;
             state.exp.scoreOnlyPlanned = false;
             state.exp.autoPath = false;
+            state.exp.noDeath = true;
+            state.exp.fixed75 = false;
+            state.exp.lane = false;
+            state.exp.springRope = false;
             state.exp.warmupMaxNodes = 500;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
@@ -2771,6 +2826,8 @@
                 VantageTree.setRetreatFrames(state.exp.retreatFrames);
                 VantageTree.setTargetMixEnabled(state.exp.targetMix);
                 VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
+                if (typeof VantageTree.setKillfieldEnabled === 'function') VantageTree.setKillfieldEnabled(state.exp.killfieldEnabled);
+                if (typeof VantageTree.setKillfieldWeight === 'function') VantageTree.setKillfieldWeight(state.exp.killfieldWeight);
                 VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
@@ -3134,7 +3191,7 @@
         if (_riskToastTimer) clearTimeout(_riskToastTimer);
         _riskToastTimer = setTimeout(function() {
             if (_riskToast) _riskToast.style.display = 'none';
-        }, 4200);
+        }, 2600);
     }
 
     /** v99：当前值偏离默认/作者预设的实验项常红；悬浮时 CSS 变红更明显。 */
@@ -3153,10 +3210,9 @@
             } else {
                 nonDefault = cur !== def;
             }
-            var wrap = el.parentNode;
-            if (wrap.classList) {
-                if (nonDefault) wrap.classList.add('vt-risk');
-                else wrap.classList.remove('vt-risk');
+            if (el.classList) {
+                if (nonDefault) el.classList.add('vt-risk');
+                else el.classList.remove('vt-risk');
             }
             var prev = _riskSeen[act];
             if (prev === false && nonDefault) {
@@ -3189,6 +3245,7 @@
         dimGroup([_expCtrl.horizonSec, _expCtrl.horizonCap], !state.exp.horizonCap);
         dimGroup([_expCtrl.pruneCompensateLayers, _expCtrl.pruneCompensateFrames], !(state.exp.pruneCompensateLayers > 0));
         dimGroup([_expCtrl.targetMixRatio, _expCtrl.targetMix], !state.exp.targetMix);
+        dimGroup([_expCtrl.killfieldWeight, _expCtrl.killfield], !state.exp.killfieldEnabled);
     }
 
     /** v7.4→v7.6 同步持久实验模式控件（只改属性，不重建 DOM） */
@@ -3196,7 +3253,7 @@
         if (!_expCtrl) return;
         if (_expCtrl.f75 && _expCtrl.f75.checked !== state.exp.fixed75) _expCtrl.f75.checked = state.exp.fixed75;
         if (_expCtrl.scoreShort && _expCtrl.scoreShort.checked !== state.exp.scoreOnlyPlanned) _expCtrl.scoreShort.checked = state.exp.scoreOnlyPlanned;
-        if (_expCtrl.nd && _expCtrl.nd.checked !== !state.exp.noDeath) _expCtrl.nd.checked = !state.exp.noDeath;
+        if (_expCtrl.nd && _expCtrl.nd.checked !== state.exp.noDeath) _expCtrl.nd.checked = state.exp.noDeath;
         if (_expCtrl.lane && _expCtrl.lane.checked !== state.exp.lane) _expCtrl.lane.checked = state.exp.lane;
         if (_expCtrl.springRope && _expCtrl.springRope.checked !== state.exp.springRope) _expCtrl.springRope.checked = state.exp.springRope;
         if (_expCtrl.rustMinimal && _expCtrl.rustMinimal.checked !== state.exp.rustMinimal) _expCtrl.rustMinimal.checked = state.exp.rustMinimal;
@@ -3208,6 +3265,14 @@
         }
         if (_expCtrl.targetMixRatioSpan && _expCtrl.targetMixRatioSpan.textContent !== Math.round((state.exp.targetMixRatio || 0) * 100) + '%') {
             _expCtrl.targetMixRatioSpan.textContent = Math.round((state.exp.targetMixRatio || 0) * 100) + '%';
+        }
+        if (_expCtrl.killfield && _expCtrl.killfield.checked !== state.exp.killfieldEnabled) _expCtrl.killfield.checked = state.exp.killfieldEnabled;
+        if (_expCtrl.killfieldWeight) {
+            var kfVal = Math.round((state.exp.killfieldWeight || 0) * 100);
+            if (parseInt(_expCtrl.killfieldWeight.value, 10) !== kfVal) _expCtrl.killfieldWeight.value = String(kfVal);
+        }
+        if (_expCtrl.killfieldWeightSpan && _expCtrl.killfieldWeightSpan.textContent !== Math.round((state.exp.killfieldWeight || 0) * 100) + '%') {
+            _expCtrl.killfieldWeightSpan.textContent = Math.round((state.exp.killfieldWeight || 0) * 100) + '%';
         }
         if (_expCtrl.deepSelect && _expCtrl.deepSelect.checked !== state.exp.deepSelect) _expCtrl.deepSelect.checked = state.exp.deepSelect;
         if (_expCtrl.autoPath && _expCtrl.autoPath.checked !== state.exp.autoPath) _expCtrl.autoPath.checked = state.exp.autoPath;
@@ -3250,6 +3315,12 @@
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixEnabled(state.exp.targetMix);
         if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
+        if (typeof VantageTree !== 'undefined' && typeof VantageTree.setKillfieldEnabled === 'function') {
+            VantageTree.setKillfieldEnabled(state.exp.killfieldEnabled);
+        }
+        if (typeof VantageTree !== 'undefined' && typeof VantageTree.setKillfieldWeight === 'function') {
+            VantageTree.setKillfieldWeight(state.exp.killfieldWeight);
+        }
         if (typeof VantageTree !== 'undefined') VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
         if (typeof VantageTree !== 'undefined') VantageTree.setDeepSelectEnabled(state.exp.deepSelect);
         if (typeof VantageSandbox !== 'undefined') {
@@ -3298,7 +3369,7 @@
     function panelGuideHtml() {
         var h = [];
         h.push('<div style="line-height:1.7">');
-        h.push('<b style="color:#f5c2e7">按键</b> T 面板 / P 暂停 / Y 树图 / V 标注 / E 导出 / <b style="color:#a6e3a1">/ 最远寻路</b><br>');
+        h.push('<b style="color:#f5c2e7">按键</b> T 面板 / P 暂停 / Y 树图 / V 标注 / E 导出 / <b style="color:#a6e3a1">/ 最远寻路 · 句号键 进房子</b><br>');
         h.push('<b style="color:#89b4fa">模式</b> AI 操控选“自动”=9 操作最高分；选“树”=预测树。只有树模式才显示生长/回退/选路。<br>');
         h.push('<b style="color:#89dceb">评分类</b> 固定帧数评估、轨迹距离评分、弹簧绳评分、死亡不扣分。<br>');
         h.push('<b style="color:#89b4fa">Rust类</b> Rust 物理预测默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳评分会隐藏并关闭。<br>');
@@ -3660,6 +3731,16 @@
             }
             return;
         }
+        // 句号键：手动寻路进最近边界/房子。
+        var isPeriod = (k === '.' || k === '。' || e.code === 'Period' || e.keyCode === 190);
+        if (isPeriod) {
+            e.preventDefault();
+            if (typeof TankTroubleLocalPatch !== 'undefined' &&
+                TankTroubleLocalPatch.setVantageAutoTarget) {
+                TankTroubleLocalPatch.setVantageAutoTarget();
+            }
+            return;
+        }
         if (k === 'p' || k === 'P') { e.preventDefault(); togglePause(); return; }
         // v3：V/T/E 任意时刻可用（T 运行中开面板 = 性能测试模式；Y 树图）
         if (k === 't' || k === 'T') {
@@ -3742,7 +3823,7 @@
         },
         help: function() {
             console.log([
-                'P 暂停/恢复 | N 递进一帧 | Shift+N ×10 | V 标注 | T 面板 | Y 树图 | / 最远寻路 | E 导出',
+                'P 暂停/恢复 | N 递进一帧 | Shift+N ×10 | V 标注 | T 面板 | Y 树图 | / 最远寻路 | . 进房子 | E 导出',
                 'B 运行中开面板 = 每帧自动计算的性能测试模式（关面板即零开销）',
                 '沙箱内: → 单帧 | Shift+→ ×10 | ← 回退 | Home 起点 | Esc 退出',
                 '暂停后 9 操作自动算；面板按钮可全鼠标操作；标题栏可拖动',
@@ -3773,6 +3854,8 @@
         try { VantageTree.setRetreatFrames(state.exp.retreatFrames); } catch (eRetreatFramesInit) {}
         try { VantageTree.setTargetMixEnabled(state.exp.targetMix); } catch (eTargetMixInit) {}
         try { VantageTree.setTargetMixRatio(state.exp.targetMixRatio); } catch (eTargetMixRatioInit) {}
+        try { if (VantageTree.setKillfieldEnabled) VantageTree.setKillfieldEnabled(state.exp.killfieldEnabled); } catch (eKillfieldInit) {}
+        try { if (VantageTree.setKillfieldWeight) VantageTree.setKillfieldWeight(state.exp.killfieldWeight); } catch (eKillfieldWeightInit) {}
         try { VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned); } catch (eScoreShortInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }

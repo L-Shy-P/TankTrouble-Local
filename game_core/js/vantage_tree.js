@@ -1,6 +1,11 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v100（杀戮场地形引导）：
+ *   ① 静态地形杀戮场：死路/出口少/边界格子分低，开阔格分高；
+ *   ② 没有用户目标且有子弹时，目标分用杀戮场安全分；
+ *   ③ 用户点击或 / 寻路时，目标分优先，杀戮场不抢方向；
+ *   ④ 无弹无目标时仍优先静止，不受杀戮场影响。
  * 2026-09-07 v98（点击后全树刷新重选 + 仅操作时长评分）：
  *   ① 点击目标变化后标记 dirty，tick 里 reroute 全树、逐层重选并提前结束当前段；
  *   ② scoreOnlyPlanned 开关：选路时只累计操作时长内帧分，不再固定看 75 帧。
@@ -411,6 +416,11 @@
     var _liveProjectilesNow = 0;             // v97：真实世界当前子弹数（无弹时优先静止）
     var _moveTargetDirty = false;            // v98：点击目标变化后，触发全树刷新重选
     var _scoreOnlyPlanned = false;           // v98：评分范围仅限操作时长（false=固定75帧）
+    var _killfieldEnabled = true;            // v100：杀戮场地形引导
+    var _killfieldWeight = 0.5;              // v100：杀戮场权重（0~1）
+    var _killfieldGrid = null;               // v100：静态地形安全分格子表
+    var _killfieldMazeRef = null;
+    var _killfieldW = 0, _killfieldH = 0;
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -443,6 +453,8 @@
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         scoreOnlyPlanned: false,          // v98：评分范围仅限操作时长（默认固定75帧）
+        killfieldEnabled: true,           // v100：杀戮场地形引导
+        killfieldWeight: 0.5,             // v100：杀戮场权重（0~1）
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
@@ -801,6 +813,8 @@
         tree.cfg.deathDurationRatio = _deathDurationRatio; // v80
         tree.cfg.growLayersPerTick = _growLayersPerTick;   // v80
         tree.cfg.scoreOnlyPlanned = _scoreOnlyPlanned;   // v98
+        tree.cfg.killfieldEnabled = _killfieldEnabled;   // v100
+        tree.cfg.killfieldWeight = _killfieldWeight;     // v100
         tree.cfg.targetMixEnabled = _targetMixEnabled;     // v94
         tree.cfg.targetMixRatio = _targetMixRatio;         // v94
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
@@ -3063,10 +3077,67 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return !inputs || (!inputs.forward && !inputs.back && !inputs.left && !inputs.right);
     }
 
+    /** v100：构建静态地形杀戮场。迷宫换一次重建一次，节点只做 O(1) 查表。 */
+    function ensureKillfield(maze) {
+        if (!_killfieldEnabled || !maze || !maze.getWidth || !maze.getHeight) return;
+        if (_killfieldGrid && _killfieldMazeRef === maze) return;
+        var w = maze.getWidth(), h = maze.getHeight();
+        var grid = new Array(w * h);
+        var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        var maxDead = (typeof Constants !== 'undefined' && Constants.AI &&
+            typeof Constants.AI.MAZE_MAX_DEAD_END_PENALTY === 'number')
+            ? Constants.AI.MAZE_MAX_DEAD_END_PENALTY : 5;
+        for (var i = 0; i < w; i++) {
+            for (var j = 0; j < h; j++) {
+                var tile = { x: i, y: j };
+                if (!maze.isPositionInsideMaze(tile)) { grid[j * w + i] = 0; continue; }
+                var open = 0;
+                for (var d = 0; d < dirs.length; d++) {
+                    var nb = { x: i + dirs[d][0], y: j + dirs[d][1] };
+                    if (nb.x < 0 || nb.y < 0 || nb.x >= w || nb.y >= h) continue;
+                    if (maze.isPositionInsideMaze(nb)) open++;
+                }
+                var dead = (maze.getDeadEndPenalty ? (maze.getDeadEndPenalty(tile) || 0) : 0);
+                var deadScore = 1 - Math.min(1, dead / maxDead);
+                var openScore = open / 4;
+                var score = deadScore * 0.6 + openScore * 0.4;
+                if (i === 0 || j === 0 || i === w - 1 || j === h - 1) score -= 0.15;
+                if ((i === 0 || i === w - 1) && (j === 0 || j === h - 1)) score -= 0.1;
+                grid[j * w + i] = Math.max(0, Math.min(1, score));
+            }
+        }
+        _killfieldGrid = grid;
+        _killfieldMazeRef = maze;
+        _killfieldW = w;
+        _killfieldH = h;
+    }
+
+    function killfieldScoreAtTank(tank) {
+        if (!_killfieldGrid || !_killfieldMazeRef || !tank) return -Infinity;
+        var tileSize = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
+            ? Constants.MAZE_TILE_SIZE.m : 10;
+        var tx = Math.floor(tank.x / tileSize);
+        var ty = Math.floor(tank.y / tileSize);
+        if (tx < 0 || ty < 0 || tx >= _killfieldW || ty >= _killfieldH) return -Infinity;
+        return _killfieldGrid[ty * _killfieldW + tx];
+    }
+
+    /** v100：统一目标分：
+     *  用户指定目标时，目标优先，杀戮场不抢方向；
+     *  没有用户目标且有子弹时，才用杀戮场引导去更安全的地形。 */
+    function objectiveScore(node) {
+        if (!node || !node.simState || !node.simState.tank) return -Infinity;
+        if (_moveTarget) return moveTargetScore(node);
+        if (!_killfieldEnabled || _liveProjectilesNow <= 0) return -Infinity;
+        var kf = killfieldScoreAtTank(node.simState.tank);
+        if (!isFinite(kf)) return -Infinity;
+        return kf * _killfieldWeight;
+    }
+
     /** v94：混合模式下，把目标分按系数放大到安全分同量级后直接加进总分。 */
     function targetMixBonus(node, scale) {
-        if (!_targetMixEnabled || !_moveTarget) return 0;
-        var fit = moveTargetScore(node);
+        if (!_targetMixEnabled) return 0;
+        var fit = objectiveScore(node);
         if (!isFinite(fit) || fit < 0) return 0;
         return _targetMixRatio * scale * fit;
     }
@@ -3137,7 +3208,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                             continue;
                         }
                     }
-                    var ctFit = moveTargetScore(c), btFit = moveTargetScore(best);
+                    var ctFit = objectiveScore(c), btFit = objectiveScore(best);
                     if (ctFit > btFit) best = c;
                 }
             }
@@ -3205,7 +3276,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                             continue;
                         }
                     }
-                    var ctFit = moveTargetScore(c), btFit = moveTargetScore(best);
+                    var ctFit = objectiveScore(c), btFit = objectiveScore(best);
                     if (ctFit > btFit) {
                         best = c; bestTotal = total;
                         continue;
@@ -4516,6 +4587,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
+        // v100：杀戮场静态地形表；迷宫不变只构建一次，节点只查表。
+        if (_killfieldEnabled && ai && ai.gameController && ai.gameController.getMaze) {
+            try { ensureKillfield(ai.gameController.getMaze()); } catch (eKf) {}
+        }
         if (_moveTarget) {
             var tile = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
                 ? Constants.MAZE_TILE_SIZE.m : 10;
@@ -4555,7 +4630,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             catch (eSight) { rawSight = []; }
             // v96：预热上限用它判断“真实世界还有没有子弹”，不再被 tree.threats 暂时为空误导。
             _tree._liveProjectileCount = rawSight ? rawSight.length : 0;
-            _liveProjectilesNow = _tree._liveProjectileCount;   // v97：无弹时优先静止
+            setLiveProjectilesNow(_tree._liveProjectileCount);   // v97：无弹时优先静止
             _tree.diag.lastProjectileSight = {
                 t: _timeAcc,
                 count: rawSight ? rawSight.length : 0,
@@ -4624,8 +4699,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             try {
                 var psNew = adapter.getProjectiles ? adapter.getProjectiles() : [];
                 _tree._liveProjectileCount = psNew ? psNew.length : 0;
-                _liveProjectilesNow = _tree._liveProjectileCount;
-            } catch (eLive) { _tree._liveProjectileCount = 0; _liveProjectilesNow = 0; }
+                setLiveProjectilesNow(_tree._liveProjectileCount);
+            } catch (eLive) { _tree._liveProjectileCount = 0; setLiveProjectilesNow(0); }
         }
         var tree = _tree;
         tree.tNow = _timeAcc;
@@ -5193,6 +5268,32 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _scoreOnlyPlanned;
     }
 
+    /** v100：供 tick 和测试设置“真实子弹数”；无弹时优先静止。 */
+    function setLiveProjectilesNow(v) {
+        var n = Math.floor(Number(v));
+        if (!isFinite(n) || n < 0) n = 0;
+        _liveProjectilesNow = n;
+        return _liveProjectilesNow;
+    }
+
+    /** v100：杀戮场地形引导开关。 */
+    function setKillfieldEnabled(v) {
+        _killfieldEnabled = !!v;
+        if (!_killfieldEnabled) { _killfieldGrid = null; _killfieldMazeRef = null; }
+        if (_tree && _tree.cfg) _tree.cfg.killfieldEnabled = _killfieldEnabled;
+        return _killfieldEnabled;
+    }
+
+    /** v100：杀戮场权重（0~1）。 */
+    function setKillfieldWeight(v) {
+        var n = Number(v);
+        if (!isFinite(n)) n = 0.5;
+        n = Math.round(n * 100) / 100;
+        _killfieldWeight = Math.max(0, Math.min(1, n));
+        if (_tree && _tree.cfg) _tree.cfg.killfieldWeight = _killfieldWeight;
+        return _killfieldWeight;
+    }
+
     /** v94：混合选路开关——目标分直接进入总分，可能牺牲一点安全换靠近目标。 */
     function setTargetMixEnabled(v) {
         _targetMixEnabled = !!v;
@@ -5259,6 +5360,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setDeathDurationRatio: setDeathDurationRatio,
         setGrowLayersPerTick: setGrowLayersPerTick,
         setScoreOnlyPlanned: setScoreOnlyPlanned,
+        setKillfieldEnabled: setKillfieldEnabled,
+        setKillfieldWeight: setKillfieldWeight,
+        ensureKillfield: ensureKillfield,
+        killfieldScoreAtTank: killfieldScoreAtTank,
+        setLiveProjectilesNow: setLiveProjectilesNow,
         setTargetMixEnabled: setTargetMixEnabled,
         setTargetMixRatio: setTargetMixRatio,
         setDeepSelectEnabled: setDeepSelectEnabled,
@@ -5306,5 +5412,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v98：点击全树刷新 + 仅操作时长评分 + 无弹优先静止 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v100：杀戮场地形引导 + 点击全树刷新 + 混合选路 + 无弹优先静止 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
