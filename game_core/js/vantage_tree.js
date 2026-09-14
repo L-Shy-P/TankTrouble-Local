@@ -1,6 +1,11 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v92（点击目标只做平局裁决 + 跨局缓存清理）：
+ *   ① 点击地面不再直接接管 AI 驾驶；目标只作为安全分完全相同时的
+ *      末端姿态平局裁决（位置越近、朝向越准分越高）；
+ *   ② VantageTree.reset() 清空点击目标，并调用 VantageSandbox.clearCaches()
+ *      清掉融合/克隆世界缓存，防止跨局旧缓存拖弱 AI。
  * 2026-09-07 v91（预测时长滑块 + 剪枝补偿）：
  *   ① horizonSec 可在 1~15 秒调；② 新弹剪枝后可临时增加每帧生长层数，
  *   由 pruneCompensateLayers（0~9）与 pruneCompensateFrames（1~60）控制。
@@ -385,6 +390,7 @@
     var _pruneCompensateFrames = 1;          // v91：补偿持续帧数（1~60）
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
+    var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
     var _retreatFrames = 200;                // v90：真死回退最多向上多少帧（10~600）
     var _warmupMaxNodes = 500;               // v89：无子弹预热阶段的节点上限
@@ -2983,6 +2989,25 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return attachResults(tree, leaf, results, threats);
     }
 
+    /** v92：点击目标评分只在“安全分完全相同”时作为平局裁决。
+     *  只看节点末状态：位置越近、朝向越接近目标方向，分越高。 */
+    function moveTargetScore(node) {
+        if (!_moveTarget || !node || !node.simState || !node.simState.tank) return -Infinity;
+        var tile = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
+            ? Constants.MAZE_TILE_SIZE.m : 10;
+        var tx = (_moveTarget.x + 0.5) * tile;
+        var ty = (_moveTarget.y + 0.5) * tile;
+        var tk = node.simState.tank;
+        var dx = tx - tk.x, dy = ty - tk.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var desiredRot = Math.atan2(dx, -dy);   // 游戏朝向：sin(rot), -cos(rot)
+        var diff = tk.rot - desiredRot;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        var angleScore = 1 - Math.abs(diff) / Math.PI;   // 0~1，朝向越准越高
+        var distScore = 1 / (1 + dist / tile);           // 0~1，越近越高
+        return angleScore * 0.7 + distScore * 0.3;
+    }
+
     /** argmax 平局裁定：alive > dead；双 dead 取段长长者（活最久）。
      *  v8 撤除 v4.1 的"动优于静"——那轮"一直静止"的真凶后来证实是
      *  提交丢失 bug（ai_vantage v5 修复），动优于静属于误诊补丁：
@@ -3009,8 +3034,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!best || c.subtreeBest > best.subtreeBest) { best = c; continue; }
             if (c.subtreeBest === best.subtreeBest) {
                 var cDead = c.status === 'dead', bDead = best.status === 'dead';
-                if (cDead !== bDead) { if (!cDead) best = c; }
-                else if (cDead && c.segmentFrames > best.segmentFrames) best = c;
+                if (cDead !== bDead) {
+                    if (!cDead) best = c;
+                    continue;
+                }
+                if (cDead && c.segmentFrames > best.segmentFrames) {
+                    best = c;
+                    continue;
+                }
+                if (!cDead || c.segmentFrames === best.segmentFrames) {
+                    var ctFit = moveTargetScore(c), btFit = moveTargetScore(best);
+                    if (ctFit > btFit) best = c;
+                }
             }
         }
         return best;
@@ -3050,6 +3085,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 if (cDead && c.segmentFrames > best.segmentFrames) {
                     best = c; bestTotal = total;
                     continue;
+                }
+                if (!cDead || c.segmentFrames === best.segmentFrames) {
+                    var ctFit = moveTargetScore(c), btFit = moveTargetScore(best);
+                    if (ctFit > btFit) {
+                        best = c; bestTotal = total;
+                        continue;
+                    }
                 }
                 if ((c.id || Infinity) < (best.id || Infinity)) {
                     best = c; bestTotal = total;
@@ -4356,6 +4398,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
+        if (_moveTarget) {
+            var tile = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
+                ? Constants.MAZE_TILE_SIZE.m : 10;
+            var tcx = (_moveTarget.x + 0.5) * tile;
+            var tcy = (_moveTarget.y + 0.5) * tile;
+            var tdx = tankState.x - tcx, tdy = tankState.y - tcy;
+            if (tdx * tdx + tdy * tdy < tile * tile * 0.25) {
+                clearMoveTarget();
+            }
+        }
 
         // v41：树时间轴必须用“真实世界刚走完的那一步”的时长推进。
         // Phaser 的 physicsElapsedMS 固定 60fps，而 GameController 的
@@ -4776,6 +4828,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _lastWorldDt = FRAME_DT;
         _lastSeenWorldStep = null;
         _events = [];
+        _moveTarget = null;   // v92：换局/重生不保留旧点击目标
+        if (typeof VantageSandbox !== 'undefined' && VantageSandbox.clearCaches) {
+            try { VantageSandbox.clearCaches(); } catch (eCache) {}
+        }
     }
 
     function getLastResetSnapshot() {
@@ -4877,6 +4933,27 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _pruneCompensateFrames = Math.max(1, Math.min(60, n));
         if (_tree && _tree.cfg) _tree.cfg.pruneCompensateFrames = _pruneCompensateFrames;
         return _pruneCompensateFrames;
+    }
+
+    /** v92：点击地面设置“末端姿态目标”。只作为安全分平局时的裁决，
+     *  不再直接接管 AI 驾驶。 */
+    function setMoveTarget(tileX, tileY) {
+        var x = Math.round(Number(tileX));
+        var y = Math.round(Number(tileY));
+        if (!isFinite(x) || !isFinite(y)) return null;
+        _moveTarget = { x: x, y: y };
+        if (_tree) recordStructure(_tree, 'move-target', x + ',' + y);
+        return _moveTarget;
+    }
+
+    function clearMoveTarget() {
+        _moveTarget = null;
+        if (_tree) recordStructure(_tree, 'move-target-clear', '');
+        return null;
+    }
+
+    function getMoveTarget() {
+        return _moveTarget ? { x: _moveTarget.x, y: _moveTarget.y } : null;
     }
 
     /** v88：持续细化开关；开启后每 tick 主动拆一次长操作。 */
@@ -4996,6 +5073,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         notePruneLoss: notePruneLoss,
         setRefineBeyondLimits: setRefineBeyondLimits,
         setContinuousRefine: setContinuousRefine,
+        setMoveTarget: setMoveTarget,
+        clearMoveTarget: clearMoveTarget,
+        getMoveTarget: getMoveTarget,
         setRetreatNodes: setRetreatNodes,
         setRetreatFrames: setRetreatFrames,
         setWarmupMaxNodes: setWarmupMaxNodes,
@@ -5028,5 +5108,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v91：预测时长1~15秒 + 剪枝补偿 + 回退帧上限600 + 无弹预热上限 + 持续细化 + 节点上限穿透 + 真死回退改道 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v92：点击目标平局裁决 + 跨局缓存清理 + 预测时长1~15秒 + 剪枝补偿 + 真死回退改道 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

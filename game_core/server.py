@@ -328,26 +328,40 @@ class GameHandler(SimpleHTTPRequestHandler):
 def run_server():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     _ensure_config_dirs()
-    server = HTTPServer((HOST, PORT), GameHandler)
+    server = None
+    actual_port = PORT
+    # 8000 被占用时自动往后找，避免启动脚本看似正常但页面打不开。
+    for port in range(PORT, PORT + 20):
+        try:
+            server = HTTPServer((HOST, port), GameHandler)
+            actual_port = port
+            break
+        except OSError:
+            continue
+    if server is None:
+        print('无法启动本地服务器：8000~8019 端口都被占用了。')
+        return
     print('=' * 60)
     print('TankTrouble 游戏核心本地服务器')
     print('=' * 60)
-    print(f'服务器地址: http://{HOST}:{PORT}')
-    print(f'游戏地址: http://{HOST}:{PORT}/index.html')
+    print(f'服务器地址: http://{HOST}:{actual_port}')
+    print(f'游戏地址: http://{HOST}:{actual_port}/index.html')
     print('=' * 60)
     print('按 Ctrl+C 停止服务器')
     print('=' * 60)
 
     def open_browser():
         time.sleep(1.5)
-        webbrowser.open(f'http://{HOST}:{PORT}/index.html')
+        webbrowser.open(f'http://{HOST}:{actual_port}/index.html')
 
     threading.Thread(target=open_browser, daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print('\n服务器已停止')
+        print()
+        print('服务器已停止')
         server.shutdown()
+
 
 
 if __name__ == '__main__':

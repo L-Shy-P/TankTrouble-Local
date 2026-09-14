@@ -1,6 +1,7 @@
 /**
  * TankTrouble 本地模式补丁 — 在 ajax.js 加载后立即执行
  * v3：移除本地部署不需要的 Cookie 同意提示条。
+ * v4：点击地面只设置树评分目标，不再直接接管 AI 驾驶。
  */
 (function() {
     'use strict';
@@ -2046,6 +2047,25 @@
         return null;
     }
 
+    /** v4：点击地面只设置“树评分目标”，不再直接接管 AI 驾驶。
+     *  树只在几个操作安全分完全相同时，用末端姿态与目标方向的接近程度做平局裁决。 */
+    function setVantageMoveTarget(tileX, tileY) {
+        if (typeof VantageTree !== 'undefined' && VantageTree.setMoveTarget) {
+            VantageTree.setMoveTarget(tileX, tileY);
+            // 清掉旧的“直接驾驶”调试目标，避免树和旧寻路同时抢输入。
+            if (typeof AIs !== 'undefined' && AIs.aiManagers) {
+                for (var i = 0; i < AIs.aiManagers.length; i++) {
+                    var m = AIs.aiManagers[i];
+                    if (m && m.isVantage && m.ai && typeof m.ai.clearDebugTarget === 'function') {
+                        m.ai.clearDebugTarget();
+                    }
+                }
+            }
+            return true;
+        }
+        return setVantageDebugTarget(tileX, tileY);
+    }
+
     /**
      * 给Vantage AI设置调试目标位置
      * @param {number} tileX 目标格子X
@@ -2105,8 +2125,8 @@
             $canvas.off('click.vantage').on('click.vantage', function(evt) {
                 var tile = clientPointToMazeTile(evt);
                 if (tile) {
-                    console.log('[Vantage] 点击地面 -> 格子 (' + tile.x + ',' + tile.y + ')');
-                    setVantageDebugTarget(tile.x, tile.y);
+                    console.log('[Vantage] 点击地面 -> 目标 (' + tile.x + ',' + tile.y + ')，由树评分决定是否前往');
+                    setVantageMoveTarget(tile.x, tile.y);
                 } else {
                     console.warn('[Vantage] 点击位置不在迷宫内');
                 }

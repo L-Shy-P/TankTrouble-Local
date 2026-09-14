@@ -592,6 +592,12 @@
         if (!FUSED_ENABLED) _fusedCache = null;
     }
 
+    /** v35：清掉跨局/重生的融合世界与克隆世界缓存，避免旧缓存拖慢/拖笨后续对局。 */
+    function clearCaches() {
+        _fusedCache = null;
+        _cloneCache = null;
+    }
+
     function fusedEnabled() {
         return FUSED_ENABLED;
     }
@@ -1962,10 +1968,11 @@
         buildConstants: buildConstants,
         fusedEnabled: fusedEnabled,
         setFusedEnabled: setFusedEnabled,
+        clearCaches: clearCaches,
         rustPhysicsEnabled: rustPhysicsEnabled,
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v34：Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v35：跨局缓存清理 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);

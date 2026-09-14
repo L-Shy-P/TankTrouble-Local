@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v80：
+ *   T 键开面板、Y 键开树图；全局选路加“当前会变弱”警告。
  * 2026-09-07 v79：
  *   面板/树图仍然支持任意空白处拖动，但鼠标始终使用默认样式。
  * 2026-09-07 v78：
@@ -69,7 +71,7 @@
  *   - 运行中（面板开着时）每帧自动算 威胁+基准时间+单帧分+9操作，显示每帧计算耗时（性能测试）
  *   - B 键任意时刻可开面板（不再必须先暂停）；面板可拖动；暂停/步进/标注/导出 全部有鼠标按钮
  *
- * 键位（游戏侧）：P 暂停/恢复  N 递进一帧  Shift+N ×10  V 标注  B 面板  E 导出
+ * 键位（游戏侧）：P 暂停/恢复  N 递进一帧  Shift+N ×10  V 标注  T 面板  Y 树图  E 导出
  * 键位（沙箱侧）：→ 单帧  Shift+→ ×10  ← 回退  Home 起点  Esc 退出
  *
  * v11 变更（2026-08-15）：
@@ -82,7 +84,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v79';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v80';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2239,7 +2241,7 @@
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
-                'exp-deepSelect': '全局选路。让更深层的未来分数参与当前选择，而不是只看眼前一段。',
+                'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
             };
             Object.keys(tips).forEach(function(k) {
@@ -3033,7 +3035,7 @@
     function panelGuideHtml() {
         var h = [];
         h.push('<div style="line-height:1.7">');
-        h.push('<b style="color:#f5c2e7">按键</b> B 面板 / P 暂停 / T 树图 / V 标注 / E 导出<br>');
+        h.push('<b style="color:#f5c2e7">按键</b> T 面板 / P 暂停 / Y 树图 / V 标注 / E 导出<br>');
         h.push('<b style="color:#89b4fa">模式</b> AI 操控选“自动”=9 操作最高分；选“树”=预测树。只有树模式才显示生长/回退/选路。<br>');
         h.push('<b style="color:#89dceb">评分类</b> 固定帧数评估、轨迹距离评分、弹簧绳评分、死亡不扣分。<br>');
         h.push('<b style="color:#89b4fa">Rust类</b> Rust 物理预测默认开；Rust 不支持的配置会自动回退 JS。开启 Rust 时弹簧绳评分会隐藏并关闭。<br>');
@@ -3385,8 +3387,8 @@
         }
         var k = e.key;
         if (k === 'p' || k === 'P') { e.preventDefault(); togglePause(); return; }
-        // v3：V/B/E 任意时刻可用（B 运行中开面板 = 性能测试模式）
-        if (k === 'b' || k === 'B') {
+        // v3：V/T/E 任意时刻可用（T 运行中开面板 = 性能测试模式；Y 树图）
+        if (k === 't' || k === 'T') {
             e.preventDefault();
             state.panelOn = !state.panelOn;
             if (state.panelOn) { _perfDead = false; state.errRun = null; }   // 重开面板重试
@@ -3395,7 +3397,7 @@
             return;
         }
         if (k === 'v' || k === 'V') { e.preventDefault(); state.vizOn = !state.vizOn; renderViz(); syncButtonLabels(); return; }
-        if (k === 't' || k === 'T') { e.preventDefault(); toggleTreeView(); return; }   // v7.8 树视图
+        if (k === 'y' || k === 'Y') { e.preventDefault(); toggleTreeView(); return; }   // v93：树图改 Y 键
         if (k === 'e' || k === 'E') { e.preventDefault(); exportSnapshots(); return; }
         if (!state.paused) return;
         if (k === 'n' || k === 'N') { e.preventDefault(); requestStep(e.shiftKey ? 10 : 1); return; }
@@ -3461,7 +3463,7 @@
         },
         help: function() {
             console.log([
-                'P 暂停/恢复 | N 递进一帧 | Shift+N ×10 | V 标注 | B 面板 | E 导出',
+                'P 暂停/恢复 | N 递进一帧 | Shift+N ×10 | V 标注 | T 面板 | Y 树图 | E 导出',
                 'B 运行中开面板 = 每帧自动计算的性能测试模式（关面板即零开销）',
                 '沙箱内: → 单帧 | Shift+→ ×10 | ← 回退 | Home 起点 | Esc 退出',
                 '暂停后 9 操作自动算；面板按钮可全鼠标操作；标题栏可拖动',
@@ -3510,6 +3512,6 @@
     });
 
     console.log('[Testbench] Vantage 调试工作台 ' + TB_VERSION +
-        ' 已加载：B 开面板（运行中=性能测试）P 暂停后自动 9 操作');
+        ' 已加载：T 开面板（运行中=性能测试）P 暂停后自动 9 操作');
 
 })(typeof window !== 'undefined' ? window : this);

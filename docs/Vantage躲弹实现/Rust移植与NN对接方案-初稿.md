@@ -759,3 +759,17 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - testbench v79：取消拖动光标变化，拖动功能保留，鼠标始终默认样式。
 - 版本：tree v91、testbench v78、sandbox v34、local_patch v3、scoring v32、
   bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十一、第二十三波 v92：点击目标平局裁决 + 跨局缓存清理
+- 点击地面不再设置 `VantageAI.debugTarget` 直接接管驾驶；改为
+  `VantageTree.setMoveTarget`，只在安全总分相同时比较末端姿态目标分。
+- 目标分：只算节点末状态，位置越近、朝向越接近目标方向越高；
+  安全分不同时完全不参与。
+- `VantageTree.reset()` 清空点击目标，并调用 `VantageSandbox.clearCaches()`
+  清理 JS 融合/克隆世界缓存，降低跨局旧状态造成的慢性变弱。
+- 按键：T 开面板、Y 开树图。
+- `server.py` 8000 被占用时自动尝试后续端口。
+- 已知：全局选路开启后会明显变弱，悬浮提示已标注“暂不建议开启”，
+  后续需要深层节点新鲜度校验；训练模式高压卡死未定位。
+- 版本：tree v92、testbench v80、sandbox v35、local_patch v4、scoring v32、
+  bridge v10、Rust ABI v6、index.html `?v=` 同步。
