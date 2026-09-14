@@ -1,6 +1,9 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v97（无弹无目标时优先静止）：
+ *   安全分完全相同时，如果真实世界没有子弹且没有点击目标，优先选静止操作；
+ *   避免无弹期反复选前进/转向、在墙角空转和触发反复提交。
  * 2026-09-07 v96（预热上限改为看真实子弹数）：
  *   warmupCapReached 不再只看 tree.threats；tick 每帧记录真实 projectile 数，
  *   避免树 threats 暂时为空时把“有子弹”误判成“无子弹预热”，
@@ -402,6 +405,7 @@
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
+    var _liveProjectilesNow = 0;             // v97：真实世界当前子弹数（无弹时优先静止）
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -3035,6 +3039,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return distScore * 0.7 + angleScore * 0.3;
     }
 
+    /** v97：无子弹且没有点击目标时，所有安全分相同的候选里优先静止。 */
+    function isStaticInputs(inputs) {
+        return !inputs || (!inputs.forward && !inputs.back && !inputs.left && !inputs.right);
+    }
+
     /** v94：混合模式下，把目标分按系数放大到安全分同量级后直接加进总分。 */
     function targetMixBonus(node, scale) {
         if (!_targetMixEnabled || !_moveTarget) return 0;
@@ -3101,6 +3110,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     continue;
                 }
                 if (!cDead || c.segmentFrames === best.segmentFrames) {
+                    // v97：无弹且无点击目标时，平局优先静止，避免根层反复选前进/转向。
+                    if (_liveProjectilesNow === 0 && !_moveTarget) {
+                        var cStatic = isStaticInputs(c.inputs), bStatic = isStaticInputs(best.inputs);
+                        if (cStatic !== bStatic) {
+                            if (cStatic) best = c;
+                            continue;
+                        }
+                    }
                     var ctFit = moveTargetScore(c), btFit = moveTargetScore(best);
                     if (ctFit > btFit) best = c;
                 }
@@ -3161,6 +3178,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     continue;
                 }
                 if (!cDead || c.segmentFrames === best.segmentFrames) {
+                    // v97：无弹且无点击目标时，平局优先静止，避免无弹期乱选操作。
+                    if (_liveProjectilesNow === 0 && !_moveTarget) {
+                        var cStatic2 = isStaticInputs(c.inputs), bStatic2 = isStaticInputs(best.inputs);
+                        if (cStatic2 !== bStatic2) {
+                            if (cStatic2) { best = c; bestTotal = total; }
+                            continue;
+                        }
+                    }
                     var ctFit = moveTargetScore(c), btFit = moveTargetScore(best);
                     if (ctFit > btFit) {
                         best = c; bestTotal = total;
@@ -4511,6 +4536,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             catch (eSight) { rawSight = []; }
             // v96：预热上限用它判断“真实世界还有没有子弹”，不再被 tree.threats 暂时为空误导。
             _tree._liveProjectileCount = rawSight ? rawSight.length : 0;
+            _liveProjectilesNow = _tree._liveProjectileCount;   // v97：无弹时优先静止
             _tree.diag.lastProjectileSight = {
                 t: _timeAcc,
                 count: rawSight ? rawSight.length : 0,
@@ -4579,7 +4605,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             try {
                 var psNew = adapter.getProjectiles ? adapter.getProjectiles() : [];
                 _tree._liveProjectileCount = psNew ? psNew.length : 0;
-            } catch (eLive) { _tree._liveProjectileCount = 0; }
+                _liveProjectilesNow = _tree._liveProjectileCount;
+            } catch (eLive) { _tree._liveProjectileCount = 0; _liveProjectilesNow = 0; }
         }
         var tree = _tree;
         tree.tNow = _timeAcc;
@@ -4926,6 +4953,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _lastSeenWorldStep = null;
         _events = [];
         _moveTarget = null;   // v92：换局/重生不保留旧点击目标
+        _liveProjectilesNow = 0;
         if (typeof VantageSandbox !== 'undefined' && VantageSandbox.clearCaches) {
             try { VantageSandbox.clearCaches(); } catch (eCache) {}
         }
@@ -5224,5 +5252,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v96：真实子弹数预热判定 + 混合选路 + 新弹改道提前结束 + 跨局缓存清理 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v97：无弹优先静止 + 真实子弹数预热判定 + 混合选路 + 跨局缓存清理 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

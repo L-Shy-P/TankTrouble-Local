@@ -805,3 +805,12 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - 回归：`diff_tree_warmup_cap.js` 覆盖“tree.threats 为空但真实有弹”。
 - 版本：tree v96、testbench v83、ai_vantage v8、local_patch v5、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十五、第二十七波 v97：无弹优先静止 + 点击坐标兜底
+- 诊断显示无弹时树仍在选“前进”、275 次提交、reuse 2001、alignFails 139。
+- 根因：无弹安全分全相同，旧平局按 id 选到非静止操作，导致无弹期乱动/反复提交。
+- 修复：真实子弹数为 0 且没有点击目标时，平局优先静止操作。
+- 点击坐标换算改为直接用当前 Game 状态换算，不依赖训练模式初始化。
+- 回归：无弹平局优先静止。
+- 版本：tree v97、testbench v84、ai_vantage v8、local_patch v6、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。

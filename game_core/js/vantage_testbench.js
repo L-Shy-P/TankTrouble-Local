@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v84：
+ *   预热开关移到预热上限滑块右侧；配合无弹优先静止与点击寻路修正。
  * 2026-09-07 v83：
  *   目标分系数扩到 0~300% 并给参考值；开关/滑块统一成组灰显。
  * 2026-09-07 v82：
@@ -90,7 +92,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v83';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v84';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2185,7 +2187,7 @@
             // 生长/节点：只在“树”模式显示
             expLine('生长', '#f9e2af', 'vt-exp-treeRow',
                 expItem('每帧生长层数 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers">1层</span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label> 预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">500</span>') +
+                expItem('预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label>') +
                 expItem('节点数量上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap"> 启用</label>') +
                 expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="8" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">8秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +

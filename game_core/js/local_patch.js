@@ -3,6 +3,7 @@
  * v3：移除本地部署不需要的 Cookie 同意提示条。
  * v4：点击地面只设置树评分目标，不再直接接管 AI 驾驶。
  * v5：无子弹时点击地面同时启用旧迷宫最短路寻路；有子弹时只交给树评分。
+ * v6：点击坐标换算不再依赖训练模式是否初始化。
  */
 (function() {
     'use strict';
@@ -2019,17 +2020,11 @@
      * 屏幕点击 -> 迷宫格子。复用 training_mode.screenToMaze + Laika 的 floor(getX/MAZE_TILE_SIZE.m)。
      */
     function clientPointToMazeTile(evt) {
-        if (typeof TankTroubleTrainingMode === 'undefined' ||
-            !TankTroubleTrainingMode.screenToMaze ||
-            !TankTroubleTrainingMode.getUIGameState ||
-            typeof Constants === 'undefined' || !Constants.MAZE_TILE_SIZE) {
+        if (typeof Constants === 'undefined' || !Constants.MAZE_TILE_SIZE) {
             return null;
         }
-        var ui = TankTroubleTrainingMode.getUIGameState();
-        if (!ui) {
-            return null;
-        }
-        var gc = typeof GameManager !== 'undefined' ? GameManager.getGameController() : null;
+        var gc = typeof GameManager !== 'undefined' && GameManager.getGameController
+            ? GameManager.getGameController() : null;
         if (!gc || !gc.getMaze) {
             return null;
         }
@@ -2037,7 +2032,37 @@
         if (!maze) {
             return null;
         }
-        var meters = TankTroubleTrainingMode.screenToMaze(ui, evt.clientX, evt.clientY);
+        var game = typeof GameManager !== 'undefined' && GameManager.getGame
+            ? GameManager.getGame() : null;
+        if (!game || !game.state || !game.state.getCurrentState) {
+            return null;
+        }
+        var ui = null;
+        try {
+            ui = game.state.current === 'Game' ? game.state.getCurrentState() : null;
+        } catch (eState) { ui = null; }
+        if (!ui || !ui.game || !ui.game.canvas || !ui.gameGroup) {
+            return null;
+        }
+        var canvas = ui.game.canvas;
+        var rect = canvas.getBoundingClientRect();
+        if (!rect || !rect.width || !rect.height) {
+            return null;
+        }
+        // 与 training_mode.screenToMaze 同一套换算，但不依赖训练模式是否已初始化。
+        var sx = (evt.clientX - rect.left) / rect.width * ui.game.width;
+        var sy = (evt.clientY - rect.top) / rect.height * ui.game.height;
+        var g = ui.gameGroup;
+        var px = (sx - g.position.x) / g.scale.x;
+        var py = (sy - g.position.y) / g.scale.y;
+        var meters = null;
+        if (typeof UIUtils !== 'undefined' && UIUtils.pxm) {
+            meters = { x: UIUtils.pxm(px), y: UIUtils.pxm(py) };
+        } else if (Constants.PIXELS_PER_METER) {
+            meters = { x: px / Constants.PIXELS_PER_METER, y: py / Constants.PIXELS_PER_METER };
+        } else {
+            return null;
+        }
         var tile = {
             x: Math.floor(meters.x / Constants.MAZE_TILE_SIZE.m),
             y: Math.floor(meters.y / Constants.MAZE_TILE_SIZE.m)

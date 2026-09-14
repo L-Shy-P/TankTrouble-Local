@@ -27,6 +27,17 @@ const mt=VT.getMoveTarget();
 if(!mt || mt.x!==5 || mt.y!==5) throw new Error('setMoveTarget failed');
 if(!VT.clearMoveTarget() && VT.getMoveTarget()!==null) throw new Error('clearMoveTarget failed');
 
+// no target + no live projectiles: equal scores must prefer the static operation
+{
+    VT.clearMoveTarget();
+    const forward=mk(30,0,0,0,50);
+    forward.inputs={forward:true,back:false,left:false,right:false};
+    const still=mk(31,0,0,0,50);
+    if(VT.pickBestChildByRolloutTotal([forward,still])!==still) {
+        throw new Error('no-threat tie should prefer static operation');
+    }
+}
+
 // equal safety score: facing the target wins
 {
     const away=mk(1,55,0,0,50);          // target center (55,55); rot 0 faces up
