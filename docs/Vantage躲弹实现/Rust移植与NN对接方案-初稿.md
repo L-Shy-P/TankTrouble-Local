@@ -826,5 +826,12 @@ v75 已对帧分数做增量缓存，但死亡验证仍会对所有旧子弹重�
 - 新增“自动寻路”开关：无用户目标时自动去最近边界/封闭房子（1.8 秒检查一次）。
 - 版本：tree v98、testbench v86、ai_vantage v8、local_patch v7、sandbox v35、
   scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
+
+## 四十七、第二十九波 v99：偏离默认常红 + 死亡扣分正向显示
+- 任意实验控件偏离作者默认预设时：常红、悬浮更红、切换时弹字幕警告。
+- “死亡不扣分”改为正向“死亡扣分”：默认勾选=死亡扣 100000 分；
+  取消勾选=开启不扣分实验。
+- 版本：tree v98、testbench v87、ai_vantage v8、local_patch v7、sandbox v35、
+  scoring v32、bridge v10、Rust ABI v6、index.html `?v=` 同步。
 - testbench v86：自动寻路移到“调试”栏；/ 键兼容 key/code/keyCode；
   用户寻路优先级高于自动寻路；仅操作时长评分标注短视警告。

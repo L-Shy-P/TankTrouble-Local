@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v87：
+ *   偏离默认值的实验项常红 + 悬浮红 + 字幕警告；“死亡不扣分”改成正向“死亡扣分”。
  * 2026-09-07 v86：
  *   自动寻路移到“调试”栏；/ 键兼容更多键盘布局；实验评分开关加短视警告。
  * 2026-09-07 v85：
@@ -96,7 +98,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v86';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v87';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2107,6 +2109,36 @@
     var _expCtrl = null;  // v7.4 持久实验模式控件引用（永不重建）
     var _drag = null;
     var _panelUserMoved = false;   // v94：用户手动拖过面板后，窗口变化不再自动靠地图左侧
+    var _riskToast = null;
+    var _riskToastTimer = null;
+    var _riskSeen = {};
+    // v99：作者预设/默认值。任何实验控件偏离这些值都会常红并提示。
+    var DEFAULT_EXP = {
+        fixed75: false, noDeath: false, lane: false, springRope: false,
+        rustMinimal: false, rustPhysics: true, growWithoutThreats: true,
+        growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false,
+        horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
+        pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
+        retreatFrames: 200, targetMix: false, targetMixRatio: 0.5,
+        scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
+    };
+    // data-act -> 状态字段；只列真正会改变 AI 行为的实验控件。
+    var RISK_MAP = {
+        'exp-fixed75': 'fixed75', 'exp-frames': 'evalFrames', 'exp-lane': 'lane',
+        'exp-springRope': 'springRope', 'exp-nodeath': 'noDeath',
+        'exp-rustMinimal': 'rustMinimal', 'exp-rustPhysics': 'rustPhysics',
+        'exp-growWithoutThreats': 'growWithoutThreats', 'exp-growLayers': 'growLayers',
+        'exp-maxNodes': 'maxNodes', 'exp-warmupMaxNodes': 'warmupMaxNodes',
+        'exp-nodeCap': 'nodeCap', 'exp-horizonCap': 'horizonCap',
+        'exp-horizonSec': 'horizonSec', 'exp-refineBeyond': 'refineBeyond',
+        'exp-continuousRefine': 'continuousRefine',
+        'exp-pruneCompensateLayers': 'pruneCompensateLayers',
+        'exp-pruneCompensateFrames': 'pruneCompensateFrames',
+        'exp-retreatNodes': 'retreatNodes', 'exp-retreatFrames': 'retreatFrames',
+        'exp-targetMix': 'targetMix', 'exp-targetMixRatio': 'targetMixRatio',
+        'exp-scoreShort': 'scoreOnlyPlanned', 'exp-autoPath': 'autoPath',
+        'exp-deepSelect': 'deepSelect'
+    };
 
     function ensurePanel() {
         if (_panel) return _panel;
@@ -2121,6 +2153,21 @@
             'pointer-events:auto', 'display:none',
             'flex-direction:column', 'overflow:hidden'
         ].join(';');
+
+        // v99：偏离默认的实验项常红；悬浮时背景更红。
+        if (!document.getElementById || !document.getElementById('vt-risk-style')) {
+            var riskStyle = document.createElement('style');
+            riskStyle.id = 'vt-risk-style';
+            riskStyle.textContent = '.vt-risk{background:rgba(243,139,168,0.10);border-radius:3px}' +
+                '.vt-risk:hover{background:rgba(243,139,168,0.35)}';
+            if (document.head && document.head.appendChild) document.head.appendChild(riskStyle);
+        }
+        var riskToast = document.createElement('div');
+        riskToast.id = 'vt-risk-toast';
+        riskToast.style.cssText = 'display:none;padding:4px 8px;background:#5a1f2e;color:#f38ba8;' +
+            'border-bottom:1px solid #6c7086;font:11px/1.5 Consolas,monospace;text-align:center';
+        el.appendChild(riskToast);
+        _riskToast = riskToast;
 
         // —— 标题栏（持久，可拖动）——
         var head = document.createElement('div');
@@ -2211,7 +2258,7 @@
                 expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="">75帧</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 轨迹距离评分</label>') +
                 expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;"><input type="checkbox" data-act="exp-springRope"> 弹簧绳评分</label></span>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分</label>')
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡扣分</label>')
             ) +
             // Rust 模式：Rust 物理预测是全局执行开关，弹簧绳评分不支持的提示放这里
             expLine('Rust', '#89b4fa', 'vt-exp-rustRow',
@@ -2261,6 +2308,7 @@
             targetMixRatio: expRow.querySelector('[data-act="exp-targetMixRatio"]'),
             targetMixRatioSpan: expRow.querySelector('span[id="vt-exp-targetMixRatio"]'),
             autoPath: expRow.querySelector('[data-act="exp-autoPath"]'),
+            expRow: expRow,
             deepSelect: expRow.querySelector('[data-act="exp-deepSelect"]'),
             growWithoutThreats: expRow.querySelector('[data-act="exp-growWithoutThreats"]'),
             growLayers: expRow.querySelector('[data-act="exp-growLayers"]'),
@@ -2306,7 +2354,7 @@
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
                 'exp-lane': '轨迹距离评分。开启后，会评估坦克路线与子弹轨迹的距离，靠得太近就额外扣分。',
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
-                'exp-nodeath': '死亡不扣分。实验用：死亡帧不再立刻扣分，只停止后续计分，便于观察软死路线。',
+                'exp-nodeath': '死亡扣分。默认开启：死亡帧扣 100000 分。取消勾选等于开启“死亡不扣分”实验，只适合观察软死路线，不建议正常使用。',
                 'exp-rustPhysics': '默认开启。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
                 'exp-growWithoutThreats': '无子弹时预热。和“预热上限”同组：关闭时一起变灰。没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
                 'exp-growLayers': '每个游戏帧最多新增多少层树节点。默认 1 层最稳；数值越大，生长越快，但计算压力也越大。',
@@ -2585,7 +2633,8 @@
             return;
         }
         if (act === 'exp-nodeath') {
-            state.exp.noDeath = srcEl.checked;
+            // UI 是“死亡扣分”：勾选=正常扣分，取消=开启“死亡不扣分”实验。
+            state.exp.noDeath = !srcEl.checked;
             if (state.paused) { runNineOps(); renderViz(); }
             updatePanel();
             return;
@@ -3012,6 +3061,7 @@
         syncExpControls();
         syncExpVisibility();
         syncSliderActivity();
+        syncRiskHighlight();
         if (!_panelBody) return;
 
         var html = [];
@@ -3076,6 +3126,46 @@
         if (_expCtrl.rustNote) _expCtrl.rustNote.style.display = rustOn ? 'inline-flex' : 'none';
     }
 
+    /** v99：偏离作者预设的实验项弹字幕警告。 */
+    function showRiskToast(text) {
+        if (!_riskToast) return;
+        _riskToast.textContent = text;
+        _riskToast.style.display = 'block';
+        if (_riskToastTimer) clearTimeout(_riskToastTimer);
+        _riskToastTimer = setTimeout(function() {
+            if (_riskToast) _riskToast.style.display = 'none';
+        }, 4200);
+    }
+
+    /** v99：当前值偏离默认/作者预设的实验项常红；悬浮时 CSS 变红更明显。 */
+    function syncRiskHighlight() {
+        if (!_expCtrl || !_expCtrl.expRow) return;
+        var expRow = _expCtrl.expRow;
+        Object.keys(RISK_MAP).forEach(function(act) {
+            var el = expRow.querySelector('[data-act="' + act + '"]');
+            if (!el || !el.parentNode) return;
+            var key = RISK_MAP[act];
+            var cur = state.exp[key];
+            var def = DEFAULT_EXP[key];
+            var nonDefault;
+            if (typeof cur === 'number' && typeof def === 'number') {
+                nonDefault = Math.abs(cur - def) > 1e-9;
+            } else {
+                nonDefault = cur !== def;
+            }
+            var wrap = el.parentNode;
+            if (wrap.classList) {
+                if (nonDefault) wrap.classList.add('vt-risk');
+                else wrap.classList.remove('vt-risk');
+            }
+            var prev = _riskSeen[act];
+            if (prev === false && nonDefault) {
+                showRiskToast('⚠ 设置已偏离作者预设，可能明显影响 AI 强度或性能。');
+            }
+            _riskSeen[act] = nonDefault;
+        });
+    }
+
     /** v94：把当前设置下不会生效的滑块变灰，但仍然可以拖动。 */
     function syncSliderActivity() {
         if (!_expCtrl) return;
@@ -3106,7 +3196,7 @@
         if (!_expCtrl) return;
         if (_expCtrl.f75 && _expCtrl.f75.checked !== state.exp.fixed75) _expCtrl.f75.checked = state.exp.fixed75;
         if (_expCtrl.scoreShort && _expCtrl.scoreShort.checked !== state.exp.scoreOnlyPlanned) _expCtrl.scoreShort.checked = state.exp.scoreOnlyPlanned;
-        if (_expCtrl.nd && _expCtrl.nd.checked !== state.exp.noDeath) _expCtrl.nd.checked = state.exp.noDeath;
+        if (_expCtrl.nd && _expCtrl.nd.checked !== !state.exp.noDeath) _expCtrl.nd.checked = !state.exp.noDeath;
         if (_expCtrl.lane && _expCtrl.lane.checked !== state.exp.lane) _expCtrl.lane.checked = state.exp.lane;
         if (_expCtrl.springRope && _expCtrl.springRope.checked !== state.exp.springRope) _expCtrl.springRope.checked = state.exp.springRope;
         if (_expCtrl.rustMinimal && _expCtrl.rustMinimal.checked !== state.exp.rustMinimal) _expCtrl.rustMinimal.checked = state.exp.rustMinimal;
