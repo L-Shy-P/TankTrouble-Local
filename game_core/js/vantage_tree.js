@@ -1,6 +1,10 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v96（预热上限改为看真实子弹数）：
+ *   warmupCapReached 不再只看 tree.threats；tick 每帧记录真实 projectile 数，
+ *   避免树 threats 暂时为空时把“有子弹”误判成“无子弹预热”，
+ *   导致树卡在 10 节点、反复 reuse 不生长。
  * 2026-09-07 v95（混合选路 + 新弹改道提前结束 + 混合安全底线）：
  *   ① 混合选路开关与目标分系数：目标分按系数缩放后直接进安全总分；
  *   ② 混合模式下只要还有非 dead 候选，就不为了目标去选 soft-dead 候选；
@@ -399,7 +403,7 @@
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
-    var _targetMixRatio = 0.5;               // v94：目标分占比系数（0~1，仅混合模式生效）
+    var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
     var _retreatFrames = 200;                // v90：真死回退最多向上多少帧（10~600）
     var _warmupMaxNodes = 500;               // v89：无子弹预热阶段的节点上限
@@ -430,7 +434,7 @@
         deathDurationRatio: 0.5,          // v80：软死执行时长上限 = 死亡帧的一半
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
-        targetMixRatio: 0.5,              // v94：目标分占比系数（0~1）
+        targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
         minGrowTicks: 3,                  // v43：每段至少给 3 个真实帧用于生长。
                                           // 帧率低时 3~4 帧段实际只有 1 步，树每段
@@ -2443,7 +2447,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function warmupCapReached(tree, count) {
         if (!tree || !tree.cfg) return false;
         if (tree.cfg.growWithoutThreats !== true) return false;
-        if (tree.threats && tree.threats.length) return false;
+        // v96：预热上限只在“真实世界确实没有子弹”时生效。
+        // 不能只看 tree.threats——它只是树当前锚定的威胁，可能暂时为空。
+        var liveCount = (typeof tree._liveProjectileCount === 'number')
+            ? tree._liveProjectileCount
+            : null;
+        var hasProjectiles = (liveCount !== null)
+            ? (liveCount > 0)
+            : !!(tree.threats && tree.threats.length);
+        if (hasProjectiles) return false;
         var cap = Math.max(100, Math.min(3000,
             Math.floor(tree.cfg.warmupMaxNodes || 500)));
         return tree.nodeCount + (count || 0) > cap;
@@ -4497,6 +4509,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var rawSight = null;
             try { rawSight = adapter.getProjectiles ? adapter.getProjectiles() : []; }
             catch (eSight) { rawSight = []; }
+            // v96：预热上限用它判断“真实世界还有没有子弹”，不再被 tree.threats 暂时为空误导。
+            _tree._liveProjectileCount = rawSight ? rawSight.length : 0;
             _tree.diag.lastProjectileSight = {
                 t: _timeAcc,
                 count: rawSight ? rawSight.length : 0,
@@ -4561,6 +4575,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             _tree.threatIds = sig;
             _rebuildCount++;
             _tree.stats.rebuilds = _rebuildCount;
+            // v96：新建树的第一个生长 tick 也要先知道真实世界有没有子弹。
+            try {
+                var psNew = adapter.getProjectiles ? adapter.getProjectiles() : [];
+                _tree._liveProjectileCount = psNew ? psNew.length : 0;
+            } catch (eLive) { _tree._liveProjectileCount = 0; }
         }
         var tree = _tree;
         tree.tNow = _timeAcc;
@@ -5100,12 +5119,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _targetMixEnabled;
     }
 
-    /** v94：目标分占比系数（0~1），只在混合选路开启时生效。 */
+    /** v95：目标分占比系数（0~3，对应 0~300%），只在混合选路开启时生效。 */
     function setTargetMixRatio(v) {
         var n = Number(v);
         if (!isFinite(n)) n = 0.5;
         n = Math.round(n * 100) / 100;
-        _targetMixRatio = Math.max(0, Math.min(1, n));
+        _targetMixRatio = Math.max(0, Math.min(3, n));
         if (_tree && _tree.cfg) _tree.cfg.targetMixRatio = _targetMixRatio;
         return _targetMixRatio;
     }
@@ -5205,5 +5224,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v95：混合选路 + 新弹改道提前结束 + 无弹点击寻路 + 跨局缓存清理 + 剪枝补偿 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v96：真实子弹数预热判定 + 混合选路 + 新弹改道提前结束 + 跨局缓存清理 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

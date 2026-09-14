@@ -20,6 +20,8 @@ function mk(id,x,y,rot,total) {
 }
 
 // target API
+if(VT.setTargetMixRatio(9)!==3) throw new Error('target mix ratio should clamp to 300%');
+VT.setTargetMixRatio(0.5);
 VT.setMoveTarget(5,5);
 const mt=VT.getMoveTarget();
 if(!mt || mt.x!==5 || mt.y!==5) throw new Error('setMoveTarget failed');

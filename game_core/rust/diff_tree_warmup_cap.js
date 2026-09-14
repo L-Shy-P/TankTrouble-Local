@@ -34,7 +34,14 @@ const capped=tree.nodeCount;
 VT.growStep(tree,adapter,[]);
 if(tree.nodeCount!==capped) throw new Error('refineBeyond bypassed warmup cap: '+tree.nodeCount);
 
-// Bullets appear → warmup cap lifts, growth resumes even with node cap off.
+// v96: live projectile count lifts the cap even when tree.threats is still empty.
+tree._liveProjectileCount=1;
+if(VT.warmupCapReached(tree,9)) throw new Error('warmup cap should lift when live projectiles exist');
+const beforeLive=tree.nodeCount;
+VT.growStep(tree,adapter,[]);
+if(tree.nodeCount<=beforeLive) throw new Error('growth did not resume when live projectiles exist');
+
+// Bullets also anchor as threats -> normal growth continues.
 tree.threats=[{id:'b1',speed:0,anchorOffset:0,tIn:0,track:[{x:100,y:100},{x:100,y:100}]}];
 if(VT.warmupCapReached(tree,9)) throw new Error('warmup cap should lift when bullets exist');
 const before=tree.nodeCount;
@@ -46,4 +53,4 @@ VT.setWarmupMaxNodes(500);
 VT.setNodeCapEnabled(true);
 VT.setHorizonCapEnabled(true);
 VT.setGrowWithoutThreatsEnabled(false);
-console.log('diff_tree_warmup_cap PASS (cap=120, stopped='+capped+', resumed='+before+'->'+tree.nodeCount+')');
+console.log('diff_tree_warmup_cap PASS (cap=120, stopped='+capped+', live-resumed='+beforeLive+'->'+before+', resumed='+before+'->'+tree.nodeCount+')');

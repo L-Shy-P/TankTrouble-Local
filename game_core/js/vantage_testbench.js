@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v83：
+ *   目标分系数扩到 0~300% 并给参考值；开关/滑块统一成组灰显。
  * 2026-09-07 v82：
  *   新增混合选路开关与目标分系数；当前不生效的滑块自动变灰提示。
  * 2026-09-07 v81：
@@ -88,7 +90,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v82';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v83';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2182,10 +2184,9 @@
             ) +
             // 生长/节点：只在“树”模式显示
             expLine('生长', '#f9e2af', 'vt-exp-treeRow',
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label>') +
                 expItem('每帧生长层数 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers">1层</span>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label> 预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">500</span>') +
                 expItem('节点数量上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap"> 启用</label>') +
-                expItem('预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">500</span>') +
                 expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="8" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">8秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>') +
@@ -2201,7 +2202,7 @@
             expLine('选路', '#a6e3a1', 'vt-exp-routeRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
-                expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="100" step="5" value="50" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
+                expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
@@ -2263,13 +2264,13 @@
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
                 'exp-nodeath': '死亡不扣分。实验用：死亡帧不再立刻扣分，只停止后续计分，便于观察软死路线。',
                 'exp-rustPhysics': '默认开启。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
-                'exp-growWithoutThreats': '无子弹时预热。没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
+                'exp-growWithoutThreats': '无子弹时预热。和“预热上限”同组：关闭时一起变灰。没有子弹时也让树继续生长，用来提前准备路线；会占更多内存和计算量。',
                 'exp-growLayers': '每个游戏帧最多新增多少层树节点。默认 1 层最稳；数值越大，生长越快，但计算压力也越大。',
                 'exp-maxNodes': '预测树最多保留多少个节点。数值越大，记得越远，但也会更耗内存和计算。',
-                'exp-warmupMaxNodes': '没有子弹时，预热阶段最多保留多少节点，防止开局等待过久导致卡顿。',
-                'exp-nodeCap': '节点数量上限。是否启用这个上限。关闭后，战斗中可以超过它，但无弹药预热仍受“预热上限”限制。',
+                'exp-warmupMaxNodes': '预热上限。和“无子弹时预热”同组：不开预热的会一起变灰。没有子弹时最多保留多少节点，防止开局等待过久导致卡顿。',
+                'exp-nodeCap': '节点数量上限。开关和滑块同组：关闭时一起变灰。关闭后战斗中可以超过上限；如果同时开了“超上限细化长路径”，这个上限也会被绕过。',
                 'exp-horizonSec': '预测时长上限，单位秒，范围 1~15 秒。数值越大，树看得越远，但计算量也越大。',
-                'exp-horizonCap': '是否启用预测时长上限。开启后，超过设定秒数就不再继续往前生长。',
+                'exp-horizonCap': '预测时长上限。开关和滑块同组：关闭时一起变灰。开启后，超过设定秒数就不再继续往前生长。',
                 'exp-refineBeyond': '达到节点或时长上限后，不再直接停止，而是继续把长操作拆得更细，寻找更多分叉。',
                 'exp-continuousRefine': '不等到达上限，每帧都额外拆一次长操作，让树更细腻；计算量和节点增长都会明显变大。',
                 'exp-pruneCompensateLayers': '新子弹出现导致节点被大量剪掉后，接下来几帧每帧额外多长多少层树节点。默认 0 层，等于关闭。',
@@ -2278,7 +2279,7 @@
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关：只让 Rust 参与最终选路，不参与物理模拟和树结构。适合单独测试 Rust 的选路效果。',
                 'exp-targetMix': '混合选路。开启后，目标位置分会直接加进安全总分，AI 可能为了靠近目标选择安全分稍低的操作；关闭时仍先选安全的，再在同分路线里选更接近目标的。',
-                'exp-targetMixRatio': '目标位置评分系数。只在混合选路开启时生效，数值越大，AI 越愿意为了靠近目标牺牲安全性；二阶段选路下改这个不影响结果。',
+                'exp-targetMixRatio': '目标位置评分系数（0~300%）。只在混合选路开启时生效：0%=不看目标；30%=轻微引导；100%=目标与安全大致同权；200~300%=强目标引导，可能明显牺牲安全。二阶段选路下改这个不影响结果。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
             };
@@ -2399,7 +2400,7 @@
         }
         if (_expCtrl.targetMixRatio) {
             _expCtrl.targetMixRatio.addEventListener('input', function() {
-                state.exp.targetMixRatio = Math.max(0, Math.min(100, parseInt(_expCtrl.targetMixRatio.value, 10) || 0)) / 100;
+                state.exp.targetMixRatio = Math.max(0, Math.min(300, parseInt(_expCtrl.targetMixRatio.value, 10) || 0)) / 100;
                 if (_expCtrl.targetMixRatioSpan) {
                     _expCtrl.targetMixRatioSpan.textContent = Math.round(state.exp.targetMixRatio * 100) + '%';
                 }
@@ -2612,7 +2613,7 @@
         }
         // —— v94 目标分占比系数（0~100%，仅混合模式生效）——
         if (act === 'exp-targetMixRatio') {
-            state.exp.targetMixRatio = Math.max(0, Math.min(100, parseInt(srcEl.value, 10) || 0)) / 100;
+            state.exp.targetMixRatio = Math.max(0, Math.min(300, parseInt(srcEl.value, 10) || 0)) / 100;
             if (typeof VantageTree !== 'undefined') {
                 VantageTree.setTargetMixRatio(state.exp.targetMixRatio);
             }
@@ -3015,20 +3016,26 @@
     /** v94：把当前设置下不会生效的滑块变灰，但仍然可以拖动。 */
     function syncSliderActivity() {
         if (!_expCtrl) return;
-        function dim(input, inactive) {
-            if (!input) return;
-            var wrap = input.parentNode;
-            if (!wrap) return;
-            wrap.style.opacity = inactive ? '0.35' : '1';
-            wrap.style.filter = inactive ? 'grayscale(0.8)' : '';
+        // v95：统一变灰属性；开关和它控制的滑块同组一起变灰/变亮。
+        // 只改透明度/灰度，不做 disabled，所以仍然可以拖动或点击开启。
+        function setDim(el, inactive) {
+            if (!el) return;
+            var target = el;
+            var tag = (el.tagName || '').toLowerCase();
+            if (tag === 'input' && el.parentNode) target = el.parentNode;
+            target.style.opacity = inactive ? '0.35' : '1';
+            target.style.filter = inactive ? 'grayscale(0.8)' : '';
+        }
+        function dimGroup(elements, inactive) {
+            for (var i = 0; i < elements.length; i++) setDim(elements[i], inactive);
         }
         var treeMode = !!(state.aiControl && state.aiControl.tree);
-        dim(_expCtrl.slider, !(state.exp.fixed75 || treeMode));
-        dim(_expCtrl.maxNodes, !(state.exp.nodeCap && !state.exp.refineBeyond));
-        dim(_expCtrl.warmupMaxNodes, !state.exp.growWithoutThreats);
-        dim(_expCtrl.horizonSec, !state.exp.horizonCap);
-        dim(_expCtrl.pruneCompensateFrames, !(state.exp.pruneCompensateLayers > 0));
-        dim(_expCtrl.targetMixRatio, !state.exp.targetMix);
+        setDim(_expCtrl.slider, !(state.exp.fixed75 || treeMode));
+        dimGroup([_expCtrl.maxNodes, _expCtrl.nodeCap], !state.exp.nodeCap);
+        dimGroup([_expCtrl.warmupMaxNodes, _expCtrl.growWithoutThreats], !state.exp.growWithoutThreats);
+        dimGroup([_expCtrl.horizonSec, _expCtrl.horizonCap], !state.exp.horizonCap);
+        dimGroup([_expCtrl.pruneCompensateLayers, _expCtrl.pruneCompensateFrames], !(state.exp.pruneCompensateLayers > 0));
+        dimGroup([_expCtrl.targetMixRatio, _expCtrl.targetMix], !state.exp.targetMix);
     }
 
     /** v7.4→v7.6 同步持久实验模式控件（只改属性，不重建 DOM） */
