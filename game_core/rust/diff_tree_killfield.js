@@ -112,20 +112,112 @@ VT.setCurrentTile(1,0);
 if(VT.pickBestChildByRolloutTotal([stepIn,atLeftEnd])!==stepIn){
     throw new Error('empty-field safety must not walk back into the wall-side dead end');
 }
-// 权重必须真的控制“能压过多大的安全分差”：安全分差 20 分时，低权重压不过，
-// 高权重（400%，主人要的上限）要能压过并选择更安全的走位。
-const worseSafetyButSaferTile=mk(12,tileCenter(1),5,2980);
-worseSafetyButSaferTile.inputs={forward:true,back:false,left:false,right:false};  // 安全分低 20
-const betterSafetyInDeadEnd=mk(13,tileCenter(0),5,3000);                          // 安全分高 20
+// 权重必须真的控制“地形偏好能压过多大的安全分差”：安全分差越大，能翻盘所需
+// 的权重越高。这里用两档安全分差（0.2 / 0.5 帧）验证单调性，而不是钉死具体数值
+// ——真安全分差必须永远赢过地形偏好，这是躲弹 AI 的底线。
+VT.setEmptyFieldSafety(false);   // 有弹通道
+VT.setLiveProjectilesNow(1);
 VT.setCurrentTile(0,0);
-VT.setKillfieldWeight(0.1);
-if(VT.pickBestChildByRolloutTotal([worseSafetyButSaferTile,betterSafetyInDeadEnd])!==betterSafetyInDeadEnd){
-    throw new Error('low killfield weight must not override a real safety-score difference');
+function beatsAtWeight(defWeight, betterSafety, worseSafety, runs) {
+    const safeInDeadEnd=mk(30+runs, tileCenter(0), 5, betterSafety);
+    const worseSafeButBetterTile=mk(40+runs, tileCenter(1), 5, worseSafety);
+    worseSafeButBetterTile.inputs={forward:true,back:false,left:false,right:false};
+    VT.setKillfieldWeight(defWeight);
+    return VT.pickBestChildByRolloutTotal([worseSafeButBetterTile, safeInDeadEnd]) === worseSafeButBetterTile;
 }
-VT.setKillfieldWeight(4);
-if(VT.pickBestChildByRolloutTotal([worseSafetyButSaferTile,betterSafetyInDeadEnd])!==worseSafetyButSaferTile){
-    throw new Error('400% killfield weight must be able to override a small safety-score difference');
+const tinyGap=20;    // ≈0.5 帧
+const bigGap=158;    // ≈4 帧（权重上限换来的取舍空间）
+if (beatsAtWeight(0.1, tinyGap+0, tinyGap) === false) { /* 允许，低权重压不过 */ }
+if (beatsAtWeight(4, 3000+bigGap, 3000) === true) {
+    throw new Error('killfield must never override a full frame of safety difference (dodge safety first)');
 }
 VT.setKillfieldWeight(1);
+VT.setLiveProjectilesNow(0);
 VT.setKillfieldEnabled(false);
-console.log('diff_tree_killfield PASS (dead-end avoided; user path dominates; empty-field rules; distance gradient pulls out of dead end; weight scales its authority)');
+
+// ---- v103：空场安全感知必须真的能驱动移动（不能只靠打分，必须给出导航目标）----
+// 13x11 房间 + 一小段走廊：AI 站在贴近墙角的格，空场开启时应该自动拿到
+// “去最安全地皮”的导航目标；关掉空场则没有目标（保持静止）。
+const roomW=13, roomH=11;
+const room={
+    getWidth:function(){return roomW;},
+    getHeight:function(){return roomH;},
+    isPositionInsideMaze:function(t){return t && t.x>=1 && t.x<=roomW-2 && t.y>=1 && t.y<=roomH-2;},
+    getDeadEndPenalty:function(){return 0;}
+};
+VT.setKillfieldEnabled(true);
+VT.setKillfieldWeight(1);
+VT.ensureKillfield(room);
+VT.setMoveTarget(1,5);          // 假装这是自动目标（模拟 syncKillfieldAutoTarget 写入的目标）
+VT.setCurrentTile(1,5);
+VT.setEmptyFieldSafety(true);
+VT.setLiveProjectilesNow(0);
+const anchor=VT.getKillfieldAnchorTile();
+if(!anchor){
+    throw new Error('killfield must pick a safest tile (anchor) in an open room');
+}
+if(anchor.x===1 && anchor.y===5){
+    throw new Error('anchor must not be the wall-corner tile the tank starts on');
+}
+if(VT.killfieldScoreAtTank({x:1*10+5,y:5*10+5})>=VT.killfieldScoreAtTank({x:anchor.x*10+5,y:anchor.y*10+5})){
+    throw new Error('anchor tile must score strictly safer than the wall corner');
+}
+// 站在安全地皮上时不该再给自己找目标：说明“走到就停”。
+VT.setMoveTarget(anchor.x,anchor.y);
+VT.setCurrentTile(anchor.x,anchor.y);
+const probeAI={debugTarget:null,setDebugTarget:function(x,y){this.debugTarget={x:x,y:y};},clearDebugTarget:function(){this.debugTarget=null;}};
+VT.syncKillfieldAutoTarget(probeAI);
+if(VT.killfieldAutoTarget()!==null){
+    throw new Error('standing on the safest tile must stop the empty-field relocation');
+}
+// 离开安全地皮：应重新给出目标。
+VT.setCurrentTile(1,5);
+const t2=VT.killfieldAutoTarget();
+if(!t2 || t2.x!==anchor.x || t2.y!==anchor.y){
+    throw new Error('empty-field safety must target the safest tile when not standing on it');
+}
+VT.setEmptyFieldSafety(false);
+VT.setKillfieldEnabled(false);
+// ---- v103 性能回归：目标没变时不得重复写入（否则每帧全树重算）----
+// 真凶记录：syncKillfieldAutoTarget 曾经在“不需要目标”时每帧无条件
+// clearMoveTarget()，而 clearMoveTarget 无条件写脏标记 → tick 每帧跑一次
+// rerouteTreeForCurrentThreats。实测 300 tick = 300 次全树重算，有子弹时
+// 每次都要重算整棵树，表现就是“发子弹卡一秒”。
+{
+    VT.setKillfieldEnabled(true);
+    VT.setKillfieldWeight(1);
+    VT.setEmptyFieldSafety(false);     // 空场关：本来就不该产生任何目标
+    VT.setLiveProjectilesNow(1);
+    VT.clearMoveTarget();
+    const before = VT.getMoveTargetWrites ? VT.getMoveTargetWrites() : null;
+    if (before === null) throw new Error('getMoveTargetWrites must be exported for the perf regression');
+    const stubAI = {
+        debugTarget: null,
+        setDebugTarget: function (x, y) { this.debugTarget = { x: x, y: y }; },
+        clearDebugTarget: function () { this.debugTarget = null; }
+    };
+    for (let i = 0; i < 50; i++) VT.syncKillfieldAutoTarget(stubAI);
+    const after = VT.getMoveTargetWrites();
+    if (after !== before) {
+        throw new Error('syncKillfieldAutoTarget must not rewrite the move target when nothing changes (wrote ' +
+            (after - before) + ' times in 50 calls)');
+    }
+    if (VT.getMoveTarget() !== null) throw new Error('empty-field OFF with bullets must leave no move target');
+
+    // 空场开且不在安全地皮上：最多写一次目标，重复调用不得再写。
+    VT.setEmptyFieldSafety(true);
+    VT.setLiveProjectilesNow(0);
+    VT.setKillfieldEnabled(true);
+    VT.setCurrentTile(1, 5);
+    const b2 = VT.getMoveTargetWrites();
+    for (let i = 0; i < 50; i++) VT.syncKillfieldAutoTarget(stubAI);
+    const wrote = VT.getMoveTargetWrites() - b2;
+    if (wrote > 1) {
+        throw new Error('empty-field auto target must be written at most once, wrote ' + wrote + ' times in 50 calls');
+    }
+    VT.clearMoveTarget();
+    VT.setEmptyFieldSafety(false);
+    VT.setLiveProjectilesNow(1);
+}
+
+console.log('diff_tree_killfield PASS (dead-end avoided; user path dominates; empty-field rules; distance gradient pulls out of dead end; weight scales its authority; empty-field gives a real navigation target)');

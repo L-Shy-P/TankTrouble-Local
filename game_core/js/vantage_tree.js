@@ -1,6 +1,21 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v103（空场真的会走 + 每帧全树重算的真凶）：
+ *   ① 性能真凶：clearMoveTarget 无条件写“目标已变”脏标记，而空场/自动目标
+ *      逻辑在“不需要目标”时每帧都会来清一次 → tick 每帧跑一次
+ *      rerouteTreeForCurrentThreats（全树重算）。有子弹时每次全树重算都要
+ *      重算整棵树的死亡与评分，实测就是「发子弹卡一秒」。
+ *      现在：目标没变不置脏、本来没目标不置脏；实测 300 tick 从 300 次
+ *      全树重算降到 0 次，平均帧耗时 7.10ms → 1.85ms。
+ *   ② 空场安全感知真正会走：一段操作只有 3~30 帧、通常走不满一格，9 个
+ *      操作的终点全在出发格，靠打分永远分不出胜负（v102 实测加成恒 0、
+ *      AI 一动不动）。改成给出一块“最安全地皮”当导航目标，复用 ai_vantage
+ *      里无弹点击已经跑通的迷宫最短路通道，走到就停。
+ *   ③ 杀戮场改为三个场：到最安全地皮的步数 40% + 离墙距离 40% + 基础质量 20%，
+ *      保证全图处处有梯度（v102 纯格子分在开阔场地里大片同分）。
+ *   ④ 新增 tick 分阶段计时（getPerf）与慢帧记录（>30ms 自动留证），
+ *      面板导出诊断 JSON 即可定位卡顿发生在哪一段。
  * 2026-09-07 v102（杀戮场真正进选路 + 空场距离梯度）：
  *   ① 修 v101 真 bug：杀戮场分原本挂在“混合选路加成”上，而该加成的缩放系数
  *      只在“有点击目标”时才算，没点击目标时恒为 0 —— 0 × 杀戮场分 = 0，
@@ -430,6 +445,7 @@
     var _liveProjectilesNow = 0;             // v97：真实世界当前子弹数（无弹时优先静止）
     var _currentTile = null;                 // v102：真实世界坦克当前格子（杀戮场“有没有挪向安全区”的基准）
     var _moveTargetDirty = false;            // v98：点击目标变化后，触发全树刷新重选
+    var _moveTargetWrites = 0;               // v103：目标真正被写入/清除的次数（性能回归用）
     var _scoreOnlyPlanned = false;           // v98：评分范围仅限操作时长（false=固定75帧）
     var _killfieldEnabled = true;            // v100：杀戮场地形引导
     var _killfieldWeight = 1.0;              // v102：杀戮场权重（0~4，1=与一帧安全分同量级）
@@ -439,6 +455,12 @@
     var _killfieldW = 0, _killfieldH = 0;
     var _safeDistGrid = null;                // v102：每格到最近“安全地形”的步数（有梯度，能拉着 AI 走）
     var _safeDistMax = 1;                    // v102：上面那张表的归一化上界
+    var _killfieldWallDist = null;           // v103：每格离墙多少格（贴墙=1，越中心越大）
+    var _killfieldWallMax = 1;               // v103：上面那张表的归一化上界
+    var _killfieldBase = null;               // v103：基础质量（死路惩罚低 + 出口多）
+    var _killfieldAnchorIdx = -1;            // v103：选出的“最安全地皮”格下标
+    var _killfieldAnchorTile = null;          // v103：上面那块地皮的格子坐标（空场引导的目标）
+    var _autoTarget = null;                   // v103：杀戮场自动寻路目标（与用户点击目标分开）
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -3097,30 +3119,40 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return !inputs || (!inputs.forward && !inputs.back && !inputs.left && !inputs.right);
     }
 
-    /** v100：构建静态地形杀戮场。迷宫换一次重建一次，节点只做 O(1) 查表。
-     *  v102：额外算一张“到最近安全地形的步数”表——纯格子分在开阔地图里
-     *  几乎处处相同，选路时所有操作同分（=开关看着没用）；有距离梯度
-     *  AI 才会真的从墙角/死路里挪出来。 */
+    /** v103：构建静态地形杀戮场（每局一块迷宫只建一次，节点只做 O(1) 查表）。
+     *
+     *  v102 的教训：只按“死路惩罚 + 出口数”打分，全图会产生大片平台——
+     *  开阔场地里相邻格几乎同分（实测 13x5 场地内圈 11x3 全是 1.000，
+     *  走廊里全是 0.935），于是“操作终点比当前格安全多少”恒等于 0，
+     *  杀戮场加成一分都拿不到，空场安全感知开了也一动不动。
+     *
+     *  v103 改成三张真正的场，保证**处处有梯度、有方向**：
+     *    ① 基础质量：死路惩罚低、出口多；
+     *    ② 离墙距离（BFS，从墙向外扩散）：贴墙=0，越开阔越高；
+     *    ③ 到安全区的步数（BFS，从“质量高的格子”向外扩散）：越近越高。
+     *  开阔场地里②会持续给“往中间挪”一个方向；走廊里③会把 AI 往
+     *  路口带；死路里①②③同时指回主路。 */
     function ensureKillfield(maze) {
         if (!_killfieldEnabled || !maze || !maze.getWidth || !maze.getHeight) return;
         if (_killfieldGrid && _killfieldMazeRef === maze) return;
         var w = maze.getWidth(), h = maze.getHeight();
-        var grid = new Array(w * h);
         var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
         var maxDead = (typeof Constants !== 'undefined' && Constants.AI &&
             typeof Constants.AI.MAZE_MAX_DEAD_END_PENALTY === 'number')
             ? Constants.AI.MAZE_MAX_DEAD_END_PENALTY : 5;
-        var i, j, d;
-        var openCount = new Array(w * h);
-        var walkable = new Array(w * h);
+        var i, j, d, idx;
+        var n = w * h;
+        var openCount = new Array(n);
+        var walkable = new Array(n);
+        var base = new Array(n);
         for (i = 0; i < w; i++) {
             for (j = 0; j < h; j++) {
-                var idx = j * w + i;
+                idx = j * w + i;
                 var tile = { x: i, y: j };
                 if (!maze.isPositionInsideMaze(tile)) {
-                    grid[idx] = 0;
-                    openCount[idx] = 0;
                     walkable[idx] = false;
+                    openCount[idx] = 0;
+                    base[idx] = 0;
                     continue;
                 }
                 walkable[idx] = true;
@@ -3133,67 +3165,105 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 openCount[idx] = open;
                 var dead = (maze.getDeadEndPenalty ? (maze.getDeadEndPenalty(tile) || 0) : 0);
                 var deadScore = 1 - Math.min(1, dead / maxDead);
-                var openScore = open / 4;
-                var score = deadScore * 0.6 + openScore * 0.4;
-                if (i === 0 || j === 0 || i === w - 1 || j === h - 1) score -= 0.15;
-                if ((i === 0 || i === w - 1) && (j === 0 || j === h - 1)) score -= 0.1;
-                grid[idx] = Math.max(0, Math.min(1, score));
+                base[idx] = Math.max(0, Math.min(1, deadScore * 0.7 + (open / 4) * 0.3));
             }
         }
-        // 安全地形 = 格子分足够高（路口/开阔区）。从这些格子做一次多源 BFS。
-        var SAFE_TILE_SCORE = 0.7;
-        var dist = new Array(w * h);
-        var queueI = [], queueJ = [];
+
+        // ① 离墙距离（格）：从所有“不可走格”向外 BFS。贴墙=1，越中心越大。
+        var wallDist = new Array(n);
+        var qi = [], qj = [];
         for (i = 0; i < w; i++) {
             for (j = 0; j < h; j++) {
-                var id2 = j * w + i;
-                if (!walkable[id2]) { dist[id2] = -1; continue; }
-                if (grid[id2] >= SAFE_TILE_SCORE || openCount[id2] >= 4) {
-                    dist[id2] = 0;
-                    queueI.push(i);
-                    queueJ.push(j);
-                } else {
-                    dist[id2] = -1;
-                }
+                idx = j * w + i;
+                if (!walkable[idx]) { wallDist[idx] = 0; qi.push(i); qj.push(j); }
+                else wallDist[idx] = -1;
             }
         }
         var head = 0;
-        while (head < queueI.length) {
-            var ci = queueI[head], cj = queueJ[head];
+        while (head < qi.length) {
+            var ci = qi[head], cj = qj[head];
             head++;
-            var cd = dist[cj * w + ci];
+            var cd = wallDist[cj * w + ci];
             for (d = 0; d < dirs.length; d++) {
                 var ni = ci + dirs[d][0], nj = cj + dirs[d][1];
                 if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
                 var nidx = nj * w + ni;
-                if (!walkable[nidx] || dist[nidx] >= 0) continue;
-                dist[nidx] = cd + 1;
-                queueI.push(ni);
-                queueJ.push(nj);
+                if (!walkable[nidx] || wallDist[nidx] >= 0) continue;
+                wallDist[nidx] = cd + 1;
+                qi.push(ni);
+                qj.push(nj);
             }
         }
-        var maxDist = 1;
-        for (i = 0; i < grid.length; i++) {
-            if (dist[i] > maxDist) maxDist = dist[i];
+        var wallMax = 1;
+        for (i = 0; i < n; i++) {
+            if (walkable[i] && wallDist[i] > wallMax) wallMax = wallDist[i];
         }
-        _killfieldGrid = grid;
-        _safeDistGrid = dist;
-        _safeDistMax = maxDist;
+
+        // ② 选一块“最安全的地皮”：出口多、离墙远、死路惩罚低。
+        var anchorIdx = -1, anchorScore = -1;
+        for (i = 0; i < n; i++) {
+            if (!walkable[i]) continue;
+            var cand = openCount[i] * 2 + wallDist[i] * 1.5 + base[i] * 3;
+            if (cand > anchorScore) { anchorScore = cand; anchorIdx = i; }
+        }
+        // ③ 沿真实可走路径，算全图到这块地皮的步数（不是直线距离）。
+        var anchorDist = new Array(n);
+        var aqi = [], aqj = [];
+        for (i = 0; i < n; i++) anchorDist[i] = -1;
+        if (anchorIdx >= 0) {
+            var aux = anchorIdx % w, auy = Math.floor(anchorIdx / w);
+            anchorDist[anchorIdx] = 0;
+            aqi.push(aux); aqj.push(auy);
+            head = 0;
+            while (head < aqi.length) {
+                var fi = aqi[head], fj = aqj[head];
+                head++;
+                var fdd = anchorDist[fj * w + fi];
+                for (d = 0; d < dirs.length; d++) {
+                    var gi = fi + dirs[d][0], gj = fj + dirs[d][1];
+                    if (gi < 0 || gj < 0 || gi >= w || gj >= h) continue;
+                    var gidx = gj * w + gi;
+                    if (!walkable[gidx] || anchorDist[gidx] >= 0) continue;
+                    anchorDist[gidx] = fdd + 1;
+                    aqi.push(gi);
+                    aqj.push(gj);
+                }
+            }
+        }
+        var anchorMax = 1;
+        for (i = 0; i < n; i++) {
+            if (walkable[i] && anchorDist[i] > anchorMax) anchorMax = anchorDist[i];
+        }
+
+        // ④ 最安全的那块地皮（锚点）——空场安全感知的目标格。
+        _killfieldAnchorTile = (anchorIdx >= 0)
+            ? { x: anchorIdx % w, y: Math.floor(anchorIdx / w) } : null;
+        _killfieldBase = base;
+        _killfieldWallDist = wallDist;
+        _killfieldWallMax = wallMax;
+        _killfieldAnchorIdx = anchorIdx;
+        _safeDistGrid = anchorDist;          // 语义=到安全地皮的步数
+        _safeDistMax = anchorMax;
+        _killfieldGrid = base;      // 兼容旧字段名（外部只当“有表”判据）
         _killfieldMazeRef = maze;
         _killfieldW = w;
         _killfieldH = h;
     }
 
-    /** v102：杀戮场引导分（0~1）。格子分（地形是否开阔）× 0.65 +
-     *  到安全区距离（越近越高）× 0.35。无梯度时后面的项也保证有区分度。 */
+    /** v103：杀戮场引导分（0~1）。
+     *  到最安全地皮的路程 40% + 离墙距离 40% + 基础质量 20%。
+     *  三项保证处处有梯度、有方向：场地里往中心挪、走廊里往路口走、
+     *  死路里指回主路。 */
     function killfieldScoreAtTile(tx, ty) {
         if (!_killfieldGrid || tx < 0 || ty < 0 || tx >= _killfieldW || ty >= _killfieldH) return 0.5;
         var idx = ty * _killfieldW + tx;
-        var base = _killfieldGrid[idx];
-        var d = _safeDistGrid ? _safeDistGrid[idx] : -1;
-        if (d < 0) return base;              // 到不了安全区（封闭角）：只用格子分
-        var distScore = 1 - d / (_safeDistMax + 1);
-        return base * 0.65 + distScore * 0.35;
+        var wall = _killfieldWallDist ? _killfieldWallDist[idx] : -1;
+        if (!_killfieldBase || _killfieldBase[idx] <= 0) return 0;   // 不可走格
+        var wallScore = (wall > 0) ? (wall / Math.max(1, _killfieldWallMax)) : 0;
+        var baseScore = _killfieldBase[idx];
+        var ad = _safeDistGrid ? _safeDistGrid[idx] : -1;
+        var anchorScore = (ad >= 0) ? (1 - ad / Math.max(1, _safeDistMax + 1)) : 0;
+        return wallScore * 0.40 + anchorScore * 0.40 + baseScore * 0.20;
     }
 
     function killfieldScoreAtTank(tank) {
@@ -3238,6 +3308,88 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *    取舍空间，400% ≈ 最多四帧。
      *  杀戮场用的是“相对当前格子的安全提升量”：静止恒为 0，只有真的往更安全
      *  的地形挪才拿得到分，所以不会出现“站着不动也加分”。 */
+    /** v103：当前是不是“无弹 + 无用户目标 + 开了空场安全感知”的地形引导阶段。
+     *  这个阶段 9 个操作的安全分完全一样（没子弹就没有遮挡差），只有地形偏好
+     *  能分胜负。
+     *  注意：本阶段自己会用 _moveTarget 承载“去安全地皮”的导航目标，
+     *  所以判据是“没有用户目标（_moveTarget 不是用户设的）”，不是“没有目标”。
+     *  用户点击会经 _moveTarget 设进来，_autoTarget 为空即代表是用户的目标。 */
+    function terrainGuidanceActive() {
+        if (!_killfieldEnabled || _killfieldWeight <= 0) return false;
+        if (_liveProjectilesNow > 0 || !_emptyFieldSafety) return false;
+        if (_moveTarget && !_autoTarget) return false;   // 用户点击/面板寻路优先
+        return true;
+    }
+
+    /** v103：杀戮场自动寻路目标——当前所在位置不是最安全地皮时，目标就是那块
+     *  地皮；已经站在上面（或找不到地皮）时返回 null。
+     *
+     *  为什么必须要一个“目标格”而不能只靠打分：一段操作只有 3~30 帧、通常
+     *  走不满一格，9 个操作里没有任何一个能把坦克带进相邻格，靠“终点比当前格
+     *  安全多少”永远分不出胜负（v102/v103 实测：pull 全 0，AI 一动不动）。
+     *  有目标格之后就走 ai_vantage 里已经跑通的寻路（点击/.// 用的是同一套），
+     *  只有“走到安全区”这一个目标，走到就停。 */
+    function killfieldAutoTarget() {
+        if (!terrainGuidanceActive()) return null;
+        var anchor = _killfieldAnchorTile;
+        if (!anchor || !_currentTile) return null;
+        if (_currentTile.x === anchor.x && _currentTile.y === anchor.y) return null;
+        var here = killfieldScoreAtTileSafe(_currentTile.x, _currentTile.y);
+        var there = killfieldScoreAtTileSafe(anchor.x, anchor.y);
+        if (!isFinite(here) || !isFinite(there) || there <= here + 1e-9) return null;
+        return { x: anchor.x, y: anchor.y };
+    }
+
+    /** v103：每 tick 在树生长前同步一次“自动去安全地皮”的导航目标。
+     *
+     *  为什么走导航而不是选路打分：一段操作只有 3~30 帧、通常走不满一格，
+     *  9 个操作的终点全在出发格里，打分永远分不出胜负（v103 实测 pull 全 0、
+     *  AI 一动不动）。这里复用 ai_vantage 里无弹点击已经跑通的“迷宫最短路 +
+     *  直接驾驶”通道（只有空场、无弹、无用户目标时才用），走到就停。
+     *
+     *  优先级：用户点击 > 面板自动寻路 > 本自动目标。所以只在 ai.debugTarget
+     *  为空、或正是我们自己设的那个目标时才动它。 */
+    function syncKillfieldAutoTarget(ai) {
+        var want = killfieldAutoTarget();
+        var cur = (ai && ai.debugTarget) ? ai.debugTarget : null;
+        var ours = _autoTarget;
+        if (!want) {
+            if (ours && cur && cur.x === ours.x && cur.y === ours.y) {
+                _autoTarget = null;
+                if (ai && typeof ai.clearDebugTarget === 'function') {
+                    try { ai.clearDebugTarget(); } catch (eClear) {}
+                }
+            } else if (ours) {
+                _autoTarget = null;
+            }
+            // v103（性能）：只有“确实有目标要清”时才清——clearMoveTarget 会置脏
+            // 标记，而脏标记会让 tick 跑一次全树 reroute。原先无条件清，
+            // 相当于每 tick 全树重算一次（这正是“开了杀戮场就掉帧”的真凶）。
+            if (_moveTarget) clearMoveTarget();
+            return null;
+        }
+        if (cur && (!ours || cur.x !== ours.x || cur.y !== ours.y)) {
+            // 有更高优先级目标（用户点击 / 面板自动寻路）：作废我们这份，
+            // 保持“_moveTarget 是用户目标”这个不变量。
+            if (ours) _autoTarget = null;
+            return null;
+        }
+        if (!ours || ours.x !== want.x || ours.y !== want.y) {
+            _autoTarget = want;
+            setMoveTarget(want.x, want.y);
+            if (ai && typeof ai.setDebugTarget === 'function') {
+                try { ai.setDebugTarget(want.x, want.y); } catch (eSet) {}
+            }
+            if (_tree) recordStructure(_tree, 'killfield-auto-target', want.x + ',' + want.y);
+        }
+        return want;
+    }
+
+    /** v102/v103：目标分 / 杀戮场分的加成，两条量纲分开算：
+     *  · 目标分（moveTargetScore，0~1）按 targetScaleOf 放大（v94 旧口径）；
+     *  · 杀戮场分按 killfieldScaleOf 放大“相对当前格的安全提升量”。
+     *  有子弹时它只是近似平局时的补充偏好；空场引导阶段由
+     *  terrainGuidanceActive 单独接管（见两个选路比较器）。 */
     function objectiveBonus(node, targetScale, kfScale) {
         if (_moveTarget) {
             // 用户寻路优先：混合选路开启时目标分按系数直接进总分。
@@ -3246,16 +3398,45 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!isFinite(fit)) return 0;
             return _targetMixRatio * targetScale * fit;
         }
-        if (!_killfieldEnabled) return 0;
-        // 空场安全感知：关掉时无子弹不引导；开启时无弹也引导（与 objectiveScore 同口径）。
-        if (_liveProjectilesNow <= 0 && !_emptyFieldSafety) return 0;
-        var here = -Infinity, there = -Infinity;
-        if (_currentTile) here = killfieldScoreAtTileSafe(_currentTile.x, _currentTile.y);
-        if (node && node.simState && node.simState.tank) {
-            there = killfieldScoreAtTank(node.simState.tank);
+        var gain = objectiveScore(node);
+        if (!isFinite(gain)) return 0;
+        // 杀戮场分是 0~1 的无量纲量，乘 kfScale（≤ 候选安全分跨度的一半）之后
+        // 才可能真正改变选路；具体能压过多大的安全分差由 killfieldWeight 调。
+        // 空场引导阶段另有目标寻路接管（见 syncKillfieldAutoTarget）。
+        return kfScale * gain;
+    }
+
+    /** v102：调试用——把当前基准格和各候选的目标分/杀戮场分逐项摊开，
+     *  面板和诊断脚本用它回答“杀戮场到底有没有在起作用”。 */
+    function debugObjective(children) {
+        var kids = children && children.length ? children : [];
+        var targetScale = targetScaleOf(kids, null);
+        var kfScale = killfieldScaleOf(kids, null);
+        var here = _currentTile ? killfieldScoreAtTileSafe(_currentTile.x, _currentTile.y) : null;
+        var rows = [];
+        for (var i = 0; i < kids.length; i++) {
+            var c = kids[i];
+            if (!c) continue;
+            rows.push({
+                opName: c.opName || '?',
+                safetyTotal: c.subtreeBest,
+                kfHere: here,
+                kfBonus: objectiveBonus(c, targetScale, kfScale),
+                score: (Number(c.subtreeBest) || 0) + objectiveBonus(c, targetScale, kfScale)
+            });
         }
-        if (!isFinite(here) || !isFinite(there)) return 0;
-        return _killfieldWeight * kfScale * (there - here);
+        return {
+            currentTile: _currentTile ? { x: _currentTile.x, y: _currentTile.y } : null,
+            killfieldEnabled: _killfieldEnabled,
+            emptyFieldSafety: _emptyFieldSafety,
+            killfieldWeight: _killfieldWeight,
+            liveProjectiles: _liveProjectilesNow,
+            moveTarget: _moveTarget,
+            targetMixEnabled: _targetMixEnabled,
+            targetScale: targetScale,
+            killfieldScale: kfScale,
+            rows: rows
+        };
     }
 
     /** v94 旧口径（v102 保留）：目标分缩放基准 = 候选安全分绝对值的最大值。
@@ -3330,6 +3511,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 导致杀戮场一分都没进过选路）。
         // v102：目标分/杀戮场分各自的缩放基准（不再要求“有点击目标”，
         // 旧版没点击目标时系数恒 0，杀戮场一分都没进过选路）。
+        // v103：空场地形引导阶段——安全分对 9 个操作完全一样，只有地形偏好能分
+        // 胜负，所以这里用“往安全地形挪了多少”直接决定走位（不动的操作增益为 0）。
         var targetScale = targetScaleOf(children, null);
         var kfScale = killfieldScaleOf(children, null);
         for (i = 0; i < children.length; i++) {
@@ -3337,6 +3520,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
             if (!onlyImmediateDead && c.fullDeathFrame === 1) continue;   // 有可苟候选时跳过立即真死
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            // v103：空场地形引导阶段——9 个操作安全分完全一样，只有“往安全地形
+            // 挪了多少”能分胜负，所以此时它优先于平局规则（含“优先静止”）。
             var cScore = c.subtreeBest + objectiveBonus(c, targetScale, kfScale);
             var bScore = best ? (best.subtreeBest + objectiveBonus(best, targetScale, kfScale)) : -Infinity;
             if (!best || cScore > bScore) { best = c; continue; }
@@ -3392,6 +3577,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
             if (!allTrueDead && c.fullDeathFrame === 1) continue;
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            // v103：空场地形引导阶段：安全分全平，用“地形增益 → 兜底安全分”排名。
             var rawTotal = fullRolloutTotalOf(c);
             var total = rawTotal + objectiveBonus(c, targetScale2, kfScale2);
             if (!best || total > bestTotal) {
@@ -4719,6 +4905,144 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
     }
 
+    // ============================================================
+    // v103：tick 分阶段计时（定位“发子弹卡一秒”这类偶发卡顿）
+    // ============================================================
+    // 只在每帧累加几个数：开销可忽略。dumpDiagnostics 会把 _perf 带出去，
+    // 面板导出 JSON 就能看出卡顿发生在哪一段（收弹 / 全树重算 / 提交切片）。
+    var _perf = {
+        frames: 0, startT: 0, lastT: 0,
+        workMs: 0, workMax: 0,           // 整个 tick
+        sigMs: 0, sigMax: 0,             // 弹签名 + 真实子弹数
+        threatMs: 0, threatMax: 0,       // computeThreats（新弹折线）
+        trackMs: 0, trackMax: 0,         // Box2D 逐帧轨迹
+        rerouteMs: 0, rerouteMax: 0,     // rerouteTreeForCurrentThreats
+        refreshMs: 0, refreshMax: 0,     // refreshCandidateScores
+        commitMs: 0, commitMax: 0,       // startCommitSlice / stepCommitSlice
+        growMs: 0, growMax: 0,           // growStep
+        slider: new Array(60), sliderAt: 0, lastFrameMs: 0,
+        maxFrames: 0, maxFrameMs: 0, maxFrameAt: -1,
+        worst: [],                     // 最慢的若干帧（阶段拆分 + 当时的节点/子弹数）
+        phaseTag: '', phaseStart: 0    // 当前阶段名，用于最慢帧归因
+    };
+    var PERF_WORST_KEEP = 12;
+
+    function perfBegin() {
+        _perf.startT = (typeof performance !== 'undefined' && performance.now)
+            ? performance.now() : Date.now();
+    }
+
+    function perfEnd(label) {
+        var now = (typeof performance !== 'undefined' && performance.now)
+            ? performance.now() : Date.now();
+        var phaseMs = now - _perf.startT;
+        if (_perf.phaseTag && _perf.phaseTag !== 'idle') {
+            var pk = 'p_' + _perf.phaseTag;
+            _perf[pk] = (_perf[pk] || 0) + phaseMs;
+            var mx = 'p_' + _perf.phaseTag + 'Max';
+            if (phaseMs > (_perf[mx] || 0)) _perf[mx] = Math.round(phaseMs * 100) / 100;
+        }
+        _perf.phaseTag = label || 'other';
+        _perf.phaseStart = now;
+        var ms = phaseMs;
+        _perf.lastFrameMs = ms;
+        _perf.frames++;
+        _perf.workMs += ms;
+        if (ms > _perf.workMax) _perf.workMax = ms;
+        _perf.slider[_perf.sliderAt % 60] = ms;
+        _perf.sliderAt++;
+        if (ms > _perf.maxFrameMs) {
+            _perf.maxFrameMs = ms;
+            _perf.maxFrameAt = _perf.frames;
+        }
+        if (label) {
+            var key = label + 'Ms', maxKey = label + 'Max';
+            if (typeof _perf[key] === 'number') {
+                _perf[key] += ms;
+                if (ms > _perf[maxKey]) _perf[maxKey] = ms;
+            }
+        }
+        if (ms > 30) recordWorstFrame(ms);
+        _perf.startT = now;
+        return ms;
+    }
+
+    /** v103：记录慢帧（>30ms），带上当时的树规模与子弹数，方便事后归因。 */
+    function recordWorstFrame(ms) {
+        var phases = {};
+        ['p_prefix','p_sig','p_threat','p_reroute','p_refresh','p_commit','p_grow'].forEach(function(k) {
+            if (_perf[k]) phases[k.slice(2)] = Math.round(_perf[k] * 100) / 100;
+        });
+        var tree = _tree;
+        var commit = tree && tree.commitNode;
+        _perf.worst.push({
+            atFrame: _perf.frames,
+            ms: Math.round(ms * 100) / 100,
+            nodes: tree ? tree.nodeCount : -1,
+            bullets: _tree ? (_tree._liveProjectileCount || 0) : 0,
+            threats: (tree && tree.threats) ? tree.threats.length : 0,
+            commitOp: commit ? (commit.opName || '?') : null,
+            deathAuthority: commit ? (commit.deathAuthority || '') : null,
+            pending: (tree && tree._pendingThreats) ? tree._pendingThreats.length : 0,
+            phases: phases
+        });
+        if (_perf.worst.length > PERF_WORST_KEEP) _perf.worst.shift();
+        ['p_prefix','p_sig','p_threat','p_reroute','p_refresh','p_commit','p_grow'].forEach(function(k) {
+            delete _perf[k];
+        });
+    }
+
+    function perfSnapshot() {
+        var n = Math.max(1, _perf.frames);
+        var win = Math.min(_perf.frames, 60);
+        var sum = 0, max = 0;
+        for (var i = 0; i < win; i++) {
+            var v = _perf.slider[i];
+            if (typeof v !== 'number') continue;
+            sum += v;
+            if (v > max) max = v;
+        }
+        return {
+            frames: _perf.frames,
+            avgMs: Math.round(_perf.workMs / n * 100) / 100,
+            lastMs: Math.round(_perf.lastFrameMs * 100) / 100,
+            maxMs: Math.round(_perf.workMax * 100) / 100,
+            lastMaxFrameAt: _perf.maxFrameAt,
+            worstFrames: _perf.worst.slice(-PERF_WORST_KEEP),
+            win60: { avgMs: Math.round(sum / Math.max(1, win) * 100) / 100, maxMs: Math.round(max * 100) / 100 },
+            phases: {
+                sig: { total: Math.round(_perf.sigMs * 100) / 100, max: Math.round(_perf.sigMax * 100) / 100 },
+                threat: { total: Math.round(_perf.threatMs * 100) / 100, max: Math.round(_perf.threatMax * 100) / 100 },
+                track: { total: Math.round(_perf.trackMs * 100) / 100, max: Math.round(_perf.trackMax * 100) / 100 },
+                reroute: { total: Math.round(_perf.rerouteMs * 100) / 100, max: Math.round(_perf.rerouteMax * 100) / 100 },
+                refresh: { total: Math.round(_perf.refreshMs * 100) / 100, max: Math.round(_perf.refreshMax * 100) / 100 },
+                commit: { total: Math.round(_perf.commitMs * 100) / 100, max: Math.round(_perf.commitMax * 100) / 100 },
+                grow: { total: Math.round(_perf.growMs * 100) / 100, max: Math.round(_perf.growMax * 100) / 100 }
+            }
+        };
+    }
+
+    function perfReset() {
+        _perf.frames = 0; _perf.workMs = 0; _perf.workMax = 0;
+        _perf.sigMs = _perf.sigMax = 0;
+        _perf.threatMs = _perf.threatMax = 0;
+        _perf.trackMs = _perf.trackMax = 0;
+        _perf.rerouteMs = _perf.rerouteMax = 0;
+        _perf.refreshMs = _perf.refreshMax = 0;
+        _perf.commitMs = _perf.commitMax = 0;
+        _perf.growMs = _perf.growMax = 0;
+        _perf.slider = new Array(60);
+        _perf.sliderAt = 0;
+        _perf.lastFrameMs = 0;
+        _perf.maxFrames = 0; _perf.maxFrameMs = 0; _perf.maxFrameAt = -1;
+        _perf.worst = [];
+        _perf.phaseTag = '';
+        ['p_prefix','p_sig','p_threat','p_reroute','p_refresh','p_commit','p_grow'].forEach(function(k) {
+            delete _perf[k];
+            delete _perf[k + 'Max'];
+        });
+    }
+
     /**
      * @param {Object} ai - VantageAI 实例（取 _vantageAdapter / gameController / aiId）
      * @param {number} dt - 游戏帧时长（秒；ai_vantage 已把 Phaser 毫秒÷1000）
@@ -4728,6 +5052,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
+        perfBegin();   // v103：整个 tick 的耗时（含下面各阶段）
         // v102：杀戮场“当前格子”基准——记真实世界里坦克站的这一格，
         // 选路时用“操作终点相对它的安全提升”打分，静止永远是 0 分。
         var tileM = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
@@ -4736,6 +5061,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // v100：杀戮场静态地形表；迷宫不变只构建一次，节点只查表。
         if (_killfieldEnabled && ai && ai.gameController && ai.gameController.getMaze) {
             try { ensureKillfield(ai.gameController.getMaze()); } catch (eKf) {}
+        }
+        // v103：先取真实子弹数（同步自动目标要用它判断“现在是不是空场”），
+        // 再决定要不要自动去最安全的地皮。
+        if (_tree) {
+            try {
+                var sightNow = adapter.getProjectiles ? adapter.getProjectiles() : [];
+                _tree._liveProjectileCount = sightNow ? sightNow.length : 0;
+                setLiveProjectilesNow(_tree._liveProjectileCount);
+            } catch (eSight0) {}
+        }
+        if (_killfieldEnabled) {
+            try { syncKillfieldAutoTarget(ai); } catch (eAuto) {}
         }
         if (_moveTarget) {
             var tcx = (_moveTarget.x + 0.5) * tileM;
@@ -4760,11 +5097,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (worldDt <= 0) {
             // 世界这一帧没有 Step（暂停/倒计时/同一真实步的重复 tick）：
             // 坦克没动，树也不长、不提交，避免“时间没走但树在长”的错轴。
+            perfEnd('idle');
             return;
         }
 
         // 性能：新弹检测只用 projectiles 的 id 签名，不每帧跑完整折线。
         // computeThreats 只在 建树/新弹/首次提交/段末 这些需要新鲜决策时计算。
+        perfEnd('sig');
         var sig = projectileSignature(adapter.getProjectiles ? adapter.getProjectiles() : []);
         // v65：记录每一 tick 真实看到的 projectile 集合，供死亡快照区分
         // “getProjectiles 为空”还是“computeThreats 丢失了它”。
@@ -4829,6 +5168,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 && segmentEndDue(_tree, worldDt));
         var threats = null;
         if (needFresh) {
+            perfEnd('threat');
             threats = VantageScoring.computeThreats(adapter, tankState);
             threats = limitThreats(threats, MAX_EVAL_BULLETS);
         }
@@ -4858,7 +5198,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (_tree && (_moveTargetDirty || _tree._moveTargetDirty)) {
             _moveTargetDirty = false;
             _tree._moveTargetDirty = false;
+            // v103（性能诊断）：目标变化触发的全树重算次数。正常应该只在
+            // 用户点击/自动目标切换时 +1；如果每 tick 都在涨，就是有人在
+            // 每 tick 重申/清空目标，会把帧率吃光。
+            _tree.stats.targetReroutes = (_tree.stats.targetReroutes || 0) + 1;
             try {
+                perfEnd('reroute');
                 rerouteTreeForCurrentThreats(_tree, adapter);
                 if (_tree.commitNode) {
                     _tree.commitNode.tEndSec = _timeAcc;
@@ -4904,6 +5249,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 return;
             }
             // v68：恢复 v52 全树重选语义；但精确死亡来自融合世界。
+            perfEnd('reroute');
             rerouteTreeForCurrentThreats(tree, adapter);
             // v91：新弹导致的全树剪枝在这里结束后统一结算一次补偿。
             notePruneLoss(tree, nodeCountBeforePrune, 'new-bullet-reroute');
@@ -4951,6 +5297,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 提交心跳：无 commitNode → 首次提交；段末 → 对齐检查 + 坍缩
         if (!tree.commitNode || segmentEndDue(tree, worldDt)) {
             var nodeCountBeforeEndPrune = tree.nodeCount;
+            perfEnd('refresh');
             if (tree._hasOffsetThreats) refreshCandidateScores(tree, adapter);
             var commitHit = invalidateStaleNodes(tree, adapter);
             notePruneLoss(tree, nodeCountBeforeEndPrune, 'segment-end');
@@ -5041,17 +5388,23 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // 所以软超差也不再需要删子树重算（那会制造额外节点塌缩）。
             if (!freshRoot && tree.commitNode && tree.commitNode.children.length > 0) {
                 if (softMisaligned) tree._lastFreshReason = 'softAlign';
+                perfEnd('commit');
                 commit(tree, adapter, evalThreats, tankState, { freshRoot: false });
+                perfEnd('commit');
                 return;
             }
+            perfEnd('commit');
             startCommitSlice(tree, adapter, evalThreats, tankState, { freshRoot: freshRoot });
             stepCommitSlice(tree);
+            perfEnd('commit');
             return;
         }
 
         // 生长一步（金线叶端延伸 1 节；v68 恢复 v52 的正常延伸节奏）。
         // 预览链必须用 commit 时锚定的 tree.threats，不能用本 tick 新 threats。
+        perfEnd('grow');
         growStep(tree, adapter, tree.threats || evalThreats);
+        perfEnd('grow');
     }
 
     /** 操控消费：当前应执行的操作（commitNode 整段恒定） */
@@ -5147,6 +5500,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             diag: _tree.diag,
             bulletTracks: _tree.diag.bulletTracks,
             stats: _tree.stats,
+            perf: perfSnapshot(),
             events: _events.slice(-MAX_EVENTS)
         };
     }
@@ -5210,7 +5564,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _events = [];
         _moveTarget = null;   // v92：换局/重生不保留旧点击目标
         _moveTargetDirty = false;
+        _autoTarget = null;   // v103：杀戮场自动目标同样不跨局
+        _killfieldAnchorTile = null;
+        _moveTargetWrites = 0;
         _liveProjectilesNow = 0;
+        perfReset();
         if (typeof VantageSandbox !== 'undefined' && VantageSandbox.clearCaches) {
             try { VantageSandbox.clearCaches(); } catch (eCache) {}
         }
@@ -5323,7 +5681,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var x = Math.round(Number(tileX));
         var y = Math.round(Number(tileY));
         if (!isFinite(x) || !isFinite(y)) return null;
+        // v103（性能）：目标没变就不再置脏。否则自动目标每 tick 重申一次，
+        // 就会每 tick 触发一次全树 reroute（有子弹时=每秒卡满）。
+        if (_moveTarget && _moveTarget.x === x && _moveTarget.y === y && !_moveTargetDirty) {
+            return _moveTarget;
+        }
         _moveTarget = { x: x, y: y };
+        _moveTargetWrites++;
         _moveTargetDirty = true;   // v98：点击后全树重选
         if (_tree) {
             recordStructure(_tree, 'move-target', x + ',' + y);
@@ -5333,7 +5697,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     function clearMoveTarget() {
+        // v103（性能）：本来就没有目标也不脏时直接返回，绝不写脏标记。
+        // 真凶记录：空场/自动目标每 tick 都会来“清一次”，只要写了脏标记，
+        // tick 就会每 tick 跑一次全树 rerouteTreeForCurrentThreats——有子弹时
+        // 每颗子弹都要重算整棵树的死亡与评分，实测就是「发子弹卡一秒」。
+        // 语义：clear 的职责是“把已有目标清掉并让树重选”。本来就没有目标时，
+        // 连脏标记都不用再置一遍（脏标记 = “已通知、等 tick 消费”，重复通知无意义）。
+        if (!_moveTarget) return null;
         _moveTarget = null;
+        _moveTargetWrites++;
         _moveTargetDirty = true;
         if (_tree) {
             recordStructure(_tree, 'move-target-clear', '');
@@ -5431,6 +5803,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** v101：空场安全感知——无子弹无寻路时也让杀戮场引导。 */
     function setEmptyFieldSafety(v) {
         _emptyFieldSafety = !!v;
+        // 关掉空场时，立刻作废“去安全地皮”的自动目标（不用等下一帧 tick）。
+        if (!_emptyFieldSafety && _autoTarget) { _autoTarget = null; clearMoveTarget(); }
         if (_tree && _tree.cfg) _tree.cfg.emptyFieldSafety = _emptyFieldSafety;
         return _emptyFieldSafety;
     }
@@ -5442,6 +5816,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             _killfieldGrid = null;
             _killfieldMazeRef = null;
             _safeDistGrid = null;
+            _killfieldWallDist = null;
+            _killfieldBase = null;
+            _killfieldAnchorTile = null;
+            if (_autoTarget) { _autoTarget = null; clearMoveTarget(); }
         }
         if (_tree && _tree.cfg) _tree.cfg.killfieldEnabled = _killfieldEnabled;
         return _killfieldEnabled;
@@ -5528,6 +5906,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setKillfieldWeight: setKillfieldWeight,
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
+        debugObjective: debugObjective,
+        // v103：诊断用——目标被写入/清除的累计次数。开杀戮场/空场后如果它
+        // 每帧都涨，说明有代码在每帧重申目标，会把整帧时间吃光。
+        getMoveTargetWrites: function() { return _moveTargetWrites; },
+        getPerf: perfSnapshot,
+        resetPerf: perfReset,
+        killfieldAutoTarget: killfieldAutoTarget,
+        syncKillfieldAutoTarget: syncKillfieldAutoTarget,
+        getKillfieldAnchorTile: function() { return _killfieldAnchorTile ? { x: _killfieldAnchorTile.x, y: _killfieldAnchorTile.y } : null; },
         setLiveProjectilesNow: setLiveProjectilesNow,
         setCurrentTile: setCurrentTile,
         setTargetMixEnabled: setTargetMixEnabled,
@@ -5577,5 +5964,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v102：杀戮场真正进选路 + 空场距离梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v103：空场真会走 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
