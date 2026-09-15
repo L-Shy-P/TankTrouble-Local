@@ -3143,6 +3143,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var i, j, d, idx;
         var n = w * h;
         var openCount = new Array(n);
+        var innerCount = new Array(n);   // 只数“地图内部”方向，外圈不算出口
         var walkable = new Array(n);
         var base = new Array(n);
         for (i = 0; i < w; i++) {
@@ -3152,17 +3153,22 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 if (!maze.isPositionInsideMaze(tile)) {
                     walkable[idx] = false;
                     openCount[idx] = 0;
+                    innerCount[idx] = 0;
                     base[idx] = 0;
                     continue;
                 }
                 walkable[idx] = true;
-                var open = 0;
+                var open = 0, inner = 0;
                 for (d = 0; d < dirs.length; d++) {
                     var nb = { x: i + dirs[d][0], y: j + dirs[d][1] };
                     if (nb.x < 0 || nb.y < 0 || nb.x >= w || nb.y >= h) continue;
-                    if (maze.isPositionInsideMaze(nb)) open++;
+                    if (maze.isPositionInsideMaze(nb)) {
+                        open++;
+                        if (nb.x > 0 && nb.y > 0 && nb.x < w - 1 && nb.y < h - 1) inner++;
+                    }
                 }
                 openCount[idx] = open;
+                innerCount[idx] = inner;
                 var dead = (maze.getDeadEndPenalty ? (maze.getDeadEndPenalty(tile) || 0) : 0);
                 var deadScore = 1 - Math.min(1, dead / maxDead);
                 base[idx] = Math.max(0, Math.min(1, deadScore * 0.7 + (open / 4) * 0.3));
@@ -3199,11 +3205,50 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (walkable[i] && wallDist[i] > wallMax) wallMax = wallDist[i];
         }
 
-        // ② 选一块“最安全的地皮”：出口多、离墙远、死路惩罚低。
+        // ② 从“危险格”向外 BFS，算出每格离危险有多远。
+        //    危险格 = 死胡同（可走方向 <= 1）或本身带死路惩罚。
+        //    这一项是窄地形（走廊、单格宽通道）里唯一有区分度的指标：那种地形里
+        //    所有格子的“出口数 / 离墙距离”完全相同，没有它锚点会退化到最靠边的
+        //    一格 —— AI 就会主动往死路尽头走（实测踩到过）。
+        var dangerDist = new Array(n);
+        var di = [], dj = [];
+        for (i = 0; i < w; i++) {
+            for (j = 0; j < h; j++) {
+                idx = j * w + i;
+                if (!walkable[idx]) { dangerDist[idx] = -1; continue; }
+                var deadPen = (maze.getDeadEndPenalty ? (maze.getDeadEndPenalty({ x: i, y: j }) || 0) : 0);
+                if (deadPen > 0 || openCount[idx] <= 1) {
+                    dangerDist[idx] = 0;
+                    di.push(i); dj.push(j);
+                } else {
+                    dangerDist[idx] = -1;
+                }
+            }
+        }
+        head = 0;
+        while (head < di.length) {
+            var pi = di[head], pj = dj[head];
+            head++;
+            var pdd = dangerDist[pj * w + pi];
+            for (d = 0; d < dirs.length; d++) {
+                var hi = pi + dirs[d][0], hj = pj + dirs[d][1];
+                if (hi < 0 || hj < 0 || hi >= w || hj >= h) continue;
+                var hidx = hj * w + hi;
+                if (!walkable[hidx] || dangerDist[hidx] >= 0) continue;
+                dangerDist[hidx] = pdd + 1;
+                di.push(hi); dj.push(hj);
+            }
+        }
+        // 大开阔场地里可能一个危险格都没有，该表全 -1，这一项自然失效。
+        var DANGER_CAP = 10;
+
+        // ③ 选一块“最安全的地皮”：离危险远 > 出口多 > 离墙远 > 基础质量。
         var anchorIdx = -1, anchorScore = -1;
         for (i = 0; i < n; i++) {
             if (!walkable[i]) continue;
-            var cand = openCount[i] * 2 + wallDist[i] * 1.5 + base[i] * 3;
+            var dangerScore = (dangerDist[i] >= 0)
+                ? (Math.min(dangerDist[i], DANGER_CAP) / DANGER_CAP) : 0;
+            var cand = dangerScore * 6 + innerCount[i] * 2 + wallDist[i] * 1.5 + base[i] * 3;
             if (cand > anchorScore) { anchorScore = cand; anchorIdx = i; }
         }
         // ③ 沿真实可走路径，算全图到这块地皮的步数（不是直线距离）。

@@ -170,6 +170,28 @@ VT.syncKillfieldAutoTarget(probeAI);
 if(VT.killfieldAutoTarget()!==null){
     throw new Error('standing on the safest tile must stop the empty-field relocation');
 }
+// 窄地形（单格宽走廊）回归：锚点必须落在“离两头死路都远”的中间位置，
+// 不能退化到最靠边的一格——否则空场开启后 AI 会主动往死路尽头走（实测踩到过）。
+{
+    const cw=20, ch=5;
+    const corr={
+        getWidth:function(){return cw;},
+        getHeight:function(){return ch;},
+        isPositionInsideMaze:function(t){return t && t.y===2 && t.x>=0 && t.x<cw;},
+        getDeadEndPenalty:function(){return 0;}
+    };
+    VT.ensureKillfield(corr);
+    const a=VT.getKillfieldAnchorTile();
+    if(!a) throw new Error('corridor: killfield must still pick an anchor');
+    if(a.x <= 3 || a.x >= cw-4){
+        throw new Error('corridor: anchor must sit away from the dead ends, got x=' + a.x);
+    }
+    if(Math.abs(a.x - Math.round((cw-1)/2)) > 3){
+        throw new Error('corridor: anchor should be near the middle, got x=' + a.x);
+    }
+    VT.ensureKillfield(room);   // 还原房间表，后面继续用
+}
+
 // 离开安全地皮：应重新给出目标。
 VT.setCurrentTile(1,5);
 const t2=VT.killfieldAutoTarget();
