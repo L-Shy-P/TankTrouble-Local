@@ -1,6 +1,19 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v106（关键场景录制 + 动作锁定 + 卡墙黑名单）：
+ *   ① 录制器（主人要的工具）：点面板「● 记录」开始、再点结束，「导出录制」拿
+ *      JSON。逐帧记录「真实世界（坦克/子弹/死亡）×树的决策（执行哪个操作、
+ *      当时预测什么、段末对齐误差、预测死亡帧）」+ 每次换执行节点时的
+ *      9 候选分数快照。没开录时也有滚动环形缓冲，AI 一死自动抓取死亡前 6 秒。
+ *   ② 切换滞回（动作锁定）：治「尝试一个操作后又立马退回去」。默认 5%
+ *      （≈148 分），**只对方向相反的操作生效**（前进↔后退、左转↔右转），
+ *      不拦「转向去安全区」这类切换——一开始不分方向地锁，AI 会一路直行
+ *      撞墙才停（实测）。
+ *   ③ 卡墙黑名单：用真实反馈判定——某段操作真实位移 <0.5 米且远小于预测
+ *      （>2 米）时，把该操作拉黑 45 帧，选路时按剩余时间递减重罚。
+ *      判定必须严，否则「转向+前进」这种本来就走得少的操作会被误伤
+ *      （实测：AI 想去安全区却一直转不了向）。
  * 2026-09-07 v105（安全分与杀戮场分连续共存）：
  *   主人定的语义：两类分数**时刻共存**，按危险程度自动分配话语权——
  *     · 子弹远：各操作安全分都接近满分、彼此差别很小 → 杀戮场分主导位置决策；
@@ -494,6 +507,259 @@
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
     var _lastTankState = null;                // v104：本帧坦克位置（几何威胁提前量用）
     var _threatEtaOverride = null;            // v105：测试用——直接指定“还有几秒挨打”
+    // v106：切换滞回（动作锁定）。新候选必须比“当前正在执行的那个操作”明显更好
+    // 才换，否则继续执行原操作——治“前进↔后退”反复横跳（主人反馈：尝试某个操作
+    // 后又立马原地退回去）。阈值按“无威胁满分”的百分比给，面板可调。
+    var _switchHysteresisPct = 0.05;           // 默认 5%（≈148 分）
+    // v106：卡墙黑名单。某段操作实际几乎没挪窝（明显小于预测位移）时，短暂禁止
+    // 再选它——这是“贴墙不动被打死”的直接对策（用真实反馈，不靠预测）。
+    var _stuckOps = {};                        // 操作名 → 剩余禁止帧数
+    var _stuckOpBanFrames = 45;                // 禁选时长（0.75 秒）
+    var _stuckMoveMinM = 1.0;                  // 一段操作的“有效位移”下限（米）
+
+    // v106：关键场景录制器 --------------------------------------------------
+    // 主人要的“点击开始记录、再点结束导出”：把逐帧的
+    //   「真实世界（坦克/子弹/死亡）」×「树的决策（执行哪个操作、
+    //     当时预测什么、段末对齐误差、预测的死亡帧）」
+    // 一起存下来，用来逐帧对比“预测”和“实际”——查
+    // 「预测到死亡却没回退」「一头撞上子弹」这类问题只能靠这个。
+    var _rec = {
+        on: false,
+        buf: [],            // 逐帧记录
+        segSnaps: [],       // 段末快照（9 候选分数、选中项、预测死亡帧、地形项）
+        maxFrames: 3600,    // 最多 60 秒
+        armed: true,        // 死亡自动抓取（不用一直开着录）
+        autoKeepFrames: 360,// 死亡时保留前 6 秒
+        autoPostFrames: 90, // 死亡后继续录 1.5 秒
+        autoTail: 0,
+        autoEvents: [],
+        startedAt: null,
+        startReason: '',
+        version: 0
+    };
+    var _recRing = [];      // 滚动环形缓冲（始终保留最近 maxFrames 帧）
+
+    function recBegin(reason) {
+        _rec.on = true;
+        _rec.buf = [];
+        _rec.segSnaps = [];
+        _rec.autoTail = 0;
+        _rec.startedAt = _timeAcc;
+        _rec.startReason = reason || 'manual';
+        _rec.version++;
+        return true;
+    }
+
+    function recStop() {
+        _rec.on = false;
+        return _rec.buf.length;
+    }
+
+    function isRecording() { return !!_rec.on; }
+
+    /** 死亡自动抓取：即使没手动录，也把死亡前后这一段留住。 */
+    function recNoteDeath(info) {
+        if (!_rec.armed) return;
+        _rec.autoEvents.push({
+            t: Math.round(_timeAcc * 1000) / 1000,
+            killer: info && info.killerPlayerId !== undefined ? info.killerPlayerId : null,
+            projectileId: info && info.projectileId !== undefined ? info.projectileId : null,
+            projectileType: info && info.projectileType !== undefined ? info.projectileType : null
+        });
+        if (_rec.autoEvents.length > 20) _rec.autoEvents.shift();
+        if (!_rec.on) {
+            recBegin('auto-death');
+            _rec.autoTail = _rec.autoPostFrames;
+            var ring = _recRing.slice(-_rec.autoKeepFrames);
+            for (var i = 0; i < ring.length; i++) _rec.buf.push(ring[i]);
+        } else {
+            _rec.autoTail = _rec.autoPostFrames;
+        }
+    }
+
+    /** 每帧轻量记录。 */
+    function recFrame(ai, tree, adapter, tankState) {
+        var node = tree && tree.commitNode;
+        var proj = null;
+        try { proj = adapter && adapter.getProjectiles ? adapter.getProjectiles() : null; } catch (eProj) {}
+        var frame = {
+            t: Math.round(_timeAcc * 1000) / 1000,
+            tank: {
+                x: Math.round(tankState.x * 100) / 100,
+                y: Math.round(tankState.y * 100) / 100,
+                rot: Math.round(tankState.rot * 1000) / 1000
+            },
+            proj: (proj || []).map(function (pp) {
+                return {
+                    id: pp && pp.id,
+                    x: pp && isFinite(pp.x) ? Math.round(pp.x * 100) / 100 : null,
+                    y: pp && isFinite(pp.y) ? Math.round(pp.y * 100) / 100 : null,
+                    vx: pp && isFinite(pp.speedX) ? Math.round(pp.speedX * 10) / 10 : null,
+                    vy: pp && isFinite(pp.speedY) ? Math.round(pp.speedY * 10) / 10 : null
+                };
+            }),
+            op: node ? (node.opName || '?') : null,
+            commitId: node ? node.id : null,
+            segEnd: node && typeof node.tEndSec === 'number' ? Math.round(node.tEndSec * 1000) / 1000 : null,
+            planned: node ? node.plannedFrames : null,
+            seg: node ? node.segmentFrames : null,
+            pred: (node && node.simState && node.simState.tank) ? {
+                x: Math.round(node.simState.tank.x * 100) / 100,
+                y: Math.round(node.simState.tank.y * 100) / 100,
+                rot: Math.round(node.simState.tank.rot * 1000) / 1000,
+                tGlobal: node.simState.tGlobal !== undefined ? Math.round(node.simState.tGlobal * 1000) / 1000 : null
+            } : null,
+            predDeathFrame: node ? node.fullDeathFrame : null,
+            predStatus: node ? node.status : null,
+            predAuthority: node ? (node.deathAuthority || '') : '',
+            segEndErr: node && node._segEndErr ? node._segEndErr : null,
+            nodes: tree ? tree.nodeCount : -1,
+            threats: (tree && tree.threats) ? tree.threats.length : 0,
+            threatIds: (tree && tree.threatIds) || '',
+            live: (tree && typeof tree._liveProjectileCount === 'number') ? tree._liveProjectileCount : null,
+            retreats: (tree && tree.stats) ? (tree.stats.retreats || 0) : 0
+        };
+        // 执行节点换了 → 记一次“当时 9 个候选各自什么分、选了谁、各自预测死在第几帧”。
+        // 这是回答“预测到死亡为什么还选它 / 有没有回退”的关键证据。
+        if (node && node.id !== _rec.lastSnapNodeId) {
+            _rec.lastSnapNodeId = node.id;
+            try { recSegmentSnapshot(tree, adapter, node.parent || tree.root, node); } catch (eSnap) {}
+        }
+        _recRing.push(frame);
+        if (_recRing.length > _rec.maxFrames) _recRing.shift();
+        if (_rec.on) {
+            _rec.buf.push(frame);
+            if (_rec.buf.length > _rec.maxFrames) _rec.buf.shift();
+            if (_rec.autoTail > 0) {
+                _rec.autoTail--;
+                if (_rec.autoTail <= 0 && _rec.startReason === 'auto-death') _rec.on = false;
+            }
+        }
+    }
+
+    /** 段末快照：这一段的 9 个候选分别多少分、选了谁、各自预测死在第几帧、地形项多少。 */
+    function recSegmentSnapshot(tree, adapter, parent, chosen) {
+        if (!_rec.on && !_rec.armed) return;
+        var snap = {
+            t: Math.round(_timeAcc * 1000) / 1000,
+            parentId: parent ? parent.id : null,
+            parentOp: parent ? (parent.opName || '?') : null,
+            chosenId: chosen ? chosen.id : null,
+            chosenOp: chosen ? (chosen.opName || '?') : null,
+            cands: []
+        };
+        var kids = (parent && parent.children) ? parent.children : [];
+        for (var i = 0; i < kids.length; i++) {
+            var c = kids[i];
+            if (!c) continue;
+            snap.cands.push({
+                id: c.id,
+                op: c.opName || '?',
+                safety: Math.round((Number(c.subtreeBest) || 0) * 10) / 10,
+                total: Math.round((Number(c.rolloutTotal) || 0) * 10) / 10,
+                fd: c.fullDeathFrame,
+                status: c.status,
+                auth: c.deathAuthority || '',
+                seg: c.segmentFrames,
+                invalid: !!c.invalid,
+                exhausted: !!c.exhausted
+            });
+        }
+        try {
+            var d = debugObjective(kids);
+            snap.terrain = {
+                safetyFactor: Math.round(d.killfieldSafetyFactor * 1000) / 1000,
+                kfScale: Math.round(d.killfieldScale * 10) / 10,
+                currentTile: d.currentTile,
+                rows: d.rows.map(function (r) {
+                    return {
+                        op: r.opName,
+                        safety: Math.round((Number(r.safetyTotal) || 0) * 10) / 10,
+                        dir: Math.round(r.kfDirGain * 1000) / 1000,
+                        bonus: Math.round(r.kfBonus * 10) / 10,
+                        score: Math.round(r.score * 10) / 10
+                    };
+                })
+            };
+        } catch (eTer) { snap.terrain = null; }
+        _rec.segSnaps.push(snap);
+        if (_rec.segSnaps.length > 400) _rec.segSnaps.shift();
+    }
+
+    /** 导出录制内容。 */
+    function exportRecord() {
+        return {
+            version: _rec.version,
+            startedAt: _rec.startedAt,
+            startReason: _rec.startReason,
+            frames: _rec.buf.length,
+            deaths: _rec.autoEvents.slice(),
+            meta: {
+                treeVersion: 'v106',
+                frameDt: FRAME_DT,
+                tNow: _timeAcc,
+                rebuilds: _rebuildCount,
+                killfieldEnabled: _killfieldEnabled,
+                killfieldWeight: _killfieldWeight,
+                emptyFieldSafety: _emptyFieldSafety,
+                emptyFieldLaziness: _emptyFieldLaziness,
+                targetMixEnabled: _targetMixEnabled,
+                targetMixRatio: _targetMixRatio,
+                liveProjectiles: _liveProjectilesNow,
+                currentTile: _currentTile ? { x: _currentTile.x, y: _currentTile.y } : null,
+                anchorTile: _killfieldAnchorTile ? { x: _killfieldAnchorTile.x, y: _killfieldAnchorTile.y } : null,
+                lastReset: _lastResetSnapshot,
+                lastKill: _lastKillInfo
+            },
+            segSnaps: _rec.segSnaps,
+            records: _rec.buf
+        };
+    }
+
+    /** 段末对齐误差：量化“树预测的段末位姿”与“真实段末位姿”的差。 */
+    function recNoteSegmentEnd(tree, node, realTankState) {
+        if (!node || !realTankState) return;
+        var pred = (node.simState && node.simState.tank) ? node.simState.tank : null;
+        if (!pred) return;
+        // v106：卡墙判定——“这一段操作实际挪了多少”。真实位移远小于预测位移
+        // 说明被墙顶住了，把该操作拉黑一小会儿（用真实反馈，不靠预测）。
+        try {
+            var start = node.rolloutSamples && node.rolloutSamples.length ? node.rolloutSamples[0] : null;
+            if (start && node.plannedFrames >= 6) {
+                var rdx = realTankState.x - start.x, rdy = realTankState.y - start.y;
+                var realMove = Math.sqrt(rdx * rdx + rdy * rdy);
+                var pdx = pred.x - start.x, pdy = pred.y - start.y;
+                var predMove = Math.sqrt(pdx * pdx + pdy * pdy);
+                node._realMove = Math.round(realMove * 1000) / 1000;
+                node._predMove = Math.round(predMove * 1000) / 1000;
+                // 判定要严：真实位移必须“几乎为 0”才算卡住。
+                // 一开始用 realMove<1m 就拉黑，结果“转向+前进”这类本来就
+                // 走得少的操作被误伤（实测：AI 想去安全区却一直转不了向）。
+                if (predMove > 2.0 && realMove < 0.5 && realMove < predMove * 0.25) {
+                    var opKey = node.opName || ('n' + node.id);
+                    _stuckOps[opKey] = _stuckOpBanFrames;
+                    tree.stats.stuckOps = (tree.stats.stuckOps || 0) + 1;
+                    recordStructure(tree, 'stuck-op-ban',
+                        opKey + ' realMove=' + realMove.toFixed(2) + ' predMove=' + predMove.toFixed(2));
+                }
+            }
+        } catch (eStuck) {}
+        var dx = realTankState.x - pred.x, dy = realTankState.y - pred.y;
+        var dPos = Math.sqrt(dx * dx + dy * dy);
+        var dRot = realTankState.rot - pred.rot;
+        dRot = Math.atan2(Math.sin(dRot), Math.cos(dRot));
+        node._segEndErr = {
+            op: node.opName || '?',
+            t: Math.round(_timeAcc * 1000) / 1000,
+            dPos: Math.round(dPos * 1000) / 1000,
+            dRot: Math.round(dRot * 1000) / 1000,
+            planned: node.plannedFrames,
+            seg: node.segmentFrames,
+            predDeath: node.fullDeathFrame,
+            status: node.status
+        };
+    }
+
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -3860,6 +4126,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             // v103：空场地形引导阶段：安全分全平，用“地形增益 → 兜底安全分”排名。
             var rawTotal = fullRolloutTotalOf(c);
             var total = rawTotal + objectiveBonus(c, targetScale2, kfScale2, kfSafety2);
+            // v106：卡墙黑名单——最近被墙顶住过的操作先别急着再选（按剩余时间递减重罚）。
+            var stuckLeft = _stuckOps[c.opName];
+            if (stuckLeft > 0) {
+                total -= Math.max(1, EVAL_FRAMES * 39.4784) * (stuckLeft / Math.max(1, _stuckOpBanFrames));
+            }
             if (!best || total > bestTotal) {
                 best = c; bestTotal = total;
                 continue;
@@ -3894,7 +4165,47 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 }
             }
         }
+        // v106：切换滞回（动作锁定）——只对“方向相反”的两个操作生效
+        // （前进↔后退、左转↔右转这种来回抽），不拦“转向去安全区”这类切换。
+        // 一开始不分方向地对所有切换加滞回，结果 AI 一路直行撞到墙才停
+        // （实测：end tile 从 (4,4) 退化成 (1,4)）——所以必须限定。
+        if (best && _tree && _tree.commitNode && _switchHysteresisPct > 0) {
+            var hold = _tree.commitNode;
+            if (hold !== best && children.indexOf(hold) >= 0 &&
+                !hold.invalid && !hold.exhausted && hold !== exclude) {
+                var holdLeft = _stuckOps[hold.opName];
+                if (!(holdLeft > 0) && !(anyNotDead && hold.status === 'dead') &&
+                    !(!allTrueDead && hold.fullDeathFrame === 1) &&
+                    opsAreOpposite(hold, best)) {
+                    var holdTotal = fullRolloutTotalOf(hold) +
+                        objectiveBonus(hold, targetScale2, kfScale2, kfSafety2);
+                    var margin = Math.max(1, EVAL_FRAMES * 39.4784) * _switchHysteresisPct;
+                    if (bestTotal - holdTotal < margin) best = hold;
+                }
+            }
+        }
         return best;
+    }
+
+    /** v106：两个操作是不是“方向相反”（前进↔后退、左转↔右转）。
+     *  用各自 rollout 的位移向量夹角判断；有一方几乎没动（静止/原地转向）
+     *  就返回 false（不锁），避免把“静止→开始走”也锁住。 */
+    function opsAreOpposite(a, b) {
+        var va = rolloutMoveVec(a), vb = rolloutMoveVec(b);
+        if (!va || !vb) return false;
+        var la = Math.sqrt(va.x * va.x + va.y * va.y);
+        var lb = Math.sqrt(vb.x * vb.x + vb.y * vb.y);
+        if (la < 0.3 || lb < 0.3) return false;      // 有一方基本没挪窝
+        var cos = (va.x * vb.x + va.y * vb.y) / (la * lb);
+        return cos < -0.5;                           // 夹角 > 120° 才算相反
+    }
+
+    function rolloutMoveVec(node) {
+        var rs = node && node.rolloutSamples;
+        if (!rs || rs.length < 2) return null;
+        var a = rs[0], b = rs[rs.length - 1];
+        if (!a || !b || !isFinite(a.x) || !isFinite(b.x)) return null;
+        return { x: b.x - a.x, y: b.y - a.y };
     }
 
     /** 预览路线选择：只沿存活且未回退剪枝的子节点走，正常按高分选择。 */
@@ -4633,6 +4944,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             realTankState = adapter.getTankState();
         }
         if (!realTankState) return false;
+        // v106：量化“树预测的段末位姿”与“真实段末位姿”的偏差，供录制导出分析。
+        try {
+            if (tree.commitNode) recNoteSegmentEnd(tree, tree.commitNode, realTankState);
+        } catch (eSegErr) {}
 
         var root = tree.root;
         var prev = tree.commitNode;
@@ -5688,6 +6003,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         perfEnd('grow');
         growStep(tree, adapter, tree.threats || evalThreats);
         perfEnd('grow');
+        // v106：录制（轻量，默认只进环形缓冲；开录或死亡补录时才留档）
+        try { recFrame(ai, tree, adapter, tankState); } catch (eRec) {}
+        // v106：卡墙黑名单倒计时
+        for (var sk in _stuckOps) {
+            if (!_stuckOps.hasOwnProperty(sk)) continue;
+            _stuckOps[sk]--;
+            if (_stuckOps[sk] <= 0) delete _stuckOps[sk];
+        }
     }
 
     /** 操控消费：当前应执行的操作（commitNode 整段恒定） */
@@ -5872,6 +6195,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             projectileId: typeof kill.getDeadlyId === 'function' ? kill.getDeadlyId() : null,
             projectileType: typeof kill.getDeadlyType === 'function' ? kill.getDeadlyType() : null
         };
+        // v106：死亡自动抓取——把死亡前 6 秒的逐帧记录留住（含树的预测）。
+        try { recNoteDeath(_lastKillInfo); } catch (eRecDeath) {}
     }
 
     /** 评估深度可调（testbench 固定帧滑块联动，1~300） */
@@ -6209,10 +6534,32 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         debugObjective: debugObjective,
+        // v106：切换滞回（动作锁定）0~0.5，按“无威胁满分”的比例。
+        setSwitchHysteresis: function(v) {
+            var n = Number(v);
+            if (!isFinite(n)) n = 0.05;
+            _switchHysteresisPct = Math.max(0, Math.min(0.5, n));
+            return _switchHysteresisPct;
+        },
+        getSwitchHysteresis: function() { return _switchHysteresisPct; },
+        getStuckOps: function() {
+            var out = {};
+            for (var k in _stuckOps) if (_stuckOps.hasOwnProperty(k)) out[k] = _stuckOps[k];
+            return out;
+        },
         // v103：诊断用——目标被写入/清除的累计次数。开杀戮场/空场后如果它
         // 每帧都涨，说明有代码在每帧重申目标，会把整帧时间吃光。
         getMoveTargetWrites: function() { return _moveTargetWrites; },
         getPerf: perfSnapshot,
+        // v106：关键场景录制（点击开始 / 再点结束导出）
+        startRecord: function(reason) { return recBegin(reason); },
+        stopRecord: recStop,
+        isRecording: isRecording,
+        exportRecord: exportRecord,
+        noteDeathForRecord: recNoteDeath,
+        noteSegmentEnd: recNoteSegmentEnd,
+        segmentSnapshot: recSegmentSnapshot,
+        peekRecord: function() { return { on: _rec.on, frames: _rec.buf.length, segSnaps: _rec.segSnaps.length, ring: _recRing.length, deaths: _rec.autoEvents.length }; },
         resetPerf: perfReset,
         killfieldAutoTarget: killfieldAutoTarget,
         setEmptyFieldLaziness: setEmptyFieldLaziness,
@@ -6277,5 +6624,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v105：安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v106：录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

@@ -1,6 +1,10 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v94（配合树 v106 / scoring v33）：
+ *   调试栏加「● 记录 / 导出录制」（关键场景逐帧录制）；
+ *   选路栏加「切换滞回」（动作锁定，治反复横跳）；
+ *   杀戮场强度与空场那对拆成两行，避免看着像空场的滑块。
  * 2026-09-07 v93（配合树 v105）：
  *   杀戮场权重的含义改回“强度”：它与安全分**时刻共存**，子弹远时主导位置
  *   决策、子弹近时自动退成小幅引导（有下限）；开关与它控制的滑块紧挨着。
@@ -119,7 +123,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v93';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v94';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -168,7 +172,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, switchHysteresis: 0.05, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2141,7 +2145,7 @@
         horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
         pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
-        killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0,
+        killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, switchHysteresis: 0.05,
         scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
     };
     // data-act -> 状态字段；只列“危险/不建议随便动”的开关。
@@ -2341,13 +2345,16 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
-                // v105：开关和它控制的滑块必须紧挨着，一一对应：
-                //   杀戮场引导 → 杀戮场权重（强度）
-                //   空场安全感知 → 懒惰倾向（挪窝门槛）
+                // v106：开关和它控制的滑块一对一，并且**各自占一行**——
+                // 上一版两对挤在一行，“杀戮场强度”看着像空场开关的滑块（主人报的错位）。
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-killfield"> 杀戮场引导</label>') +
-                expItem('强度 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
+                expItem('杀戮场强度 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
+                '<span style="flex-basis:100%;height:0"></span>' +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-emptyFieldSafety"> 空场安全感知</label>') +
                 expItem('懒惰倾向 <input type="range" data-act="exp-emptyFieldLaziness" min="0" max="100" step="5" value="0" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-emptyFieldLaziness">0%</span>') +
+                '<span style="flex-basis:100%;height:0"></span>' +
+                // v106：切换滞回（动作锁定）——治“尝试一个操作后又立马退回去”。
+                expItem('切换滞回 <input type="range" data-act="exp-switchHysteresis" min="0" max="50" step="1" value="5" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-switchHysteresis">5%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
@@ -2356,6 +2363,11 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-autoPath"> 自动寻路</label>') +
                 expItem('<button data-act="exp-goHouse" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">进房子</button>') +
                 expItem('<button data-act="exp-farPath" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">最远寻路</button>') +
+                // v106：关键场景录制——点一次开始记录，再点一次结束；导出逐帧
+                // 的「真实世界 × 树的决策 × 预测误差」，用来逐帧分析失误。
+                expItem('<button data-act="exp-rec" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">● 记录</button>') +
+                expItem('<button data-act="exp-recExport" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">导出录制</button>') +
+                expItem('<span id="vt-exp-recState" style="color:#6c7086">未记录</span>') +
                 expItem('<span style="color:#6c7086">句号键=进房子 · / 键=最远寻路</span>')
             ) +
             '<div id="vt-exp-treeHint" style="display:none;color:#6c7086;padding-left:48px">选择 AI 操控「树」后显示生长、回退、选路参数</div>';
@@ -2372,6 +2384,11 @@
             targetMixRatio: expRow.querySelector('[data-act="exp-targetMixRatio"]'),
             targetMixRatioSpan: expRow.querySelector('span[id="vt-exp-targetMixRatio"]'),
             autoPath: expRow.querySelector('[data-act="exp-autoPath"]'),
+            switchHysteresis: expRow.querySelector('[data-act="exp-switchHysteresis"]'),
+            switchHysteresisSpan: expRow.querySelector('span[id="vt-exp-switchHysteresis"]'),
+            recBtn: expRow.querySelector('[data-act="exp-rec"]'),
+            recExport: expRow.querySelector('[data-act="exp-recExport"]'),
+            recState: expRow.querySelector('span[id="vt-exp-recState"]'),
             killfield: expRow.querySelector('[data-act="exp-killfield"]'),
             emptyFieldSafety: expRow.querySelector('[data-act="exp-emptyFieldSafety"]'),
             emptyFieldLaziness: expRow.querySelector('[data-act="exp-emptyFieldLaziness"]'),
@@ -2444,6 +2461,7 @@
                 'exp-targetMixRatio': '目标位置评分系数（0~300%）。只在混合选路开启时生效：0%=不看目标；30%=轻微引导；100%=目标与安全大致同权；200~300%=强目标引导，可能明显牺牲安全。二阶段选路下改这个不影响结果。',
                 'exp-killfield': '杀戮场引导（静态地形层）：没有用户点击目标时，用“到最安全地皮的步数 + 离墙距离 + 死路/出口数”给全图打分，引导 AI 往更安全、更好跑的位置移动。用户点击或按 / 的寻路优先级更高；后续可再叠加子弹/对手射击覆盖。',
                 'exp-emptyFieldSafety': '空场安全感知。开启后：没有子弹、也没有用户寻路目标时，AI 会自己挑一块最安全的地皮（离危险远、出口多、离墙远、开阔的中心区域）走过去，走到就停；走得多积极由下面的“懒惰倾向”决定。关闭后：无子弹无寻路时保持静止。杀戮场引导关闭时此开关变灰且不生效。',
+                'exp-switchHysteresis': '切换滞回（动作锁定）。新操作必须比“当前正在执行的操作”高出这么多分才换，否则继续执行原操作。默认 5%（约 148 分）用来压住“前进↔后退”反复横跳；觉得 AI 反应迟钝就调小，觉得它来回抽就调大。0% = 关掉锁定。',
                 'exp-emptyFieldLaziness': '懒惰倾向（只管没有子弹时的那一段，和上面“杀戮场权重”管的有子弹行为互不影响）。它是“当前格要比现在安全多少才值得挪窝”的门槛：0% = 只要当前不是最安全的地皮就走过去（最积极）；50% = 中等安全的地方就懒得折腾；100% = 只有贴墙、死路这种明显危险的地方才挪窝。想让它一开局就积极占好位置就调低，想让它少走动就调高。',
                 'exp-killfieldWeight': '杀戮场强度（0~400%，默认 100%，只管有子弹时的行为）。杀戮场分与安全分是**时刻共存**的：子弹远时各操作的安全分彼此差别很小，杀戮场主导位置决策（提前挪到更安全的地形）；子弹近时安全分差别拉开，杀戮场自动退成小幅引导（最低保留 15%，不会完全消失，也不会抢躲弹的主导权）。调大 = 更愿意为地形让出安全分，调小 = 更保守。',
                 'exp-autoPath': '自动寻路。开启后，如果 AI 当前没有用户指定目标，它会自动寻找最近的边界/封闭房子并过去，方便压力测试；有用户点击目标时不会自动寻路。',
@@ -2840,6 +2858,43 @@
             updatePanel();
             return;
         }
+        if (act === 'exp-switchHysteresis') {
+            state.exp.switchHysteresis = Math.max(0, Math.min(50, parseInt(srcEl.value, 10) || 0)) / 100;
+            if (typeof VantageTree !== 'undefined' && VantageTree.setSwitchHysteresis) {
+                VantageTree.setSwitchHysteresis(state.exp.switchHysteresis);
+            }
+            if (_expCtrl.switchHysteresisSpan) {
+                _expCtrl.switchHysteresisSpan.textContent = Math.round(state.exp.switchHysteresis * 100) + '%';
+            }
+            updatePanel();
+            return;
+        }
+        if (act === 'exp-rec') {
+            if (typeof VantageTree === 'undefined' || !VantageTree.startRecord) return;
+            if (VantageTree.isRecording && VantageTree.isRecording()) {
+                VantageTree.stopRecord();
+                if (srcEl) srcEl.textContent = '● 记录';
+            } else {
+                VantageTree.startRecord('manual');
+                if (srcEl) srcEl.textContent = '■ 停止';
+            }
+            updatePanel();
+            return;
+        }
+        if (act === 'exp-recExport') {
+            if (typeof VantageTree === 'undefined' || !VantageTree.exportRecord) return;
+            var rec = VantageTree.exportRecord();
+            var rdata = JSON.stringify(rec);
+            var rblob = new Blob([rdata], { type: 'application/json' });
+            var ra = document.createElement('a');
+            ra.href = URL.createObjectURL(rblob);
+            ra.download = 'vantage_record_' + Date.now() + '.json';
+            document.body.appendChild(ra);
+            ra.click();
+            document.body.removeChild(ra);
+            setTimeout(function() { URL.revokeObjectURL(ra.href); }, 1000);
+            return;
+        }
         if (act === 'exp-emptyFieldLaziness') {
             state.exp.emptyFieldLaziness = Math.max(0, Math.min(100, parseInt(srcEl.value, 10) || 0)) / 100;
             if (typeof VantageTree !== 'undefined' && VantageTree.setEmptyFieldLaziness) {
@@ -2895,6 +2950,7 @@
             state.exp.killfieldWeight = 1.0;
             state.exp.emptyFieldSafety = false;
             state.exp.emptyFieldLaziness = 0;
+            state.exp.switchHysteresis = 0.05;
             state.exp.scoreOnlyPlanned = false;
             state.exp.autoPath = false;
             state.exp.noDeath = true;
@@ -2922,6 +2978,7 @@
                 if (typeof VantageTree.setKillfieldWeight === 'function') VantageTree.setKillfieldWeight(state.exp.killfieldWeight);
                 if (typeof VantageTree.setEmptyFieldSafety === 'function') VantageTree.setEmptyFieldSafety(state.exp.emptyFieldSafety);
                 if (typeof VantageTree.setEmptyFieldLaziness === 'function') VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness);
+                if (typeof VantageTree.setSwitchHysteresis === 'function') VantageTree.setSwitchHysteresis(state.exp.switchHysteresis);
                 VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
@@ -3361,6 +3418,24 @@
         }
         if (_expCtrl.killfield && _expCtrl.killfield.checked !== state.exp.killfieldEnabled) _expCtrl.killfield.checked = state.exp.killfieldEnabled;
         if (_expCtrl.emptyFieldSafety && _expCtrl.emptyFieldSafety.checked !== state.exp.emptyFieldSafety) _expCtrl.emptyFieldSafety.checked = state.exp.emptyFieldSafety;
+        if (_expCtrl.switchHysteresis) {
+            var shVal = Math.round((state.exp.switchHysteresis || 0) * 100);
+            if (parseInt(_expCtrl.switchHysteresis.value, 10) !== shVal) _expCtrl.switchHysteresis.value = String(shVal);
+        }
+        if (_expCtrl.switchHysteresisSpan && _expCtrl.switchHysteresisSpan.textContent !== Math.round((state.exp.switchHysteresis || 0) * 100) + '%') {
+            _expCtrl.switchHysteresisSpan.textContent = Math.round((state.exp.switchHysteresis || 0) * 100) + '%';
+        }
+        if (_expCtrl.recState && typeof VantageTree !== 'undefined' && VantageTree.peekRecord) {
+            try {
+                var pk = VantageTree.peekRecord();
+                var txt = pk.on ? ('记录中 ' + pk.frames + '帧') : ('未记录（环形缓冲 ' + pk.ring + '帧，死亡自动抓取 ' + pk.deaths + '次）');
+                if (_expCtrl.recState.textContent !== txt) _expCtrl.recState.textContent = txt;
+                if (_expCtrl.recBtn) {
+                    var label = pk.on ? '■ 停止' : '● 记录';
+                    if (_expCtrl.recBtn.textContent !== label) _expCtrl.recBtn.textContent = label;
+                }
+            } catch (eRecSync) {}
+        }
         if (_expCtrl.emptyFieldLaziness) {
             var eflVal = Math.round((state.exp.emptyFieldLaziness || 0) * 100);
             if (parseInt(_expCtrl.emptyFieldLaziness.value, 10) !== eflVal) _expCtrl.emptyFieldLaziness.value = String(eflVal);
@@ -3962,6 +4037,7 @@
         try { if (VantageTree.setKillfieldWeight) VantageTree.setKillfieldWeight(state.exp.killfieldWeight); } catch (eKillfieldWeightInit) {}
         try { if (VantageTree.setEmptyFieldSafety) VantageTree.setEmptyFieldSafety(state.exp.emptyFieldSafety); } catch (eEmptyFieldInit) {}
         try { if (VantageTree.setEmptyFieldLaziness) VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness); } catch (eLazyInit) {}
+        try { if (VantageTree.setSwitchHysteresis) VantageTree.setSwitchHysteresis(state.exp.switchHysteresis); } catch (eHystInit) {}
         try { VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned); } catch (eScoreShortInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }

@@ -242,6 +242,9 @@ for (let tickNo = 0; tickNo < TICKS; tickNo++) {
   }
   if (BULLETS && tickNo > bulletAt) projectiles.forEach(p => { p.x += (p.speedX < 0 ? -0.4 : 0.4); });
 
+  // 本脚本里“树自动读取真实子弹数”那条链路没跑通（见文件头“已知限制”），
+  // 这里直接喂给树，保证“有子弹”这个条件在打分逻辑里成立。
+  VT.setLiveProjectilesNow(projectiles.length);
   const t0 = process.hrtime.bigint();
   try {
     VT.tick(ai, 0.02);

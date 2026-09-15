@@ -523,9 +523,11 @@
                                 //   0.75 → 多弹穿身打爆量级 → 未死亡大负分、
                                 //   AI 宕机。v7.3：多弹取 max + 0.5 = "稍微"）
         deathPenalty: 100000,   // 死亡扣分（定稿，不再动）
-        stuckPenalty: 4.0,      // v19：非静止操作中连续两帧位姿几乎不变 = 卡墙/被顶住，
+        stuckPenalty: 6.0,      // v19/v106：非静止操作中连续两帧位姿几乎不变 = 卡墙/被顶住，
                                 //      每帧额外扣 4.0（75 帧最多 300，足够压过躲进墙角的收益）
-        stuckDistEps: 0.05,     // 卡墙判定：位移 < 5cm/帧（正常前进≈32cm/帧）
+        stuckDistEps: 0.08,     // v106：卡墙判定：位移 < 8cm/帧（原 5cm 太严，
+                                // 贴墙“滑行”时每帧能动 5~8cm，被判成没卡住 —— 主人实测
+                                // “几乎贴住墙不动然后被打死”；正常前进≈32cm/帧）
         stuckRotEps: 0.05,      // 且转角 < 0.05 rad/帧（正常转向=0.1 rad/帧）
         rotationSamples: 72,    // 遮蔽角朝向采样数（5°/步；调试器渲染用 360）
         densityA: 1.0,          // 密集权重系数 a（v4 起仅供 details 参考，不进基准公式）
@@ -2482,6 +2484,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);
