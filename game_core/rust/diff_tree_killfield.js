@@ -141,31 +141,45 @@ function beatsAtWeight(defWeight, betterSafety, worseSafety, runs) {
     VT.setKillfieldWeight(defWeight);
     return VT.pickBestChildByRolloutTotal([worseSafeButBetterTile, safeInDeadEnd]) === worseSafeButBetterTile;
 }
-// v105 语义：地形能压过多大的安全分差，由“安全性因子”自动决定——
-//   子弹远（或不构成威胁）→ 因子接近 1，地形可主导位置决策；
-//   子弹近 → 因子被压到下限 0.15，只做小幅引导，压不过安全分差。
-const bigGap=158;    // ≈4 帧安全分
-VT.setThreatEtaOverride(10);          // 假装最近威胁还有 10 秒（=子弹很远）
-if (beatsAtWeight(1, 3000+bigGap, 3000) !== true) {
-    throw new Error('with the bullet far away, terrain guidance should be able to decide position');
-}
-VT.setThreatEtaOverride(0.5);         // 假装 0.5 秒后挨打（=子弹贴脸）
-const safeButFar = mk(70, tileCenter(0), 5, 3000 + bigGap);
-const riskyButToward = mk(71, tileCenter(1), 5, 3000);
-riskyButToward.inputs = {forward:true,back:false,left:false,right:false};
-VT.setCurrentTile(0,0);
-VT.setKillfieldWeight(1);
-if (VT.pickBestChildByRolloutTotal([riskyButToward, safeButFar]) !== safeButFar) {
-    throw new Error('with the bullet about to hit, dodge safety must win over terrain guidance');
-}
-const sfNear = VT.debugObjective([safeButFar, riskyButToward]).killfieldSafetyFactor;
+// v107 语义：地形加成的量级由**当前安全水平**决定（不再依赖几何估计的时间因子，
+//   因为实测几何估计会把“打不到我的弹”也当成威胁，把因子常年压在下限 0.15，
+//   导致“子弹远时该主导”整个失效 —— 主人录制数据里抓到的）。
+//   · 局面安全（安全分接近满分）：地形可以主导位置决策；
+//   · 局面危险（安全分只剩一两成）：地形被压成很小的零头，不抢躲弹的主导权。
+const full = 75 * 39.4784;   // 2960.9
 VT.setThreatEtaOverride(null);
-const sfFar = VT.debugObjective([safeButFar, riskyButToward]).killfieldSafetyFactor;
-if (!(sfNear < sfFar)) {
-    throw new Error('safety factor must shrink as the bullet gets closer (' + sfNear + ' vs ' + sfFar + ')');
+VT.setKillfieldWeight(1);
+
+// ① 安全局面：两个候选都在 2960 上下（无威胁），地形增益应能决定选路
+const safeStay = mk(200, tileCenter(0), 5, 2961);
+const safeToward = mk(201, tileCenter(1), 5, 2961);
+safeToward.inputs = {forward:true,back:false,left:false,right:false};
+VT.setCurrentTile(0,0);
+if (VT.pickBestChildByRolloutTotal([safeStay, safeToward]) !== safeToward) {
+    throw new Error('in a safe position, terrain guidance should decide the movement');
 }
-if (sfNear < 0.15 - 1e-9) {
+const sfSafe = VT.debugObjective([safeStay, safeToward]).killfieldSafetyFactor;
+if (sfSafe < 0.9) {
+    throw new Error('safety factor must be near 1 when the position is safe, got ' + sfSafe);
+}
+
+// ② 危险局面：安全分只剩一两成，地形加成必须被压成小零头
+const dangerStay = mk(210, tileCenter(0), 5, 600);   // 更安全但停在死角
+const dangerToward = mk(211, tileCenter(1), 5, 420); // 朝安全地皮、但安全分低 180
+dangerToward.inputs = {forward:true,back:false,left:false,right:false};
+const sfDanger = VT.debugObjective([dangerStay, dangerToward]).killfieldSafetyFactor;
+if (sfDanger > 0.5) {
+    throw new Error('safety factor must shrink when the position is dangerous, got ' + sfDanger);
+}
+if (sfDanger < 0.15 - 1e-9) {
     throw new Error('safety factor must never drop below the 0.15 floor');
+}
+const capDanger = VT.debugObjective([dangerStay, dangerToward]).killfieldScale;
+if (capDanger > 600 * 0.36) {
+    throw new Error('terrain bonus must stay a small fraction of the live safety level, cap=' + capDanger);
+}
+if (VT.pickBestChildByRolloutTotal([dangerToward, dangerStay]) !== dangerStay) {
+    throw new Error('when the position is dangerous, dodge safety must win over terrain guidance');
 }
 VT.setKillfieldWeight(1);
 VT.setLiveProjectilesNow(0);

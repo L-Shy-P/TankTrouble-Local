@@ -1,6 +1,24 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v107（按主人录制数据逐帧分析出的三个真 bug）：
+ *   主人录了 4 段关键场景导出，逐帧对比「真实世界 × 树的决策 × 预测」后抓到：
+ *   ① **安全性因子用错了量**：它拿“候选里最高 subtreeBest（含后代）”衡量
+ *      “当前有多危险”。实测：某候选自身只有 169 分（子弹贴脸、7 帧后就死），
+ *      但子树里有个 3364 分的节点 → 被判成“很安全”→ 因子=1.0 → 杀戮场加成
+ *      740 分全量生效 → 压过所有安全分差 → AI 朝危险方向走。
+ *      改成用**本段自己的 75 帧分**衡量。
+ *   ② **地形加成的量级不随安全水平缩放**：子弹贴脸时各候选安全分只剩几分
+ *      （实测 6.7 / 5.7 / 2.8），而固定上限 × 因子下限 = 740×0.15 ≈ 111 分
+ *      —— 比安全分本身大十几倍，AI 在必死局面里还朝“地形更好”的方向走。
+ *      改成 min(满分/4, 候选里最高本段分 × 35%)：安全分 2960 → 最多 740 分；
+ *      安全分 171 → 最多 60 分；安全分 6.7 → 最多 2 分。彻底不干扰躲弹，
+ *      也不归零（主人要求的“不能过低”）。
+ *   ③ **几何威胁判据过灵敏**：只要附近有弹“在接近”就把时间因子打成 0。
+ *      实测：候选安全分满分 2960.9（完全没威胁），安全因子却常年是 0.150
+ *      → 杀戮场引导被永久压死，“提前走位”整个失效。
+ *      危险半径 12→5 米，并要求“确实朝我飞”（接近速度占比 > 50%）；
+ *      另外安全分已接近满分（≥85%）时不再被几何估计压制。
  * 2026-09-07 v106（关键场景录制 + 动作锁定 + 卡墙黑名单）：
  *   ① 录制器（主人要的工具）：点面板「● 记录」开始、再点结束，「导出录制」拿
  *      JSON。逐帧记录「真实世界（坦克/子弹/死亡）×树的决策（执行哪个操作、
@@ -612,7 +630,8 @@
             predDeathFrame: node ? node.fullDeathFrame : null,
             predStatus: node ? node.status : null,
             predAuthority: node ? (node.deathAuthority || '') : '',
-            segEndErr: node && node._segEndErr ? node._segEndErr : null,
+            segEndErr: (node && node._segEndErr) ? node._segEndErr
+                : (tree && tree._lastSegEndErr ? tree._lastSegEndErr : null),
             nodes: tree ? tree.nodeCount : -1,
             threats: (tree && tree.threats) ? tree.threats.length : 0,
             threatIds: (tree && tree.threatIds) || '',
@@ -748,7 +767,7 @@
         var dPos = Math.sqrt(dx * dx + dy * dy);
         var dRot = realTankState.rot - pred.rot;
         dRot = Math.atan2(Math.sin(dRot), Math.cos(dRot));
-        node._segEndErr = {
+        var errInfo = {
             op: node.opName || '?',
             t: Math.round(_timeAcc * 1000) / 1000,
             dPos: Math.round(dPos * 1000) / 1000,
@@ -758,6 +777,10 @@
             predDeath: node.fullDeathFrame,
             status: node.status
         };
+        node._segEndErr = errInfo;
+        // v107：也要挂在树上——commit 之后 commitNode 就换成新节点了，
+        // 逐帧录制读的是新节点，挂在旧节点上会丢（实测 segEndErr 样本数为 0）。
+        tree._lastSegEndErr = errInfo;
     }
 
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
@@ -3675,7 +3698,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             for (var i = 0; i < children.length; i++) {
                 var c = children[i];
                 if (!c || c.invalid || c.exhausted || c === exclude) continue;
-                var v = Number(c.subtreeBest) || 0;
+                // v107 关键修复：必须用**本段自己的分数**（75 帧 rollout 总分），
+                // 不能用含后代的 subtreeBest。
+                // 实测（主人录制的死亡场景）：某个候选本身只有 169 分（子弹已经贴脸、
+                // 7 帧后就死），但它的子树里有个 3364 分的节点，于是 subtreeBest=3364
+                // → “安全水平”被判成 1.0 → 安全性因子=1.0 → 杀戮场加成 740 分全量生效
+                // → 压过所有安全分差 → AI 朝危险方向走。这正是主人看到的
+                // “安全分和杀戮场在打架、突然往危险方向移动”。
+                var v = fullRolloutTotalOf(c);
+                if (!isFinite(v)) v = 0;
                 if (v > best) best = v;
             }
         }
@@ -3686,7 +3717,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var t = Math.max(0, Math.min(1, eta / 4.0));
             timeFactor = t * t * t;   // 三次方：越近衰减越快（1.5 秒时只剩 ~5%）
         }
-        var sf = Math.min(level, timeFactor);
+        // v107：安全分已经接近满分（≥85%）说明评分模块判定“事实上没有威胁”，
+        // 这时不该被几何估计（“附近有弹在靠近”）压住——几何估计只是安全分
+        // 还没降下来时的提前感知，不能反过来盖过权威判定。
+        // 主人录制数据里正是这里出的问题：候选 2960.9 满分，安全因子却是 0.150。
+        var sf = (level >= 0.85) ? level : Math.min(level, timeFactor);
         return 0.15 + 0.85 * sf;
     }
 
@@ -3795,10 +3830,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** v104：几何粗判——最近一颗正朝坦克飞的子弹，还有几秒进到危险距离。
      *  危险距离取 DANGER_R=30 米（3 格）：30 米外先占位是安全的。
      *  只用位置与速度的接近分量，不考虑反弹；反弹弹由威胁表的 ① 兜底。 */
-    // v105：危险半径 12 米（约一格多一点）。之前取 30 米太保守——
-    // 25 米外横着飞的弹根本打不到，却把安全性因子压到下限，导致
-    // “子弹远时杀戮场该主导”变成“几乎不引导”（实测踩到）。
-    var DANGER_R_M = 12;
+    // v107：危险半径 5 米（半格多一点），并要求子弹“确实朝我飞”。
+    // 演进过程：30 米 → 12 米 → 5 米。前两版太保守，只要附近有弹在接近就
+    // 判定“马上挨打”，安全性因子的时间因子恒为 0 → 安全因子常年卡在下限
+    // 0.150（主人录制数据实测：候选安全分满分 2960.9、完全没威胁时也是 0.15）
+    // → 杀戮场引导被永久压死，“提前走位”整个失效。
+    var DANGER_R_M = 5;
     function geometricThreatEtaSec() {
         var adapter = _lastAdapter;
         if (!adapter || !adapter.getProjectiles) return null;
@@ -3819,7 +3856,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (vmag <= 0.01) continue;
             var closing = -(dx * vx + dy * vy) / d;            // >0 = 正在接近
             if (closing <= 0.01) continue;                     // 不接近：多近都不算威胁
-            if (d <= DANGER_R_M) return 0;                     // 近且在接近：立刻算“已经该躲了”
+            // 还要“瞄得够准”：接近速度占全速的比例 < 50%（夹角 > 60°）时，
+            // 那只是擦边/横穿，不该把杀戮场引导压死。
+            if (closing / vmag < 0.5) continue;
+            if (d <= DANGER_R_M) return 0;                     // 近且确实朝我来：算“已经该躲了”
             var eta = (d - DANGER_R_M) / closing;
             if (eta < 0 || !isFinite(eta)) continue;
             if (best === null || eta < best) best = eta;
@@ -4013,14 +4053,33 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *    子弹远 → 各操作安全分差很小（几分到几十分）→ 地形偏好赢，AI 提前挪窝；
      *    子弹近 → 安全分差几百上千 → 躲弹赢，地形压不过。
      *  权重 100% ≈ 愿意为地形让出一帧安全分；400% ≈ 四帧。 */
-    function killfieldScaleOf() {
-        // v105：取“无威胁满分”的 1/4（约 740 分）做单位。这个数要同时满足两头：
-        //   · 子弹远时：权重 100% 下地形加成 ≈ 740 × 方向增益，足以压过
-        //     “转向被墙多挡”这类几百分的安全分差，能把坦克挪去安全地形；
-        //   · 子弹贴脸时：安全性因子压到下限 0.15，加成 ≈ 111 分（方向增益=1 时），
-        //     压不过真正的安全分差 → 躲弹优先。
-        // 取满分会太大（下限也有 444 分，贴脸时还在抢方向盘）。
-        return Math.max(1, EVAL_FRAMES * 39.4784 / 4);
+    function killfieldScaleOf(children, exclude) {
+        // v107：两个上限一起用，取小的那个：
+        //   ① 固定上限 = 无威胁满分的 1/4（约 740 分）——子弹远时地形足以
+        //      压过“转向被墙多挡”这类几百分的安全分差，能把坦克挪去安全地形；
+        //   ② 动态上限 = 候选里**最高本段安全分 × 35%**——`地形加成永远只是
+        //      当前安全水平的一个零头。
+        //
+        // 为什么必须有 ②（主人录制数据里抓到的真凶）：
+        //   子弹贴脸时各操作的安全分只剩几分到几十分（实测 6.7 / 5.7 / 2.8），
+        //   而固定上限 × 安全性因子下限 = 740×0.15 ≈ 111 分 —— 地形加成比
+        //   安全分本身还大十几倍，于是 AI 在“已经必死”的局面里还在朝着
+        //   “地形更好的方向”走，看起来就是“突然往危险方向移动”。
+        //   加上 ② 之后：安全分 171 → 地形最多 ~60 分；安全分 6.7 → 最多 ~2 分，
+        //   彻底不干扰躲弹，但也不会归零（符合主人“不能过低”的要求）。
+        var best = 0;
+        if (children && children.length) {
+            for (var i = 0; i < children.length; i++) {
+                var c = children[i];
+                if (!c || c.invalid || c.exhausted || c === exclude) continue;
+                var v = fullRolloutTotalOf(c);
+                if (!isFinite(v)) continue;
+                if (v > best) best = v;
+            }
+        }
+        var fixedCap = EVAL_FRAMES * 39.4784 / 4;
+        var liveCap = best * 0.35;
+        return Math.max(1, Math.min(fixedCap, liveCap > 0 ? liveCap : 1));
     }
 
     /** argmax 平局裁定：alive > dead；双 dead 取段长长者（活最久）。
@@ -6624,5 +6683,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v106：录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
