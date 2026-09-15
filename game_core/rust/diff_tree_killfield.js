@@ -17,35 +17,48 @@ function mk(id,x,y,total) {
     n.segmentScore=total;n.baseExt=0;n.rolloutTotal=total;n.subtreeBest=total;
     return n;
 }
-// 3x1 maze: tile 0 is a dead end, tiles 1/2 are open.
+// 7x1 走廊：两端是死胡同，锚点（最安全地皮）应落在中间。
+const CW=7;
 const fakeMaze={
-    getWidth:function(){return 3;},
+    getWidth:function(){return CW;},
     getHeight:function(){return 1;},
-    isPositionInsideMaze:function(){return true;},
-    getDeadEndPenalty:function(tile){return tile.x===0?5:0;}
+    isPositionInsideMaze:function(t){return t && t.y===0 && t.x>=0 && t.x<CW;},
+    getDeadEndPenalty:function(){return 0;}
 };
 VT.setKillfieldEnabled(true);
 VT.setKillfieldWeight(1);
 VT.ensureKillfield(fakeMaze);
 VT.setLiveProjectilesNow(1);
 VT.clearMoveTarget();
-VT.setCurrentTile(0,0);   // v102: 杀戮场按“相对当前格子的安全提升”打分
+VT.setCurrentTile(0,0);      // 当前站在格 0（贴墙死角）
 
-const deadTile=mk(1,5,5,50);    // tile 0: dangerous
-const openTile=mk(2,25,5,50);   // tile 2: safe
+const deadTile=mk(1,5,5,50);      // 格 0：贴墙死角
+const openTile=mk(2,45,5,50);     // 格 4：靠中间
 if(VT.killfieldScoreAtTank(openTile.simState.tank)<=VT.killfieldScoreAtTank(deadTile.simState.tank)) {
-    throw new Error('killfield should rate open tile safer than dead end');
+    throw new Error('killfield should rate the middle of the corridor safer than a dead end');
 }
 if(VT.pickBestChildByRolloutTotal([deadTile,openTile])!==openTile) {
     throw new Error('equal safety scores should prefer higher killfield terrain score');
 }
-// v102: 当前格就是安全格时，再往同分格走不该有加成（静止 0 分）。
-VT.setCurrentTile(2,0);
-if(VT.pickBestChildByRolloutTotal([deadTile,openTile])!==openTile) {
-    throw new Error('killfield must not reward moving backwards into a worse tile');
+const anchorMid = VT.getKillfieldAnchorTile();
+if (!anchorMid || anchorMid.x < 2 || anchorMid.x > CW-3) {
+    throw new Error('7x1 corridor: anchor must sit near the middle, got ' + JSON.stringify(anchorMid));
 }
-if(VT.killfieldScoreAtTank(deadTile.simState.tank)>=VT.killfieldScoreAtTank(openTile.simState.tank)) {
-    throw new Error('killfield score at current safe tile must still rank terrain correctly');
+// v105：方向增益——站在死角时，“朝安全地皮走的一步”必须赢“原地不动”。
+VT.setCurrentTile(0,0);
+const stayInDanger=mk(3,5,5,50);
+const walkToward=mk(4,15,5,50);            // 格 1：朝中间挪了一步
+walkToward.inputs={forward:true,back:false,left:false,right:false};
+if(VT.pickBestChildByRolloutTotal([stayInDanger,walkToward])!==walkToward) {
+    throw new Error('with bullets: terrain guidance must prefer stepping toward the safest plot');
+}
+// 站在安全地皮上时，“往死角方向走”必须得负分（输给原地不动）。
+VT.setCurrentTile(anchorMid.x, anchorMid.y);
+const stayAtAnchor=mk(5,(anchorMid.x)*10+5,5,50);
+const walkAway=mk(6,5,5,50);               // 退回格 0（死角）
+walkAway.inputs={forward:true,back:false,left:false,right:false};
+if(VT.pickBestChildByRolloutTotal([walkAway,stayAtAnchor])!==stayAtAnchor) {
+    throw new Error('terrain guidance must not reward walking away from the safest plot');
 }
 VT.setCurrentTile(0,0);
 
@@ -128,11 +141,31 @@ function beatsAtWeight(defWeight, betterSafety, worseSafety, runs) {
     VT.setKillfieldWeight(defWeight);
     return VT.pickBestChildByRolloutTotal([worseSafeButBetterTile, safeInDeadEnd]) === worseSafeButBetterTile;
 }
-const tinyGap=20;    // ≈0.5 帧
-const bigGap=158;    // ≈4 帧（权重上限换来的取舍空间）
-if (beatsAtWeight(0.1, tinyGap+0, tinyGap) === false) { /* 允许，低权重压不过 */ }
-if (beatsAtWeight(4, 3000+bigGap, 3000) === true) {
-    throw new Error('killfield must never override a full frame of safety difference (dodge safety first)');
+// v105 语义：地形能压过多大的安全分差，由“安全性因子”自动决定——
+//   子弹远（或不构成威胁）→ 因子接近 1，地形可主导位置决策；
+//   子弹近 → 因子被压到下限 0.15，只做小幅引导，压不过安全分差。
+const bigGap=158;    // ≈4 帧安全分
+VT.setThreatEtaOverride(10);          // 假装最近威胁还有 10 秒（=子弹很远）
+if (beatsAtWeight(1, 3000+bigGap, 3000) !== true) {
+    throw new Error('with the bullet far away, terrain guidance should be able to decide position');
+}
+VT.setThreatEtaOverride(0.5);         // 假装 0.5 秒后挨打（=子弹贴脸）
+const safeButFar = mk(70, tileCenter(0), 5, 3000 + bigGap);
+const riskyButToward = mk(71, tileCenter(1), 5, 3000);
+riskyButToward.inputs = {forward:true,back:false,left:false,right:false};
+VT.setCurrentTile(0,0);
+VT.setKillfieldWeight(1);
+if (VT.pickBestChildByRolloutTotal([riskyButToward, safeButFar]) !== safeButFar) {
+    throw new Error('with the bullet about to hit, dodge safety must win over terrain guidance');
+}
+const sfNear = VT.debugObjective([safeButFar, riskyButToward]).killfieldSafetyFactor;
+VT.setThreatEtaOverride(null);
+const sfFar = VT.debugObjective([safeButFar, riskyButToward]).killfieldSafetyFactor;
+if (!(sfNear < sfFar)) {
+    throw new Error('safety factor must shrink as the bullet gets closer (' + sfNear + ' vs ' + sfFar + ')');
+}
+if (sfNear < 0.15 - 1e-9) {
+    throw new Error('safety factor must never drop below the 0.15 floor');
 }
 VT.setKillfieldWeight(1);
 VT.setLiveProjectilesNow(0);

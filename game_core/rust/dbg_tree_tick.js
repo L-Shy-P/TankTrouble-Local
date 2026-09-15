@@ -17,6 +17,16 @@
  *
  * 注意：这里的适配器是「简化物理」（匀速直行 + 原地转向 + 撞墙夹住），
  * 只用来验证**决策与性能**，不替代游戏里的 Box2D 融合世界。
+ *
+ * 已知限制（别被误导）：
+ *   本脚本里「运行中新增子弹 → 树把该弹纳入威胁」这条链路没有跑通
+ *   （maxTreeThreats 恒为 0），原因在脚本自身的时序/stub，不是产品问题——
+ *   真实游戏导出的诊断 JSON 里 threats=10、threatIds 非空，链路是好的。
+ *   所以：
+ *     · 「空场会不会走」用本脚本验证（已通过）；
+ *     · 「有子弹时地形与安全的配比」用 debugObjective 的数值验证
+ *       （安全性因子、方向增益、地形加成）；
+ *     · 「子弹逼近时是否真的躲」必须到真实游戏里看。
  */
 'use strict';
 const fs = require('fs');
@@ -87,9 +97,14 @@ function makeAdapter() {
     getTankState: () => ({ x: tank.x, y: tank.y, rot: tank.rot }),
     getProjectiles: () => projectiles.slice(),
     getMaze: () => maze,
+    // 按子弹真实速度方向生成轨迹（以前写死 +x，朝左飞的弹会被当成远离，
+    // 评分模块就看不到它，诊断结论会失真——实测踩到）。
     getProjectilePaths: () => projectiles.map(function (p) {
       const pth = [];
-      for (let i = 0; i < 80; i++) pth.push({ x: p.x + i * 0.4, y: p.y });
+      const vx = Number(p.speedX) || 0, vy = Number(p.speedY) || 0;
+      const vm = Math.sqrt(vx * vx + vy * vy) || 1;
+      const stepX = vx / vm * 0.4, stepY = vy / vm * 0.4;
+      for (let i = 0; i < 80; i++) pth.push({ x: p.x + stepX * i, y: p.y + stepY * i });
       return { id: p.id, path: pth, speed: p.speed, x: p.x, y: p.y };
     }),
     checkDeath: () => false,
@@ -207,9 +222,11 @@ VT.setLiveProjectilesNow(0);
 
 const opCount = {};
 let worstTickMs = 0, totalMs = 0;
-let navTicks = 0, minThreatInSec = null;
+let navTicks = 0, minThreatInSec = null, maxTreeThreats = 0, lastThreatIds = '', lastLive = -1;
 const navLog = [];   // [tick, 还有几秒挨打, 导航是否激活]
-const bulletAt = Math.floor(TICKS * 0.3);
+// 子弹投放时机：默认 30% 处；--bulletat 0 表示开局就有弹（用来对比
+// “运行中新增子弹”这条路径是否被脚本正确复现）。
+const bulletAt = argNum('bulletat', Math.floor(TICKS * 0.3));
 
 for (let tickNo = 0; tickNo < TICKS; tickNo++) {
   if (BULLETS && tickNo === bulletAt) {
@@ -250,6 +267,9 @@ for (let tickNo = 0; tickNo < TICKS; tickNo++) {
   const op = tree && tree.commitNode ? tree.commitNode.next : null;
   const name = op ? (op.opName || '?') : '-';
   opCount[name] = (opCount[name] || 0) + 1;
+  if (tree && tree.threats && tree.threats.length > maxTreeThreats) maxTreeThreats = tree.threats.length;
+  if (tree && tree.threatIds) lastThreatIds = String(tree.threatIds);
+  if (tree && typeof tree._liveProjectileCount === 'number') lastLive = tree._liveProjectileCount;
 
   // v104：记录“子弹还剩几秒打到”和“杀戮场是否在接管走位”，用来检查
   // “子弹远→提前占位、子弹近→让位躲弹”这条切换是不是真的发生。
@@ -291,7 +311,9 @@ console.log('targetReroutes    =', (tree && tree.stats && tree.stats.targetRerou
   '（目标变化触发的全树重算；正常应只在切换目标时 +1）');
 console.log('moveTargetWrites  =', VT.getMoveTargetWrites ? VT.getMoveTargetWrites() : 'n/a');
 if (BULLETS) {
-  console.log('terrainNavTicks   =', navTicks, '/', TICKS,
+  console.log('maxTreeThreats    =', maxTreeThreats, '（树自己看到的威胁数；0 = 树没吃到子弹）');
+console.log('lastThreatIds     = "' + lastThreatIds + '"  lastLive =', lastLive);
+console.log('terrainNavTicks   =', navTicks, '/', TICKS,
     '（杀戮场接管走位的帧数；子弹逼近时应自动停掉）');
   console.log('minThreatInSec    =', minThreatInSec,
     '（过程中最近的一次“还有几秒挨打”；null = 全程都打不到）');

@@ -1,6 +1,9 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v93（配合树 v105）：
+ *   杀戮场权重的含义改回“强度”：它与安全分**时刻共存**，子弹远时主导位置
+ *   决策、子弹近时自动退成小幅引导（有下限）；开关与它控制的滑块紧挨着。
  * 2026-09-07 v92（配合树 v104 / ai_vantage v9）：
  *   杀戮场权重改为“提前量”（只管有子弹时：子弹还有几秒打到就先占位）；
  *   新增“懒惰倾向”滑块，单独控制无子弹时空场走位的积极程度。
@@ -116,7 +119,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v92';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v93';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -2338,10 +2341,13 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-rustMinimal"> Rust 简化选路</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-targetMix"> 混合选路</label>') +
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
+                // v105：开关和它控制的滑块必须紧挨着，一一对应：
+                //   杀戮场引导 → 杀戮场权重（强度）
+                //   空场安全感知 → 懒惰倾向（挪窝门槛）
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-killfield"> 杀戮场引导</label>') +
+                expItem('强度 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-emptyFieldSafety"> 空场安全感知</label>') +
                 expItem('懒惰倾向 <input type="range" data-act="exp-emptyFieldLaziness" min="0" max="100" step="5" value="0" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-emptyFieldLaziness">0%</span>') +
-                expItem('杀戮场权重 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
             ) +
@@ -2439,7 +2445,7 @@
                 'exp-killfield': '杀戮场引导（静态地形层）：没有用户点击目标时，用“到最安全地皮的步数 + 离墙距离 + 死路/出口数”给全图打分，引导 AI 往更安全、更好跑的位置移动。用户点击或按 / 的寻路优先级更高；后续可再叠加子弹/对手射击覆盖。',
                 'exp-emptyFieldSafety': '空场安全感知。开启后：没有子弹、也没有用户寻路目标时，AI 会自己挑一块最安全的地皮（离危险远、出口多、离墙远、开阔的中心区域）走过去，走到就停；走得多积极由下面的“懒惰倾向”决定。关闭后：无子弹无寻路时保持静止。杀戮场引导关闭时此开关变灰且不生效。',
                 'exp-emptyFieldLaziness': '懒惰倾向（只管没有子弹时的那一段，和上面“杀戮场权重”管的有子弹行为互不影响）。它是“当前格要比现在安全多少才值得挪窝”的门槛：0% = 只要当前不是最安全的地皮就走过去（最积极）；50% = 中等安全的地方就懒得折腾；100% = 只有贴墙、死路这种明显危险的地方才挪窝。想让它一开局就积极占好位置就调低，想让它少走动就调高。',
-                'exp-killfieldWeight': '杀戮场权重 = 提前量（0~400%，默认 100%，只管有子弹时的行为）。它决定“最近那颗会打到我的子弹还剩几秒”的时候开始提前占位：100% ≈ 2.5 秒（子弹还有约 50 米就先挪到更安全的地形），400% ≈ 4 秒上限。子弹一旦进了这个提前量，杀戮场立刻交出驾驶权，由树专心躲弹。0% = 不提前占位（只有空场安全感知那条通道还会走）。',
+                'exp-killfieldWeight': '杀戮场强度（0~400%，默认 100%，只管有子弹时的行为）。杀戮场分与安全分是**时刻共存**的：子弹远时各操作的安全分彼此差别很小，杀戮场主导位置决策（提前挪到更安全的地形）；子弹近时安全分差别拉开，杀戮场自动退成小幅引导（最低保留 15%，不会完全消失，也不会抢躲弹的主导权）。调大 = 更愿意为地形让出安全分，调小 = 更保守。',
                 'exp-autoPath': '自动寻路。开启后，如果 AI 当前没有用户指定目标，它会自动寻找最近的边界/封闭房子并过去，方便压力测试；有用户点击目标时不会自动寻路。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
