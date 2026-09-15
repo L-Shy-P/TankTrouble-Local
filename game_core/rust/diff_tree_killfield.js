@@ -103,20 +103,23 @@ stepIn.inputs={forward:true,back:false,left:false,right:false};
 if(VT.killfieldScoreAtTank(stepIn.simState.tank)<=VT.killfieldScoreAtTank(atLeftEnd.simState.tank)){
     throw new Error('corridor: tile 1 must score safer than the wall-side dead end tile 0');
 }
+// v104 语义变化：地形打分通道现在**只在有子弹时**生效（无弹的空场改走
+// “去最安全地皮”的导航目标通道，见文件末尾的专项断言）。所以这里用“有子弹”
+// 来验证打分通道本身的方向性：它必须把坦克往更安全的一格带，而不是往回带。
+VT.setEmptyFieldSafety(false);
+VT.setLiveProjectilesNow(1);
 VT.setCurrentTile(0,0);
 if(VT.pickBestChildByRolloutTotal([atLeftEnd,stepIn])!==stepIn){
-    throw new Error('empty-field safety must pull the tank out of the wall-side dead end');
+    throw new Error('with bullets, terrain guidance must pull toward the safer tile');
 }
-// 反向验证：已经在安全格上时，退回墙角不该有加成。
+// 反向验证：已经在安全格上时，退回墙角必须得负分。
 VT.setCurrentTile(1,0);
 if(VT.pickBestChildByRolloutTotal([stepIn,atLeftEnd])!==stepIn){
-    throw new Error('empty-field safety must not walk back into the wall-side dead end');
+    throw new Error('terrain guidance must not walk back into the wall-side dead end');
 }
 // 权重必须真的控制“地形偏好能压过多大的安全分差”：安全分差越大，能翻盘所需
 // 的权重越高。这里用两档安全分差（0.2 / 0.5 帧）验证单调性，而不是钉死具体数值
 // ——真安全分差必须永远赢过地形偏好，这是躲弹 AI 的底线。
-VT.setEmptyFieldSafety(false);   // 有弹通道
-VT.setLiveProjectilesNow(1);
 VT.setCurrentTile(0,0);
 function beatsAtWeight(defWeight, betterSafety, worseSafety, runs) {
     const safeInDeadEnd=mk(30+runs, tileCenter(0), 5, betterSafety);
@@ -200,6 +203,31 @@ if(!t2 || t2.x!==anchor.x || t2.y!==anchor.y){
 }
 VT.setEmptyFieldSafety(false);
 VT.setKillfieldEnabled(false);
+// ---- v104：懒惰倾向（只影响空场那一段）----
+// 0% = 只要当前不是最安全地皮就走；100% = 只有明显危险（安全分差 > 0.5）才挪。
+{
+    VT.setKillfieldEnabled(true);
+    VT.setKillfieldWeight(1);
+    VT.setEmptyFieldSafety(true);
+    VT.setLiveProjectilesNow(0);
+    VT.ensureKillfield(room);
+    VT.setCurrentTile(1,5);            // 贴墙，明显不如锚点安全
+    VT.setEmptyFieldLaziness(0);
+    if (VT.killfieldAutoTarget() === null) {
+        throw new Error('laziness 0 must relocate whenever the tank is not on the safest tile');
+    }
+    // 站在几乎没有提升的格子上：懒惰拉满时就不该再折腾。
+    const tiny = VT.getKillfieldAnchorTile();
+    VT.setCurrentTile(tiny.x, tiny.y);
+    VT.setEmptyFieldLaziness(1);
+    if (VT.killfieldAutoTarget() !== null) {
+        throw new Error('laziness 1 must not relocate when already on the safest tile');
+    }
+    VT.setEmptyFieldLaziness(0);
+    VT.setEmptyFieldSafety(false);
+    VT.setLiveProjectilesNow(1);
+}
+
 // ---- v103 性能回归：目标没变时不得重复写入（否则每帧全树重算）----
 // 真凶记录：syncKillfieldAutoTarget 曾经在“不需要目标”时每帧无条件
 // clearMoveTarget()，而 clearMoveTarget 无条件写脏标记 → tick 每帧跑一次

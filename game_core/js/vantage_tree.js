@@ -1,6 +1,18 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v104（提前走位 + 两个滑块分工）：
+ *   ① 杀戮场权重只管**有子弹**时的行为，含义改为“提前量”：
+ *      权重 100%（默认）≈ 子弹还有 2.5 秒打到时就开始占位，400% ≈ 4 秒上限；
+ *      子弹一旦进这个提前量，立刻交出驾驶权给树躲弹。
+ *      旧版按“候选安全分跨度的一半”缩放，方向正好反了：子弹越远、跨度越小、
+ *      地形偏好越弱 → AI 只有等子弹逼近才动（主人实测“子弹靠近才动”）。
+ *   ② 无子弹时的空场走位单独由新滑块“懒惰倾向”控制，不再复用杀戮场权重。
+ *   ③ 杀戮场分改成按连续位置采样（双线性插值）：一段操作只走 2~6 米、跨不过
+ *      10 米的格子，只查格子表的话一步之内分数不变 → 提前走位永远分不出胜负。
+ *   ④ 威胁提前量同时用两条判据：威胁表的“首入圈时刻”（精确但只看得到视界内，
+ *      约 3 秒）与子弹位置/速度的几何估计（粗但早）。只看前者时导航会滞后到
+ *      子弹进圈才关（实测踩到）。
  * 2026-09-07 v103（空场真的会走 + 每帧全树重算的真凶）：
  *   ① 性能真凶：clearMoveTarget 无条件写“目标已变”脏标记，而空场/自动目标
  *      逻辑在“不需要目标”时每帧都会来清一次 → tick 每帧跑一次
@@ -461,6 +473,9 @@
     var _killfieldAnchorIdx = -1;            // v103：选出的“最安全地皮”格下标
     var _killfieldAnchorTile = null;          // v103：上面那块地皮的格子坐标（空场引导的目标）
     var _autoTarget = null;                   // v103：杀戮场自动寻路目标（与用户点击目标分开）
+    var _emptyFieldLaziness = 0;              // v104：空场“懒惰倾向”0~1（0=只要不是最安全就走，1=只在明显危险时才走）
+    var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
+    var _lastTankState = null;                // v104：本帧坦克位置（几何威胁提前量用）
     var _targetMixEnabled = false;           // v94：混合选路——目标分直接参与总分
     var _targetMixRatio = 0.5;               // v95：目标分占比系数（0~3 = 0~300%，仅混合模式生效）
     var _retreatNodes = 3;                   // v89：真死回退最多向上多少节点
@@ -494,7 +509,8 @@
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         scoreOnlyPlanned: false,          // v98：评分范围仅限操作时长（默认固定75帧）
         killfieldEnabled: true,           // v100：杀戮场地形引导
-        killfieldWeight: 1.0,             // v102：杀戮场权重（0~4）
+        killfieldWeight: 1.0,             // v102：杀戮场权重（0~4，只管有子弹时的行为）
+        emptyFieldLaziness: 0,            // v104：空场懒惰倾向（0~1）
         emptyFieldSafety: false,          // v101：空场安全感知
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
@@ -3320,6 +3336,34 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return killfieldScoreAtTile(tx, ty);
     }
 
+    /** v104：离墙/到锚点的分沿连续位置做双线性插值。
+     *
+     *  为什么必须连续：一段操作只有 3~30 帧、走 2~6 米，跨不过 10 米的格子。
+     *  只按格子查表的话，一步之内分数完全不变 → 地形引导一分都拿不到 →
+     *  AI 站着不动，直到子弹逼近、安全分自己拉开差距才肯走（主人实测的
+     *  “子弹靠近才动”）。插值之后，哪怕只挪 2 米，朝安全区的一步也会得分。 */
+    function killfieldScoreAtPoint(x, y) {
+        if (!_killfieldGrid) return -Infinity;
+        var tileM = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
+            ? Constants.MAZE_TILE_SIZE.m : 10;
+        // 格子分代表该格中心的分，所以先把坐标平移到“格子中心坐标系”。
+        var fx = x / tileM - 0.5;
+        var fy = y / tileM - 0.5;
+        var i0 = Math.floor(fx), j0 = Math.floor(fy);
+        var tx = fx - i0, ty = fy - j0;
+        function clamped(i, j) {
+            if (i < 0) i = 0; else if (i > _killfieldW - 1) i = _killfieldW - 1;
+            if (j < 0) j = 0; else if (j > _killfieldH - 1) j = _killfieldH - 1;
+            return killfieldScoreAtTile(i, j);
+        }
+        var s00 = clamped(i0, j0), s10 = clamped(i0 + 1, j0);
+        var s01 = clamped(i0, j0 + 1), s11 = clamped(i0 + 1, j0 + 1);
+        if (!isFinite(s00) || !isFinite(s10) || !isFinite(s01) || !isFinite(s11)) return -Infinity;
+        var a = s00 + (s10 - s00) * tx;
+        var b = s01 + (s11 - s01) * tx;
+        return a + (b - a) * ty;
+    }
+
     /** v102：把 (tileX, tileY) 换成杀戮场引导分；越界时退回 0.5（中立）。 */
     function killfieldScoreAtTileSafe(tx, ty) {
         if (!_killfieldGrid) return -Infinity;
@@ -3327,18 +3371,24 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return killfieldScoreAtTile(tx, ty);
     }
 
-    /** v100：统一目标分：
+    /** v100 / v104：统一目标分。
      *  用户指定目标时，目标优先，杀戮场不抢方向；
-     *  没有用户目标时，由杀戮场引导去更安全的地形（有弹；无弹看空场开关）。 */
+     *  没有用户目标时，返回**这个操作把坦克往安全地形挪了多少**
+     *  （终点分 − 当前分，连续采样，约 −1~1）。静止永远是 0 分，
+     *  所以“地形偏好”不会变成“站着不动也加分”。 */
     function objectiveScore(node) {
         if (!node || !node.simState || !node.simState.tank) return -Infinity;
         if (_moveTarget) return moveTargetScore(node);   // 用户寻路优先级最高
         if (!_killfieldEnabled) return -Infinity;
-        // 空场安全感知：关掉时无子弹不引导；开启时无弹也引导。
-        if (_liveProjectilesNow <= 0 && !_emptyFieldSafety) return -Infinity;
-        var kf = killfieldScoreAtTank(node.simState.tank);
-        if (!isFinite(kf)) return -Infinity;
-        return kf;                                       // 权重在加成环节乘，便于与安全分量配平
+        var here = -Infinity;
+        if (_currentTile) {
+            var tileM = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
+                ? Constants.MAZE_TILE_SIZE.m : 10;
+            here = killfieldScoreAtPoint((_currentTile.x + 0.5) * tileM, (_currentTile.y + 0.5) * tileM);
+        }
+        var there = killfieldScoreAtPoint(node.simState.tank.x, node.simState.tank.y);
+        if (!isFinite(here) || !isFinite(there)) return -Infinity;
+        return there - here;
     }
 
     /** v101：无弹无目标且空场安全感知没开时，平局优先静止。 */
@@ -3353,6 +3403,101 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *    取舍空间，400% ≈ 最多四帧。
      *  杀戮场用的是“相对当前格子的安全提升量”：静止恒为 0，只有真的往更安全
      *  的地形挪才拿得到分，所以不会出现“站着不动也加分”。 */
+    /** v104：最近一颗“正在朝我飞”的子弹还有多少秒进入危险距离。
+     *  返回 null = 没有（没弹、或者都在远离/横穿）。
+     *
+     *  两条判据取更保守的那个：
+     *   ① 威胁表的“首入圈时刻”——精确，但只有子弹进了评分视界（约 3 秒）
+     *      才算得出来；视界外的子弹在表里是“无威胁”，只看它会漏判；
+     *   ② 子弹当前位置/速度的几何估计——粗但早，视界外也能看出“它在朝我飞”。
+     *  实测踩过：只看 ① 时，导航会一直开着直到子弹进圈（滞后），子弹已经很近
+     *  了还在走位。 */
+    function earliestThreatInSec() {
+        var best = null;
+        var tree = _tree;
+        if (tree) {
+            function considerThreat(th) {
+                if (!th) return;
+                var tIn = th.tIn;
+                if (tIn === null || tIn === undefined) return;
+                var absIn = (tree.rootAbsT || 0) + (th.anchorOffset || 0) + tIn;
+                var d = absIn - _timeAcc;
+                if (best === null || d < best) best = d;
+            }
+            var i, list = tree.threats || [];
+            for (i = 0; i < list.length; i++) considerThreat(list[i]);
+            var pend = tree._pendingThreats || [];
+            for (i = 0; i < pend.length; i++) considerThreat(pend[i]);
+        }
+        var geo = geometricThreatEtaSec();
+        if (geo !== null && (best === null || geo < best)) best = geo;
+        return best;
+    }
+
+    /** v104：几何粗判——最近一颗正朝坦克飞的子弹，还有几秒进到危险距离。
+     *  危险距离取 DANGER_R=30 米（3 格）：30 米外先占位是安全的。
+     *  只用位置与速度的接近分量，不考虑反弹；反弹弹由威胁表的 ① 兜底。 */
+    var DANGER_R_M = 30;
+    function geometricThreatEtaSec() {
+        var adapter = _lastAdapter;
+        if (!adapter || !adapter.getProjectiles) return null;
+        var tankState = _lastTankState;
+        if (!tankState) return null;
+        var ps;
+        try { ps = adapter.getProjectiles(); } catch (ePs) { return null; }
+        if (!ps || !ps.length) return null;
+        var best = null;
+        for (var i = 0; i < ps.length; i++) {
+            var p = ps[i];
+            if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) continue;
+            var dx = Number(p.x) - tankState.x, dy = Number(p.y) - tankState.y;
+            var d = Math.sqrt(dx * dx + dy * dy);
+            if (d <= DANGER_R_M) return 0;                    // 已经在危险距离内
+            var vx = Number(p.speedX) || 0, vy = Number(p.speedY) || 0;
+            var vmag = Math.sqrt(vx * vx + vy * vy);
+            if (vmag <= 0.01) continue;
+            var closing = -(dx * vx + dy * vy) / d;            // >0 = 正在接近
+            if (closing <= 0.01) continue;
+            var eta = (d - DANGER_R_M) / closing;
+            if (eta < 0 || !isFinite(eta)) continue;
+            if (best === null || eta < best) best = eta;
+        }
+        return best;
+    }
+
+    /** v104：地形引导的“提前量”（秒）= 杀戮场权重 × 2.5，上限 4 秒。
+     *
+     *  含义：最近那颗会打到我的子弹还在 N 秒之外时，就让杀戮场先接管走位，
+     *  把坦克挪到更安全的地形；一旦它进了 N 秒，立刻交回给树躲弹。
+     *    · 权重 0%   → 0 秒   ：任何时候都不提前占位（只有没弹时才走）；
+     *    · 权重 100% → 2.5 秒 ：默认。2.5 秒 ≈ 子弹还有 50 米（5 格）开外；
+     *    · 权重 400% → 4 秒封顶。
+     *  这个数越大越“早”，但也越容易在子弹已经不远时还在走位，所以给了上限。 */
+    function terrainLeadSec() {
+        return Math.min(4.0, 2.5 * Math.max(0, _killfieldWeight));
+    }
+
+    /** v104：现在能不能让杀戮场接管走位？
+     *  条件：杀戮场开 + 有用户目标之外的情形，且“最近会打到我”的子弹还在
+     *  提前量之外。空场（没弹）时也成立，但要另外过空场安全感知开关。 */
+    function terrainNavigationAllowed() {
+        if (!_killfieldEnabled) return false;
+        if (_moveTarget && !_autoTarget) return false;      // 用户点击/面板寻路优先
+        var t = earliestThreatInSec();
+        if (t === null) return true;                        // 没有会打到的弹
+        return t > terrainLeadSec();
+    }
+
+    /** v104：供 ai_vantage 查询——现在是不是“杀戮场在接管走位”。
+     *  接管期间输入由迷宫最短路直接驾驶给出；一旦子弹进入提前量，
+     *  本函数立刻返回 false，驾驶权交回给树去躲弹。 */
+    function isTerrainNavigationActive() {
+        if (!_autoTarget) return false;
+        if (!_killfieldEnabled) return false;
+        if (!_emptyFieldSafety && _liveProjectilesNow <= 0) return false;
+        return terrainNavigationAllowed();
+    }
+
     /** v103：当前是不是“无弹 + 无用户目标 + 开了空场安全感知”的地形引导阶段。
      *  这个阶段 9 个操作的安全分完全一样（没子弹就没有遮挡差），只有地形偏好
      *  能分胜负。
@@ -3360,9 +3505,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  所以判据是“没有用户目标（_moveTarget 不是用户设的）”，不是“没有目标”。
      *  用户点击会经 _moveTarget 设进来，_autoTarget 为空即代表是用户的目标。 */
     function terrainGuidanceActive() {
-        if (!_killfieldEnabled || _killfieldWeight <= 0) return false;
-        if (_liveProjectilesNow > 0 || !_emptyFieldSafety) return false;
+        // v104：是否让杀戮场给导航目标。
+        //   · 没子弹：需要“空场安全感知”开着；
+        //   · 有子弹但还在提前量之外：也允许（这就是主人要的“提前走位”），
+        //     权重越高提前量越大；
+        //   · 子弹进了提前量：立刻让位给树躲弹。
+        if (!_killfieldEnabled) return false;
         if (_moveTarget && !_autoTarget) return false;   // 用户点击/面板寻路优先
+        if (!terrainNavigationAllowed()) return false;
+        if (_liveProjectilesNow <= 0 && !_emptyFieldSafety) return false;
         return true;
     }
 
@@ -3381,7 +3532,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (_currentTile.x === anchor.x && _currentTile.y === anchor.y) return null;
         var here = killfieldScoreAtTileSafe(_currentTile.x, _currentTile.y);
         var there = killfieldScoreAtTileSafe(anchor.x, anchor.y);
-        if (!isFinite(here) || !isFinite(there) || there <= here + 1e-9) return null;
+        if (!isFinite(here) || !isFinite(there)) return null;
+        // v104：懒惰倾向 = “当前格要比现在安全多少才值得挪窝”。
+        //   0%   → 阈值 0    ：只要不是最安全的地皮就走过去（最积极）；
+        //   50%  → 阈值 0.25 ：中等安全的地方就不折腾；
+        //   100% → 阈值 0.50 ：只有贴墙/死路这种明显危险的地方才挪。
+        // 安全分是 0~1 的无量纲量，所以阈值直接取 懒惰 × 0.5。
+        var threshold = _emptyFieldLaziness * 0.5;
+        // 有子弹时的“提前走位”不受懒惰倾向限制（它管的是空场那一段）；
+        // 是否值得走由 terrainNavigationAllowed 的提前量决定。
+        if (_liveProjectilesNow <= 0 && there - here <= threshold + 1e-9) return null;
+        if (there <= here + 1e-9) return null;
         return { x: anchor.x, y: anchor.y };
     }
 
@@ -3443,12 +3604,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!isFinite(fit)) return 0;
             return _targetMixRatio * targetScale * fit;
         }
+        if (!_killfieldEnabled) return 0;
+        // v104：权重只管有子弹时的行为（空场那一段由“懒惰倾向”单独控制，
+        // 走的是导航目标通道）。
+        if (_liveProjectilesNow <= 0) return 0;
         var gain = objectiveScore(node);
         if (!isFinite(gain)) return 0;
-        // 杀戮场分是 0~1 的无量纲量，乘 kfScale（≤ 候选安全分跨度的一半）之后
-        // 才可能真正改变选路；具体能压过多大的安全分差由 killfieldWeight 调。
-        // 空场引导阶段另有目标寻路接管（见 syncKillfieldAutoTarget）。
-        return kfScale * gain;
+        return kfScale * _killfieldWeight * gain;
     }
 
     /** v102：调试用——把当前基准格和各候选的目标分/杀戮场分逐项摊开，
@@ -3499,29 +3661,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return scale > 0 ? scale : 1;
     }
 
-    /** v102：杀戮场加成缩放基准 = “一帧安全分”量级 (2π)² ≈ 39.4784，且不超过
-     *  候选安全分实际跨度的一半（安全分拉得很开时，地形偏好只能当近似平局
-     *  的补充，绝不喧宾夺主）。
-     *  （旧版这里只在“有点击目标”时才算系数，没点击目标时恒为 0 —— 杀戮场
-     *  一分都没进过选路，这才是主人说的“开关看着有其实没用”。） */
-    function killfieldScaleOf(children, exclude) {
-        var FRAME_SCORE = 39.4784;      // (2π)²：一整圈没被遮挡的单帧安全分
-        var span = 0;
-        if (children && children.length) {
-            var lo = Infinity, hi = -Infinity;
-            for (var i = 0; i < children.length; i++) {
-                var c = children[i];
-                if (!c || c.invalid || c.exhausted || c === exclude) continue;
-                var v = Number(c.subtreeBest) || 0;
-                if (v < lo) lo = v;
-                if (v > hi) hi = v;
-            }
-            if (isFinite(lo) && isFinite(hi) && hi > lo) span = hi - lo;
-        }
-        // 无弹时空场里所有操作的安全分完全相同（span=0），这时也要给地形偏好
-        // 整帧的量级，否则杀戮场会再次被 0 乘没。
-        if (span <= 1e-9) return FRAME_SCORE;
-        return Math.max(1, Math.min(span * 0.5, FRAME_SCORE * 4));
+    /** v104：杀戮场权重的作用量级 = “一帧安全分” (2π)² ≈ 39.4784。
+     *
+     *  这是主人要的“提前走位”的关键。旧版按“候选安全分跨度的一半”缩放，方向
+     *  正好是反的：子弹越远、各操作的安全分越接近、跨度越小 → 地形偏好被压得
+     *  越小 → AI 只有等子弹逼近（跨度变大）才肯动。
+     *  改成固定用一帧安全分做单位后：
+     *    子弹远 → 各操作安全分差很小（几分到几十分）→ 地形偏好赢，AI 提前挪窝；
+     *    子弹近 → 安全分差几百上千 → 躲弹赢，地形压不过。
+     *  权重 100% ≈ 愿意为地形让出一帧安全分；400% ≈ 四帧。 */
+    function killfieldScaleOf() {
+        return 39.4784;   // (2π)²：一整圈没被遮挡的单帧安全分
     }
 
     /** argmax 平局裁定：alive > dead；双 dead 取段长长者（活最久）。
@@ -5098,6 +5248,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var tankState = adapter.getTankState();
         if (!tankState) return;
         perfBegin();   // v103：整个 tick 的耗时（含下面各阶段）
+        // v104：几何威胁提前量要用（同一帧的子弹位置 + 坦克位置）
+        _lastAdapter = adapter;
+        _lastTankState = { x: tankState.x, y: tankState.y };
         // v102：杀戮场“当前格子”基准——记真实世界里坦克站的这一格，
         // 选路时用“操作终点相对它的安全提升”打分，静止永远是 0 分。
         var tileM = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
@@ -5612,6 +5765,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _autoTarget = null;   // v103：杀戮场自动目标同样不跨局
         _killfieldAnchorTile = null;
         _moveTargetWrites = 0;
+        _lastAdapter = null;
+        _lastTankState = null;
         _liveProjectilesNow = 0;
         perfReset();
         if (typeof VantageSandbox !== 'undefined' && VantageSandbox.clearCaches) {
@@ -5845,6 +6000,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _currentTile;
     }
 
+    /** v104：空场“懒惰倾向”0~1。越大越不愿意为了地形挪窝。 */
+    function setEmptyFieldLaziness(v) {
+        var n = Number(v);
+        if (!isFinite(n)) n = 0;
+        _emptyFieldLaziness = Math.max(0, Math.min(1, n));
+        if (_tree && _tree.cfg) _tree.cfg.emptyFieldLaziness = _emptyFieldLaziness;
+        return _emptyFieldLaziness;
+    }
+
+    function getEmptyFieldLaziness() { return _emptyFieldLaziness; }
+
     /** v101：空场安全感知——无子弹无寻路时也让杀戮场引导。 */
     function setEmptyFieldSafety(v) {
         _emptyFieldSafety = !!v;
@@ -5958,6 +6124,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         getPerf: perfSnapshot,
         resetPerf: perfReset,
         killfieldAutoTarget: killfieldAutoTarget,
+        setEmptyFieldLaziness: setEmptyFieldLaziness,
+        isTerrainNavigationActive: isTerrainNavigationActive,
+        geometricThreatEtaSec: geometricThreatEtaSec,
+        earliestThreatInSec: earliestThreatInSec,
+        getEmptyFieldLaziness: getEmptyFieldLaziness,
         syncKillfieldAutoTarget: syncKillfieldAutoTarget,
         getKillfieldAnchorTile: function() { return _killfieldAnchorTile ? { x: _killfieldAnchorTile.x, y: _killfieldAnchorTile.y } : null; },
         setLiveProjectilesNow: setLiveProjectilesNow,
@@ -6009,5 +6180,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v103：空场真会走 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v104：提前走位 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

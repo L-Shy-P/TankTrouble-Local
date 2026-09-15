@@ -400,4 +400,12 @@ windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault
   assert(!risky(act), act + ' must not be red (killfield family is exploratory for now)');
 });
 
-console.log('diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; red = dangerous values only)');
+// v104：懒惰倾向滑块（只影响空场安全感知）
+const lazySlider = queryIn(findById('vt-bench-panel'), '[data-act="exp-emptyFieldLaziness"]');
+assert(lazySlider, 'laziness slider must exist');
+assert(String(lazySlider.max) === '100', 'laziness slider max must be 100, got ' + lazySlider.max);
+assert(Number(lazySlider.value) === 0, 'laziness slider default must be 0, got ' + lazySlider.value);
+assert(Math.abs(st.exp.emptyFieldLaziness) < 1e-9, 'laziness state default must be 0');
+assert(!risky('exp-emptyFieldLaziness'), 'laziness is an exploratory knob and must not be red');
+
+console.log('diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous values only)');

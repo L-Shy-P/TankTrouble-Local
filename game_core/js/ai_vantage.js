@@ -32,8 +32,14 @@ var VantageAI=Classy.newClass();VantageAI.fields({aiId:null,config:null,gameCont
             console.warn('[Vantage] 基准时间计算异常:', btErr);
         }
     }
-    // v8：无子弹时，点击目标允许走原来的迷宫最短路径寻路（真正会绕过墙）；
-    // 一旦场上有子弹，就只让树用目标分做平局裁决，不再直接接管驾驶。
+    // v9：谁能直接驾驶（走迷宫最短路覆盖本帧输入）：
+    //   ① 无子弹 + 有点击目标 —— 老行为（点击寻路会真正绕墙）；
+    //   ② 有子弹但杀戮场判断“最近那颗会打到我的弹还在提前量之外”
+    //      —— 提前占位（主人要求：杀戮场要引导 AI 提前走向安全地形，
+    //         而不是等子弹靠近才动）。
+    //   子弹一旦进了提前量，杀戮场立刻交出驾驶权，本帧输入由树（躲弹）决定。
+    //   注意 ② 只对“杀戮场自动目标”生效（VantageTree.isTerrainNavigationActive
+    //   会检查目标是不是它自己设的），用户点击的目标在有子弹时仍然只做平局裁决。
     var directNavigate = false;
     if (this.debugTarget) {
         var noProjectiles = true;
@@ -42,6 +48,10 @@ var VantageAI=Classy.newClass();VantageAI.fields({aiId:null,config:null,gameCont
             noProjectiles = !ps || Object.keys(ps).length === 0;
         } catch (eProj) { noProjectiles = true; }
         directNavigate = noProjectiles;
+        if (!directNavigate && typeof VantageTree !== 'undefined' &&
+            typeof VantageTree.isTerrainNavigationActive === 'function') {
+            try { directNavigate = !!VantageTree.isTerrainNavigationActive(); } catch (eNav) {}
+        }
     }
     if (this.debugTarget && directNavigate) {
         // 先让树照常 tick，树图/生长不会因为点击寻路而停摆；

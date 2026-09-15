@@ -1,6 +1,9 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v92（配合树 v104 / ai_vantage v9）：
+ *   杀戮场权重改为“提前量”（只管有子弹时：子弹还有几秒打到就先占位）；
+ *   新增“懒惰倾向”滑块，单独控制无子弹时空场走位的积极程度。
  * 2026-09-07 v91（配合树 v103）：
  *   空场安全感知真的会走（给出“最安全地皮”导航目标，走到就停）；
  *   修掉“每帧一次全树重算”的性能真凶（发子弹卡一秒）；
@@ -113,7 +116,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v91';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v92';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -162,7 +165,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2135,7 +2138,7 @@
         horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
         pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
-        killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false,
+        killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0,
         scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
     };
     // data-act -> 状态字段；只列“危险/不建议随便动”的开关。
@@ -2337,6 +2340,7 @@
                 expItem('目标分系数 <input type="range" data-act="exp-targetMixRatio" min="0" max="300" step="5" value="50" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-targetMixRatio">50%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-killfield"> 杀戮场引导</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-emptyFieldSafety"> 空场安全感知</label>') +
+                expItem('懒惰倾向 <input type="range" data-act="exp-emptyFieldLaziness" min="0" max="100" step="5" value="0" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-emptyFieldLaziness">0%</span>') +
                 expItem('杀戮场权重 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-deepSelect"> 全局选路</label>') +
                 expItem('<button data-act="exp-presetStrong" style="cursor:pointer;background:#45475a;color:inherit;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重置配置</button>')
@@ -2364,6 +2368,8 @@
             autoPath: expRow.querySelector('[data-act="exp-autoPath"]'),
             killfield: expRow.querySelector('[data-act="exp-killfield"]'),
             emptyFieldSafety: expRow.querySelector('[data-act="exp-emptyFieldSafety"]'),
+            emptyFieldLaziness: expRow.querySelector('[data-act="exp-emptyFieldLaziness"]'),
+            emptyFieldLazinessSpan: expRow.querySelector('span[id="vt-exp-emptyFieldLaziness"]'),
             killfieldWeight: expRow.querySelector('[data-act="exp-killfieldWeight"]'),
             killfieldWeightSpan: expRow.querySelector('span[id="vt-exp-killfieldWeight"]'),
             expRow: expRow,
@@ -2431,8 +2437,9 @@
                 'exp-targetMix': '混合选路（危险项，关闭会标红）：关闭后 AI 只按安全分走，不再主动靠近任何目标，容易被对手牵制。开启后目标位置分会加进安全总分，可能为靠近目标选择安全分稍低的操作。',
                 'exp-targetMixRatio': '目标位置评分系数（0~300%）。只在混合选路开启时生效：0%=不看目标；30%=轻微引导；100%=目标与安全大致同权；200~300%=强目标引导，可能明显牺牲安全。二阶段选路下改这个不影响结果。',
                 'exp-killfield': '杀戮场引导（静态地形层）：没有用户点击目标时，用“到最安全地皮的步数 + 离墙距离 + 死路/出口数”给全图打分，引导 AI 往更安全、更好跑的位置移动。用户点击或按 / 的寻路优先级更高；后续可再叠加子弹/对手射击覆盖。',
-                'exp-emptyFieldSafety': '空场安全感知。开启后：没有子弹、也没有用户寻路目标时，AI 会自己挑一块最安全的地皮（开阔、离墙远、出口多的中心区域）走过去，走到就停。关闭后：无子弹无寻路时保持静止，只在有子弹时才由杀戮场引导。杀戮场引导关闭时此开关变灰且不生效。',
-                'exp-killfieldWeight': '杀戮场权重（0~400%，默认 100%）。有子弹时：越大，AI 越优先往杀戮场认为安全的地形走，100% ≈ 一帧安全分的取舍空间，400% ≈ 四帧（压不过更大的真安全分差）。没有子弹且开了空场安全感知时：>0 就按“去最安全地皮”导航，0 = 完全不引导。',
+                'exp-emptyFieldSafety': '空场安全感知。开启后：没有子弹、也没有用户寻路目标时，AI 会自己挑一块最安全的地皮（离危险远、出口多、离墙远、开阔的中心区域）走过去，走到就停；走得多积极由下面的“懒惰倾向”决定。关闭后：无子弹无寻路时保持静止。杀戮场引导关闭时此开关变灰且不生效。',
+                'exp-emptyFieldLaziness': '懒惰倾向（只管没有子弹时的那一段，和上面“杀戮场权重”管的有子弹行为互不影响）。它是“当前格要比现在安全多少才值得挪窝”的门槛：0% = 只要当前不是最安全的地皮就走过去（最积极）；50% = 中等安全的地方就懒得折腾；100% = 只有贴墙、死路这种明显危险的地方才挪窝。想让它一开局就积极占好位置就调低，想让它少走动就调高。',
+                'exp-killfieldWeight': '杀戮场权重 = 提前量（0~400%，默认 100%，只管有子弹时的行为）。它决定“最近那颗会打到我的子弹还剩几秒”的时候开始提前占位：100% ≈ 2.5 秒（子弹还有约 50 米就先挪到更安全的地形），400% ≈ 4 秒上限。子弹一旦进了这个提前量，杀戮场立刻交出驾驶权，由树专心躲弹。0% = 不提前占位（只有空场安全感知那条通道还会走）。',
                 'exp-autoPath': '自动寻路。开启后，如果 AI 当前没有用户指定目标，它会自动寻找最近的边界/封闭房子并过去，方便压力测试；有用户点击目标时不会自动寻路。',
                 'exp-deepSelect': '全局选路。实验功能：当前版本开启后 AI 会明显变弱，暂不建议开启，后续会重做。',
                 'exp-presetStrong': '将配置重置为作者L_Shy_P实测出的AI较强且性能不错的配置。'
@@ -2557,6 +2564,14 @@
                 state.exp.targetMixRatio = Math.max(0, Math.min(300, parseInt(_expCtrl.targetMixRatio.value, 10) || 0)) / 100;
                 if (_expCtrl.targetMixRatioSpan) {
                     _expCtrl.targetMixRatioSpan.textContent = Math.round(state.exp.targetMixRatio * 100) + '%';
+                }
+            });
+        }
+        if (_expCtrl.emptyFieldLaziness) {
+            _expCtrl.emptyFieldLaziness.addEventListener('input', function() {
+                state.exp.emptyFieldLaziness = Math.max(0, Math.min(100, parseInt(_expCtrl.emptyFieldLaziness.value, 10) || 0)) / 100;
+                if (_expCtrl.emptyFieldLazinessSpan) {
+                    _expCtrl.emptyFieldLazinessSpan.textContent = Math.round(state.exp.emptyFieldLaziness * 100) + '%';
                 }
             });
         }
@@ -2819,6 +2834,17 @@
             updatePanel();
             return;
         }
+        if (act === 'exp-emptyFieldLaziness') {
+            state.exp.emptyFieldLaziness = Math.max(0, Math.min(100, parseInt(srcEl.value, 10) || 0)) / 100;
+            if (typeof VantageTree !== 'undefined' && VantageTree.setEmptyFieldLaziness) {
+                VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness);
+            }
+            if (_expCtrl.emptyFieldLazinessSpan) {
+                _expCtrl.emptyFieldLazinessSpan.textContent = Math.round(state.exp.emptyFieldLaziness * 100) + '%';
+            }
+            updatePanel();
+            return;
+        }
         if (act === 'exp-emptyFieldSafety') {
             state.exp.emptyFieldSafety = srcEl.checked;
             if (typeof VantageTree !== 'undefined' && typeof VantageTree.setEmptyFieldSafety === 'function') {
@@ -2862,6 +2888,7 @@
             state.exp.killfieldEnabled = true;
             state.exp.killfieldWeight = 1.0;
             state.exp.emptyFieldSafety = false;
+            state.exp.emptyFieldLaziness = 0;
             state.exp.scoreOnlyPlanned = false;
             state.exp.autoPath = false;
             state.exp.noDeath = true;
@@ -2888,6 +2915,7 @@
                 if (typeof VantageTree.setKillfieldEnabled === 'function') VantageTree.setKillfieldEnabled(state.exp.killfieldEnabled);
                 if (typeof VantageTree.setKillfieldWeight === 'function') VantageTree.setKillfieldWeight(state.exp.killfieldWeight);
                 if (typeof VantageTree.setEmptyFieldSafety === 'function') VantageTree.setEmptyFieldSafety(state.exp.emptyFieldSafety);
+                if (typeof VantageTree.setEmptyFieldLaziness === 'function') VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness);
                 VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
                 VantageTree.setGrowWithoutThreatsEnabled(state.exp.growWithoutThreats);
@@ -3303,6 +3331,8 @@
         dimGroup([_expCtrl.killfieldWeight, _expCtrl.killfield], !state.exp.killfieldEnabled);
         // 空场安全感知和杀戮场绑定：杀戮场关掉时它变灰且不生效。
         dimGroup([_expCtrl.emptyFieldSafety], !state.exp.killfieldEnabled);
+        // v104：懒惰倾向只在“杀戮场引导 + 空场安全感知”都开时生效。
+        dimGroup([_expCtrl.emptyFieldLaziness], !(state.exp.killfieldEnabled && state.exp.emptyFieldSafety));
     }
 
     /** v7.4→v7.6 同步持久实验模式控件（只改属性，不重建 DOM） */
@@ -3325,6 +3355,13 @@
         }
         if (_expCtrl.killfield && _expCtrl.killfield.checked !== state.exp.killfieldEnabled) _expCtrl.killfield.checked = state.exp.killfieldEnabled;
         if (_expCtrl.emptyFieldSafety && _expCtrl.emptyFieldSafety.checked !== state.exp.emptyFieldSafety) _expCtrl.emptyFieldSafety.checked = state.exp.emptyFieldSafety;
+        if (_expCtrl.emptyFieldLaziness) {
+            var eflVal = Math.round((state.exp.emptyFieldLaziness || 0) * 100);
+            if (parseInt(_expCtrl.emptyFieldLaziness.value, 10) !== eflVal) _expCtrl.emptyFieldLaziness.value = String(eflVal);
+        }
+        if (_expCtrl.emptyFieldLazinessSpan && _expCtrl.emptyFieldLazinessSpan.textContent !== Math.round((state.exp.emptyFieldLaziness || 0) * 100) + '%') {
+            _expCtrl.emptyFieldLazinessSpan.textContent = Math.round((state.exp.emptyFieldLaziness || 0) * 100) + '%';
+        }
         if (_expCtrl.killfieldWeight) {
             var kfVal = Math.round((state.exp.killfieldWeight || 0) * 100);
             if (parseInt(_expCtrl.killfieldWeight.value, 10) !== kfVal) _expCtrl.killfieldWeight.value = String(kfVal);
@@ -3918,6 +3955,7 @@
         try { if (VantageTree.setKillfieldEnabled) VantageTree.setKillfieldEnabled(state.exp.killfieldEnabled); } catch (eKillfieldInit) {}
         try { if (VantageTree.setKillfieldWeight) VantageTree.setKillfieldWeight(state.exp.killfieldWeight); } catch (eKillfieldWeightInit) {}
         try { if (VantageTree.setEmptyFieldSafety) VantageTree.setEmptyFieldSafety(state.exp.emptyFieldSafety); } catch (eEmptyFieldInit) {}
+        try { if (VantageTree.setEmptyFieldLaziness) VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness); } catch (eLazyInit) {}
         try { VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned); } catch (eScoreShortInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }

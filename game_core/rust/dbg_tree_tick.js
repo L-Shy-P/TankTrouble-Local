@@ -38,6 +38,7 @@ const START_X = argNum('startx', 1);
 const START_Y = argNum('starty', 5);
 const VERBOSE = argv.indexOf('--verbose') >= 0;
 const CORRIDOR = argv.indexOf('--corridor') >= 0;
+const INCOMING = argv.indexOf('--incoming') >= 0;   // 放一颗“真的会打到”的子弹
 
 const Constants = {
   AI: { MAZE_MAX_DEAD_END_PENALTY: 5, PATH_STEP_SIZE: 0.5 },
@@ -206,15 +207,23 @@ VT.setLiveProjectilesNow(0);
 
 const opCount = {};
 let worstTickMs = 0, totalMs = 0;
+let navTicks = 0, minThreatInSec = null;
+const navLog = [];   // [tick, 还有几秒挨打, 导航是否激活]
 const bulletAt = Math.floor(TICKS * 0.3);
 
 for (let tickNo = 0; tickNo < TICKS; tickNo++) {
   if (BULLETS && tickNo === bulletAt) {
     for (let b = 0; b < BULLETS; b++) {
-      projectiles.push({ id: 'b' + b, x: (2 + b) * TILE, y: CORRIDOR ? 2 * TILE + 5 : 3 * TILE, speed: 20, speedX: 20, speedY: 0 });
+      if (INCOMING) {
+        // 从右侧朝坦克那一行飞过来（真的会进命中圈）：起点 (12,5) 朝左。
+        projectiles.push({ id: 'in' + b, x: (W - 2) * TILE, y: startY * TILE + 5, speed: 20, speedX: -20, speedY: 0 });
+      } else {
+        // 横穿但不在坦克那一行：永远不会打到（用来测“子弹还远时提前走位”）。
+        projectiles.push({ id: 'b' + b, x: (2 + b) * TILE, y: CORRIDOR ? 2 * TILE + 5 : 3 * TILE, speed: 20, speedX: 20, speedY: 0 });
+      }
     }
   }
-  if (BULLETS && tickNo > bulletAt) projectiles.forEach(p => { p.x += 0.4; });
+  if (BULLETS && tickNo > bulletAt) projectiles.forEach(p => { p.x += (p.speedX < 0 ? -0.4 : 0.4); });
 
   const t0 = process.hrtime.bigint();
   try {
@@ -223,8 +232,16 @@ for (let tickNo = 0; tickNo < TICKS; tickNo++) {
     console.error('tick threw at ' + tickNo + ':', e && e.stack);
     process.exit(1);
   }
+  // 驱动通道需和真实游戏一致：
+  //   · 有自动/点击目标（空场通道）→ 走迷宫最短路直接驾驶；
+  //   · 否则 → 用树当前选出的操作驱动（ai_vantage 每帧提交的就是它）。
   const dIn = driveToTarget();
-  if (dIn) simulateDirect(dIn, 1);
+  if (dIn) {
+    simulateDirect(dIn, 1);
+  } else {
+    const treeOp = VT.getDesiredOperation();
+    if (treeOp && treeOp.inputs) simulateDirect(treeOp.inputs, 1);
+  }
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
   totalMs += ms;
   if (ms > worstTickMs) worstTickMs = ms;
@@ -233,6 +250,21 @@ for (let tickNo = 0; tickNo < TICKS; tickNo++) {
   const op = tree && tree.commitNode ? tree.commitNode.next : null;
   const name = op ? (op.opName || '?') : '-';
   opCount[name] = (opCount[name] || 0) + 1;
+
+  // v104：记录“子弹还剩几秒打到”和“杀戮场是否在接管走位”，用来检查
+  // “子弹远→提前占位、子弹近→让位躲弹”这条切换是不是真的发生。
+  const et = VT.earliestThreatInSec ? VT.earliestThreatInSec() : null;
+  const navOn = VT.isTerrainNavigationActive ? !!VT.isTerrainNavigationActive() : false;
+  if (navOn) navTicks++;
+  if (et !== null && (minThreatInSec === null || et < minThreatInSec)) minThreatInSec = et;
+  if (BULLETS) {
+    const prev = navLog.length ? navLog[navLog.length - 1] : null;
+    // 只在“有没有会打到的弹”或“导航开关”发生变化时记一笔
+    const changed = !prev ||
+      ((prev[1] === null) !== (et === null)) ||
+      (prev[2] !== navOn);
+    if (changed) navLog.push([tickNo, et === null ? null : Number(et.toFixed(2)), navOn]);
+  }
 
   if (VERBOSE && (tickNo < 12 || tickNo % 60 === 0)) {
     console.log('  t' + tickNo +
@@ -258,6 +290,15 @@ console.log('nodes             =', tree ? tree.nodeCount : 'n/a');
 console.log('targetReroutes    =', (tree && tree.stats && tree.stats.targetReroutes) || 0,
   '（目标变化触发的全树重算；正常应只在切换目标时 +1）');
 console.log('moveTargetWrites  =', VT.getMoveTargetWrites ? VT.getMoveTargetWrites() : 'n/a');
+if (BULLETS) {
+  console.log('terrainNavTicks   =', navTicks, '/', TICKS,
+    '（杀戮场接管走位的帧数；子弹逼近时应自动停掉）');
+  console.log('minThreatInSec    =', minThreatInSec,
+    '（过程中最近的一次“还有几秒挨打”；null = 全程都打不到）');
+  // 打印切换点附近的采样：看出“挨打时间”和“是否接管”的对应关系
+  console.log('navSwitches       =', navLog.length ? navLog.map(r =>
+    't' + r[0] + ':in' + (r[1] === null ? '∞' : r[1]) + 's/nav' + (r[2] ? '1' : '0')).join('  ') : '（无变化）');
+}
 console.log('worst tick ms     =', worstTickMs.toFixed(1), '  avg =', (totalMs / TICKS).toFixed(2));
 console.log('perf              =', JSON.stringify({ avgMs: perf.avgMs, maxMs: perf.maxMs, win60: perf.win60, phases: perf.phases }));
 if (perf.worstFrames && perf.worstFrames.length) {
