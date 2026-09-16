@@ -1182,6 +1182,21 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         // 全场子弹喂进角带求交；命中集合仍原样进拷贝区函数，判据零改动。
         var near = null;
         var absR2 = geo.R_ABS * geo.R_ABS;
+        // v112：这里的 R_SEMI 有一个已知缺陷（主人问的“3.05m 断崖”）：
+        //   拷贝区 R_SEMI = hypot(rectHalfH, halfW) + bulletR = 3.059m，是拿
+        //   **未膨胀**的半宽/半高算的；而真正“不产生遮蔽”的边界由拷贝区自己
+        //   的判据 aW+aH ≥ 90° 决定：
+        //       asin(EFF_HALF_W/D) + asin(EFF_HALF_H/D) = 90°
+        //     → sin(asin(EFF_HALF_W/D)) = sin(acos(EFF_HALF_H/D))
+        //     → D² = EFF_HALF_W² + EFF_HALF_H²  → D = hypot(1.75, 2.625) = 3.155m
+        //   3.059 < 3.155，于是 3.06~3.16m 的子弹被提前当“无威胁”：帧分从
+        //   9.4（子弹在 3.02m 处）直接跳到满值 39.5 —— 2 厘米的差、4 倍的分。
+        //
+        //   试过在**拷贝区之外**把筛选半径改成 3.155，**实测无效**：
+        //   exactOcclusion 内部还会用拷贝区自己的 R_SEMI 再筛一次，直接把
+        //   结果置成“满分”。要真正修掉，得在区外复制一份矩形投影几何；先记录
+        //   在此，等主人决定是否值得（当前影响：威胁感知范围小 0.096m，
+        //   且感知是突变的；不会导致漏判死亡——死亡判定走融合世界）。
         var semiR2 = geo.R_SEMI * geo.R_SEMI;
         var i, b, dx, dy, d2;
         if (bulletPositions && bulletPositions.length) {
@@ -2537,6 +2552,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);

@@ -1,6 +1,8 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v99（配合树 v112）：
+ *   评分栏新增「杀戮场等比调整」开关（默认开）。
  * 2026-09-07 v98（配合树 v111 / scoring v35）：
  *   「安全裕度（米）」换成「安全过滤 k」（b′=min(a·k,b)，只截顶）。
  * 2026-09-07 v97（配合树 v110 / scoring v34）：
@@ -133,7 +135,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v98';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v99';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -182,7 +184,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2156,7 +2158,7 @@
         pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
         killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0,
-        occlusion: true, safeFilterK: 1, actionCost: 0,
+        occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true,
         scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
     };
     // data-act -> 状态字段；只列“危险/不建议随便动”的开关。
@@ -2333,6 +2335,7 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-occlusion" checked> 角度遮蔽评分</label>') +
                 expItem('安全过滤 k <input type="range" data-act="exp-safeFilterK" min="10" max="100" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-safeFilterK">1.00</span>') +
                 expItem('动作成本 <input type="range" data-act="exp-actionCost" min="0" max="20" step="1" value="0" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-actionCost">关</span>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-kfScaleWithK" checked> 杀戮场等比调整</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeath"> 死亡不扣分</label>')
             ) +
             // Rust 模式：Rust 物理预测是全局执行开关，弹簧绳评分不支持的提示放这里
@@ -2396,6 +2399,7 @@
             safeFilterK: expRow.querySelector('[data-act="exp-safeFilterK"]'),
             safeFilterKSpan: expRow.querySelector('span[id="vt-exp-safeFilterK"]'),
             actionCost: expRow.querySelector('[data-act="exp-actionCost"]'),
+            kfScaleWithK: expRow.querySelector('[data-act="exp-kfScaleWithK"]'),
             actionCostSpan: expRow.querySelector('span[id="vt-exp-actionCost"]'),
             rustMinimal: expRow.querySelector('[data-act="exp-rustMinimal"]'),
             rustPhysics: expRow.querySelector('[data-act="exp-rustPhysics"]'),
@@ -2460,6 +2464,7 @@
                 'exp-springRope': '弹簧绳评分。开启后，距离墙太近或路线太贴边会被额外扣分，用来鼓励更舒展的走位。Rust 物理路径不支持这项。',
                 'exp-occlusion': '角度遮蔽评分（默认开）。它是唯一衡量“子弹威胁”的项：子弹离坦克越近，被遮蔽的安全角度就越多、分越低。关掉它就只剩地形/杀戮场引导——**有子弹时AI会失去躲弹梯度**，只建议做对比实验用。',
                 'exp-safeFilterK': '安全过滤阈值 k（0.10~1.00）。设单帧遮蔽满分 a=(2π)²，本帧分 b，则用 b′ = min(a·k, b)：把“已经足够安全”的帧一律压成同一个值，于是“刚好够安全”和“非常安全”等价，AI 不再为了更远而大幅转向；危险区间（b<a·k）**保留完整梯度**，所以贴近子弹时该有的精细躲法不受影响。k=1 不截顶（原行为），越小压得越平。实测：遮蔽分在约 3.05 米处是断崖（9.4 → 39.5 满值），所以 k=0.3~0.5 正好把“跨过那条线”压到与“远远躲开”等价，又不动 3 米内的梯度——先从 0.4 试。',
+                'exp-kfScaleWithK': '杀戮场等比调整（默认开）。安全过滤 k 会把单帧满分从 a 压到 a·k，75 帧累计满分也跟着等比缩小；但地形加成的“固定上限”原本不缩，于是地形相对安全分的比例被悄悄抬高（等于变相加强杀戮场）。开启后固定上限按 k 等比缩减，保持两者的比例不变。关掉 = 保留旧的比例关系。',
                 'exp-actionCost': '动作成本（分/帧，0=关）。**只在“这一帧已经完全安全”时计**：转向和移动各算 1 分强度，同时踩两者算 2。危险帧不计，保证躲弹时不被拖后腿；安全帧才用它区分“谁更省事”，让 AI 别做多余动作。建议从 2~4 试。',
                 'exp-nodeath': '死亡不扣分，默认开启（危险项，取消会标红）。树内评分本来就是死亡帧停止累计、不额外扣分；这里控制的是面板沙箱/固定帧评估的死亡扣分。取消勾选后评估重新加死亡惩罚，AI 会变得过度保守。',
                 'exp-rustPhysics': '默认开启（危险项，关闭会标红）。用 Rust/WASM 做更快的物理预测；失败或遇到不支持的配置时会自动回退到 JS 融合世界。',
@@ -2775,6 +2780,14 @@
             updatePanel();
             return;
         }
+        if (act === 'exp-kfScaleWithK') {
+            state.exp.kfScaleWithK = srcEl.checked;
+            if (typeof VantageTree !== 'undefined' && VantageTree.setKfScaleWithK) {
+                VantageTree.setKfScaleWithK(state.exp.kfScaleWithK);
+            }
+            updatePanel();
+            return;
+        }
         if (act === 'exp-actionCost') {
             state.exp.actionCost = Math.max(0, Math.min(20, parseInt(srcEl.value, 10) || 0));
             if (typeof VantageTree !== 'undefined' && VantageTree.setActionCostPerFrame) {
@@ -2984,6 +2997,7 @@
             state.exp.emptyFieldLaziness = 0;
             state.exp.occlusion = true;
             state.exp.safeFilterK = 1;
+            state.exp.kfScaleWithK = true;
             state.exp.actionCost = 0;
             state.exp.scoreOnlyPlanned = false;
             state.exp.autoPath = false;
@@ -3014,6 +3028,7 @@
                 if (typeof VantageTree.setEmptyFieldLaziness === 'function') VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness);
                 if (typeof VantageTree.setOcclusionEnabled === 'function') VantageTree.setOcclusionEnabled(state.exp.occlusion);
                 if (typeof VantageTree.setSafeFilterK === 'function') VantageTree.setSafeFilterK(state.exp.safeFilterK);
+                if (typeof VantageTree.setKfScaleWithK === 'function') VantageTree.setKfScaleWithK(state.exp.kfScaleWithK);
                 if (typeof VantageTree.setActionCostPerFrame === 'function') VantageTree.setActionCostPerFrame(state.exp.actionCost);
                 VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned);
                 VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
@@ -3469,6 +3484,7 @@
             });
         }
         if (_expCtrl.occlusion && _expCtrl.occlusion.checked !== state.exp.occlusion) _expCtrl.occlusion.checked = state.exp.occlusion;
+        if (_expCtrl.kfScaleWithK && _expCtrl.kfScaleWithK.checked !== state.exp.kfScaleWithK) _expCtrl.kfScaleWithK.checked = state.exp.kfScaleWithK;
         if (_expCtrl.safeFilterK) {
             var kVal = Math.round((state.exp.safeFilterK || 1) * 100);
             if (parseInt(_expCtrl.safeFilterK.value, 10) !== kVal) _expCtrl.safeFilterK.value = String(kVal);
@@ -4099,6 +4115,7 @@
         try { if (VantageTree.setEmptyFieldLaziness) VantageTree.setEmptyFieldLaziness(state.exp.emptyFieldLaziness); } catch (eLazyInit) {}
         try { if (VantageTree.setOcclusionEnabled) VantageTree.setOcclusionEnabled(state.exp.occlusion); } catch (eOccInit) {}
         try { if (VantageTree.setSafeFilterK) VantageTree.setSafeFilterK(state.exp.safeFilterK); } catch (eKInit) {}
+        try { if (VantageTree.setKfScaleWithK) VantageTree.setKfScaleWithK(state.exp.kfScaleWithK); } catch (eKfKInit) {}
         try { if (VantageTree.setActionCostPerFrame) VantageTree.setActionCostPerFrame(state.exp.actionCost); } catch (eAcInit) {}
         try { VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned); } catch (eScoreShortInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}

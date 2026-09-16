@@ -1,6 +1,16 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v112（断崖调查 + 杀戮场等比调整）：
+ *   ① 主人问“3.05m 为什么有断崖，是错误还是函数本身变化快”——查清是**实现
+ *      缺陷**：拷贝区 R_SEMI=3.059m 用未膨胀的半宽/半高算，而它自己的判据
+ *      aW+aH≥90° 对应的真实边界是 hypot(1.75, 2.625)=3.155m。3.06~3.16m 的
+ *      子弹因此被提前当“无威胁”，帧分从 9.4（3.02m）跳到满值 39.5（3.04m）。
+ *      试过在拷贝区外修正筛选半径：**无效**（内部还会用拷贝区自己的 R_SEMI
+ *      再筛一次）。真修需要复制一份几何计算，已记录待主人决定。
+ *   ② 杀戮场等比调整开关（主人提的）：安全过滤 k 让单帧/累计满分等比缩小，
+ *      但地形加成的固定上限原本不缩 → 地形相对安全分的比例被悄悄抬高。
+ *      开启（默认）后固定上限按 k 等比缩减，保持比例不变。
  * 2026-09-07 v111（主人提的“安全过滤阈值 k”）：
  *   主人给的机制比“安全裕度（米）”更好分析：设单帧遮蔽满分 a=(2π)²、
  *   本帧分 b，则用 b′ = min(a·k, b)——**只截顶，不动危险区间的梯度**。
@@ -575,6 +585,7 @@
     var _occlusionEnabled = true;             // 遮蔽分总开关（关掉=只用杀戮场/地形引导）
     var _actionCostPerFrame = 0;              // 动作成本（分/帧，只在安全帧计），0=关闭
     var _safeFilterK = 1;                     // v111：安全过滤阈值 k（0.1~1），帧分截顶到 a·k
+    var _kfScaleWithK = true;                 // v112：地形加成的固定上限随 k 等比缩减
     // v106：卡墙黑名单。某段操作实际几乎没挪窝（明显小于预测位移）时，短暂禁止
     // 再选它——这是“贴墙不动被打死”的直接对策（用真实反馈，不靠预测）。
     var _stuckOps = {};                        // 操作名 → 剩余禁止帧数
@@ -4167,6 +4178,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
         }
         var fixedCap = EVAL_FRAMES * 39.4784 / 4;
+        // v112（主人提的等比调整）：安全过滤 k 会把单帧满分从 a 压到 a·k，
+        // 75 帧累计满分会等比缩小；但上面这个**固定上限**没跟着缩，于是
+        // 地形加成相对安全分的比例被悄悄抬高（等于变相加强杀戮场）。
+        // 开关打开时把固定上限按 k 等比缩减，保持“地形 : 安全”的比例不变。
+        if (_kfScaleWithK) fixedCap *= _safeFilterK;
         var liveCap = best * 0.35;
         return Math.max(1, Math.min(fixedCap, liveCap > 0 ? liveCap : 1));
     }
@@ -6720,6 +6736,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             return _safeFilterK;
         },
         getSafeFilterK: function() { return _safeFilterK; },
+        // v112：等比调整开关——地形加成的固定上限是否随安全过滤 k 一起缩减。
+        setKfScaleWithK: function(v) {
+            _kfScaleWithK = (v !== false);
+            return _kfScaleWithK;
+        },
+        getKfScaleWithK: function() { return _kfScaleWithK; },
         needsJsScoring: needsJsScoring,
         // v106：关键场景录制（点击开始 / 再点结束导出）
         startRecord: function(reason) { return recBegin(reason); },
@@ -6794,5 +6816,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
