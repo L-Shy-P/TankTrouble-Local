@@ -1,6 +1,18 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v111（主人提的“安全过滤阈值 k”）：
+ *   主人给的机制比“安全裕度（米）”更好分析：设单帧遮蔽满分 a=(2π)²、
+ *   本帧分 b，则用 b′ = min(a·k, b)——**只截顶，不动危险区间的梯度**。
+ *   实测（子弹正对坦克）：
+ *     距离     原始 b    k=0.3   k=0.5   k=0.8   k=1.0
+ *     2.0m     2.29      2.29    2.29    2.29    2.29
+ *     3.0m     9.43      9.43    9.43    9.43    9.43
+ *     3.05m    39.48     11.84   19.74   31.58   39.48   ← 断崖（>3.05m 不再遮蔽）
+ *   可见遮蔽分在 3.05 米处从 9.4 直接跳到满值 39.5（4 倍落差），所以 AI
+ *   拼命想冲过那条线——“大力出奇迹”的量化根源。k=0.3~0.5 正好把“跨线”
+ *   压到与“远远躲开”等价，同时 3 米内的梯度原样保留。
+ *   “安全裕度（米）”已被这个机制取代并删除（两套并存只会混淆）。
  * 2026-09-07 v110（按主人对遮蔽分机制的纠正 + 他的“操作成本”洞察）：
  *   主人纠正：遮蔽分**不是**“只跟朝向有关”——它的角带用固定半宽/半高
  *   （1.75m / 2.625m）算，与朝向无关；朝向的全部影响只有几何中心前移
@@ -561,8 +573,8 @@
     // v110（主人方向）：把遮蔽分从“谁离得更远”改成“安不安全”，并用“动作成本”
     // 在安全的时候挑最省事的操作。三项都默认关闭，保持原有行为。
     var _occlusionEnabled = true;             // 遮蔽分总开关（关掉=只用杀戮场/地形引导）
-    var _safeMargin = 0;                      // 安全裕度（米）：超过它一律满分，0=关闭
     var _actionCostPerFrame = 0;              // 动作成本（分/帧，只在安全帧计），0=关闭
+    var _safeFilterK = 1;                     // v111：安全过滤阈值 k（0.1~1），帧分截顶到 a·k
     // v106：卡墙黑名单。某段操作实际几乎没挪窝（明显小于预测位移）时，短暂禁止
     // 再选它——这是“贴墙不动被打死”的直接对策（用真实反馈，不靠预测）。
     var _stuckOps = {};                        // 操作名 → 剩余禁止帧数
@@ -921,11 +933,11 @@
             if (typeof tree.cfg.occlusionEnabled === 'boolean') {
                 cfg.occlusionEnabled = tree.cfg.occlusionEnabled;
             }
-            if (typeof tree.cfg.safeMargin === 'number') {
-                cfg.safeMargin = tree.cfg.safeMargin;
-            }
             if (typeof tree.cfg.actionCostPerFrame === 'number') {
                 cfg.actionCostPerFrame = tree.cfg.actionCostPerFrame;
+            }
+            if (typeof tree.cfg.safeFilterK === 'number') {
+                cfg.safeFilterK = tree.cfg.safeFilterK;
             }
         }
         return cfg;
@@ -936,7 +948,8 @@
      *  在 Rust 评分路径下会被静默忽略（用户开了却看不到效果）。
      *  实测代价：JS 评分比 Rust 慢一些，但正确性优先。 */
     function needsJsScoring() {
-        return _occlusionEnabled === false || _safeMargin > 0 || _actionCostPerFrame > 0;
+        return _occlusionEnabled === false ||
+            _actionCostPerFrame > 0 || _safeFilterK < 1;
     }
 
     // ============================================================
@@ -1243,8 +1256,8 @@
         tree.cfg.killfieldWeight = _killfieldWeight;     // v100
         tree.cfg.emptyFieldSafety = _emptyFieldSafety;   // v101
         tree.cfg.occlusionEnabled = _occlusionEnabled;   // v110
-        tree.cfg.safeMargin = _safeMargin;               // v110
         tree.cfg.actionCostPerFrame = _actionCostPerFrame; // v110
+        tree.cfg.safeFilterK = _safeFilterK;             // v111
         tree.cfg.targetMixEnabled = _targetMixEnabled;     // v94
         tree.cfg.targetMixRatio = _targetMixRatio;         // v94
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
@@ -6690,14 +6703,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             return _occlusionEnabled;
         },
         getOcclusionEnabled: function() { return _occlusionEnabled; },
-        setSafeMargin: function(v) {
-            var n = Number(v);
-            if (!isFinite(n) || n < 0) n = 0;
-            _safeMargin = Math.min(6, n);
-            if (_tree && _tree.cfg) _tree.cfg.safeMargin = _safeMargin;
-            return _safeMargin;
-        },
-        getSafeMargin: function() { return _safeMargin; },
         setActionCostPerFrame: function(v) {
             var n = Number(v);
             if (!isFinite(n) || n < 0) n = 0;
@@ -6706,6 +6711,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             return _actionCostPerFrame;
         },
         getActionCostPerFrame: function() { return _actionCostPerFrame; },
+        // v111：安全过滤阈值 k（0.1~1）。1 = 不截顶（原行为）。
+        setSafeFilterK: function(v) {
+            var n = Number(v);
+            if (!isFinite(n)) n = 1;
+            _safeFilterK = Math.max(0.1, Math.min(1, n));
+            if (_tree && _tree.cfg) _tree.cfg.safeFilterK = _safeFilterK;
+            return _safeFilterK;
+        },
+        getSafeFilterK: function() { return _safeFilterK; },
         needsJsScoring: needsJsScoring,
         // v106：关键场景录制（点击开始 / 再点结束导出）
         startRecord: function(reason) { return recBegin(reason); },
@@ -6780,5 +6794,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v110：安全裕度 + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

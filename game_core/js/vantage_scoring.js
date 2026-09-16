@@ -525,16 +525,20 @@
         deathPenalty: 100000,   // 死亡扣分（定稿，不再动）
         // v110（主人提的方向）：把“遮蔽分”从“谁离得更远”改成“安不安全”。
         //   occlusionEnabled=false → 不产生遮蔽弧，帧分恒为满分（用来对比实验）。
-        //   safeMargin>0 → 子弹距离超过它就不再产生遮蔽（一律满分）：
-        //     “刚好躲开”和“躲很远”同分，大幅动作失去额外收益。
-        //   0 = 关闭（保持原行为：一直奖励“越远越好”）。
         occlusionEnabled: true,
-        safeMargin: 0,
         // v110：动作成本（分/帧）。**只在“这一帧已经安全”时计**——危险时完全
         // 不参与，让 AI 全力躲弹；安全时安全分大家都满分，成本就成了唯一的区分项，
         // 于是 AI 会挑最省事的动作。转向/移动各自计，同时踩两者就一起扣。
         // 0 = 关闭。
         actionCostPerFrame: 0,
+        // v111（主人提的机制）：安全过滤阈值 k。
+        //   设单帧遮蔽满分 a = (2π)²，本帧实际分 b，则用 b' = min(a·k, b)。
+        //   含义：把“已经足够安全”的帧一律压成同一个值——危险区间（b < a·k）
+        //   保留完整梯度，安全区间不再奖励“越安全越好”。
+        //   k=1 → 不截顶（原行为）；k 越小压得越平。范围 0.1~1。
+        //   主人评价：比“安全裕度（米）”更好分析——它直接作用在评分上，
+        //   不改变遮蔽几何，一维可调。
+        safeFilterK: 1,
         stuckPenalty: 6.0,      // v19/v106：非静止操作中连续两帧位姿几乎不变 = 卡墙/被顶住，
                                 //      每帧额外扣 4.0（75 帧最多 300，足够压过躲进墙角的收益）
         stuckDistEps: 0.08,     // v106：卡墙判定：位移 < 8cm/帧（原 5cm 太严，
@@ -1178,11 +1182,7 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         // 全场子弹喂进角带求交；命中集合仍原样进拷贝区函数，判据零改动。
         var near = null;
         var absR2 = geo.R_ABS * geo.R_ABS;
-        // v110：安全裕度。默认用几何半径（原行为）；主人设了 safeMargin 时改用它 ——
-        // 超过裕度的子弹不进遮蔽计算，于是“刚好躲开”和“躲很远”拿到同样的满分。
-        var marginM = Number(cfg.safeMargin) || 0;
-        var semiCap = (marginM > 0) ? Math.min(marginM, geo.R_SEMI) : geo.R_SEMI;
-        var semiR2 = semiCap * semiCap;
+        var semiR2 = geo.R_SEMI * geo.R_SEMI;
         var i, b, dx, dy, d2;
         if (bulletPositions && bulletPositions.length) {
             for (i = 0; i < bulletPositions.length; i++) {
@@ -1252,14 +1252,26 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         for (i = 0; i < geo.freeIntervals.length; i++) {
             frameScore += geo.freeIntervals[i].width * geo.freeIntervals[i].width;
         }
+        // v111：安全过滤阈值——把“已经足够安全”的帧分截顶到 a·k。
+        // 危险区间（frameScore < a·k）原样保留梯度，只有超过阈值的部分被压平。
+        var FRAME_MAX = TWO_PI * TWO_PI;          // a = (2π)² ≈ 39.478
+        var k = Number(cfg.safeFilterK);
+        if (!isFinite(k) || k <= 0) k = 1;
+        if (k > 1) k = 1;
+        var cap = FRAME_MAX * k;
+        var safeByThreshold = frameScore >= cap - 1e-9;
+        var rawFrameScore = frameScore;
+        if (k < 1) frameScore = Math.min(cap, frameScore);
         return {
             dead: false,
             frameScore: frameScore,
+            rawFrameScore: rawFrameScore,
             occludedRad: geo.occludedRad,
             freeIntervals: geo.freeIntervals,
             sampleCount: geo.sampleCount,
-            // v110：这一帧“完全没被任何子弹遮蔽”= 已经安全 → 动作成本只在这时计。
-            safeFrame: !(geo.occludedRad > 1e-9)
+            // v110/v111：这一帧“已经足够安全”（达到过滤阈值，或完全没被遮蔽）
+            // → 动作成本只在这时计。
+            safeFrame: safeByThreshold || !(geo.occludedRad > 1e-9)
         };
     }
 
@@ -2525,6 +2537,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v34：遮蔽开关/安全裕度/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);
