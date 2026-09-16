@@ -1,6 +1,14 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v113（只动记账，不动走位）：
+ *   ① 版本号改成单一来源常量 TREE_VERSION（升版只改一处）。此前录制元数据里的
+ *      treeVersion 是写死的字符串，早就和实际版本脱节（主人那批录制写着 v106，
+ *      代码里却是 v108，实际已经是 v112）——事后看录制根本分不清是哪版跑的。
+ *   ② 录制元数据补记四个实验开关：遮蔽开关、安全过滤 k、动作成本、杀戮场等比
+ *      调整。主人要对比 k=0.4 与 k=1 的录制，不记下来两份文件长得一模一样。
+ *   评分、选路、死亡判定一行未动。
+ *
  * 2026-09-07 v112（断崖调查 + 杀戮场等比调整）：
  *   ① 主人问“3.05m 为什么有断崖，是错误还是函数本身变化快”——查清是**实现
  *      缺陷**：拷贝区 R_SEMI=3.059m 用未膨胀的半宽/半高算，而它自己的判据
@@ -538,6 +546,11 @@
 (function (global) {
     'use strict';
 
+    /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
+     *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
+     *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
+    var TREE_VERSION = 'v113';
+
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var CONTACT_MARGIN = 4.0;       // v34：坦克按圆粗滤（半对角~2.5 + 弹径余量）
     var EVAL_FRAMES = 75;           // 评估深度（默认 75=1.5s；面板滑块可调 1~300）
@@ -781,12 +794,17 @@
             frames: _rec.buf.length,
             deaths: _rec.autoEvents.slice(),
             meta: {
-                treeVersion: 'v108',
+                treeVersion: TREE_VERSION,
                 frameDt: FRAME_DT,
                 tNow: _timeAcc,
                 rebuilds: _rebuildCount,
                 killfieldEnabled: _killfieldEnabled,
                 killfieldWeight: _killfieldWeight,
+                // v113：实验开关也记下来，否则两份录制无法区分是哪个设置跑的。
+                occlusionEnabled: _occlusionEnabled,
+                safeFilterK: _safeFilterK,
+                actionCostPerFrame: _actionCostPerFrame,
+                kfScaleWithK: _kfScaleWithK,
                 emptyFieldSafety: _emptyFieldSafety,
                 emptyFieldLaziness: _emptyFieldLaziness,
                 targetMixEnabled: _targetMixEnabled,
@@ -6668,6 +6686,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     // 导出（03 七节接口契约）
     // ============================================================
     global.VantageTree = {
+        VERSION: TREE_VERSION,      // v113：单一来源版本号，diff 套件用它和 index.html 对账
         FRAME_DT: FRAME_DT,
         EVAL_FRAMES: EVAL_FRAMES,
         TREE_DEFAULTS: TREE_DEFAULTS,
@@ -6816,5 +6835,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
