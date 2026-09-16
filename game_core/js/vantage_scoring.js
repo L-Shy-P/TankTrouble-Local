@@ -523,6 +523,18 @@
                                 //   0.75 → 多弹穿身打爆量级 → 未死亡大负分、
                                 //   AI 宕机。v7.3：多弹取 max + 0.5 = "稍微"）
         deathPenalty: 100000,   // 死亡扣分（定稿，不再动）
+        // v110（主人提的方向）：把“遮蔽分”从“谁离得更远”改成“安不安全”。
+        //   occlusionEnabled=false → 不产生遮蔽弧，帧分恒为满分（用来对比实验）。
+        //   safeMargin>0 → 子弹距离超过它就不再产生遮蔽（一律满分）：
+        //     “刚好躲开”和“躲很远”同分，大幅动作失去额外收益。
+        //   0 = 关闭（保持原行为：一直奖励“越远越好”）。
+        occlusionEnabled: true,
+        safeMargin: 0,
+        // v110：动作成本（分/帧）。**只在“这一帧已经安全”时计**——危险时完全
+        // 不参与，让 AI 全力躲弹；安全时安全分大家都满分，成本就成了唯一的区分项，
+        // 于是 AI 会挑最省事的动作。转向/移动各自计，同时踩两者就一起扣。
+        // 0 = 关闭。
+        actionCostPerFrame: 0,
         stuckPenalty: 6.0,      // v19/v106：非静止操作中连续两帧位姿几乎不变 = 卡墙/被顶住，
                                 //      每帧额外扣 4.0（75 帧最多 300，足够压过躲进墙角的收益）
         stuckDistEps: 0.08,     // v106：卡墙判定：位移 < 8cm/帧（原 5cm 太严，
@@ -1149,6 +1161,15 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
     function occlusionIntervals(tankState, bulletPositions, cfg) {
         cfg = mergeCfg(cfg);
         var geo = exactGeom();
+        // v110：遮蔽关掉时恒为“完全安全”，用来对比“只用杀戮场引导走位”。
+        if (cfg.occlusionEnabled === false) {
+            return {
+                exact: true,
+                freeIntervals: [{ start: 0, end: TWO_PI, width: TWO_PI }],
+                occludedRad: 0,
+                sampleCount: 0
+            };
+        }
         // 车体中心 → 几何中心（沿朝向前移 GEO_OFFSET；游戏朝向向量 (sin, -cos)）
         var gx = tankState.x + Math.sin(tankState.rot) * geo.GEO_OFFSET;
         var gy = tankState.y - Math.cos(tankState.rot) * geo.GEO_OFFSET;
@@ -1157,7 +1178,11 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         // 全场子弹喂进角带求交；命中集合仍原样进拷贝区函数，判据零改动。
         var near = null;
         var absR2 = geo.R_ABS * geo.R_ABS;
-        var semiR2 = geo.R_SEMI * geo.R_SEMI;
+        // v110：安全裕度。默认用几何半径（原行为）；主人设了 safeMargin 时改用它 ——
+        // 超过裕度的子弹不进遮蔽计算，于是“刚好躲开”和“躲很远”拿到同样的满分。
+        var marginM = Number(cfg.safeMargin) || 0;
+        var semiCap = (marginM > 0) ? Math.min(marginM, geo.R_SEMI) : geo.R_SEMI;
+        var semiR2 = semiCap * semiCap;
         var i, b, dx, dy, d2;
         if (bulletPositions && bulletPositions.length) {
             for (i = 0; i < bulletPositions.length; i++) {
@@ -1232,7 +1257,9 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
             frameScore: frameScore,
             occludedRad: geo.occludedRad,
             freeIntervals: geo.freeIntervals,
-            sampleCount: geo.sampleCount
+            sampleCount: geo.sampleCount,
+            // v110：这一帧“完全没被任何子弹遮蔽”= 已经安全 → 动作成本只在这时计。
+            safeFrame: !(geo.occludedRad > 1e-9)
         };
     }
 
@@ -1736,6 +1763,15 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         return !!(inputs && (inputs.forward || inputs.back || inputs.left || inputs.right));
     }
 
+    /** v110：操作强度 0~2。转向和移动各算 1，同时踩两者算 2（一起扣）。 */
+    function actionIntensity(inputs) {
+        if (!inputs) return 0;
+        var n = 0;
+        if (inputs.left || inputs.right) n++;
+        if (inputs.forward || inputs.back) n++;
+        return n;
+    }
+
     /**
      * v21：不重新模拟坦克，直接对已有 rolloutSamples 重算评分。
      * 新弹出现后 tree 用它刷新“下一段 9 候选”的 subtreeBest，
@@ -1773,6 +1809,11 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
                 { x: s.x, y: s.y, rot: s.rot }, threats, tGlobal, cfg);
             var frameNet = fr.frameScore - lane.penalty - spring;
             if (moving && isStuckPose(prevPose, s, cfg)) frameNet -= cfg.stuckPenalty;
+            // v110：动作成本——只在“这一帧已经完全安全”时计。
+            // 危险帧不计，保证躲弹时成本不拖后腿；安全帧才用它区分“谁更省事”。
+            if (fr.safeFrame && cfg.actionCostPerFrame > 0) {
+                frameNet -= cfg.actionCostPerFrame * actionIntensity(inputs);
+            }
             totalScore += frameNet;
             perFrameScores.push(frameNet);
             prevPose = s;
@@ -2484,6 +2525,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v34：遮蔽开关/安全裕度/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);

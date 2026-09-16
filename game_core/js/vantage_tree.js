@@ -1,6 +1,26 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v110（按主人对遮蔽分机制的纠正 + 他的“操作成本”洞察）：
+ *   主人纠正：遮蔽分**不是**“只跟朝向有关”——它的角带用固定半宽/半高
+ *   （1.75m / 2.625m）算，与朝向无关；朝向的全部影响只有几何中心前移
+ *   0.375m。分数 ≈ f(每颗子弹到坦克几何中心的距离)，且作用范围极近：
+ *   子弹 > 约 3.05 米就完全不产生遮蔽（一律满分），< 1.75 米直接判死。
+ *   所以“大力出奇迹”的真正来源是：1.75~3.05 米之间分数随距离连续递减，
+ *   评分在奖励“越远越好”，而不是奖励“刚好躲开”。
+ *
+ *   据此新增三项（默认全关，保持原行为；面板“评分”栏可调）：
+ *     ① 角度遮蔽评分 开关：关掉后帧分恒为满分（只做对比实验——有子弹时
+ *        AI 会失去躲弹梯度，因为杀戮场是静态地形，不知道子弹在哪）。
+ *     ② 安全裕度：超过它一律满分 → “刚好躲开”和“躲很远”同分，
+ *        大幅动作失去额外收益。
+ *     ③ 动作成本（分/帧）：**只在“这一帧已经完全安全”时计**。
+ *        主人指出的关键：成本是固定量、安全分是累积量，无条件计成本时
+ *        “安全时拦不住（安全分每帧 +39.5，成本 -2）、危险时反而主导”，
+ *        与期望完全相反。改成只在安全帧计之后：危险时全力躲弹，
+ *        安全时成本成为唯一区分项 → AI 挑最省事的动作。
+ *   注意：Rust 侧有独立的遮蔽分实现、不认识这三个参数，所以只要其中任一
+ *   生效就自动回退 JS 评分（needsJsScoring），避免“开了却没效果”。
  * 2026-09-07 v108（贴墙宕机 + 跨局状态泄漏 + 懒惰阈值）：
  *   ① **贴墙宕机**（主人实测：坦克正面垂直贴墙时按住前进、有特效、纹丝不动，
  *      随便一发子弹单杀）：卡墙判定和重选都发生在**段末**，而段长最长 30 帧
@@ -39,10 +59,8 @@
  *      JSON。逐帧记录「真实世界（坦克/子弹/死亡）×树的决策（执行哪个操作、
  *      当时预测什么、段末对齐误差、预测死亡帧）」+ 每次换执行节点时的
  *      9 候选分数快照。没开录时也有滚动环形缓冲，AI 一死自动抓取死亡前 6 秒。
- *   ② 切换滞回（动作锁定）：治「尝试一个操作后又立马退回去」。默认 5%
- *      （≈148 分），**只对方向相反的操作生效**（前进↔后退、左转↔右转），
- *      不拦「转向去安全区」这类切换——一开始不分方向地锁，AI 会一路直行
- *      撞墙才停（实测）。
+ *   ② （v109 已删除）切换滞回/动作锁定：主人指出“操作冲突应该是评分问题，
+ *      不能从表面上不让它冲突”，已整个移除。
  *   ③ 卡墙黑名单：用真实反馈判定——某段操作真实位移 <0.5 米且远小于预测
  *      （>2 米）时，把该操作拉黑 45 帧，选路时按剩余时间递减重罚。
  *      判定必须严，否则「转向+前进」这种本来就走得少的操作会被误伤
@@ -540,10 +558,11 @@
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
     var _lastTankState = null;                // v104：本帧坦克位置（几何威胁提前量用）
     var _threatEtaOverride = null;            // v105：测试用——直接指定“还有几秒挨打”
-    // v106：切换滞回（动作锁定）。新候选必须比“当前正在执行的那个操作”明显更好
-    // 才换，否则继续执行原操作——治“前进↔后退”反复横跳（主人反馈：尝试某个操作
-    // 后又立马原地退回去）。阈值按“无威胁满分”的百分比给，面板可调。
-    var _switchHysteresisPct = 0.05;           // 默认 5%（≈148 分）
+    // v110（主人方向）：把遮蔽分从“谁离得更远”改成“安不安全”，并用“动作成本”
+    // 在安全的时候挑最省事的操作。三项都默认关闭，保持原有行为。
+    var _occlusionEnabled = true;             // 遮蔽分总开关（关掉=只用杀戮场/地形引导）
+    var _safeMargin = 0;                      // 安全裕度（米）：超过它一律满分，0=关闭
+    var _actionCostPerFrame = 0;              // 动作成本（分/帧，只在安全帧计），0=关闭
     // v106：卡墙黑名单。某段操作实际几乎没挪窝（明显小于预测位移）时，短暂禁止
     // 再选它——这是“贴墙不动被打死”的直接对策（用真实反馈，不靠预测）。
     var _stuckOps = {};                        // 操作名 → 剩余禁止帧数
@@ -566,7 +585,7 @@
         on: false,
         buf: [],            // 逐帧记录
         segSnaps: [],       // 段末快照（9 候选分数、选中项、预测死亡帧、地形项）
-        maxFrames: 3600,    // 最多 60 秒
+        maxFrames: 1800,    // v109：1800 帧（30 秒）足够；原来 3600 帧常驻也是一笔内存
         armed: true,        // 死亡自动抓取（不用一直开着录）
         autoKeepFrames: 360,// 死亡时保留前 6 秒
         autoPostFrames: 90, // 死亡后继续录 1.5 秒
@@ -621,6 +640,9 @@
         var node = tree && tree.commitNode;
         var proj = null;
         try { proj = adapter && adapter.getProjectiles ? adapter.getProjectiles() : null; } catch (eProj) {}
+        // v109（性能）：子弹明细只在**真正开录**时记。环形缓冲（死亡自动抓取用）
+        // 只留极简摘要——之前每帧都给每颗弹建一个对象，长时间玩下来是一笔
+        // 持续的 GC 开销（主人反馈“网页运行久了性能下降”）。
         var frame = {
             t: Math.round(_timeAcc * 1000) / 1000,
             tank: {
@@ -628,7 +650,8 @@
                 y: Math.round(tankState.y * 100) / 100,
                 rot: Math.round(tankState.rot * 1000) / 1000
             },
-            proj: (proj || []).map(function (pp) {
+            projCount: proj ? proj.length : 0,
+            proj: _rec.on ? (proj || []).map(function (pp) {
                 return {
                     id: pp && pp.id,
                     x: pp && isFinite(pp.x) ? Math.round(pp.x * 100) / 100 : null,
@@ -636,7 +659,7 @@
                     vx: pp && isFinite(pp.speedX) ? Math.round(pp.speedX * 10) / 10 : null,
                     vy: pp && isFinite(pp.speedY) ? Math.round(pp.speedY * 10) / 10 : null
                 };
-            }),
+            }) : null,
             op: node ? (node.opName || '?') : null,
             commitId: node ? node.id : null,
             segEnd: node && typeof node.tEndSec === 'number' ? Math.round(node.tEndSec * 1000) / 1000 : null,
@@ -894,8 +917,26 @@
             if (typeof tree.cfg.springRopeClearanceCap === 'number') {
                 cfg.springRopeClearanceCap = tree.cfg.springRopeClearanceCap;
             }
+            // v110：遮蔽开关 / 安全裕度 / 动作成本
+            if (typeof tree.cfg.occlusionEnabled === 'boolean') {
+                cfg.occlusionEnabled = tree.cfg.occlusionEnabled;
+            }
+            if (typeof tree.cfg.safeMargin === 'number') {
+                cfg.safeMargin = tree.cfg.safeMargin;
+            }
+            if (typeof tree.cfg.actionCostPerFrame === 'number') {
+                cfg.actionCostPerFrame = tree.cfg.actionCostPerFrame;
+            }
         }
         return cfg;
+    }
+
+    /** v110：Rust 侧有**独立的遮蔽分实现**，不认识这三个新参数。
+     *  只要它们生效，就必须回退 JS 评分，否则“安全裕度/动作成本/遮蔽开关”
+     *  在 Rust 评分路径下会被静默忽略（用户开了却看不到效果）。
+     *  实测代价：JS 评分比 Rust 慢一些，但正确性优先。 */
+    function needsJsScoring() {
+        return _occlusionEnabled === false || _safeMargin > 0 || _actionCostPerFrame > 0;
     }
 
     // ============================================================
@@ -1201,6 +1242,9 @@
         tree.cfg.killfieldEnabled = _killfieldEnabled;   // v100
         tree.cfg.killfieldWeight = _killfieldWeight;     // v100
         tree.cfg.emptyFieldSafety = _emptyFieldSafety;   // v101
+        tree.cfg.occlusionEnabled = _occlusionEnabled;   // v110
+        tree.cfg.safeMargin = _safeMargin;               // v110
+        tree.cfg.actionCostPerFrame = _actionCostPerFrame; // v110
         tree.cfg.targetMixEnabled = _targetMixEnabled;     // v94
         tree.cfg.targetMixRatio = _targetMixRatio;         // v94
         tree.cfg.deepSelectEnabled = _deepSelectEnabled;   // v81
@@ -1809,7 +1853,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         node.status = (r.dead && r.deathFrame >= 0 && r.deathFrame <= planned) ? 'dead' : 'alive';
         node.fullDead = !!r.dead;
         node.fullDeathFrame = r.dead ? r.deathFrame : -1;
-        node.subtreeBest = node.segmentScore + Math.max(node.baseExt || 0, maxActiveChildBest(node));
+        // v109：修正“子树最好值”的口径。
+        // 旧口径 = 段分 + max(本段剩余帧的分数, 后代最好值)，但后代是从**段末**
+        // 继续走的，与本段剩余帧在时间上重叠 → 深层分数被重复累加而虚高，
+        // 这正是“全局选路一开就明显变傻”的原因（深层越深越虚高）。
+        // 新口径取 max：这条路线能达到的“最好一段 75 帧分”。这样“先小幅偏移、
+        // 再移动躲开”的两步组合才有机会胜过“一步大转向”。
+        node.subtreeBest = Math.max(fullRolloutTotalOf(node), maxActiveChildBest(node));
         return true;
     }
 
@@ -1962,6 +2012,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     function tryRustRescoreLayer(tree, adapter, stale) {
         if (!adapter || typeof adapter.rescoreTankSamples !== 'function') return null;
+        if (needsJsScoring()) return null;   // v110：新参数只有 JS 评分认识
         if (!tree || (tree.cfg && tree.cfg.springRopeEnabled === true)) return null;
         if (!stale || !stale.length) return null;
 
@@ -2153,6 +2204,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      */
     function tryRustRescoreBatch(tree, adapter, parents) {
         if (!tree || !adapter || typeof adapter.rescoreTankSamples !== 'function') return null;
+        if (needsJsScoring()) return null;   // v110：新参数只有 JS 评分认识
         if (tree.cfg && tree.cfg.springRopeEnabled === true) return null;
         if (!parents || !parents.length) return { used: true, updated: 0 };
 
@@ -2372,7 +2424,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 if (c.subtreeBest > best) best = c.subtreeBest;
             }
             var ext = (best > -Infinity) ? best : 0;
-            n.subtreeBest = n.segmentScore + Math.max(ext, n.baseExt || 0);
+            n.subtreeBest = Math.max(fullRolloutTotalOf(n), ext);
         })(tree.root);
     }
 
@@ -2500,7 +2552,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 if (c.subtreeBest > best) best = c.subtreeBest;
             }
             var ext = (best > -Infinity) ? best : 0;
-            var next = p.segmentScore + Math.max(ext, p.baseExt || 0);
+            var next = Math.max(fullRolloutTotalOf(p), ext);
             if (p.subtreeBest === next) break;
             p.subtreeBest = next;
             p = p.parent;
@@ -2891,6 +2943,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (depth > maxDepth) maxDepth = depth;
             for (var i = 0; i < n.children.length; i++) rec(n.children[i], depth + 1);
         })(tree.root, 0);
+        tree._maxDepthCache = maxDepth;
         var hist = tree.diag.shapeHistory || (tree.diag.shapeHistory = []);
         hist.push({
             t: _timeAcc,
@@ -3042,7 +3095,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         child.perFrameScores = r.perFrameScores ? r.perFrameScores.slice() : null; // v75
         child.deathAuthority = r.deathAuthority ||
             (r.rustPhysics ? 'rust-candidate' : 'fused');   // v78：Rust物理只作候选，JS融合为权威
-        child.subtreeBest = child.segmentScore + Math.max(0, child.baseExt);  // = totalScore
+        child.subtreeBest = Math.max(fullRolloutTotalOf(child), 0);   // v109：max 口径
         child.status = childDead ? 'dead' : 'alive';
         child.fullDead = !!r.dead;                    // 完整75帧是否死亡
         child.fullDeathFrame = r.dead ? r.deathFrame : -1;
@@ -4247,25 +4300,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 }
             }
         }
-        // v106：切换滞回（动作锁定）——只对“方向相反”的两个操作生效
-        // （前进↔后退、左转↔右转这种来回抽），不拦“转向去安全区”这类切换。
-        // 一开始不分方向地对所有切换加滞回，结果 AI 一路直行撞到墙才停
-        // （实测：end tile 从 (4,4) 退化成 (1,4)）——所以必须限定。
-        if (best && _tree && _tree.commitNode && _switchHysteresisPct > 0) {
-            var hold = _tree.commitNode;
-            if (hold !== best && children.indexOf(hold) >= 0 &&
-                !hold.invalid && !hold.exhausted && hold !== exclude) {
-                var holdLeft = _stuckOps[hold.opName];
-                if (!(holdLeft > 0) && !(anyNotDead && hold.status === 'dead') &&
-                    !(!allTrueDead && hold.fullDeathFrame === 1) &&
-                    opsAreOpposite(hold, best)) {
-                    var holdTotal = fullRolloutTotalOf(hold) +
-                        objectiveBonus(hold, targetScale2, kfScale2, kfSafety2);
-                    var margin = Math.max(1, EVAL_FRAMES * 39.4784) * _switchHysteresisPct;
-                    if (bestTotal - holdTotal < margin) best = hold;
-                }
-            }
-        }
         return best;
     }
 
@@ -4307,27 +4341,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             _stuckInSegFrames = 0;
             _stuckInSegPos = null;
         }
-    }
-
-    /** v106：两个操作是不是“方向相反”（前进↔后退、左转↔右转）。
-     *  用各自 rollout 的位移向量夹角判断；有一方几乎没动（静止/原地转向）
-     *  就返回 false（不锁），避免把“静止→开始走”也锁住。 */
-    function opsAreOpposite(a, b) {
-        var va = rolloutMoveVec(a), vb = rolloutMoveVec(b);
-        if (!va || !vb) return false;
-        var la = Math.sqrt(va.x * va.x + va.y * va.y);
-        var lb = Math.sqrt(vb.x * vb.x + vb.y * vb.y);
-        if (la < 0.3 || lb < 0.3) return false;      // 有一方基本没挪窝
-        var cos = (va.x * vb.x + va.y * vb.y) / (la * lb);
-        return cos < -0.5;                           // 夹角 > 120° 才算相反
-    }
-
-    function rolloutMoveVec(node) {
-        var rs = node && node.rolloutSamples;
-        if (!rs || rs.length < 2) return null;
-        var a = rs[0], b = rs[rs.length - 1];
-        if (!a || !b || !isFinite(a.x) || !isFinite(b.x)) return null;
-        return { x: b.x - a.x, y: b.y - a.y };
     }
 
     /** 预览路线选择：只沿存活且未回退剪枝的子节点走，正常按高分选择。 */
@@ -4942,18 +4955,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     function recordStructure(tree, code, detail) {
         var h = tree.diag.structureHistory || (tree.diag.structureHistory = []);
-        var maxDepth = 0;
-        (function rec(n, depth) {
-            if (!n) return;
-            if (depth > maxDepth) maxDepth = depth;
-            for (var i = 0; i < n.children.length; i++) rec(n.children[i], depth + 1);
-        })(tree.root, 0);
+        // v109（性能）：这里原来每次调用都**遍历整棵树**算 maxDepth，而它被
+        // commit / reroute / retreat / 结构变化频繁调用 —— 树大了就是持续浪费。
+        // 改成用上次算过的值（`tree._maxDepthCache`，由 shapeHistory 那次顺带更新），
+        // 只记结构事件本身。
         h.push({
             t: _timeAcc,
             code: code,
             detail: detail || '',
             nodeCount: tree.nodeCount,
-            depth: maxDepth
+            depth: tree._maxDepthCache || 0
         });
         if (h.length > 600) h.shift();
     }
@@ -6663,14 +6674,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         debugObjective: debugObjective,
-        // v106：切换滞回（动作锁定）0~0.5，按“无威胁满分”的比例。
-        setSwitchHysteresis: function(v) {
-            var n = Number(v);
-            if (!isFinite(n)) n = 0.05;
-            _switchHysteresisPct = Math.max(0, Math.min(0.5, n));
-            return _switchHysteresisPct;
-        },
-        getSwitchHysteresis: function() { return _switchHysteresisPct; },
         getStuckOps: function() {
             var out = {};
             for (var k in _stuckOps) if (_stuckOps.hasOwnProperty(k)) out[k] = _stuckOps[k];
@@ -6680,6 +6683,30 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 每帧都涨，说明有代码在每帧重申目标，会把整帧时间吃光。
         getMoveTargetWrites: function() { return _moveTargetWrites; },
         getPerf: perfSnapshot,
+        // v110：遮蔽分开关 / 安全裕度 / 动作成本
+        setOcclusionEnabled: function(v) {
+            _occlusionEnabled = (v !== false);
+            if (_tree && _tree.cfg) _tree.cfg.occlusionEnabled = _occlusionEnabled;
+            return _occlusionEnabled;
+        },
+        getOcclusionEnabled: function() { return _occlusionEnabled; },
+        setSafeMargin: function(v) {
+            var n = Number(v);
+            if (!isFinite(n) || n < 0) n = 0;
+            _safeMargin = Math.min(6, n);
+            if (_tree && _tree.cfg) _tree.cfg.safeMargin = _safeMargin;
+            return _safeMargin;
+        },
+        getSafeMargin: function() { return _safeMargin; },
+        setActionCostPerFrame: function(v) {
+            var n = Number(v);
+            if (!isFinite(n) || n < 0) n = 0;
+            _actionCostPerFrame = Math.min(30, n);
+            if (_tree && _tree.cfg) _tree.cfg.actionCostPerFrame = _actionCostPerFrame;
+            return _actionCostPerFrame;
+        },
+        getActionCostPerFrame: function() { return _actionCostPerFrame; },
+        needsJsScoring: needsJsScoring,
         // v106：关键场景录制（点击开始 / 再点结束导出）
         startRecord: function(reason) { return recBegin(reason); },
         stopRecord: recStop,
@@ -6753,5 +6780,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v110：安全裕度 + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
