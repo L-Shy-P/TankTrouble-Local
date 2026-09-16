@@ -47,6 +47,8 @@ const TICKS = argNum('ticks', 400);
 const START_X = argNum('startx', 1);
 const START_Y = argNum('starty', 5);
 const VERBOSE = argv.indexOf('--verbose') >= 0;
+const LAZINESS = argNum('laziness', 0);        // 空场懒惰倾向 0~1
+const KF_WEIGHT = argNum('kfweight', 1);       // 杀戮场强度 0~4
 const CORRIDOR = argv.indexOf('--corridor') >= 0;
 const INCOMING = argv.indexOf('--incoming') >= 0;   // 放一颗“真的会打到”的子弹
 
@@ -213,8 +215,9 @@ VT.setContinuousRefine(false);
 VT.setGrowWithoutThreatsEnabled(true);
 VT.setWarmupMaxNodes(500);
 VT.setKillfieldEnabled(true);
-VT.setKillfieldWeight(1.0);
+VT.setKillfieldWeight(KF_WEIGHT);
 VT.setEmptyFieldSafety(EMPTY_SAFETY === 1);
+VT.setEmptyFieldLaziness(LAZINESS);
 VT.setTargetMixEnabled(true);
 VT.setTargetMixRatio(0.5);
 VT.setScoreOnlyPlanned(false);
@@ -304,6 +307,7 @@ for (let tickNo = 0; tickNo < TICKS; tickNo++) {
 const tree = VT.getTree();
 const perf = VT.getPerf();
 console.log('=== dbg_tree_tick（' + (CORRIDOR ? '走廊' : '房间') + ' ' + W + 'x' + H + '） ===');
+console.log('laziness/kfWeight =', LAZINESS, '/', KF_WEIGHT);
 console.log('emptyFieldSafety  =', EMPTY_SAFETY === 1, '  bullets =', BULLETS, '  ticks =', TICKS);
 console.log('start tile        =', startX + ',' + startY,
   '  end tile =', Math.floor(tank.x / TILE) + ',' + Math.floor(tank.y / TILE));

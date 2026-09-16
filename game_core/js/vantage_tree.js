@@ -1,6 +1,21 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-07 v108（贴墙宕机 + 跨局状态泄漏 + 懒惰阈值）：
+ *   ① **贴墙宕机**（主人实测：坦克正面垂直贴墙时按住前进、有特效、纹丝不动，
+ *      随便一发子弹单杀）：卡墙判定和重选都发生在**段末**，而段长最长 30 帧
+ *      （0.5 秒）——这半秒里 AI 无法改操作，只能顶着墙。录制数据实测：
+ *      t=7.89~8.45 连续 34 帧「前左」Δpos≈0.00，t=8.25 时树已预测 39 帧后死，
+ *      直到 t=8.49 才换「后」回退。
+ *      新增**段内卡墙检测**：有油门却连续 6 帧（0.1 秒）单帧位移 < 3cm
+ *      （正常前进 ≈32cm）→ 立刻把该操作拉黑并结束当前段重选（0.5 秒 → 0.1 秒）。
+ *   ② **跨局状态泄漏**（主人实测：同一套配置，每几局 AI 就变一个样——
+ *      开局不动 / 原地转圈 / 极其活跃）：`reset()` 漏清 v106 新加的
+ *      `_stuckOps` 等状态，上一局的“卡墙黑名单”带进了下一局，
+ *      于是新局开局就有一批操作被禁选。现在 reset 清干净。
+ *   ③ **懒惰阈值上限太低**：原来阈值 = 懒惰 × 0.5，于是“懒惰 95%”在开阔
+ *      地图里照样跑大半个图（“角落 → 中心”的安全分差本来就能超过 0.5）。
+ *      改成阈值 = 懒惰 × 1.0（0~1 全域）：95% 基本不动，100% 完全不主动挪窝。
  * 2026-09-07 v107（按主人录制数据逐帧分析出的三个真 bug）：
  *   主人录了 4 段关键场景导出，逐帧对比「真实世界 × 树的决策 × 预测」后抓到：
  *   ① **安全性因子用错了量**：它拿“候选里最高 subtreeBest（含后代）”衡量
@@ -534,6 +549,12 @@
     var _stuckOps = {};                        // 操作名 → 剩余禁止帧数
     var _stuckOpBanFrames = 45;                // 禁选时长（0.75 秒）
     var _stuckMoveMinM = 1.0;                  // 一段操作的“有效位移”下限（米）
+    // v108：段内卡墙检测。段末才判卡墙太慢——段长可能 30 帧（0.5 秒），
+    // 这半秒里 AI 顶着墙纹丝不动（主人实测“按住前进、有特效、但坦克不动”）。
+    var _stuckInSegFrames = 0;                 // 连续多少帧“有油门却没位移”
+    var _stuckInSegPos = null;                 // 上一帧位置
+    var _stuckInSegThreshold = 6;              // 连续 6 帧（0.1 秒）就判定
+    var _stuckInSegDistM = 0.03;               // 单帧位移 < 3cm（正常前进≈32cm）
 
     // v106：关键场景录制器 --------------------------------------------------
     // 主人要的“点击开始记录、再点结束导出”：把逐帧的
@@ -714,7 +735,7 @@
             frames: _rec.buf.length,
             deaths: _rec.autoEvents.slice(),
             meta: {
-                treeVersion: 'v106',
+                treeVersion: 'v108',
                 frameDt: FRAME_DT,
                 tNow: _timeAcc,
                 rebuilds: _rebuildCount,
@@ -3912,12 +3933,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var here = killfieldScoreAtTileSafe(_currentTile.x, _currentTile.y);
         var there = killfieldScoreAtTileSafe(anchor.x, anchor.y);
         if (!isFinite(here) || !isFinite(there)) return null;
-        // v104：懒惰倾向 = “当前格要比现在安全多少才值得挪窝”。
+        // v108：懒惰倾向 = “当前格要比现在安全多少才值得挪窝”，阈值取 0~1 全域。
         //   0%   → 阈值 0    ：只要不是最安全的地皮就走过去（最积极）；
-        //   50%  → 阈值 0.25 ：中等安全的地方就不折腾；
-        //   100% → 阈值 0.50 ：只有贴墙/死路这种明显危险的地方才挪。
-        // 安全分是 0~1 的无量纲量，所以阈值直接取 懒惰 × 0.5。
-        var threshold = _emptyFieldLaziness * 0.5;
+        //   50%  → 阈值 0.5  ：中等安全的地方就不折腾；
+        //   95%  → 阈值 0.95 ：几乎不动（本来这个值就是“别乱跑”的意思）；
+        //   100% → 阈值 1.0  ：完全不主动挪窝。
+        // 上一版上限只到 0.5，导致“懒惰 95% 还跑大半个图”——开阔地图里
+        // “角落 → 中心”的安全分差本来就能超过 0.5（主人实测踩到）。
+        var threshold = _emptyFieldLaziness;
         // 有子弹时的“提前走位”不受懒惰倾向限制（它管的是空场那一段）；
         // 是否值得走由 terrainNavigationAllowed 的提前量决定。
         if (_liveProjectilesNow <= 0 && there - here <= threshold + 1e-9) return null;
@@ -4244,6 +4267,46 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
         }
         return best;
+    }
+
+    /** v108：段内卡墙检测——有油门却连续多帧几乎不位移，立刻结束当前段重选。
+     *  主人实测：坦克正面垂直贴墙时，树要等段末（最长 0.5 秒）才换操作，
+     *  这半秒里“按住前进、有特效、坦克纹丝不动”，等于宕机送死。 */
+    function checkStuckInSegment(tree, tankState) {
+        if (!tree || !tree.commitNode || !tankState) {
+            _stuckInSegFrames = 0; _stuckInSegPos = null;
+            return;
+        }
+        var cmt = tree.commitNode;
+        var inp = cmt.inputs || {};
+        if (!inp.forward && !inp.back) {          // 原地转向不算卡墙
+            _stuckInSegFrames = 0; _stuckInSegPos = null;
+            return;
+        }
+        if (!_stuckInSegPos) {
+            _stuckInSegPos = { x: tankState.x, y: tankState.y };
+            _stuckInSegFrames = 0;
+            return;
+        }
+        var dx = tankState.x - _stuckInSegPos.x, dy = tankState.y - _stuckInSegPos.y;
+        var moved = Math.sqrt(dx * dx + dy * dy);
+        if (moved < _stuckInSegDistM) {
+            _stuckInSegFrames++;
+        } else {
+            _stuckInSegFrames = 0;
+            _stuckInSegPos = { x: tankState.x, y: tankState.y };
+        }
+        if (_stuckInSegFrames >= _stuckInSegThreshold) {
+            var opKey = cmt.opName || ('n' + cmt.id);
+            _stuckOps[opKey] = _stuckOpBanFrames;
+            tree.stats.stuckInSegment = (tree.stats.stuckInSegment || 0) + 1;
+            recordStructure(tree, 'stuck-in-segment', opKey + ' frames=' + _stuckInSegFrames);
+            pushEvent('stuck', '贴墙立即重选:' + opKey);
+            cmt.tEndSec = _timeAcc;               // 立即结束本段 → 后面重选
+            tree._forcedReselect = true;
+            _stuckInSegFrames = 0;
+            _stuckInSegPos = null;
+        }
     }
 
     /** v106：两个操作是不是“方向相反”（前进↔后退、左转↔右转）。
@@ -5731,6 +5794,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (_killfieldEnabled) {
             try { syncKillfieldAutoTarget(ai); } catch (eAuto) {}
         }
+        // v108：段内贴墙检测（有油门却不位移 → 立即结束本段重选）
+        try { checkStuckInSegment(_tree, tankState); } catch (eStuckSeg) {}
         if (_moveTarget) {
             var tcx = (_moveTarget.x + 0.5) * tileM;
             var tcy = (_moveTarget.y + 0.5) * tileM;
@@ -6234,6 +6299,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         _moveTargetWrites = 0;
         _lastAdapter = null;
         _lastTankState = null;
+        // v108：这些跨局必须清干净，否则上一局的“卡墙黑名单/段内计数”会带进
+        // 下一局 —— 主人实测“同样配置、每几局 AI 就变一个样”，根因就在这里。
+        _stuckOps = {};
+        _stuckInSegFrames = 0;
+        _stuckInSegPos = null;
         _liveProjectilesNow = 0;
         perfReset();
         if (typeof VantageSandbox !== 'undefined' && VantageSandbox.clearCaches) {
@@ -6683,5 +6753,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
