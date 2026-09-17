@@ -1,6 +1,10 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v103（配合树 v114）：
+ *   ① 标红的开关/滑块不再跟着变灰（红优先于灰）；
+ *   ② 面板默认纵向居中 + 限高到视口；参数区内部滚动，数据区常驻底部
+ *      —— 最上面的评分栏和下面正在执行的树操作能同时看到。
  * 2026-09-07 v102（配合树 v114）：
  *   安全过滤 k / 动作成本 / 角度遮蔽评分 三项“还没接完”的开关，改成非默认值
  *   会和其它危险开关一样显红，并在悬浮说明里写清当前局限与代价。
@@ -144,7 +148,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v102';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v103';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -1527,21 +1531,23 @@
         if (!_panel || !state.panelOn) return;
         var w = _panel.offsetWidth || 360;
         var mapRect = getGameMapRect();
-        var left, top;
+        var left;
         if (mapRect) {
             left = mapRect.left - w - 8;
-            top = mapRect.top;
         } else {
             var canvas = document.querySelector('#phaserCanvasContainer canvas, canvas');
             if (canvas && canvas.getBoundingClientRect) {
-                var cr = canvas.getBoundingClientRect();
-                left = cr.left - w - 8;
-                top = cr.top;
+                left = canvas.getBoundingClientRect().left - w - 8;
             } else {
                 left = 8;
-                top = 8;
             }
         }
+        // v103（主人要求）：默认**纵向居中**，横向照旧贴地图左侧（不挡地图）。
+        // 面板已被限高到视口内，居中后整块都在屏幕里，
+        // 最上面的评分栏与下面正在执行的树操作能同时看到。
+        var vh = window.innerHeight || 1080;
+        var ph = _panel.offsetHeight || Math.round(vh * 0.7);
+        var top = Math.max(8, Math.round((vh - ph) / 2));
         _panel.style.left = Math.round(left) + 'px';
         _panel.style.top = Math.round(top) + 'px';
         _panel.style.right = 'auto';
@@ -2242,6 +2248,9 @@
         el.style.cssText = [
             'position:fixed', 'top:8px', 'right:8px', 'z-index:99999',
             'width:360px',
+            // v103（主人要求）：面板内容越来越长，限高到视口内，内部各区自己滚，
+            // 这样"最上面的评分栏"和"下面正在执行的树操作"能同时看到。
+            'max-height:calc(100vh - 16px)',
             'background:rgba(20,22,34,0.92)', 'color:#cdd6f4',
             'font:11px/1.6 Consolas,monospace',
             'border:1px solid #6c7086', 'border-radius:6px',
@@ -2338,7 +2347,9 @@
         // —— 实验模式区（v7.4→v7.6 持久控件层：固定帧勾选+滑块、轨迹距离评分、软死）——
         var expRow = document.createElement('div');
         expRow.id = 'vt-exp-rows';
-        expRow.style.cssText = 'flex:0 0 auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;flex-direction:column;gap:3px';
+        // v103：参数区改成"可压缩 + 内部滚动"（flex:1 1 auto + min-height:0 + overflow-y:auto）。
+        // 面板被限高后它自己让出空间，顶部第一行（评分栏）默认可见，其余滚动可达。
+        expRow.style.cssText = 'flex:1 1 auto;min-height:0;overflow-y:auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;flex-direction:column;gap:3px';
         function expItem(html) {
             return '<span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap">' + html + '</span>';
         }
@@ -2664,7 +2675,8 @@
         // —— 数据区（每帧刷新，无交互控件，重建无害）——
         var body = document.createElement('div');
         body.id = 'vt-data';
-        body.style.cssText = 'flex:1 1 auto;min-height:120px;padding:6px 10px;overflow:visible';
+        // v103：数据区常驻面板底部（正在执行的树操作在这里），过长时自己内部滚动。
+        body.style.cssText = 'flex:0 0 auto;min-height:120px;max-height:46vh;overflow-y:auto;padding:6px 10px';
         el.appendChild(body);
         _panelBody = body;
 
@@ -3440,12 +3452,29 @@
                 if (dangerous) el.classList.add('vt-risk');
                 else el.classList.remove('vt-risk');
             }
+            // v103：标红状态刚变，立刻重算灰度（本帧 setDim 先跑，否则红框会被灰盖一帧）。
+            applyDimStyleTo(el);
+            if (el.tagName && String(el.tagName).toLowerCase() === 'input' && el.parentNode) {
+                applyDimStyleTo(el.parentNode);
+            }
             var prev = _riskSeen[act];
             if (prev === false && dangerous) {
                 showRiskToast('⚠ ' + msg);
             }
             _riskSeen[act] = dangerous;
         });
+    }
+
+    /** v103（主人要求）：变灰与标红的关系——**标红优先**。
+     *  标红的控件（危险取值）不许再被灰度/半透明盖住，否则红框看不出来。
+     *  所以灰度不再直接写死，而是记在 `_vtDim` 上、由这里统一算：
+     *  真正变灰 = 该控件当前"不生效" 且 没有标红。 */
+    function applyDimStyleTo(target) {
+        if (!target || !target.style) return;
+        var risky = !!(target.classList && target.classList.contains('vt-risk'));
+        var dim = !!target._vtDim && !risky;
+        target.style.opacity = dim ? '0.35' : '1';
+        target.style.filter = dim ? 'grayscale(0.8)' : '';
     }
 
     /** v94：把当前设置下不会生效的滑块变灰，但仍然可以拖动。 */
@@ -3458,8 +3487,8 @@
             var target = el;
             var tag = (el.tagName || '').toLowerCase();
             if (tag === 'input' && el.parentNode) target = el.parentNode;
-            target.style.opacity = inactive ? '0.35' : '1';
-            target.style.filter = inactive ? 'grayscale(0.8)' : '';
+            target._vtDim = !!inactive;      // 只记状态，样式交给 applyDimStyleTo（它会跳过标红控件）
+            applyDimStyleTo(target);
         }
         function dimGroup(elements, inactive) {
             for (var i = 0; i < elements.length; i++) setDim(elements[i], inactive);

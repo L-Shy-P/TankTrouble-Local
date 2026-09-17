@@ -427,6 +427,47 @@ windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault
 assert(risky('exp-occlusion'), '关掉遮蔽评分必须显红（AI 不会躲 + 拖慢）');
 st.exp.occlusion = true;
 
+// v103：标红的控件不许跟着变灰（红优先于灰）。
+// 造出"该变灰"和"该标红"同时成立：关掉遮蔽评分 → k/动作成本整组变灰；再把 k 设成 0.4 → 标红。
+st.exp.occlusion = false;
+st.exp.safeFilterK = 0.4;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(risky('exp-safeFilterK'), 'k=0.4 必须显红');
+// 真浏览器里 dim 打在 <input> 的父节点上，假 DOM 里 tagName 是 RANGE 会打在控件本身，
+// 所以两个位置都看一遍：只要任一位置是 0.35 或带灰度，就算"变灰了"。
+function dimmed(act) {
+  const e = el(act), w = e.parentNode;
+  const vals = [String(e.style.opacity), String(w && w.style.opacity),
+    String(e.style.filter), String(w && w.style.filter)];
+  return vals.some(function (v) { return v === '0.35' || /grayscale/.test(v); });
+}
+assert(!dimmed('exp-safeFilterK'), '标红的滑块不能跟着变灰');
+// 对照：同一组里没标红的"动作成本"应该仍然是灰的（说明只是红优先，不是整组不灰了）
+assert(dimmed('exp-actionCost'), '同组里未标红的控件应仍然变灰');
+st.exp.occlusion = true;
+st.exp.safeFilterK = 1;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(!dimmed('exp-safeFilterK'), '恢复正常值后不该带灰');
+
+// v103：面板默认纵向居中 + 限高到视口；参数区内部滚动、数据区常驻底部。
+(function () {
+  const panel = findById('vt-bench-panel');
+  assert(panel, 'panel element must exist');
+  assert(/max-height:\s*calc\(100vh - 16px\)/.test(String(panel.style.cssText)),
+    '面板必须限高到视口内，cssText=' + panel.style.cssText);
+  const rows = findById('vt-exp-rows');
+  assert(rows && /overflow-y:\s*auto/.test(String(rows.style.cssText)),
+    '参数区必须能内部滚动（否则长面板会把两头挤出屏幕）');
+  const dataArea = findById('vt-data');
+  assert(dataArea && /overflow-y:\s*auto/.test(String(dataArea.style.cssText)),
+    '数据区必须能内部滚动');
+  const topPx = parseInt(panel.style.top, 10);
+  assert(isFinite(topPx) && topPx > 8,
+    '面板默认应纵向居中（top 必须大于 8，实际 "' + panel.style.top + '"）');
+})();
+
 // 杀戮场相关：主人明确要求暂时不标红。
 ['exp-killfield', 'exp-emptyFieldSafety', 'exp-killfieldWeight'].forEach(function (act) {
   assert(!risky(act), act + ' must not be red (killfield family is exploratory for now)');
@@ -440,4 +481,4 @@ assert(Number(lazySlider.value) === 0, 'laziness slider default must be 0, got '
 assert(Math.abs(st.exp.emptyFieldLaziness) < 1e-9, 'laziness state default must be 0');
 assert(!risky('exp-emptyFieldLaziness'), 'laziness is an exploratory knob and must not be red');
 
-console.log('diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous values only; v102: k/actionCost/occlusion red when off-default)');
+console.log('diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous values only; v102: k/actionCost/occlusion red when off-default; v103: red beats grey + panel fits the viewport and is vertically centred)');
