@@ -78,6 +78,19 @@
             newsSubscriber: false, gmLevel: 0, beta: false, verified: true, banned: null,
             usernameApproved: true, premium: false, guest: false, rank: 11, xp: 0, lastForumPost: 0
         },
+        'hybrid_template': {
+            playerId: 'hybrid_template',
+            username: 'Hybrid',
+            victories: 0, kills: 0, deaths: 0, suicides: 0, surrenders: 0, experience: 0,
+            turretColour: colourHex(0x2e7d32),
+            treadColour: colourHex(0xcfd8dc),
+            baseColour: colourHex(0x2e7d32),
+            turretAccessory: '0', barrelAccessory: '0', frontAccessory: '0', backAccessory: '0',
+            treadAccessory: '0', backgroundAccessory: '0', badge: '0',
+            email: null, lastLogin: null, created: null, realName: null, birthYear: null, country: null,
+            newsSubscriber: false, gmLevel: 0, beta: false, verified: true, banned: null,
+            usernameApproved: true, premium: false, guest: false, rank: 11, xp: 0, lastForumPost: 0
+        },
         'vantage_template': {
             playerId: 'vantage_template',
             username: 'Vantage',
@@ -135,10 +148,24 @@
         ensureAIsReady();
         if (typeof AIs === 'undefined' || !AIs.ais) return;
         
-        // 检查是否是Vantage
+        // 检查是否是Vantage / Hybrid（两者都复用 Laika 头像与 Spine，只换显示名与配色）
         var isVantage = instanceId && instanceId.indexOf('vantage_') === 0;
-        
+        var isHybrid = instanceId && instanceId.indexOf('hybrid_') === 0;
+
         var template;
+        if (isHybrid) {
+            template = AIs.ais[instanceId] || (AIs.getAI && AIs.getAI(LAIKA_TEMPLATE_ID));
+            if (!template && LOCAL_AIS.length > 0) {
+                template = LOCAL_AIS[0].config;
+            }
+            if (!template) return;
+            if (!AIs.ais[instanceId]) {
+                AIs.ais[instanceId] = cloneLaikaConfig(template);
+            }
+            AIs.ais[instanceId].name = 'Laika';
+            AIs.ais[instanceId].isHybrid = true;
+            return;
+        }
         if (isVantage) {
             // Vantage 复用 Laika 头像/Spine（name 须为 Laika），用 isVantage 区分 AI 逻辑
             template = AIs.ais[instanceId] || (AIs.getAI && AIs.getAI(LAIKA_TEMPLATE_ID));
@@ -294,6 +321,14 @@
 
         try {
             var manager;
+            // Hybrid：独立坦克，用外接策略（观测→推理→输入）
+            if ((cfg.isHybrid || (aiId && aiId.indexOf('hybrid_') === 0)) &&
+                typeof HybridAIManager !== 'undefined') {
+                if (!cfg.isHybrid) cfg.isHybrid = true;
+                manager = HybridAIManager.create(aiId, cfg, gameController);
+                manager.isHybrid = true;
+                console.log('[Hybrid] 创建 HybridAIManager:', aiId);
+            } else
             // 检查是否是Vantage，使用VantageAI类
             if ((cfg.isVantage || (aiId && aiId.indexOf('vantage_') === 0)) &&
                 typeof VantageAIManager !== 'undefined') {
@@ -550,7 +585,9 @@
                 } else if (typeof Users !== 'undefined' && Users.isLobbyAIUser &&
                     Users.isLobbyAIUser(pid)) {
                     var lobbyAIInfo = Users.lobbyAIUsers[pid];
-                    if (lobbyAIInfo && lobbyAIInfo.isVantage) {
+                    if (lobbyAIInfo && lobbyAIInfo.isHybrid) {
+                        innerData = makeLobbyHybridPlayerDetails(pid);
+                    } else if (lobbyAIInfo && lobbyAIInfo.isVantage) {
                         innerData = makeLobbyVantagePlayerDetails(pid);
                     } else {
                         innerData = makeLobbyLaikaPlayerDetails(pid);
@@ -732,6 +769,7 @@
 
     // Vantage相关函数
     var _lobbyVantageCounter = 0;
+    var _lobbyHybridCounter = 0;
     function createLobbyVantageId() {
         _lobbyVantageCounter++;
         return 'vantage_' + _lobbyVantageCounter;
@@ -790,6 +828,65 @@
         return false;
     }
 
+    function createLobbyHybridId() {
+        _lobbyHybridCounter++;
+        return 'hybrid_' + _lobbyHybridCounter;
+    }
+
+    function getLobbyHybridDisplayName(instanceId) {
+        if (typeof Users === 'undefined' || !Users.lobbyAIUsers) {
+            return 'Hybrid 1';
+        }
+        var lobbyIds = Object.keys(Users.lobbyAIUsers);
+        var i, n = 0;
+        for (i = 0; i < lobbyIds.length; i++) {
+            if (Users.lobbyAIUsers[lobbyIds[i]] && Users.lobbyAIUsers[lobbyIds[i]].isHybrid) {
+                n++;
+                if (lobbyIds[i] === instanceId) return 'Hybrid ' + n;
+            }
+        }
+        return 'Hybrid ' + (n + 1);
+    }
+
+    function makeLobbyHybridPlayerDetails(instanceId) {
+        var template = AI_PLAYER_DETAILS['hybrid_template'];
+        var details = JSON.parse(JSON.stringify(template));
+        details.playerId = instanceId;
+        details.username = getLobbyHybridDisplayName(instanceId);
+        details.turretAccessory = '0';
+        details.barrelAccessory = '0';
+        details.frontAccessory = '0';
+        details.backAccessory = '0';
+        details.treadAccessory = '0';
+        details.backgroundAccessory = '0';
+        details.badge = '0';
+        return details;
+    }
+
+    /** 主人 2026-09-08 指定的接法：在大厅"添加坦克"那里加一辆 Hybrid 车。 */
+    function addLobbyHybridPlayer() {
+        if (typeof HybridAIManager === 'undefined') {
+            if (typeof TankTrouble !== 'undefined' && TankTrouble.ErrorBox) {
+                TankTrouble.ErrorBox.show('Hybrid 模块未加载（js/ai_hybrid.js）。');
+            }
+            return false;
+        }
+        if (!canAddMoreLobbyTanks()) {
+            if (TankTrouble.ErrorBox) {
+                TankTrouble.ErrorBox.show('Cannot add more tanks (limit: ' +
+                    getLocalMaxTanks() + ').');
+            }
+            return false;
+        }
+        var aiId = createLobbyHybridId();
+        if (!aiId) return false;
+        if (typeof Users.addLobbyAIUser === 'function') {
+            Users.addLobbyAIUser(aiId, 'hybrid');   // 第三种：Hybrid（独立坦克）
+            return true;
+        }
+        return false;
+    }
+
     function addLobbyAIPlayer() {
         ensureAIsReady();
         if (typeof AIs === 'undefined' || !AIs.isReady || !AIs.isReady()) {
@@ -842,7 +939,11 @@
                 return false;
             }
             registerLobbyAIInstance(aiId);
-            Users.lobbyAIUsers[aiId] = { templateId: LAIKA_TEMPLATE_ID, isVantage: !!isVantage };
+            Users.lobbyAIUsers[aiId] = {
+                templateId: LAIKA_TEMPLATE_ID,
+                isVantage: isVantage === true,
+                isHybrid: isVantage === 'hybrid'
+            };
             Users._notifyEventListeners(Users.EVENTS.GUEST_ADDED, aiId);
             setTimeout(function() { refreshLobbyAIAvatarInPanel(aiId); }, 0);
             return true;
@@ -1475,6 +1576,19 @@
                 addLobbyAIPlayer();
             }
         });
+
+        // 添加Hybrid按钮（主人 2026-09-08：作为独立坦克加入对局）
+        if (!box.addUserHybrid) {
+            box.addUserHybrid = Utils.createFixedWidthButton('Add Hybrid', 'medium', 120);
+            box.addUserHybrid.css({ display: 'inline-block', marginLeft: '10px' });
+            box.addUserAI.after(box.addUserHybrid);
+            box.addUserHybrid.click(function() {
+                if (box.showing) {
+                    box.hide();
+                    addLobbyHybridPlayer();
+                }
+            });
+        }
 
         // 添加Vantage按钮
         if (!box.addUserVantage) {

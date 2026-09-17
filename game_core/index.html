@@ -501,6 +501,13 @@ window.addEventListener('error', function(e) {
 <script src="js/ai_tactics.js"></script>
 <script src="js/vantage_sandbox.js?v=35"></script>
 <script src="js/vantage_scoring.js?v=36"></script>
+    <!-- 外接 AI（Hybrid）：观测构造器 + 大脑/管理器 + 模型（ES module 推理） -->
+    <script src="js/external_ai_hybrid.js?v=1"></script>
+    <script src="js/ai_hybrid.js?v=1"></script>
+    <script type="module">
+        import { HybridPolicy } from "./external_ai/hybrid/hybrid.js";
+        window.HybridPolicy = HybridPolicy;
+    </script>
 <script src="js/vantage_tree.js?v=114"></script>
 <script src="js/ai_dodge_debug.js"></script>
 <script src="js/ai_vantage.js?v=10"></script>

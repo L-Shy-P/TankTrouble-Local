@@ -117,3 +117,40 @@
 - **P3**：dodge 九项先验（用我们自己的评分，主人已定不搬他们的 `score.rs`）；
 - **P4**：面板里接成可选对手（道具先关）+ 无头对局基准。
   目前**还不能在游戏里跟它对战**——P1 只是"能看、能出动作"。
+
+---
+
+## 八、接线（主人 2026-09-08 指定的正确接法）
+
+主人原话：「应该在添加坦克那块多加个添加 Hybrid 的按钮，然后 Hybrid 作为一个独立的
+坦克添加进来」。查清的三条链路：
+
+| 链路 | 位置 | 现有样子 |
+| --- | --- | --- |
+| ① 加坦克（大厅） | `local_patch.js` `Users.addLobbyAIUser(aiId, isVantage)` → `Users.lobbyAIUsers[aiId]` → 触发 `GUEST_ADDED` → 大厅多一辆车 | Laika（`6148530`）、Vantage（`vantage_N`）两种 |
+| ② 按钮注入点 | `injectAddUserAIButton(box)`（"Add AI" 旁边） | 已有 "Add AI" 与 "Add Vantage" |
+| ③ 开局接管 | `attachAIManagerDirect(gameController, aiId)`：按 `cfg.isVantage \|\| aiId.startsWith('vantage_')` 造 `VantageAIManager`，否则造原生 `AIManager` | 每帧 `AIs.update` → `manager.update` → `gameController.setInputState()` |
+
+大脑/管理器契约（照 `VantageAI` / `VantageAIManager` 的形状）：
+`create(aiId, config, gameController)` / `update(dt)` / `getInputState()` / `reset()` / `shutdown()`；
+输入对象 `InputState.withState(aiId, forward, back, left, right, fire)`。
+
+### 8.1 本轮落地
+- 新增 `game_core/js/ai_hybrid.js`：`HybridAI`（读状态 → 构造 1028 观测 → 策略推理 → 写输入，
+  维护动作历史 / 闲置帧 / 换手率，预留 `dodgeProvider` 给 P3）+ `HybridAIManager`（每帧无条件提交输入）。
+- `local_patch.js`：`createLobbyHybridId` / 显示名 / `hybrid_template` 外观 /
+  `addLobbyHybridPlayer`；`Users.addLobbyAIUser` 接受第三种身份 `'hybrid'`；
+  `attachAIManagerDirect` 加 `hybrid_` 分支；`injectAddUserAIButton` 加 **"Add Hybrid"** 按钮；
+  `registerLobbyAIInstance` 与 `getPlayerDetails` 认 Hybrid（复用 Laika 头像/Spine，只换名字与配色）。
+- `index.html`：引入 `external_ai_hybrid.js`、`ai_hybrid.js`，并用 ES module 把
+  `externel_ai/hybrid/hybrid.js` 的 `HybridPolicy` 挂到 `window`。
+- 新回归 `rust/diff_lobby_hybrid.js`：stub 出 `InputState`/`GameController`，跑通
+  "创建管理器 → 一帧 → 无条件提交输入"，断言观测 1028、18 动作映射、闲置/换手率统计；
+  再对 `local_patch.js`/`index.html` 做 **11 处接线点静态断言**（防止以后被误删）。
+  **26 个套件 + 82 个 Rust 测试全通过。**
+
+### 8.2 还没做
+- **道具**：第一轮按主人决定要关（Hybrid 不会用道具）；目前按钮一直在，
+  还没在"有 Hybrid 的对局"里强制关掉板条箱（要改 `patchCreateLocalGame` 的 crates 配置）。
+- **P2/P3**：射线/导航/瞄准/威胁汇总/子弹威胁判定、dodge 九项先验都还是 0
+  —— 所以现在这辆车"看得见地图和双方位置、会躲一点点，但看得很糊"。
