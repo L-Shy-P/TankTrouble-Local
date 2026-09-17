@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v113';
+    var TREE_VERSION = 'v114';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var CONTACT_MARGIN = 4.0;       // v34：坦克按圆粗滤（半对角~2.5 + 弹径余量）
@@ -1250,7 +1250,8 @@
             reserveCount: 0,         // v47：reserve 保留节点总数（含子树）
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
-            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, refineSplits: 0, growStalls: {} },
+            stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0,
+                commitSliceRustBatches: 0, commitSliceJsBatches: 0, commitSliceRustFails: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, refineSplits: 0, growStalls: {} },
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -5525,6 +5526,55 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return true;
     }
 
+    /** v114（主人同意做的 A）：提交切片的九操作评分改走 Rust 批量（vt_score_paths）。
+     *  背景：这条路一直是 JS `scorePaths`——一次 9 操作 × 75 帧实测 10.83ms，
+     *  Rust 只要 1.19ms（9 倍）。而它恰好在这几处**整体**触发：开局建树、
+     *  新弹打死当前执行操作（commitHit）、对齐大幅失败（alignHard）、威胁签名变脏，
+     *  正是主人报的「子弹会导致 AI 正在执行的操作死亡时卡顿极其明显」。
+     *  两条纪律：
+     *   ① 只在「新参数没开」时用（`!needsJsScoring()`）。k / 动作成本 / 遮蔽开关
+     *      目前只有 JS 实现认，走 Rust 会把这些设置悄悄吃掉；
+     *   ② 死亡权威不变：Rust 结果标 'rust-candidate'，被选中为执行路线的节点
+     *      仍由 commit() 里那句 confirmExecutionRoutePick → JS 融合世界确认。
+     *  任何不支持（弹簧绳、帧数>75、桥没就绪、结果不齐）都返回 null，
+     *  由调用方回退原来的 JS scorePaths。 */
+    function tryCommitSliceRust(tree, slice, subOps) {
+        if (!tree || !slice || !slice.adapter ||
+            typeof slice.adapter.simulateTankBatchScored !== 'function') return null;
+        if (needsJsScoring()) return null;
+        if (tree.cfg && tree.cfg.springRopeEnabled === true) return null;
+        var rt = slice.realTankState;
+        var st = { x: rt.x, y: rt.y, rot: rt.rot };
+        var res = null;
+        try {
+            res = slice.adapter.simulateTankBatchScored(st, subOps, EVAL_FRAMES, {
+                startPose: st,
+                threats: slice.threats,
+                tGlobal: 0,
+                cfg: treeScoringCfg(tree)
+            });
+        } catch (eCommitRust) {
+            tree.stats.commitSliceRustFails = (tree.stats.commitSliceRustFails || 0) + 1;
+            return null;
+        }
+        if (!res || res.length !== subOps.length) {
+            tree.stats.commitSliceRustFails = (tree.stats.commitSliceRustFails || 0) + 1;
+            return null;
+        }
+        for (var i = 0; i < res.length; i++) {
+            var r = res[i];
+            if (!r || !r.samples || !r.perFrameScores) {
+                tree.stats.commitSliceRustFails = (tree.stats.commitSliceRustFails || 0) + 1;
+                return null;
+            }
+            r.opIndex = slice.idx + i;
+            r.opName = VantageSandbox.OPERATIONS[slice.idx + i].name;
+            r.deathAuthority = 'rust-candidate';
+        }
+        tree.stats.commitSliceRustBatches = (tree.stats.commitSliceRustBatches || 0) + 1;
+        return res;
+    }
+
     /** 推进一步提交切片；返回 true 表示本次提交已完成。 */
     function stepCommitSlice(tree) {
         var slice = tree._commitSlice;
@@ -5540,11 +5590,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var take = Math.min(perTick, ops.length - slice.idx);
         if (take > 0) {
             var subOps = ops.slice(slice.idx, slice.idx + take);
-            var partial = VantageScoring.scorePaths
-                ? VantageScoring.scorePaths(slice.adapter,
+            // v114：先试 Rust 批量（vt_score_paths，实测 10.83ms → 1.19ms）。
+            // 不支持 / 失败 / 新参数开着（k、动作成本、遮蔽开关）时自动回退 JS。
+            var partial = tryCommitSliceRust(tree, slice, subOps);
+            if (partial && partial.length !== subOps.length) partial = null;
+            if (!partial && VantageScoring.scorePaths) {
+                tree.stats.commitSliceJsBatches = (tree.stats.commitSliceJsBatches || 0) + 1;
+                partial = VantageScoring.scorePaths(slice.adapter,
                     { tank: { x: slice.realTankState.x, y: slice.realTankState.y, rot: slice.realTankState.rot }, tGlobal: 0 },
-                    subOps, EVAL_FRAMES, slice.threats, treeScoringCfg(tree))
-                : null;
+                    subOps, EVAL_FRAMES, slice.threats, treeScoringCfg(tree));
+            }
             if (partial) {
                 for (var pj = 0; pj < partial.length; pj++) {
                     partial[pj].opIndex = slice.idx + pj;
@@ -6835,5 +6890,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

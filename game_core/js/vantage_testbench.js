@@ -1,6 +1,9 @@
 /**
  * Vantage 调试工作台 v3（测试系统，见 docs/Vantage躲弹实现/测试系统.md）
  *
+ * 2026-09-07 v101（配合树 v114）：
+ *   ① 修「安全过滤 k / 动作成本」两个滑块严重回弹（input 里补写 state）；
+ *   ② 数据区显示「提交切片 Rust N / JS M」——发子弹卡顿的主因一眼可见。
  * 2026-09-07 v100（配合树 v113）：
  *   只是记账：树版本号改成单一来源；录制元数据补记遮蔽开关 / 安全过滤 k /
  *   动作成本 / 杀戮场等比调整（面板与评分行为未动）。
@@ -138,7 +141,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v100';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v101';   // 与 index.html ?v= 同步递增；console/断言脚本可查
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -3477,12 +3480,18 @@
         if (_expCtrl.safeFilterK) {
             _expCtrl.safeFilterK.addEventListener('input', function() {
                 var v = Math.max(10, Math.min(100, parseInt(_expCtrl.safeFilterK.value, 10) || 100));
+                // v101 修回弹：必须在这里就写 state。之前只改了数字文字，
+                // state 要等 change（松手）才更新，于是每帧 syncExpControls()
+                // 把旧值写回控件，拖动被逐帧撤销 = 严重回弹（暂停时不刷新面板
+                // 所以不回弹）。其它滑块都是这么写的，这里补齐。
+                state.exp.safeFilterK = v / 100;
                 if (_expCtrl.safeFilterKSpan) _expCtrl.safeFilterKSpan.textContent = (v / 100).toFixed(2);
             });
         }
         if (_expCtrl.actionCost) {
             _expCtrl.actionCost.addEventListener('input', function() {
                 var v = Math.max(0, Math.min(20, parseInt(_expCtrl.actionCost.value, 10) || 0));
+                state.exp.actionCost = v;   // v101 修回弹：同上，必须立刻写 state
                 if (_expCtrl.actionCostSpan) _expCtrl.actionCostSpan.textContent = v > 0 ? String(v) : '关';
             });
         }
@@ -3766,6 +3775,10 @@
                 '<br>生长停 ' + growStallText(tr.stats.growStalls) +
                 '<br>Rust评分 ' + (tr.stats.rustScoredBatches || 0) +
                 ' 回退' + (tr.stats.rustScoredFallbacks || 0) +
+                // v101：提交切片（「发子弹卡顿」的主因）走 Rust / 走 JS 的次数。
+                '<br>提交切片 Rust ' + (tr.stats.commitSliceRustBatches || 0) +
+                ' / JS ' + (tr.stats.commitSliceJsBatches || 0) +
+                (tr.stats.commitSliceRustFails ? '（Rust失手' + tr.stats.commitSliceRustFails + '）' : '') +
                 ' | JS确认 ' + (tr.stats.jsConfirmCount || 0) +
                 ' 提前' + (tr.stats.jsConfirmEarlier || 0) +
                 ' 延后' + (tr.stats.jsConfirmLater || 0) +
