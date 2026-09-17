@@ -352,7 +352,9 @@ function risky(act) { return el(act).classList.contains('vt-risk'); }
 // 默认（作者预设）下：不该有任何一个控件是红的。
 ['exp-scoreShort', 'exp-deepSelect', 'exp-nodeath', 'exp-rustMinimal', 'exp-rustPhysics',
  'exp-horizonCap', 'exp-growWithoutThreats', 'exp-targetMix', 'exp-killfield',
- 'exp-continuousRefine', 'exp-refineBeyond', 'exp-growLayers', 'exp-maxNodes'].forEach(function (act) {
+ 'exp-continuousRefine', 'exp-refineBeyond', 'exp-growLayers', 'exp-maxNodes',
+ // v102：这三项默认值（遮蔽开 / k=1 / 动作成本=0）不是危险值，不能红。
+ 'exp-occlusion', 'exp-safeFilterK', 'exp-actionCost'].forEach(function (act) {
   assert(!risky(act), act + ' must NOT be red at default preset');
 });
 
@@ -395,6 +397,36 @@ windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault
   assert(risky(act), act + ' must be red when set to a dangerous value');
 });
 
+// v102：三项"还没接完"的开关——改成非默认值必须和别的危险开关一样显红
+// （主人的要求：这些属于不建议动的默认设置，动了要红色提示、对照清楚）。
+st.exp.safeFilterK = 1; st.exp.actionCost = 0; st.exp.occlusion = true;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(!risky('exp-safeFilterK'), 'k=1 (默认) 不该红');
+assert(!risky('exp-actionCost'), '动作成本=0 (默认) 不该红');
+assert(!risky('exp-occlusion'), '遮蔽开 (默认) 不该红');
+
+st.exp.safeFilterK = 0.4;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(risky('exp-safeFilterK'), 'k=0.4 必须显红（会退回 JS 路径且口径混合）');
+st.exp.safeFilterK = 1;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(!risky('exp-safeFilterK'), 'k 回到 1 之后必须不红');
+
+st.exp.actionCost = 3;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(risky('exp-actionCost'), '动作成本>0 必须显红（未实现且拖慢）');
+st.exp.actionCost = 0;
+
+st.exp.occlusion = false;
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+windowStub.fire('keydown', { key: 'T', code: 'KeyT', keyCode: 84, preventDefault: function () {}, shiftKey: false, target: { tagName: 'BODY' } });
+assert(risky('exp-occlusion'), '关掉遮蔽评分必须显红（AI 不会躲 + 拖慢）');
+st.exp.occlusion = true;
+
 // 杀戮场相关：主人明确要求暂时不标红。
 ['exp-killfield', 'exp-emptyFieldSafety', 'exp-killfieldWeight'].forEach(function (act) {
   assert(!risky(act), act + ' must not be red (killfield family is exploratory for now)');
@@ -408,4 +440,4 @@ assert(Number(lazySlider.value) === 0, 'laziness slider default must be 0, got '
 assert(Math.abs(st.exp.emptyFieldLaziness) < 1e-9, 'laziness state default must be 0');
 assert(!risky('exp-emptyFieldLaziness'), 'laziness is an exploratory knob and must not be red');
 
-console.log('diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous values only)');
+console.log('diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous values only; v102: k/actionCost/occlusion red when off-default)');
