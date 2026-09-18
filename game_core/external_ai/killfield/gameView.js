@@ -223,7 +223,7 @@ export function buildGameViewFromWallShapes(wallShapes, maze, opt) {
 }
 
 /** 视图的公共部分（墙盒 + 可达格 + BFS + wallHit），两种建法共用。 */
-function makeView(boxes, maze, tileM, w, h, walkable) {
+function makeView(boxes, maze, tileM, w, h, walkable, adj) {
     const reachable = [];
     const grid = [];
     for (let x = 0; x < w; x++) {
@@ -277,7 +277,10 @@ function makeView(boxes, maze, tileM, w, h, walkable) {
                 for (let i = 0; i < 4; i++) {
                     const nx = nb[i][0], ny = nb[i][1];
                     if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                    // **权威邻接**：相邻两格能不能走，由墙标志决定（和游戏自身 BFS 同一套规则）；
+                    // 没有 adj 时才退化成"只看格子可走"（旧行为）。
                     if (!walkable(nx, ny) || dist[nx][ny] !== null) continue;
+                    if (adj && !adj(cur[0], cur[1], nx, ny)) continue;
                     dist[nx][ny] = d + 1;
                     queue.push([nx, ny]);
                 }
@@ -285,7 +288,85 @@ function makeView(boxes, maze, tileM, w, h, walkable) {
             return dist;
         },
         cellOf: function (x, y) { return [Math.floor(x / tileM), Math.floor(y / tileM)]; },
+        /** 权威邻接判断（有墙标志时为真规则）。 */
+        canGo: adj ? function (x, y, nx, ny) {
+            if (!walkable(nx, ny)) return false;
+            return !!adj(x, y, nx, ny);
+        } : function (x, y, nx, ny) { return !!walkable(nx, ny); },
         width: w,
         height: h
     };
+}
+
+/**
+ * 权威墙几何：**直接从迷宫的 tile 标志建墙**。
+ * ---------------------------------------------------------------------------
+ * 这个游戏（含物理引擎 B2DUtils.createMaze）的墙是"格与格之间的薄矩形"，
+ * 由 tile 标志描述：`tiles[i][j][1]===1` → 该格**上边**有墙（水平），
+ * `tiles[i][j][2]===1` → 该格**左边**有墙（垂直）。物理引擎就是这么建墙的。
+ * 所以这里也这么建 —— 不再依赖融合世界、不再需要猜单位（像素/米），
+ * 也不会受"坦克 body 还没建好"的影响（K 开局撞墙的根因之一）。
+ * 厚度用 `Constants.MAZE_WALL_WIDTH.m`。
+ */
+export function buildGameViewFromTiles(maze, opt) {
+    opt = opt || {};
+    const tileM = opt.tileM || units().TILE_M;
+    const wallW = (opt.wallWidth && opt.wallWidth > 0) ? opt.wallWidth : 0.8;
+    const half = wallW / 2;
+    const tiles = (maze && typeof maze.getTiles === 'function') ? maze.getTiles() : null;
+    if (!tiles || !tiles.length || !tiles[0]) return null;
+    const w = tiles.length, h = tiles[0].length;
+
+    // `tiles[x][y][0] === 1` = **这一格存在**（游戏 _createGraph 就是这么判的）。
+    // 拿不到标志时退化成 isPositionInsideMaze（两者等价，但前者更直接）。
+    const tileExists = (x, y) => {
+        if (x < 0 || y < 0 || x >= w || y >= h) return false;
+        const c = tiles[x][y];
+        if (c && (c[0] === 0 || c[0] === 1)) return c[0] === 1;
+        try { return !!maze.isPositionInsideMaze({ x: x, y: y }); } catch (e) { return false; }
+    };
+    const walkable = tileExists;
+
+    // **权威邻接**（逐字对应游戏 Maze._traverseCloseTiles / _createGraph）：
+    //   左 (x-1,y): tiles[x][y][2]   == 0
+    //   右 (x+1,y): tiles[x+1][y][2] == 0
+    //   上 (x,y-1): tiles[x][y][1]   == 0
+    //   下 (x,y+1): tiles[x][y+1][1] == 0
+    // ★ K 之前只按 isPositionInsideMaze 建图、从不看墙标志 → 会径直穿墙（开局撞墙的根因）。
+    const adj = (x, y, nx, ny) => {
+        if (nx === x - 1 && ny === y) { const c = tiles[x][y]; return !!c && c[2] === 0; }
+        if (nx === x + 1 && ny === y) { const c = tiles[x + 1] && tiles[x + 1][y]; return !!c && c[2] === 0; }
+        if (nx === x && ny === y - 1) { const c = tiles[x][y]; return !!c && c[1] === 0; }
+        if (nx === x && ny === y + 1) { const c = tiles[x][y + 1]; return !!c && c[1] === 0; }
+        return false;
+    };
+
+    const boxes = [];
+    for (let i = 0; i < w; i++) {
+        for (let j = 0; j < h; j++) {
+            const cell = tiles[i][j];
+            if (!cell) continue;
+            // 上边墙：[i*tile - half, j*tile - half] ~ [(i+1)*tile + half, j*tile + half]
+            if (cell[1] === 1) {
+                boxes.push([i * tileM - half, j * tileM - half, (i + 1) * tileM + half, j * tileM + half]);
+            }
+            // 左边墙：[i*tile - half, j*tile - half] ~ [i*tile + half, (j+1)*tile + half]
+            if (cell[2] === 1) {
+                boxes.push([i * tileM - half, j * tileM - half, i * tileM + half, (j + 1) * tileM + half]);
+            }
+        }
+    }
+    // 外边界兜底（保证关得住；即使 tile 标志有缺漏也不会跑出去）
+    const W = w * tileM, H = h * tileM;
+    boxes.push([-half, -half, W + half, half]);            // 上
+    boxes.push([-half, H - half, W + half, H + half]);     // 下
+    boxes.push([-half, -half, half, H + half]);            // 左
+    boxes.push([W - half, -half, W + half, H + half]);     // 右
+
+    const view = makeView(boxes, maze, tileM, w, h, walkable, adj);
+    view.source = 'tiles';
+    view.tiles = tiles;
+    view.tileCount = w * h;
+    view.wallCells = boxes.length;
+    return view;
 }

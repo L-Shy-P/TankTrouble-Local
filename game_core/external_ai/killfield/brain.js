@@ -14,7 +14,7 @@
 'use strict';
 
 import * as C from './constants.js';
-import { buildGameView, buildGameViewFromWallShapes, buildCombatView, snapshotFromGameController } from './gameView.js';
+import { buildGameView, buildGameViewFromWallShapes, buildGameViewFromTiles, buildCombatView, snapshotFromGameController } from './gameView.js';
 import { InverseDensityFieldBuilder } from './field.js';
 import { reflectiveClosest, incomingRisk } from './risk.js';
 
@@ -74,7 +74,7 @@ export function createKillfieldBrain(gc, myId, opt) {
         return 1;
     }
 
-    var viewCache = null, viewMazeRef = null, viewFromWalls = false;
+    var viewCache = null, viewMazeRef = null, viewFromSource = '';
     // v4 修"K 看到的地图是错的"：视图缓存要**分来源**。原来第一帧如果墙几何
     // 拿不到（坦克 body 还没建好），会走"把整格当墙"的旧逻辑建一张**错图**，
     // 然后被 viewCache 缓存住——后面墙几何可用了也直接命中缓存，**整局都用错图**。
@@ -84,6 +84,21 @@ export function createKillfieldBrain(gc, myId, opt) {
     function mazeView() {
         var maze = gc.getMaze ? gc.getMaze() : null;
         if (!maze) return null;
+        // v4：**首选权威 tile 墙几何**（和物理引擎同源，不依赖融合世界/不猜单位）。
+        var wallW = 0.8;
+        try {
+            if (typeof Constants !== 'undefined' && Constants.MAZE_WALL_WIDTH &&
+                Constants.MAZE_WALL_WIDTH.m) wallW = Constants.MAZE_WALL_WIDTH.m;
+        } catch (eWW) {}
+        var tileView = null;
+        try { tileView = buildGameViewFromTiles(maze, { tileM: tileM, wallWidth: wallW }); } catch (eTV) {}
+        if (tileView) {
+            if (viewCache && viewMazeRef === maze && viewFromSource === 'tiles') return viewCache;
+            viewCache = tileView;
+            viewMazeRef = maze;
+            viewFromSource = 'tiles';
+            return viewCache;
+        }
         var vs = (typeof globalThis !== 'undefined') ? globalThis.VantageSandbox : null;
         var shapes = null;
         try {
@@ -92,18 +107,18 @@ export function createKillfieldBrain(gc, myId, opt) {
             }
         } catch (eWalls) {}
         var haveWalls = !!(shapes && shapes.length);
-        if (viewCache && viewMazeRef === maze && viewFromWalls === haveWalls) return viewCache;
+        if (viewCache && viewMazeRef === maze && viewFromSource === (haveWalls ? 'fused' : 'grid')) return viewCache;
         if (haveWalls) {
             unitDivisor = detectUnitDivisor(shapes, maze, tileM);
             viewCache = buildGameViewFromWallShapes(shapes, maze, { tileM: tileM, unitDivisor: unitDivisor });
             viewMazeRef = maze;
-            viewFromWalls = true;
+            viewFromSource = 'fused';
             return viewCache;
         }
         // 拿不到真墙几何 → 走 fallback（标 viewFromWalls=false，下次拿到真几何会重建）
         viewCache = buildGameView(maze, { tileM: tileM });
         viewMazeRef = maze;
-        viewFromWalls = false;
+        viewFromSource = 'grid';
         return viewCache;
     }
 
@@ -267,6 +282,23 @@ export function createKillfieldBrain(gc, myId, opt) {
         }
         if (!enemy) return idle();
 
+        // v4 几何自检：我（或敌人）**站在墙里**说明墙几何与真实世界对不上 →
+        // 记一次日志并**停住**（空输入），绝不带着错地图往墙里冲（主人实测过 K 开局撞墙/撞墙自杀）。
+        var insideWall = false;
+        try {
+            insideWall = !!(view.wallHit && (view.wallHit(me.x, me.y) || view.wallHit(enemy.x, enemy.y)));
+        } catch (eIW) {}
+        if (insideWall) {
+            if (!diagLogged) {
+                diagLogged = true;
+                console.warn('[K] 墙几何与真实世界对不上（我在墙里）：来源=' + (view.source || viewFromSource) +
+                    ' 墙块=' + (view.walls ? view.walls.length : '?') +
+                    ' 我=(' + me.x.toFixed(1) + ',' + me.y.toFixed(1) + ')' +
+                    ' 敌=(' + enemy.x.toFixed(1) + ',' + enemy.y.toFixed(1) + ') → 本局停住不动，避免撞墙');
+            }
+            return idle();
+        }
+
         if (!diagLogged) {
             diagLogged = true;
             var bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
@@ -279,7 +311,7 @@ export function createKillfieldBrain(gc, myId, opt) {
             }
             var mz = gc.getMaze ? gc.getMaze() : null;
             console.log('[K] 自检: 迷宫=' + (mz ? mz.getWidth() : '?') + 'x' + (mz ? mz.getHeight() : '?') +
-                ' 墙来源=' + (viewFromWalls ? '融合世界(正确)' : '格近似(错误!)') +
+                ' 墙来源=' + (view.source || viewFromSource || '?') +
                 '格@' + tileM + 'm 墙块=' + view.walls.length + ' 可达格=' + view.reachable.length +
                 ' 墙范围=[' + bx0.toFixed(1) + ',' + by0.toFixed(1) + ']~[' + bx1.toFixed(1) + ',' + by1.toFixed(1) + ']' +
                 ' 单位系数=' + unitDivisor + ' 我=(' + me.x.toFixed(1) + ',' + me.y.toFixed(1) + ')' +
@@ -370,7 +402,7 @@ export function createKillfieldBrain(gc, myId, opt) {
         reset: function () {
             field = null; fieldCell = null; fireCooldown = 0; stuck = 0; lastPos = null; lastPicked = null;
             navCache = null; navCacheKey = null; diagLogged = false;
-            viewCache = null; viewMazeRef = null; viewFromWalls = false;
+            viewCache = null; viewMazeRef = null; viewFromSource = '';
         },
         stats: stats,
         getField: function () { return field; },
