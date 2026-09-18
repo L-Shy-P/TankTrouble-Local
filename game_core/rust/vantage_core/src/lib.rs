@@ -17,7 +17,8 @@ pub mod tree;
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
-    6
+    // v7：两个 ABI 各加了一个 `occlusion_enabled` 尾参（把遮蔽开关接进 Rust）。
+    7
 }
 
 /// Flat-buffer fused rollout batch ABI.
@@ -289,6 +290,7 @@ pub extern "C" fn vt_rescore_nodes(
     stuck_rot_eps: f64,
     lane_penalty_ratio: f64,
     spring_rope_enabled: u8,
+    occlusion_enabled: u8,
     prev_per_frame_scores: *const f64,
     threat_is_new: *const u8,
     node_has_prev_scores: *const u8,
@@ -576,6 +578,7 @@ pub extern "C" fn vt_rescore_nodes(
             stuck_rot_eps,
             lane_penalty_ratio,
             spring_rope_enabled: spring_rope_enabled != 0,
+            occlusion_enabled: occlusion_enabled != 0,
         };
 
         static CACHES: std::sync::OnceLock<
@@ -980,7 +983,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 6);
+        assert_eq!(vt_version(), 7);
     }
 
     #[test]
@@ -1033,6 +1036,7 @@ mod tests {
             0.05,
             0.0,
             0,
+            1,
             std::ptr::null(),
             std::ptr::null(),
             has_prev.as_ptr(),
@@ -1108,6 +1112,7 @@ mod tests {
             0.05,
             0.0,
             0,
+            1,
             prev.as_ptr(),
             threat_is_new.as_ptr(),
             has_prev.as_ptr(),
@@ -1178,6 +1183,7 @@ mod tests {
             0.05,
             0.0,
             0,
+            1,
             std::ptr::null(),
             std::ptr::null(),
             has_prev.as_ptr(),

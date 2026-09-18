@@ -266,7 +266,7 @@ async function main() {
 
   const init = await globalBridge.init('js/wasm/vantage_core.wasm');
   if (!init.ok) throw new Error('bridge init failed: ' + init.error);
-  if (globalBridge.version() !== 6) throw new Error('expected ABI v6, got ' + globalBridge.version());
+  if (globalBridge.version() !== 7) throw new Error('expected ABI v6, got ' + globalBridge.version());
   VantageSandbox.setRustPhysicsEnabled(true);
 
   const laserRust = laserAdapter.simulateTankBatch(startPose, ops, frames, laserOpt);

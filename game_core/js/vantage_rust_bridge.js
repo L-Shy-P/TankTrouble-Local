@@ -81,7 +81,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=11';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=12';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -686,6 +686,8 @@
                     throw badInput('cfg has non-finite numeric fields');
                 }
                 var springRopeEnabled = cfg.springRopeEnabled ? 1 : 0;
+                // v7：遮蔽开关接进 Rust（关掉时帧分恒为满帧，与 JS 同义）
+                var occlusionEnabled = (cfg.occlusionEnabled === false) ? 0 : 1;
 
                 var align8 = function (n) { return (n + 7) & ~7; };
                 var align4 = function (n) { return (n + 3) & ~3; };
@@ -911,7 +913,7 @@
                     pathCountsBase, pathXBase, pathYBase,
                     anchorOffsetBase, speedBase, bulletRadiusBase, lifeLeftBase,
                     deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
-                    lanePenaltyRatio, springRopeEnabled,
+                    lanePenaltyRatio, springRopeEnabled, occlusionEnabled,
                     allNodesPrev ? prevPfsBase : 0,
                     threatCount > 0 ? threatIsNewBase : 0,
                     nodeHasPrevBase, prevDeathBase,
@@ -1178,6 +1180,8 @@
                     throw badInput('cfg has non-finite numeric fields');
                 }
                 var springRopeEnabled = cfg.springRopeEnabled ? 1 : 0;
+                // v7：遮蔽开关接进 Rust（关掉时帧分恒为满帧，与 JS 同义）
+                var occlusionEnabled = (cfg.occlusionEnabled === false) ? 0 : 1;
 
                 var align8 = function (n) { return (n + 7) & ~7; };
                 var align4 = function (n) { return (n + 3) & ~3; };
@@ -1372,7 +1376,7 @@
                     pathCountsBase, pathXBase, pathYBase,
                     anchorOffsetBase, speedBase,
                     deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
-                    lanePenaltyRatio, springRopeEnabled,
+                    lanePenaltyRatio, springRopeEnabled, occlusionEnabled,
                     outXBase, outYBase, outRotBase,
                     outPfsBase, outTotalBase, outDeathBase, outOkBase
                 );

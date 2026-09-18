@@ -1166,6 +1166,9 @@ pub fn spring_rope_frame_score(
 pub struct ScoringConfig {
     pub lane_penalty_ratio: f64,
     pub spring_rope: SpringRopeConfig,
+    /// 遮蔽开关（主人 2026-09-09 要求接进 Rust）：关掉时帧分恒为满帧 (2π)²，
+    /// 语义与 JS 的 `occlusionEnabled === false` 完全一致——只作对比实验用。
+    pub occlusion_enabled: bool,
 }
 
 impl Default for ScoringConfig {
@@ -1173,6 +1176,7 @@ impl Default for ScoringConfig {
         Self {
             lane_penalty_ratio: 0.0,
             spring_rope: SpringRopeConfig::default(),
+            occlusion_enabled: true,
         }
     }
 }
@@ -1188,14 +1192,19 @@ pub fn score_frame_alive(
     bullet_points: &[Point],
     lane_penalty: f64,
     spring_danger: f64,
-    _cfg: &ScoringConfig,
+    cfg: &ScoringConfig,
 ) -> f64 {
-    let occ = occlusion_intervals(tank, bullet_points);
-    let frame_score: f64 = occ
-        .free_intervals
-        .iter()
-        .map(|iv| iv.width * iv.width)
-        .sum();
+    // 遮蔽关掉 = 完全不产生遮蔽弧 → 整个圆周都安全 = 满帧 (2π)²。
+    let frame_score: f64 = if cfg.occlusion_enabled {
+        occlusion_intervals(tank, bullet_points)
+            .free_intervals
+            .iter()
+            .map(|iv| iv.width * iv.width)
+            .sum()
+    } else {
+        let two_pi = std::f64::consts::PI * 2.0;
+        two_pi * two_pi
+    };
     frame_score - lane_penalty - spring_danger
 }
 

@@ -314,8 +314,8 @@ async function main() {
 
   const init = await globalBridge.init('js/wasm/vantage_core.wasm');
   if (!init.ok) throw new Error('bridge init failed: ' + init.error);
-  if (globalBridge.version() !== 6) {
-    throw new Error('expected wasm ABI v6, got ' + globalBridge.version());
+  if (globalBridge.version() !== 7) {
+    throw new Error('expected wasm ABI v7, got ' + globalBridge.version());
   }
   VantageSandbox.setRustPhysicsEnabled(true);
 
@@ -425,6 +425,43 @@ async function main() {
   }
   console.log('scene            : unsupported config fallback');
   console.log('  lane>0 / spring rope returned null: PASS');
+
+  // ---- v116 注入：遮蔽开关必须真的接进了 Rust（关掉时帧分恒为满帧）----
+  {
+    const prep = prepared.find((p) => p.threats && p.threats.length) || prepared[0];
+    const offCfg = Object.assign({}, cfg, { occlusionEnabled: false });
+    const jsOff = VantageScoring.scorePaths(
+      { constants: prep.adapter.constants, bulletPosAt: prep.adapter.bulletPosAt,
+        simulateTankBatch: prep.adapter.simulateTankBatch.bind(prep.adapter) },
+      { tank: startPose, tGlobal: 0 }, ops, frames, prep.threats, offCfg);
+    const rustOff = prep.adapter.simulateTankBatchScored(startPose, ops, frames,
+      { startPose, threats: prep.threats, tGlobal: 0, cfg: offCfg });
+    if (!rustOff) throw new Error('occlusionEnabled=false: Rust 返回 null');
+    const FULL = Math.pow(2 * Math.PI, 2);
+    let maxDiffOff = 0, flat = 0, total = 0;
+    const STUCK = cfg.stuckPenalty === undefined ? 4 : cfg.stuckPenalty;
+    const DEATH = cfg.deathPenalty === undefined ? 0 : cfg.deathPenalty;
+    for (let op = 0; op < ops.length; op++) {
+      const a = jsOff[op].perFrameScores, b = rustOff[op].perFrameScores;
+      if (a.length !== b.length) throw new Error('occlusion off 长度不一致');
+      for (let f = 0; f < a.length; f++) {
+        maxDiffOff = Math.max(maxDiffOff, Math.abs(a[f] - b[f]));
+        total++;
+        // 关掉遮蔽后，帧分只可能是：满帧 / 满帧−卡墙罚 / 死亡帧的 −deathPenalty
+        const okVal = Math.abs(b[f] - FULL) < 1e-9 ||
+          Math.abs(b[f] - (FULL - STUCK)) < 1e-9 ||
+          Math.abs(b[f] - (-DEATH)) < 1e-9;
+        if (!okVal) throw new Error('occlusion off: 出现非预期帧分 ' + b[f] +
+          '（只允许 满帧=' + FULL + ' / 满帧−卡墙=' + (FULL - STUCK) + ' / 死亡=' + (-DEATH) + '）');
+        if (Math.abs(b[f] - FULL) < 1e-9) flat++;
+      }
+    }
+    if (maxDiffOff > 1e-9) throw new Error('occlusion off: JS↔Rust 不一致 ' + maxDiffOff);
+    if (flat === 0) throw new Error('occlusion off: 一帧满帧都没有，开关没生效');
+    console.log('scene            : occlusionEnabled=false（v116 新接线）');
+    console.log('  JS↔Rust 最大误差:', maxDiffOff.toExponential(2),
+      ' 满帧帧数:', flat + '/' + total, '（其余为卡墙/死亡帧）: PASS');
+  }
 
   if (rustWarnCount !== 0) {
     throw new Error('Rust scored path emitted ' + rustWarnCount + ' fallback warning(s)');

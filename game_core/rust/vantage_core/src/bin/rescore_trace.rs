@@ -506,6 +506,7 @@ fn parse_scene(json: &Json) -> Result<Scene, String> {
             }
             None => default_cfg.spring_rope_enabled,
         },
+        occlusion_enabled: true,
     };
 
     Ok(Scene {

@@ -196,6 +196,8 @@ pub struct RescoreConfig {
     pub stuck_rot_eps: f64,
     pub lane_penalty_ratio: f64,
     pub spring_rope_enabled: bool,
+    /// 遮蔽开关（接 Rust 用；见 scoring::ScoringConfig::occlusion_enabled）。
+    pub occlusion_enabled: bool,
 }
 
 impl Default for RescoreConfig {
@@ -207,6 +209,7 @@ impl Default for RescoreConfig {
             stuck_rot_eps: 0.05,
             lane_penalty_ratio: 0.0,
             spring_rope_enabled: false,
+                    occlusion_enabled: true,
         }
     }
 }
@@ -775,7 +778,11 @@ where
     }
 
     let scoring_threats = to_scoring_threats(threats);
-    let scoring_cfg = scoring::ScoringConfig::default();
+    let scoring_cfg = scoring::ScoringConfig {
+        lane_penalty_ratio: cfg.lane_penalty_ratio,
+        spring_rope: scoring::SpringRopeConfig::default(),
+        occlusion_enabled: cfg.occlusion_enabled,
+    };
     let max_i = node.scored_frames();
 
     // Incremental scoring may run from two shapes of previous score vectors:

@@ -36,6 +36,8 @@ pub struct ScorePathsConfig {
     pub stuck_rot_eps: f64,
     pub lane_penalty_ratio: f64,
     pub spring_rope_enabled: bool,
+    /// 遮蔽开关：关掉时帧分恒为满帧（与 JS 的 occlusionEnabled=false 同义）。
+    pub occlusion_enabled: bool,
 }
 
 impl Default for ScorePathsConfig {
@@ -47,6 +49,7 @@ impl Default for ScorePathsConfig {
             stuck_rot_eps: 0.05,
             lane_penalty_ratio: 0.0,
             spring_rope_enabled: false,
+            occlusion_enabled: true,
         }
     }
 }
@@ -135,6 +138,7 @@ pub fn run_score_paths(
         stuck_rot_eps: input.cfg.stuck_rot_eps,
         lane_penalty_ratio: input.cfg.lane_penalty_ratio,
         spring_rope_enabled: input.cfg.spring_rope_enabled,
+        occlusion_enabled: input.cfg.occlusion_enabled,
     };
 
     let mut outputs = Vec::with_capacity(input.ops.len());
@@ -242,6 +246,7 @@ pub extern "C" fn vt_score_paths(
     stuck_rot_eps: f64,
     lane_penalty_ratio: f64,
     spring_rope_enabled: u8,
+    occlusion_enabled: u8,
     out_x: *mut f64,
     out_y: *mut f64,
     out_rot: *mut f64,
@@ -544,6 +549,7 @@ pub extern "C" fn vt_score_paths(
                 stuck_rot_eps,
                 lane_penalty_ratio,
                 spring_rope_enabled: spring_rope_enabled != 0,
+                occlusion_enabled: occlusion_enabled != 0,
             },
         };
 
