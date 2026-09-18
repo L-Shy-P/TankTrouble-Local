@@ -78,6 +78,19 @@
             newsSubscriber: false, gmLevel: 0, beta: false, verified: true, banned: null,
             usernameApproved: true, premium: false, guest: false, rank: 11, xp: 0, lastForumPost: 0
         },
+        'killfield_template': {
+            playerId: 'killfield_template',
+            username: 'Killfield',
+            victories: 0, kills: 0, deaths: 0, suicides: 0, surrenders: 0, experience: 0,
+            turretColour: colourHex(0xd97706),
+            treadColour: colourHex(0xcfd8dc),
+            baseColour: colourHex(0xd97706),
+            turretAccessory: '0', barrelAccessory: '0', frontAccessory: '0', backAccessory: '0',
+            treadAccessory: '0', backgroundAccessory: '0', badge: '0',
+            email: null, lastLogin: null, created: null, realName: null, birthYear: null, country: null,
+            newsSubscriber: false, gmLevel: 0, beta: false, verified: true, banned: null,
+            usernameApproved: true, premium: false, guest: false, rank: 11, xp: 0, lastForumPost: 0
+        },
         'hybrid_template': {
             playerId: 'hybrid_template',
             username: 'Hybrid',
@@ -151,8 +164,22 @@
         // 检查是否是Vantage / Hybrid（两者都复用 Laika 头像与 Spine，只换显示名与配色）
         var isVantage = instanceId && instanceId.indexOf('vantage_') === 0;
         var isHybrid = instanceId && instanceId.indexOf('hybrid_') === 0;
+        var isKillfield = instanceId && instanceId.indexOf('killfield_') === 0;
 
         var template;
+        if (isKillfield) {
+            template = AIs.ais[instanceId] || (AIs.getAI && AIs.getAI(LAIKA_TEMPLATE_ID));
+            if (!template && LOCAL_AIS.length > 0) {
+                template = LOCAL_AIS[0].config;
+            }
+            if (!template) return;
+            if (!AIs.ais[instanceId]) {
+                AIs.ais[instanceId] = cloneLaikaConfig(template);
+            }
+            AIs.ais[instanceId].name = 'Laika';
+            AIs.ais[instanceId].isKillfield = true;
+            return;
+        }
         if (isHybrid) {
             template = AIs.ais[instanceId] || (AIs.getAI && AIs.getAI(LAIKA_TEMPLATE_ID));
             if (!template && LOCAL_AIS.length > 0) {
@@ -321,6 +348,14 @@
 
         try {
             var manager;
+            // Killfield：独立坦克，算法 AI（密度场 + 风险 + 瞄准；MPC 待补）
+            if ((cfg.isKillfield || (aiId && aiId.indexOf('killfield_') === 0)) &&
+                typeof KillfieldAIManager !== 'undefined') {
+                if (!cfg.isKillfield) cfg.isKillfield = true;
+                manager = KillfieldAIManager.create(aiId, cfg, gameController);
+                manager.isKillfield = true;
+                console.log('[Killfield] 创建 KillfieldAIManager:', aiId);
+            } else
             // Hybrid：独立坦克，用外接策略（观测→推理→输入）
             if ((cfg.isHybrid || (aiId && aiId.indexOf('hybrid_') === 0)) &&
                 typeof HybridAIManager !== 'undefined') {
@@ -585,7 +620,9 @@
                 } else if (typeof Users !== 'undefined' && Users.isLobbyAIUser &&
                     Users.isLobbyAIUser(pid)) {
                     var lobbyAIInfo = Users.lobbyAIUsers[pid];
-                    if (lobbyAIInfo && lobbyAIInfo.isHybrid) {
+                    if (lobbyAIInfo && lobbyAIInfo.isKillfield) {
+                        innerData = makeLobbyKillfieldPlayerDetails(pid);
+                    } else if (lobbyAIInfo && lobbyAIInfo.isHybrid) {
                         innerData = makeLobbyHybridPlayerDetails(pid);
                     } else if (lobbyAIInfo && lobbyAIInfo.isVantage) {
                         innerData = makeLobbyVantagePlayerDetails(pid);
@@ -770,6 +807,7 @@
     // Vantage相关函数
     var _lobbyVantageCounter = 0;
     var _lobbyHybridCounter = 0;
+    var _lobbyKillfieldCounter = 0;
     function createLobbyVantageId() {
         _lobbyVantageCounter++;
         return 'vantage_' + _lobbyVantageCounter;
@@ -864,6 +902,53 @@
     }
 
     /** 主人 2026-09-08 指定的接法：在大厅"添加坦克"那里加一辆 Hybrid 车。 */
+    function createLobbyKillfieldId() {
+        _lobbyKillfieldCounter++;
+        return 'killfield_' + _lobbyKillfieldCounter;
+    }
+
+    function getLobbyKillfieldDisplayName(instanceId) {
+        if (typeof Users === 'undefined' || !Users.lobbyAIUsers) return 'Killfield 1';
+        var ids = Object.keys(Users.lobbyAIUsers), i, n = 0;
+        for (i = 0; i < ids.length; i++) {
+            if (Users.lobbyAIUsers[ids[i]] && Users.lobbyAIUsers[ids[i]].isKillfield) {
+                n++;
+                if (ids[i] === instanceId) return 'Killfield ' + n;
+            }
+        }
+        return 'Killfield ' + (n + 1);
+    }
+
+    function makeLobbyKillfieldPlayerDetails(instanceId) {
+        var details = JSON.parse(JSON.stringify(AI_PLAYER_DETAILS['killfield_template']));
+        details.playerId = instanceId;
+        details.username = getLobbyKillfieldDisplayName(instanceId);
+        return details;
+    }
+
+    /** 加一辆 Killfield 车（算法 AI，用我们自己的物理，会瞄准开火、会躲弹）。 */
+    function addLobbyKillfieldPlayer() {
+        if (typeof KillfieldAIManager === 'undefined') {
+            if (typeof TankTrouble !== 'undefined' && TankTrouble.ErrorBox) {
+                TankTrouble.ErrorBox.show('Killfield 模块未加载（js/ai_killfield.js）。');
+            }
+            return false;
+        }
+        if (!canAddMoreLobbyTanks()) {
+            if (TankTrouble.ErrorBox) {
+                TankTrouble.ErrorBox.show('Cannot add more tanks (limit: ' + getLocalMaxTanks() + ').');
+            }
+            return false;
+        }
+        var aiId = createLobbyKillfieldId();
+        if (!aiId) return false;
+        if (typeof Users.addLobbyAIUser === 'function') {
+            Users.addLobbyAIUser(aiId, 'killfield');
+            return true;
+        }
+        return false;
+    }
+
     function addLobbyHybridPlayer() {
         if (typeof HybridAIManager === 'undefined') {
             if (typeof TankTrouble !== 'undefined' && TankTrouble.ErrorBox) {
@@ -942,7 +1027,8 @@
             Users.lobbyAIUsers[aiId] = {
                 templateId: LAIKA_TEMPLATE_ID,
                 isVantage: isVantage === true,
-                isHybrid: isVantage === 'hybrid'
+                isHybrid: isVantage === 'hybrid',
+                isKillfield: isVantage === 'killfield'
             };
             Users._notifyEventListeners(Users.EVENTS.GUEST_ADDED, aiId);
             setTimeout(function() { refreshLobbyAIAvatarInPanel(aiId); }, 0);
@@ -1576,6 +1662,19 @@
                 addLobbyAIPlayer();
             }
         });
+
+        // 添加Killfield按钮（算法 AI：会瞄准开火、会躲弹）
+        if (!box.addUserKillfield) {
+            box.addUserKillfield = Utils.createFixedWidthButton('Add Killfield', 'medium', 120);
+            box.addUserKillfield.css({ display: 'inline-block', marginLeft: '10px' });
+            box.addUserAI.after(box.addUserKillfield);
+            box.addUserKillfield.click(function() {
+                if (box.showing) {
+                    box.hide();
+                    addLobbyKillfieldPlayer();
+                }
+            });
+        }
 
         // 添加Hybrid按钮（主人 2026-09-08：作为独立坦克加入对局）
         if (!box.addUserHybrid) {

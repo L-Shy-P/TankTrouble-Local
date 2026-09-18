@@ -508,6 +508,12 @@ window.addEventListener('error', function(e) {
         import { HybridPolicy } from "./external_ai/hybrid/hybrid.js";
         window.HybridPolicy = HybridPolicy;
     </script>
+    <!-- Killfield（算法 AI）：大脑是 ES module，管理器是经典脚本 -->
+    <script src="js/ai_killfield.js?v=1"></script>
+    <script type="module">
+        import * as KillfieldBrain from "./external_ai/killfield/brain.js";
+        window.KillfieldBrain = KillfieldBrain;
+    </script>
 <script src="js/vantage_tree.js?v=114"></script>
 <script src="js/ai_dodge_debug.js"></script>
 <script src="js/ai_vantage.js?v=10"></script>
