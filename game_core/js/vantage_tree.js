@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v116';
+    var TREE_VERSION = 'v117';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var CONTACT_MARGIN = 4.0;       // v34：坦克按圆粗滤（半对角~2.5 + 弹径余量）
@@ -6700,8 +6700,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var n = Number(v);
         if (!isFinite(n)) n = 1.0;
         n = Math.round(n * 100) / 100;
+        var prev = _killfieldWeight;
         _killfieldWeight = Math.max(0, Math.min(4, n));
         if (_tree && _tree.cfg) _tree.cfg.killfieldWeight = _killfieldWeight;
+        // v116：杀戮场权重变了 → 所有节点的 objectiveBonus 全变了，旧选路结果全部作废。
+        // 主人实测拉到 200%+ 后出现弱化的"操作到死"，改回来也不恢复——就是因为
+        // 树里还挂着按旧权重选出来的 next 链。一变就重建。
+        if (prev !== _killfieldWeight && _tree) reset();
         return _killfieldWeight;
     }
 
@@ -6733,8 +6738,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function setGrowLayersPerTick(v) {
         var n = Math.round(Number(v));
         if (!isFinite(n)) n = 1;
+        var prev = _growLayersPerTick;
         _growLayersPerTick = Math.max(1, Math.min(6, n));
         if (_tree && _tree.cfg) _tree.cfg.growLayersPerTick = _growLayersPerTick;
+        // v116（主人实测：改生长层数后能力暴跌、改回去也回不来、刷新才好）：
+        // 生长节奏变了 → 旧树的层结构/next 链/段末时序全是按旧节奏建的，继续用
+        // 就是"形状不自洽"。结构性参数一变就重建（等价于换局重开，几帧内自愈）。
+        if (prev !== _growLayersPerTick && _tree) reset();
         return _growLayersPerTick;
     }
 

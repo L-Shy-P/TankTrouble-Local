@@ -220,14 +220,19 @@ export function createKillfieldBrain(gc, myId, opt) {
         if (first && end) {
             var moved = Math.hypot(end.x - first.x, end.y - first.y);
             score += 24 * (moved / tileM);
+            // v3 修远距抽搐：直线"靠近敌人"这一项**永远算**——原来只在 BFS 不可用时才算，
+            // 而 BFS 项在 12 帧前瞻里根本跨不出一格（d0===d1，加 0 分），等于远距离
+            // 完全没有方向梯度 → 前进后退同分 → 平局乱选 → 主人看到的"原地前后抽搐"。
+            var straightDelta = Math.hypot(end.x - enemy.x, end.y - enemy.y) -
+                Math.hypot(first.x - enemy.x, first.y - enemy.y);
+            score -= 12 * straightDelta;   // 靠近 = 正分，远离 = 负分
+            // BFS 项叠加在直线之上：跨过格边界时额外加分（用真实可走步数）
             if (nav) {
                 var mCell = [Math.floor(first.x / tileM), Math.floor(first.y / tileM)];
                 var eCell = [Math.floor(end.x / tileM), Math.floor(end.y / tileM)];
                 var d0 = (nav[mCell[0]] && nav[mCell[0]][mCell[1]] !== null) ? nav[mCell[0]][mCell[1]] : null;
                 var d1 = (nav[eCell[0]] && nav[eCell[0]][eCell[1]] !== null) ? nav[eCell[0]][eCell[1]] : null;
-                if (d0 !== null && d1 !== null) score += 60 * (d0 - d1);   // 用真实可走步数，不是直线
-            } else {
-                score -= 8 * (Math.hypot(end.x - enemy.x, end.y - enemy.y) - Math.hypot(first.x - enemy.x, first.y - enemy.y));
+                if (d0 !== null && d1 !== null) score += 60 * (d0 - d1);
             }
         }
         return score;
