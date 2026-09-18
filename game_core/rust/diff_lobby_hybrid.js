@@ -144,7 +144,7 @@ const patch = fs.readFileSync(path.join(root, 'js', 'local_patch.js'), 'utf8');
 });
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-['js/external_ai_hybrid.js', 'js/ai_hybrid.js', "from \"./external_ai/hybrid/hybrid.js\""].forEach(function (needle) {
+['js/external_ai_hybrid.js', 'js/ai_hybrid.js', './external_ai/hybrid/hybrid.js'].forEach(function (needle) {
   assert(html.indexOf(needle) >= 0, 'index.html 必须加载 ' + needle);
 });
 

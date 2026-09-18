@@ -195,6 +195,7 @@ export function snapshotFromGameController(gc, myId, opt) {
 export function buildGameViewFromWallShapes(wallShapes, maze, opt) {
     opt = opt || {};
     const tileM = opt.tileM || units().TILE_M;
+    const div = opt.unitDivisor || 1;          // 万一墙几何和我们的米制不一致（像素系 = 20），用它对齐
     const w = maze.getWidth(), h = maze.getHeight();
     const walkable = (x, y) => {
         if (x < 0 || y < 0 || x >= w || y >= h) return false;
@@ -215,7 +216,7 @@ export function buildGameViewFromWallShapes(wallShapes, maze, opt) {
             if (v.y > maxY) maxY = v.y;
         }
         if (isFinite(minX) && isFinite(maxX) && isFinite(minY) && isFinite(maxY)) {
-            boxes.push([minX, minY, maxX, maxY]);
+            boxes.push([minX / div, minY / div, maxX / div, maxY / div]);
         }
     }
     return makeView(boxes, maze, tileM, w, h, walkable);

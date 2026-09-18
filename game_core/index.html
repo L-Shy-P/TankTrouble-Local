@@ -499,19 +499,19 @@ window.addEventListener('error', function(e) {
 <!-- TT AI MODS：必须在全部游戏脚本加载后再注入，否则会被 eval 覆盖 -->
 <script src="js/ai_strength_config.js"></script>
 <script src="js/ai_tactics.js"></script>
-<script src="js/vantage_sandbox.js?v=35"></script>
+<script src="js/vantage_sandbox.js?v=36"></script>
 <script src="js/vantage_scoring.js?v=36"></script>
     <!-- 外接 AI（Hybrid）：观测构造器 + 大脑/管理器 + 模型（ES module 推理） -->
-    <script src="js/external_ai_hybrid.js?v=1"></script>
-    <script src="js/ai_hybrid.js?v=1"></script>
+    <script src="js/external_ai_hybrid.js?v=2"></script>
+    <script src="js/ai_hybrid.js?v=2"></script>
     <script type="module">
-        import { HybridPolicy } from "./external_ai/hybrid/hybrid.js";
+        import { HybridPolicy } from "./external_ai/hybrid/hybrid.js?v=2";
         window.HybridPolicy = HybridPolicy;
     </script>
     <!-- Killfield（算法 AI）：大脑是 ES module，管理器是经典脚本 -->
-    <script src="js/ai_killfield.js?v=1"></script>
+    <script src="js/ai_killfield.js?v=2"></script>
     <script type="module">
-        import * as KillfieldBrain from "./external_ai/killfield/brain.js";
+        import * as KillfieldBrain from "./external_ai/killfield/brain.js?v=2";
         window.KillfieldBrain = KillfieldBrain;
     </script>
 <script src="js/vantage_tree.js?v=114"></script>
@@ -519,7 +519,7 @@ window.addEventListener('error', function(e) {
 <script src="js/ai_vantage.js?v=10"></script>
 <script src="js/vantage_rust_bridge.js?v=10"></script>
 <script src="js/vantage_testbench.js?v=103"></script>
-<script src="js/local_patch.js?v=7"></script>
+<script src="js/local_patch.js?v=8"></script>
 <script src="js/training_mode.js?v=48"></script>
 <script src="js/vantage_training_bench.js?v=14"></script>
 <script>

@@ -45,11 +45,34 @@ export function createKillfieldBrain(gc, myId, opt) {
     var tileM = (opt.tileM || C.units().TILE_M);
     var field = null, fieldCell = null, fieldBudget = 2;   // 每帧最多新建几格（开局可多给）
     var navCache = null, navCacheKey = null;               // 到敌人格的 BFS 距离表（赶路用）
+    var unitDivisor = 1;                                    // 融合世界几何的单位系数（正常 1；像素系会是 20）
+    var diagLogged = false;
     var ops = candidateOps();
     var fireCooldown = 0;
     var lastPos = null, stuck = 0;
     var stats = { frames: 0, fieldBuilds: 0, fieldHits: 0, fires: 0, dodges: 0 };
     var lastPicked = null;
+
+    /** 量一下融合世界的墙几何有没有单位问题：范围比迷宫大很多就是"像素系"，除以那个比值。
+     *  （自己量、不猜；比值会打印在自检行里。） */
+    function detectUnitDivisor(shapes, maze, tileM) {
+        var expected = Math.max(maze.getWidth(), maze.getHeight()) * tileM;
+        var maxCoord = 0;
+        for (var i = 0; i < shapes.length; i++) {
+            var verts = shapes[i] && shapes[i].verts;
+            if (!verts) continue;
+            for (var k = 0; k < verts.length; k++) {
+                var v = verts[k];
+                if (!v) continue;
+                if (Math.abs(v.x) > maxCoord) maxCoord = Math.abs(v.x);
+                if (Math.abs(v.y) > maxCoord) maxCoord = Math.abs(v.y);
+            }
+        }
+        if (!isFinite(expected) || expected <= 0 || maxCoord <= 0) return 1;
+        var ratio = maxCoord / expected;
+        if (ratio > 3) return Math.round(ratio);
+        return 1;
+    }
 
     function mazeView() {
         var maze = gc.getMaze ? gc.getMaze() : null;
@@ -62,7 +85,8 @@ export function createKillfieldBrain(gc, myId, opt) {
             if (vs && typeof vs.getFusedWallShapes === 'function') {
                 var shapes = vs.getFusedWallShapes(gc, myId);
                 if (shapes && shapes.length) {
-                    return buildGameViewFromWallShapes(shapes, maze, { tileM: tileM });
+                    unitDivisor = detectUnitDivisor(shapes, maze, tileM);
+                    return buildGameViewFromWallShapes(shapes, maze, { tileM: tileM, unitDivisor: unitDivisor });
                 }
             }
         } catch (eWalls) {}
@@ -144,6 +168,17 @@ export function createKillfieldBrain(gc, myId, opt) {
      * 给一条候选轨迹打分：
      *   躲弹（子弹路径与轨迹的最近距离）＋ 走位（终点格的"能打到对手"程度）－ 乱撞惩罚。
      */
+    /** 候选轨迹采样换算到米制（防单位不一致）。 */
+    function toMeters(samples) {
+        if (unitDivisor === 1) return samples;
+        var out = [];
+        for (var i = 0; i < samples.length; i++) {
+            var s = samples[i];
+            out.push(s ? { x: s.x / unitDivisor, y: s.y / unitDivisor, rot: s.rot } : s);
+        }
+        return out;
+    }
+
     function scoreTrajectory(samples, boxes, enemyBullets, view, me, enemy, nav) {
         var i, k, b, score = 0, minClear = Infinity;
         var step = tileM / 4;                 // 采样步长约 2.5 米
@@ -213,6 +248,23 @@ export function createKillfieldBrain(gc, myId, opt) {
         }
         if (!enemy) return idle();
 
+        if (!diagLogged) {
+            diagLogged = true;
+            var bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+            for (var wi = 0; wi < view.walls.length; wi++) {
+                var wb = view.walls[wi];
+                if (wb[0] < bx0) bx0 = wb[0];
+                if (wb[2] > bx1) bx1 = wb[2];
+                if (wb[1] < by0) by0 = wb[1];
+                if (wb[3] > by1) by1 = wb[3];
+            }
+            var mz = gc.getMaze ? gc.getMaze() : null;
+            console.log('[K] 自检: 迷宫=' + (mz ? mz.getWidth() : '?') + 'x' + (mz ? mz.getHeight() : '?') +
+                '格@' + tileM + 'm 墙块=' + view.walls.length + ' 可达格=' + view.reachable.length +
+                ' 墙范围=[' + bx0.toFixed(1) + ',' + by0.toFixed(1) + ']~[' + bx1.toFixed(1) + ',' + by1.toFixed(1) + ']' +
+                ' 单位系数=' + unitDivisor + ' 我=(' + me.x.toFixed(1) + ',' + me.y.toFixed(1) + ')' +
+                ' 敌=(' + enemy.x.toFixed(1) + ',' + enemy.y.toFixed(1) + ')');
+        }
         var enemyCell = [Math.floor(enemy.x / tileM), Math.floor(enemy.y / tileM)];
         fieldFor(enemyCell, view);
         var nav = navFieldFor(enemyCell, view);
@@ -257,6 +309,7 @@ export function createKillfieldBrain(gc, myId, opt) {
             for (var i = 0; i < rolls.length; i++) {
                 var samples = rolls[i] && rolls[i].samples;
                 if (!samples || !samples.length) continue;
+                samples = toMeters(samples);
                 var sc = scoreTrajectory(samples, view.walls, enemyBullets, view, me, enemy, nav);
                 if (sc > bestScore) { bestScore = sc; picked = ops[i]; }
             }
@@ -296,6 +349,7 @@ export function createKillfieldBrain(gc, myId, opt) {
         update: update,
         reset: function () {
             field = null; fieldCell = null; fireCooldown = 0; stuck = 0; lastPos = null; lastPicked = null;
+            navCache = null; navCacheKey = null; diagLogged = false;
         },
         stats: stats,
         getField: function () { return field; },
