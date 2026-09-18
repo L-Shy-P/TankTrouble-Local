@@ -74,29 +74,36 @@ export function createKillfieldBrain(gc, myId, opt) {
         return 1;
     }
 
-    var viewCache = null, viewMazeRef = null;   // v3：视图按迷宫缓存（大图上每帧重建墙盒/可达格/空间索引是大头）
+    var viewCache = null, viewMazeRef = null, viewFromWalls = false;
+    // v4 修"K 看到的地图是错的"：视图缓存要**分来源**。原来第一帧如果墙几何
+    // 拿不到（坦克 body 还没建好），会走"把整格当墙"的旧逻辑建一张**错图**，
+    // 然后被 viewCache 缓存住——后面墙几何可用了也直接命中缓存，**整局都用错图**。
+    // 现在：墙几何来源的视图和 fallback 来源的视图分开标记，
+    // fallback 视图一旦建过、后面拿到真墙几何就立刻重建（不再沿用）。
 
     function mazeView() {
         var maze = gc.getMaze ? gc.getMaze() : null;
         if (!maze) return null;
-        if (viewCache && viewMazeRef === maze) return viewCache;
-        // 首选：融合世界的**真实墙几何**（和 V 用的是同一份）。
-        //   这个游戏的墙是"格与格之间的薄矩形"，不是整格 —— 只按 isPositionInsideMaze
-        //   推墙会得到一张**没有墙的地图**（主人实测："K 看到的图疑似是错的"）。
+        var vs = (typeof globalThis !== 'undefined') ? globalThis.VantageSandbox : null;
+        var shapes = null;
         try {
-            var vs = (typeof globalThis !== 'undefined') ? globalThis.VantageSandbox : null;
             if (vs && typeof vs.getFusedWallShapes === 'function') {
-                var shapes = vs.getFusedWallShapes(gc, myId);
-                if (shapes && shapes.length) {
-                    unitDivisor = detectUnitDivisor(shapes, maze, tileM);
-                    viewCache = buildGameViewFromWallShapes(shapes, maze, { tileM: tileM, unitDivisor: unitDivisor });
-                    viewMazeRef = maze;
-                    return viewCache;
-                }
+                shapes = vs.getFusedWallShapes(gc, myId);
             }
         } catch (eWalls) {}
+        var haveWalls = !!(shapes && shapes.length);
+        if (viewCache && viewMazeRef === maze && viewFromWalls === haveWalls) return viewCache;
+        if (haveWalls) {
+            unitDivisor = detectUnitDivisor(shapes, maze, tileM);
+            viewCache = buildGameViewFromWallShapes(shapes, maze, { tileM: tileM, unitDivisor: unitDivisor });
+            viewMazeRef = maze;
+            viewFromWalls = true;
+            return viewCache;
+        }
+        // 拿不到真墙几何 → 走 fallback（标 viewFromWalls=false，下次拿到真几何会重建）
         viewCache = buildGameView(maze, { tileM: tileM });
         viewMazeRef = maze;
+        viewFromWalls = false;
         return viewCache;
     }
 
@@ -272,6 +279,7 @@ export function createKillfieldBrain(gc, myId, opt) {
             }
             var mz = gc.getMaze ? gc.getMaze() : null;
             console.log('[K] 自检: 迷宫=' + (mz ? mz.getWidth() : '?') + 'x' + (mz ? mz.getHeight() : '?') +
+                ' 墙来源=' + (viewFromWalls ? '融合世界(正确)' : '格近似(错误!)') +
                 '格@' + tileM + 'm 墙块=' + view.walls.length + ' 可达格=' + view.reachable.length +
                 ' 墙范围=[' + bx0.toFixed(1) + ',' + by0.toFixed(1) + ']~[' + bx1.toFixed(1) + ',' + by1.toFixed(1) + ']' +
                 ' 单位系数=' + unitDivisor + ' 我=(' + me.x.toFixed(1) + ',' + me.y.toFixed(1) + ')' +
@@ -362,7 +370,7 @@ export function createKillfieldBrain(gc, myId, opt) {
         reset: function () {
             field = null; fieldCell = null; fireCooldown = 0; stuck = 0; lastPos = null; lastPicked = null;
             navCache = null; navCacheKey = null; diagLogged = false;
-            viewCache = null; viewMazeRef = null;
+            viewCache = null; viewMazeRef = null; viewFromWalls = false;
         },
         stats: stats,
         getField: function () { return field; },
