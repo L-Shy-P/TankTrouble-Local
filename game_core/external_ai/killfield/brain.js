@@ -74,9 +74,12 @@ export function createKillfieldBrain(gc, myId, opt) {
         return 1;
     }
 
+    var viewCache = null, viewMazeRef = null;   // v3：视图按迷宫缓存（大图上每帧重建墙盒/可达格/空间索引是大头）
+
     function mazeView() {
         var maze = gc.getMaze ? gc.getMaze() : null;
         if (!maze) return null;
+        if (viewCache && viewMazeRef === maze) return viewCache;
         // 首选：融合世界的**真实墙几何**（和 V 用的是同一份）。
         //   这个游戏的墙是"格与格之间的薄矩形"，不是整格 —— 只按 isPositionInsideMaze
         //   推墙会得到一张**没有墙的地图**（主人实测："K 看到的图疑似是错的"）。
@@ -86,11 +89,15 @@ export function createKillfieldBrain(gc, myId, opt) {
                 var shapes = vs.getFusedWallShapes(gc, myId);
                 if (shapes && shapes.length) {
                     unitDivisor = detectUnitDivisor(shapes, maze, tileM);
-                    return buildGameViewFromWallShapes(shapes, maze, { tileM: tileM, unitDivisor: unitDivisor });
+                    viewCache = buildGameViewFromWallShapes(shapes, maze, { tileM: tileM, unitDivisor: unitDivisor });
+                    viewMazeRef = maze;
+                    return viewCache;
                 }
             }
         } catch (eWalls) {}
-        return buildGameView(maze, { tileM: tileM });
+        viewCache = buildGameView(maze, { tileM: tileM });
+        viewMazeRef = maze;
+        return viewCache;
     }
 
     /** 取（或建）敌人所在格的逆杀戮场；每帧最多新建 fieldBudget 格。 */
@@ -350,6 +357,7 @@ export function createKillfieldBrain(gc, myId, opt) {
         reset: function () {
             field = null; fieldCell = null; fireCooldown = 0; stuck = 0; lastPos = null; lastPicked = null;
             navCache = null; navCacheKey = null; diagLogged = false;
+            viewCache = null; viewMazeRef = null;
         },
         stats: stats,
         getField: function () { return field; },

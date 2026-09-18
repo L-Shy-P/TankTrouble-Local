@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v114';
+    var TREE_VERSION = 'v115';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var CONTACT_MARGIN = 4.0;       // v34：坦克按圆粗滤（半对角~2.5 + 弹径余量）
@@ -4206,6 +4206,22 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return Math.max(1, Math.min(fixedCap, liveCap > 0 ? liveCap : 1));
     }
 
+    /** v115（修主人报的「树明明有解却操作到死」）：这批候选里有没有 75 帧全程不死的。
+     *  之前“活>死”只看 c.status（死亡发生在**段内**才算，而段长中位数才 4 帧），
+     *  于是“第 60 帧才死、死前干净（子弹在 3.05m 断崖外看不见）”的候选 status 仍是
+     *  alive，靠总分压过“全程存活但被遮蔽压分”的活路。实测复现：总分 2765 的晚死
+     *  候选赢过总分 1702 的存活候选；主人关掉遮蔽分后 V 反而躲得好，正是因为关掉后
+     *  存活者总分必然最高。 */
+    function anyFullSurvivor(children, exclude) {
+        var i, c;
+        for (i = 0; i < children.length; i++) {
+            c = children[i];
+            if (!c || c.invalid || c.exhausted || c === exclude) continue;
+            if (c.status !== 'dead' && !(c.fullDeathFrame > 0)) return true;
+        }
+        return false;
+    }
+
     /** argmax 平局裁定：alive > dead；双 dead 取段长长者（活最久）。
      *  v8 撤除 v4.1 的"动优于静"——那轮"一直静止"的真凶后来证实是
      *  提交丢失 bug（ai_vantage v5 修复），动优于静属于误诊补丁：
@@ -4247,7 +4263,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
             if (!onlyImmediateDead && c.fullDeathFrame === 1) continue;   // 有可苟候选时跳过立即真死
-            if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
+            if (anyFullSurvivor(children, undefined) && c.fullDeathFrame > 0) continue; // v115：有活路就不走死路
             // v103：空场地形引导阶段——9 个操作安全分完全一样，只有“往安全地形
             // 挪了多少”能分胜负，所以此时它优先于平局规则（含“优先静止”）。
             var cScore = c.subtreeBest + objectiveBonus(c, targetScale, kfScale, kfSafety);
@@ -4305,7 +4322,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
             if (!allTrueDead && c.fullDeathFrame === 1) continue;
-            if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线
+            if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
+            if (anyFullSurvivor(children, exclude) && c.fullDeathFrame > 0) continue; // v115：有活路就不走死路
             // v103：空场地形引导阶段：安全分全平，用“地形增益 → 兜底安全分”排名。
             var rawTotal = fullRolloutTotalOf(c);
             var total = rawTotal + objectiveBonus(c, targetScale2, kfScale2, kfSafety2);
