@@ -797,6 +797,24 @@
         }
     }
 
+    /** v?: 编号复用——主人要求"只要添加过编号就一直叠加，应该复用编号"。
+     *  做法：扫描大厅里同前缀的 id，取最小的空号；删除后再加会回到原来的号。 */
+    function nextFreeLobbyIndex(prefix) {
+        var used = {};
+        try {
+            if (typeof Users !== 'undefined' && Users.lobbyAIUsers) {
+                var ids = Object.keys(Users.lobbyAIUsers);
+                for (var i = 0; i < ids.length; i++) {
+                    var m = String(ids[i]).match(new RegExp('^' + prefix + '_([0-9]+)$'));
+                    if (m) used[parseInt(m[1], 10)] = true;
+                }
+            }
+        } catch (eIdx) {}
+        var n = 1;
+        while (used[n]) n++;
+        return n;
+    }
+
     function getNextLobbyAIId() {
         if (!canAddMoreLobbyTanks()) {
             return null;
@@ -809,8 +827,7 @@
     var _lobbyHybridCounter = 0;
     var _lobbyKillfieldCounter = 0;
     function createLobbyVantageId() {
-        _lobbyVantageCounter++;
-        return 'vantage_' + _lobbyVantageCounter;
+        return 'vantage_' + nextFreeLobbyIndex('vantage');
     }
 
     function getLobbyVantageDisplayName(instanceId) {
@@ -867,8 +884,7 @@
     }
 
     function createLobbyHybridId() {
-        _lobbyHybridCounter++;
-        return 'hybrid_' + _lobbyHybridCounter;
+        return 'hybrid_' + nextFreeLobbyIndex('hybrid');
     }
 
     function getLobbyHybridDisplayName(instanceId) {
@@ -903,8 +919,7 @@
 
     /** 主人 2026-09-08 指定的接法：在大厅"添加坦克"那里加一辆 Hybrid 车。 */
     function createLobbyKillfieldId() {
-        _lobbyKillfieldCounter++;
-        return 'killfield_' + _lobbyKillfieldCounter;
+        return 'killfield_' + nextFreeLobbyIndex('killfield');
     }
 
     function getLobbyKillfieldDisplayName(instanceId) {
@@ -1653,7 +1668,7 @@
             display: 'inline-block',
             marginRight: '10px'
         });
-        box.addUserAI = Utils.createFixedWidthButton('Add AI', 'medium', 94);
+        box.addUserAI = Utils.createFixedWidthButton('Add Laika', 'medium', 94);
         box.addUserAI.css({ display: 'inline-block' });
         box.addUserGuest.after(box.addUserAI);
         box.addUserAI.click(function() {
@@ -1663,7 +1678,10 @@
             }
         });
 
-        // 添加Killfield按钮（算法 AI：会瞄准开火、会躲弹）
+        // 按钮顺序（主人 2026-09-08）：Add Laika / Add Vantage / Add Hybrid / Add Killfield。
+        //   实现方式：都用 "X.after(addUserAI)" 插到 Laika 按钮右边，最后插的离它最近，
+        //   所以按"倒序"插入（Killfield → Hybrid → Vantage）就得到上面的视觉顺序；
+        //   这也顺手把 Killfield 与 Hybrid 的位置换了（主人要求）。
         if (!box.addUserKillfield) {
             box.addUserKillfield = Utils.createFixedWidthButton('Add Killfield', 'medium', 120);
             box.addUserKillfield.css({ display: 'inline-block', marginLeft: '10px' });
@@ -1676,7 +1694,6 @@
             });
         }
 
-        // 添加Hybrid按钮（主人 2026-09-08：作为独立坦克加入对局）
         if (!box.addUserHybrid) {
             box.addUserHybrid = Utils.createFixedWidthButton('Add Hybrid', 'medium', 120);
             box.addUserHybrid.css({ display: 'inline-block', marginLeft: '10px' });
@@ -1689,7 +1706,6 @@
             });
         }
 
-        // 添加Vantage按钮
         if (!box.addUserVantage) {
             box.addUserVantage = Utils.createFixedWidthButton('Add Vantage', 'medium', 120);
             box.addUserVantage.css({ display: 'inline-block', marginLeft: '10px' });

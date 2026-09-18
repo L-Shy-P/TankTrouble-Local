@@ -140,13 +140,18 @@ export class DensityField {
 }
 
 export class InverseDensityFieldBuilder {
+  // 我们的改动（先拷贝再改）：加 buildGuidance 开关。
+  // 原版 finalise 一定会算 guidanceEnvelope：它对每个源格跑一次 BFS、再对每个
+  // 可达格循环 → 大图上是 O(格数平方)，实测就是大图卡顿的主因。
+  // 我们的粗版只用 countAt/relativeSuccessAt（不需要引导场），所以关掉它。
   constructor(game, rayCount = DEFAULT_RAYS, maxBounces = DEFAULT_BOUNCES,
-    maxFrames = DEFAULT_FLIGHT_FRAMES, levels = FIELD_LEVELS) {
+    maxFrames = DEFAULT_FLIGHT_FRAMES, levels = FIELD_LEVELS, buildGuidance = true) {
     this.game = game;
     this.rayCount = rayCount;
     this.maxBounces = maxBounces;
     this.maxFrames = maxFrames;
     this.levels = levels;
+    this.buildGuidance = buildGuidance;
 
     const t = game.wallHalfT;
     this.boxes = game.walls.map(([x1, y1, x2, y2]) => [
@@ -404,7 +409,7 @@ export class InverseDensityFieldBuilder {
         values[i] = 2 ** (tier - 1);
       }
     }
-    const guidance = this.guidanceEnvelope(counts, minFrames);
+    const guidance = this.buildGuidance ? this.guidanceEnvelope(counts, minFrames) : new Float32Array(size);
     return new DensityField(
       targetCell, this.rayCount, this.maxBounces, this.maxFrames,
       this.width, this.height, counts, histogram, minFrames,

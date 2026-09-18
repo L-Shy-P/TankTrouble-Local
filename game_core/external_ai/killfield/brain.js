@@ -18,7 +18,8 @@ import { buildGameView, buildCombatView, snapshotFromGameController } from './ga
 import { InverseDensityFieldBuilder } from './field.js';
 import { reflectiveClosest, incomingRisk } from './risk.js';
 
-const HORIZON_FRAMES = 30;        // 候选前瞻：30 帧 = 0.6 秒（12 帧只有 0.24 秒，侧移不足 1.6 米，躲不掉）
+const HORIZON_FRAMES = 30;        // 有子弹时的前瞻：0.6 秒（0.24 秒只侧移 1 米，躲不出 1.6 米挨打半径）
+const HORIZON_IDLE = 12;          // 场上没子弹时只用 12 帧：大势是赶路，省一半批量模拟开销
 const FIELD_RAYS = 512;           // 逆杀戮场的射线数（JS 版性能决定，见方案文档）
 const HIT_RADIUS_M = 1.6;         // 我们的有效挨打半径（车半宽 1.5 + 子弹半径 0.25，取保守值）
 const AIM_TOLERANCE = 7 * Math.PI / 180;   // 朝向误差小于这个就认为"对准了"
@@ -43,6 +44,7 @@ export function createKillfieldBrain(gc, myId, opt) {
     var adapter = opt.adapter || null;          // 页面里传 VantageSandbox 适配器；不传就退化成纯几何
     var tileM = (opt.tileM || C.units().TILE_M);
     var field = null, fieldCell = null, fieldBudget = 2;   // 每帧最多新建几格（开局可多给）
+    var navCache = null, navCacheKey = null;               // 到敌人格的 BFS 距离表（赶路用）
     var ops = candidateOps();
     var fireCooldown = 0;
     var lastPos = null, stuck = 0;
@@ -56,12 +58,21 @@ export function createKillfieldBrain(gc, myId, opt) {
     }
 
     /** 取（或建）敌人所在格的逆杀戮场；每帧最多新建 fieldBudget 格。 */
+    /** 从敌人格出发的 BFS 距离（二维表）——往它那边赶的梯度；敌人换格才重算。 */
+    function navFieldFor(enemyCell, view) {
+        var key = 'nav' + enemyCell[0] * 10000 + enemyCell[1];
+        if (navCache && navCacheKey === key) return navCache;
+        navCache = view.distMap(enemyCell[0], enemyCell[1]);
+        navCacheKey = key;
+        return navCache;
+    }
+
     function fieldFor(enemyCell, view) {
         var key = enemyCell[0] * 10000 + enemyCell[1];
         if (field && fieldCell === key) { stats.fieldHits++; return field; }
         if (fieldBudget <= 0) { stats.fieldHits++; return field; }   // 预算用完 → 先用旧场
         fieldBudget--;
-        var b = new InverseDensityFieldBuilder(view, FIELD_RAYS, 2, 3 * C.FPS, 7);
+        var b = new InverseDensityFieldBuilder(view, FIELD_RAYS, 2, 3 * C.FPS, 7, false);
         field = b.build(enemyCell);
         fieldCell = key;
         stats.fieldBuilds++;
@@ -74,18 +85,19 @@ export function createKillfieldBrain(gc, myId, opt) {
     }
 
     /** 用适配器批量模拟 9 个候选；失败就返回 null（调用方退化成"只躲不预测"）。 */
-    function rolloutCandidates(state, threats) {
+    function rolloutCandidates(state, threats, horizonFrames) {
         if (!adapter) return null;
+        var frames = horizonFrames || HORIZON_FRAMES;
         var optIn = { startPose: state, threats: threats || [], tGlobal: 0, cfg: {} };
         try {
             if (typeof adapter.simulateTankBatchScored === 'function') {
-                var r = adapter.simulateTankBatchScored(state, ops, HORIZON_FRAMES, optIn);
+                var r = adapter.simulateTankBatchScored(state, ops, frames, optIn);
                 if (r && r.length === ops.length) return r;
             }
         } catch (e1) {}
         try {
             if (typeof adapter.simulateTankBatch === 'function') {
-                var j = adapter.simulateTankBatch(state, ops, HORIZON_FRAMES, optIn);
+                var j = adapter.simulateTankBatch(state, ops, frames, optIn);
                 if (j && j.length === ops.length) return j;
             }
         } catch (e2) {}
@@ -120,7 +132,7 @@ export function createKillfieldBrain(gc, myId, opt) {
      * 给一条候选轨迹打分：
      *   躲弹（子弹路径与轨迹的最近距离）＋ 走位（终点格的"能打到对手"程度）－ 乱撞惩罚。
      */
-    function scoreTrajectory(samples, boxes, enemyBullets, view, me, enemy) {
+    function scoreTrajectory(samples, boxes, enemyBullets, view, me, enemy, nav) {
         var i, k, b, score = 0, minClear = Infinity;
         var step = tileM / 4;                 // 采样步长约 2.5 米
         for (i = 0; i < enemyBullets.length; i++) {
@@ -148,11 +160,21 @@ export function createKillfieldBrain(gc, myId, opt) {
             score += 40 * field.relativeSuccessAt([cx, cy]);
         }
 
-        // 顺手：别往墙上顶（位移太小）
+        // 机动：线性奖励真的走出去。踩过大坑：原来写成「位移 < tileM/4（2.5 米）就扣 30 分」，
+        // 而 30 帧最多只能走 2.4 米 → 9 个候选全被扣同样的分 → 平局乱选 → 主人看到的原地抽搐。
         var first = samples[0];
         if (first && end) {
             var moved = Math.hypot(end.x - first.x, end.y - first.y);
-            if (moved < step) score -= 30;
+            score += 24 * (moved / tileM);
+            if (nav) {
+                var mCell = [Math.floor(first.x / tileM), Math.floor(first.y / tileM)];
+                var eCell = [Math.floor(end.x / tileM), Math.floor(end.y / tileM)];
+                var d0 = (nav[mCell[0]] && nav[mCell[0]][mCell[1]] !== null) ? nav[mCell[0]][mCell[1]] : null;
+                var d1 = (nav[eCell[0]] && nav[eCell[0]][eCell[1]] !== null) ? nav[eCell[0]][eCell[1]] : null;
+                if (d0 !== null && d1 !== null) score += 60 * (d0 - d1);   // 用真实可走步数，不是直线
+            } else {
+                score -= 8 * (Math.hypot(end.x - enemy.x, end.y - enemy.y) - Math.hypot(first.x - enemy.x, first.y - enemy.y));
+            }
         }
         return score;
     }
@@ -181,6 +203,7 @@ export function createKillfieldBrain(gc, myId, opt) {
 
         var enemyCell = [Math.floor(enemy.x / tileM), Math.floor(enemy.y / tileM)];
         fieldFor(enemyCell, view);
+        var nav = navFieldFor(enemyCell, view);
 
         // ② 开火判断：从我这格该朝哪打（密度场给的瞄准角），误差小就打
         var myCell = [Math.floor(me.x / tileM), Math.floor(me.y / tileM)];
@@ -192,7 +215,19 @@ export function createKillfieldBrain(gc, myId, opt) {
         var aim = field ? field.bestAimAt(myCell, theirHeading) : [null, 0];
         if (aim[0] !== null) {
             var err = Math.abs(Math.atan2(Math.sin(aim[0] - theirHeading), Math.cos(aim[0] - theirHeading)));
-            if (err < AIM_TOLERANCE && fireCooldown === 0 && aim[1] > 0.02) {
+            // 自杀检查（主人实测"对着墙发子弹自杀"）：我们的世界里子弹**反弹后**会打死自己
+            // （未反弹的自弹无害），所以在它自己的版本里贴墙开枪可能没事，在我们这里会死。
+            // 开火前先用反射几何算一遍：这一枪反弹回来会不会打到我。
+            var selfHit = false;
+            try {
+                var hx = Math.sin(me.rot), hy = -Math.cos(me.rot);
+                var muzzle = 2.5;                      // 枪口前移（Constants.BULLET.OFFSET.m）
+                var bulletPerFrame = C.units().BULLETSPEED * (tileM / 50);
+                var res = reflectiveClosest(me.x + hx * muzzle, me.y + hy * muzzle,
+                    hx, hy, bulletPerFrame, C.FPS * 2, 2, view.walls, me.x, me.y);
+                selfHit = res.bounces >= 1 && res.distance < HIT_RADIUS_M && res.frame < C.FPS * 1.2;
+            } catch (eSelf) { selfHit = false; }
+            if (err < AIM_TOLERANCE && fireCooldown === 0 && aim[1] > 0.02 && !selfHit) {
                 fire = true;
                 fireCooldown = FIRE_COOLDOWN_FRAMES;
                 stats.fires++;
@@ -202,14 +237,15 @@ export function createKillfieldBrain(gc, myId, opt) {
         // ③ 躲弹 + 走位：批量模拟 9 个候选，挑分最高的
         var bullets = bulletList();
         var enemyBullets = bullets.filter(function (b) { return !b.mine; });
-        var rolls = rolloutCandidates({ x: me.x, y: me.y, rot: me.rot }, []);
+        var horizon = enemyBullets.length ? HORIZON_FRAMES : HORIZON_IDLE;
+        var rolls = rolloutCandidates({ x: me.x, y: me.y, rot: me.rot }, [], horizon);
         var picked = null;
         if (rolls) {
             var bestScore = -Infinity;
             for (var i = 0; i < rolls.length; i++) {
                 var samples = rolls[i] && rolls[i].samples;
                 if (!samples || !samples.length) continue;
-                var sc = scoreTrajectory(samples, view.walls, enemyBullets, view, me, enemy);
+                var sc = scoreTrajectory(samples, view.walls, enemyBullets, view, me, enemy, nav);
                 if (sc > bestScore) { bestScore = sc; picked = ops[i]; }
             }
         }

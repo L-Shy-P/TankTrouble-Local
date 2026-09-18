@@ -576,6 +576,12 @@
     // 单世界融合沙箱（v13：9 候选同世界 + 共享子弹 + 传感器判死）
     // 旧 simulateTankClone / checkDeath 完整保留，开关关闭时回退。
     // ============================================================
+    // v36：融合世界缓存改成**多槽**（键 = aiId），换图时整体作废。
+    //   原因（主人实测"K 和 V 同时在场帧率减半、V 变蠢"）：原来是单槽缓存，
+    //   两个 AI 用不同的 aiId 轮流查 → 每帧互相挤掉 → 每帧重建两次整个 Box2D
+    //   融合世界；V 自己的缓存也一直被丢，等于每步都在付重建费、还丢了时间预算。
+    var _fusedCacheSlots = {};
+    var _fusedCacheMazeRef = null;
     var _fusedCache = null;
     // v24：融合世界重新承担死亡判定：共享子弹 + 传感器 + CCD。
     // 幽灵弹根因（只摆未来位置不摆未来速度、槽位半径混用）已修正：
@@ -589,12 +595,12 @@
 
     function setFusedEnabled(v) {
         FUSED_ENABLED = !!v;
-        if (!FUSED_ENABLED) _fusedCache = null;
+        if (!FUSED_ENABLED) { _fusedCache = null; _fusedCacheSlots = {}; _fusedCacheMazeRef = null; }
     }
 
     /** v35：清掉跨局/重生的融合世界与克隆世界缓存，避免旧缓存拖慢/拖笨后续对局。 */
     function clearCaches() {
-        _fusedCache = null;
+        _fusedCache = null; _fusedCacheSlots = {}; _fusedCacheMazeRef = null;
         _cloneCache = null;
     }
 
@@ -681,7 +687,13 @@
         if (!FUSED_ENABLED) return null;
         var maze = gameController.getMaze();
         if (!maze) return null;
-        if (_fusedCache && _fusedCache.mazeRef === maze && _fusedCache.aiId === aiId) {
+        if (_fusedCacheMazeRef !== maze) {          // 换图 → 所有槽作废
+            _fusedCacheSlots = {};
+            _fusedCacheMazeRef = maze;
+        }
+        var cacheKey = String(aiId);
+        if (_fusedCacheSlots[cacheKey]) {
+            _fusedCache = _fusedCacheSlots[cacheKey];
             return _fusedCache;
         }
         var me = gameController.getTank(aiId);
@@ -732,6 +744,7 @@
             round: 0,
             wallShapes: wallShapes
         };
+        _fusedCacheSlots[String(aiId)] = _fusedCache;   // v36：存进多槽缓存，别挤掉别的 AI
         return _fusedCache;
     }
 
