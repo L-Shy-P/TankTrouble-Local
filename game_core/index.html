@@ -86,7 +86,26 @@ window.addEventListener('error', function(e) {
     <script src="js/jquery/jquery-1.11.2.min.js"></script>
     <script src="js/jquery/jquery-ui.min.js"></script>
     
-    <script src="//ajax.googleapis.com/ajax/libs/webfont/1.6.16/webfont.js"></script>
+    <!-- v?: 离线可用兜底。原来这一行是**阻塞加载的外网 webfont**：网络一断，
+         脚本拿不到 → main() 里的 WebFont.load 直接抛异常 → 整个游戏白屏起不来。
+         现在：先装一个本地兜底（直接挂本地 css/fonts.css，字体照样生效），
+         再把真正的外网 WebFont 改成 async——连不上也不影响启动。 -->
+    <script>
+      window.WebFont = window.WebFont || {
+        load: function (o) {
+          try {
+            var css = (o && o.custom && o.custom.urls && o.custom.urls[0]) || 'css/fonts.css';
+            var l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.href = css;
+            document.head.appendChild(l);
+          } catch (e) {}
+          try { if (o && typeof o.active === 'function') o.active(); } catch (e2) {}
+        }
+      };
+    </script>
+    <script async src="//ajax.googleapis.com/ajax/libs/webfont/1.6.16/webfont.js"
+            onerror="console.warn('[本地版] 外网 webfont 加载失败，已用本地 css/fonts.css 兜底（不影响游戏）')"></script>
     
     
 
