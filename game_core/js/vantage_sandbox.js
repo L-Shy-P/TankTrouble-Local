@@ -1994,6 +1994,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v35：跨局缓存清理 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v36：融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);

@@ -81,7 +81,7 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=10';
+                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=11';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {

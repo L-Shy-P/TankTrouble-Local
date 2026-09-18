@@ -15,7 +15,10 @@ pub const FRAME_DT: f64 = 0.02;
 pub const MAX_OPS: usize = 9;
 pub const MAX_FRAMES: usize = 75;
 pub const MAX_SAMPLES: usize = MAX_FRAMES + 1;
-pub const MAX_WALLS: usize = 1024;
+// 主人实测：人多 → 图大 → 墙段多，超过 1024 时 vt_score_paths 直接返回 0，
+// JS 就静默退回 scorePaths（慢且行为降级，控制台刷"Rust 评分路径结果无效"）。
+// 这个常量只用于校验（世界是动态 Vec 建的），提高它是安全的。
+pub const MAX_WALLS: usize = 8192;
 pub const MAX_WALL_VERTS: usize = 8;
 pub const MAX_BULLETS: usize = 256;
 
@@ -1071,5 +1074,18 @@ mod tests {
         // Bullet position not directly exposed; no panic + all candidates alive.
         assert_eq!(out.samples.len(), 1);
         assert!(out.samples[0].len() == 2);
+    }
+}
+
+#[cfg(test)]
+mod max_walls_guard {
+    use super::MAX_WALLS;
+
+    /// 主人实测：人多 → 图大 → 墙段多；一旦超过 MAX_WALLS，
+    /// `vt_score_paths` 会直接返回 0，JS 静默退回 scorePaths（慢且行为降级）。
+    /// 这里锁一个下限，防止以后有人把它调小。
+    #[test]
+    fn max_walls_covers_large_maps() {
+        assert!(MAX_WALLS >= 4096, "MAX_WALLS={} 太小：大图上 Rust 评分会整条失效", MAX_WALLS);
     }
 }
