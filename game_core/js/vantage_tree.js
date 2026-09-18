@@ -549,9 +549,10 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v117';
+    var TREE_VERSION = 'v118';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
+    var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
     var CONTACT_MARGIN = 4.0;       // v34：坦克按圆粗滤（半对角~2.5 + 弹径余量）
     var EVAL_FRAMES = 75;           // 评估深度（默认 75=1.5s；面板滑块可调 1~300）
     var _lanePenaltyRatio = 0;      // v47：树内车道压分开关状态（跨树保持）
@@ -1667,6 +1668,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     /** v34：节点粗包围盒（rolloutSamples 位置 + 节点时间段）。 */
+    /** v118：当前 root 的绝对时间基准（threatCurrentPoint 用）。 */
+    function setRootAbsTNow(v) { _rootAbsTNow = (typeof v === 'number' && isFinite(v)) ? v : 0; }
+    function getRootAbsTNow() { return _rootAbsTNow; }
+
     function nodeCoarseBox(tree, node) {
         var box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, t0: tree.rootAbsT + (node.rolloutStartT || 0), t1: 0 };
         var samples = node.rolloutSamples || [];
@@ -1704,6 +1709,44 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (th && th.track && th.track.length && th.track[0]) return { x: th.track[0].x, y: th.track[0].y };
         if (th && th.path && th.path.length && th.path[0]) return { x: th.path[0].x, y: th.path[0].y };
         return null;
+    }
+
+    /** v118：取子弹**当前位置**，而不是发射点。
+     *  原 bug：`bulletCannotReach` 用 track[0]（发射点）量距离，却用
+     *  `speed × (盒尾 − 现在)` 当可飞距离 —— 两个量时间基准不一致。
+     *  子弹飞了一半时，距离仍从发射点算（很大），可飞距离只剩剩余时间（很小），
+     *  于是必然误判"打不到" → 粗筛跳过 → **正在执行的节点永不重算 → 绿节点死亡**
+     *  （主人录制的实证：新弹 t=7.59 出现，执行节点 predDeathFrame 始终 -1，
+     *   坦克跑完 14 帧段在 t=7.85 死）。
+     *  本函数按时间把 track/path 推进到"现在"，让两个量同基准。 */
+    function threatCurrentPoint(th) {
+        if (!th) return null;
+        var t0 = (typeof _rootAbsTNow === 'number' ? _rootAbsTNow : 0) + (th.anchorOffset || 0);
+        var elapsed = Math.max(0, _timeAcc - t0);
+        if (th.track && th.track.length) {
+            var idx = Math.round(elapsed / FRAME_DT);
+            idx = Math.max(0, Math.min(th.track.length - 1, idx));
+            var p = th.track[idx];
+            if (p) return { x: p.x, y: p.y };
+        }
+        if (th.path && th.path.length) {
+            // 折线：按弧长推进 speed × elapsed
+            var want = (th.speed > 0 ? th.speed : 0) * elapsed;
+            var acc = 0, i, dx, dy, seg;
+            for (i = 0; i < th.path.length - 1; i++) {
+                dx = th.path[i + 1].x - th.path[i].x;
+                dy = th.path[i + 1].y - th.path[i].y;
+                seg = Math.sqrt(dx * dx + dy * dy);
+                if (acc + seg >= want) {
+                    var f = seg > 1e-9 ? (want - acc) / seg : 0;
+                    return { x: th.path[i].x + dx * f, y: th.path[i].y + dy * f };
+                }
+                acc += seg;
+            }
+            var last = th.path[th.path.length - 1];
+            if (last) return { x: last.x, y: last.y };
+        }
+        return threatStartPoint(th);
     }
 
     function bulletCannotReach(th, p0, nb) {
@@ -1780,7 +1823,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             for (var bi = 0; bi < boxes.length; bi++) {
                 var tb2 = boxes[bi];
                 if (!boxesOverlap(nb, tb2, CONTACT_MARGIN)) continue;
-                var p0 = threatStartPoint(pending[bi]);
+                var p0 = threatCurrentPoint(pending[bi]);   // v118：用子弹当前位置（原来用发射点 → 误判"打不到" → 漏检）
                 if (p0 && bulletCannotReach(pending[bi], p0, nb)) continue;
                 hit = true;
                 break;
@@ -6023,6 +6066,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             } catch (eLive) { _tree._liveProjectileCount = 0; setLiveProjectilesNow(0); }
         }
         var tree = _tree;
+        setRootAbsTNow(tree.rootAbsT);   // v118：威胁坐标换算的基准
         tree.tNow = _timeAcc;
         tree.diag.lastWorldDt = worldDt;
         if (worldDt < tree.diag.worldDtMin) tree.diag.worldDtMin = worldDt;
@@ -6788,6 +6832,19 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         debugObjective: debugObjective,
+        debugObjective: debugObjective,
+        // v118：粗筛判定的调试钩子（回归测试用：验证"子弹能不能打到这个盒子"）
+        _coarse: {
+            threatCurrentPoint: threatCurrentPoint,
+            threatStartPoint: threatStartPoint,
+            bulletCannotReach: bulletCannotReach,
+            pointBoxDistance: pointBoxDistance,
+            nodeCoarseBox: nodeCoarseBox,
+            threatCoarseBox: threatCoarseBox,
+            boxesOverlap: boxesOverlap,
+            setNow: function (t, rootAbsT) { _timeAcc = t; setRootAbsTNow(rootAbsT || 0); },
+            getTimeAcc: function () { return _timeAcc; }
+        },
         getStuckOps: function() {
             var out = {};
             for (var k in _stuckOps) if (_stuckOps.hasOwnProperty(k)) out[k] = _stuckOps[k];
