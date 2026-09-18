@@ -1805,7 +1805,27 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var tb = threatCoarseBox(pending[i], tree.rootAbsT);
             if (tb.minX < Infinity) boxes.push(tb);
         }
-        if (!boxes.length) return false;
+        if (!boxes.length) {
+            // v118 安全网：有新弹却建不出粗筛盒（track/path 都没有）→ 不能静默跳过，
+            // 否则执行节点永远不会被复核（就是"绿节点死亡"那类漏检）。
+            // 这里只对**正在执行的节点**做一次融合死亡扫描，代价可控。
+            tree.stats.coarseNoBoxScans = (tree.stats.coarseNoBoxScans || 0) + 1;
+            recordStructure(tree, 'coarse-no-box',
+                'pending=' + pending.length + ' commit=' + (tree.commitNode ? '/' + (tree.commitNode.opName || tree.commitNode.id) : 'none'));
+            if (tree.commitNode && tree.commitNode.rolloutSamples) {
+                var scanNoBox = scanNodeDeath(tree, adapter, tree.commitNode, pending);
+                if (scanNoBox && scanNoBox.death >= 0) {
+                    var safeNoBox = safeFramesForDeath(tree, scanNoBox.death, tree.commitNode.segmentFrames || 0);
+                    if (safeNoBox < (tree.commitNode.segmentFrames || 0)) {
+                        tree.commitNode.segmentFrames = safeNoBox;
+                        tree.commitNode.tEndSec = tree.rootAbsT + (tree.commitNode.rolloutStartT || 0) + safeNoBox * FRAME_DT;
+                        tree._forcedReselect = true;
+                        pushEvent('force', '无粗筛盒-执行节点夹取@' + (tree.commitNode.opName || tree.commitNode.id));
+                    }
+                }
+            }
+            return false;
+        }
 
         var nodes = [];
         (function collect(n) {
@@ -1987,7 +2007,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!(nb.minX < Infinity)) return false;
         for (var bi = 0; bi < boxes.length; bi++) {
             if (!boxesOverlap(nb, boxes[bi], CONTACT_MARGIN)) continue;
-            var p0 = threatStartPoint(pending[bi]);
+            // v118：必须用**子弹当前位置**量距离（原来用发射点 → 时间基准错配 → 漏判）
+            var p0 = threatCurrentPoint(pending[bi]);
             if (p0 && bulletCannotReach(pending[bi], p0, nb)) continue;
             return true;
         }
@@ -6841,6 +6862,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             pointBoxDistance: pointBoxDistance,
             nodeCoarseBox: nodeCoarseBox,
             threatCoarseBox: threatCoarseBox,
+            nodePossiblyAffectedByPending: nodePossiblyAffectedByPending,
+            nodeScoringCoarseBox: nodeScoringCoarseBox,
             boxesOverlap: boxesOverlap,
             setNow: function (t, rootAbsT) { _timeAcc = t; setRootAbsTNow(rootAbsT || 0); },
             getTimeAcc: function () { return _timeAcc; }

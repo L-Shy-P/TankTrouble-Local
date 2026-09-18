@@ -56,4 +56,14 @@ assert(Math.abs(pStart.x-launchX2)<1e-6, '发射点是 track[0]');
 assert(C.bulletCannotReach(threat, pStart, nb)===true,
   '用发射点量距离时确实会误判"打不到"（这就是原来的 bug，回归要守住）');
 
-console.log('diff_tree_coarse_reach PASS：新弹粗筛用当前位置（9 米外判"能打到"）；发射点写法会误判（已证明）；远处背向仍正确跳过');
+// ---- ④ 同一 bug 的第二个副本：nodePossiblyAffectedByPending 也必须判"受影响" ----
+{
+  const node2 = { rolloutStartT: now - rootAbsT, segmentFrames: 14, rolloutSamples: samples };
+  const tree2 = { rootAbsT: rootAbsT };
+  const boxes2 = [C.threatCoarseBox(threat, rootAbsT)];
+  const affected = C.nodePossiblyAffectedByPending(tree2, node2, [threat], boxes2);
+  assert(affected === true,
+    '正在逼近的子弹必须让节点判为"受影响"（旧写法用发射点会漏判，第二处副本同样致命）');
+}
+
+console.log('diff_tree_coarse_reach PASS：新弹粗筛用当前位置（9 米外判"能打到"）；发射点写法会误判（已证明）；远处背向仍正确跳过；两处副本都覆盖');
