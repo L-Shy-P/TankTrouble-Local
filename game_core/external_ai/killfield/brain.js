@@ -14,7 +14,7 @@
 'use strict';
 
 import * as C from './constants.js';
-import { buildGameView, buildCombatView, snapshotFromGameController } from './gameView.js';
+import { buildGameView, buildGameViewFromWallShapes, buildCombatView, snapshotFromGameController } from './gameView.js';
 import { InverseDensityFieldBuilder } from './field.js';
 import { reflectiveClosest, incomingRisk } from './risk.js';
 
@@ -54,6 +54,18 @@ export function createKillfieldBrain(gc, myId, opt) {
     function mazeView() {
         var maze = gc.getMaze ? gc.getMaze() : null;
         if (!maze) return null;
+        // 首选：融合世界的**真实墙几何**（和 V 用的是同一份）。
+        //   这个游戏的墙是"格与格之间的薄矩形"，不是整格 —— 只按 isPositionInsideMaze
+        //   推墙会得到一张**没有墙的地图**（主人实测："K 看到的图疑似是错的"）。
+        try {
+            var vs = (typeof globalThis !== 'undefined') ? globalThis.VantageSandbox : null;
+            if (vs && typeof vs.getFusedWallShapes === 'function') {
+                var shapes = vs.getFusedWallShapes(gc, myId);
+                if (shapes && shapes.length) {
+                    return buildGameViewFromWallShapes(shapes, maze, { tileM: tileM });
+                }
+            }
+        } catch (eWalls) {}
         return buildGameView(maze, { tileM: tileM });
     }
 

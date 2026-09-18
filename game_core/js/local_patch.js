@@ -120,6 +120,7 @@
     };
 
     function getLobbyLaikaDisplayName(instanceId) {
+        // Laika 的 id 是时间戳式，没有可见编号；保持原逻辑（按在场顺序），但不再参与 V/K/H 的编号。
         if (typeof Users === 'undefined' || !Users.lobbyAIUsers) {
             return 'Laika 2';
         }
@@ -830,18 +831,14 @@
         return 'vantage_' + nextFreeLobbyIndex('vantage');
     }
 
+    /** id 里的编号就是显示编号（v?: 以前按"在场顺序"数，删掉一个再加会出现两个 V2）。 */
+    function lobbyDisplayName(prefix, label, instanceId) {
+        var m = String(instanceId || '').match(new RegExp('^' + prefix + '_([0-9]+)$'));
+        return label + ' ' + (m ? parseInt(m[1], 10) : 1);
+    }
+
     function getLobbyVantageDisplayName(instanceId) {
-        if (typeof Users === 'undefined' || !Users.lobbyAIUsers) {
-            return 'Vantage 1';
-        }
-        var lobbyIds = Object.keys(Users.lobbyAIUsers);
-        var i;
-        for (i = 0; i < lobbyIds.length; i++) {
-            if (lobbyIds[i] === instanceId) {
-                return 'Vantage ' + (i + 1);
-            }
-        }
-        return 'Vantage ' + (lobbyIds.length + 1);
+        return lobbyDisplayName('vantage', 'Vantage', instanceId);
     }
 
     function makeLobbyVantagePlayerDetails(instanceId) {
@@ -888,18 +885,7 @@
     }
 
     function getLobbyHybridDisplayName(instanceId) {
-        if (typeof Users === 'undefined' || !Users.lobbyAIUsers) {
-            return 'Hybrid 1';
-        }
-        var lobbyIds = Object.keys(Users.lobbyAIUsers);
-        var i, n = 0;
-        for (i = 0; i < lobbyIds.length; i++) {
-            if (Users.lobbyAIUsers[lobbyIds[i]] && Users.lobbyAIUsers[lobbyIds[i]].isHybrid) {
-                n++;
-                if (lobbyIds[i] === instanceId) return 'Hybrid ' + n;
-            }
-        }
-        return 'Hybrid ' + (n + 1);
+        return lobbyDisplayName('hybrid', 'Hybrid', instanceId);
     }
 
     function makeLobbyHybridPlayerDetails(instanceId) {
@@ -923,15 +909,7 @@
     }
 
     function getLobbyKillfieldDisplayName(instanceId) {
-        if (typeof Users === 'undefined' || !Users.lobbyAIUsers) return 'Killfield 1';
-        var ids = Object.keys(Users.lobbyAIUsers), i, n = 0;
-        for (i = 0; i < ids.length; i++) {
-            if (Users.lobbyAIUsers[ids[i]] && Users.lobbyAIUsers[ids[i]].isKillfield) {
-                n++;
-                if (ids[i] === instanceId) return 'Killfield ' + n;
-            }
-        }
-        return 'Killfield ' + (n + 1);
+        return lobbyDisplayName('killfield', 'Killfield', instanceId);
     }
 
     function makeLobbyKillfieldPlayerDetails(instanceId) {
@@ -1678,22 +1656,9 @@
             }
         });
 
-        // 按钮顺序（主人 2026-09-08）：Add Laika / Add Vantage / Add Hybrid / Add Killfield。
-        //   实现方式：都用 "X.after(addUserAI)" 插到 Laika 按钮右边，最后插的离它最近，
-        //   所以按"倒序"插入（Killfield → Hybrid → Vantage）就得到上面的视觉顺序；
-        //   这也顺手把 Killfield 与 Hybrid 的位置换了（主人要求）。
-        if (!box.addUserKillfield) {
-            box.addUserKillfield = Utils.createFixedWidthButton('Add Killfield', 'medium', 120);
-            box.addUserKillfield.css({ display: 'inline-block', marginLeft: '10px' });
-            box.addUserAI.after(box.addUserKillfield);
-            box.addUserKillfield.click(function() {
-                if (box.showing) {
-                    box.hide();
-                    addLobbyKillfieldPlayer();
-                }
-            });
-        }
-
+        // 按钮顺序（主人 2026-09-09 明确）：Guest(游客) / Add Laika / Add Vantage / Add Killfield / Add Hybrid。
+        //   实现：都用 "X.after(addUserAI)" 插到 Laika 右边，**最后插的离 Laika 最近**，
+        //   所以按倒序插：Hybrid → Killfield → Vantage，最终得到 L, V, K, H。
         if (!box.addUserHybrid) {
             box.addUserHybrid = Utils.createFixedWidthButton('Add Hybrid', 'medium', 120);
             box.addUserHybrid.css({ display: 'inline-block', marginLeft: '10px' });
@@ -1702,6 +1667,18 @@
                 if (box.showing) {
                     box.hide();
                     addLobbyHybridPlayer();
+                }
+            });
+        }
+
+        if (!box.addUserKillfield) {
+            box.addUserKillfield = Utils.createFixedWidthButton('Add Killfield', 'medium', 120);
+            box.addUserKillfield.css({ display: 'inline-block', marginLeft: '10px' });
+            box.addUserAI.after(box.addUserKillfield);
+            box.addUserKillfield.click(function() {
+                if (box.showing) {
+                    box.hide();
+                    addLobbyKillfieldPlayer();
                 }
             });
         }

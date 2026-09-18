@@ -183,3 +183,108 @@ export function snapshotFromGameController(gc, myId, opt) {
         dt: dt
     };
 }
+
+/**
+ * 按**融合世界的墙多边形**建视图（首选；和 V 用的是同一份墙）。
+ * 我们的墙不是"整格"，而是"格与格之间的薄矩形"——所以必须用真实几何，
+ * 否则 AI 眼里的地图是空的（主人实测：K 乱开枪、抽搐，就是这个原因）。
+ * @param {Array} wallShapes [{verts:[{x,y},...]}, ...]
+ * @param {Object} maze 我们的迷宫（只用来算可达格与 BFS）
+ * @param {Object} opt {tileM}
+ */
+export function buildGameViewFromWallShapes(wallShapes, maze, opt) {
+    opt = opt || {};
+    const tileM = opt.tileM || units().TILE_M;
+    const w = maze.getWidth(), h = maze.getHeight();
+    const walkable = (x, y) => {
+        if (x < 0 || y < 0 || x >= w || y >= h) return false;
+        try { return !!maze.isPositionInsideMaze({ x: x, y: y }); } catch (e) { return false; }
+    };
+    const boxes = [];
+    for (let i = 0; i < (wallShapes || []).length; i++) {
+        const sh = wallShapes[i];
+        const verts = sh && sh.verts;
+        if (!verts || !verts.length) continue;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let k = 0; k < verts.length; k++) {
+            const v = verts[k];
+            if (!v) continue;
+            if (v.x < minX) minX = v.x;
+            if (v.x > maxX) maxX = v.x;
+            if (v.y < minY) minY = v.y;
+            if (v.y > maxY) maxY = v.y;
+        }
+        if (isFinite(minX) && isFinite(maxX) && isFinite(minY) && isFinite(maxY)) {
+            boxes.push([minX, minY, maxX, maxY]);
+        }
+    }
+    return makeView(boxes, maze, tileM, w, h, walkable);
+}
+
+/** 视图的公共部分（墙盒 + 可达格 + BFS + wallHit），两种建法共用。 */
+function makeView(boxes, maze, tileM, w, h, walkable) {
+    const reachable = [];
+    const grid = [];
+    for (let x = 0; x < w; x++) {
+        grid[x] = [];
+        for (let y = 0; y < h; y++) {
+            const open = walkable(x, y);
+            grid[x][y] = open ? 1 : 0;
+            if (open) reachable.push({ x: x, y: y });
+        }
+    }
+    function inBox(px, py, b) {
+        return px >= b[0] && px <= b[2] && py >= b[1] && py <= b[3];
+    }
+    // 空间索引：墙盒按"覆盖到的格子"登记，wallHit 只查该格 → 大图上不会退化成
+    // "每点遍历全部墙盒"（原来的写法在 40x30 图上每次建场要几千万次盒测试）。
+    const cellBoxes = {};
+    for (let bi = 0; bi < boxes.length; bi++) {
+        const b = boxes[bi];
+        const x0 = Math.floor(b[0] / tileM), x1 = Math.floor(b[2] / tileM);
+        const y0 = Math.floor(b[1] / tileM), y1 = Math.floor(b[3] / tileM);
+        for (let cx = x0; cx <= x1; cx++) {
+            for (let cy = y0; cy <= y1; cy++) {
+                const key = cx + ',' + cy;
+                (cellBoxes[key] || (cellBoxes[key] = [])).push(b);
+            }
+        }
+    }
+    return {
+        scale: tileM,
+        wallHalfT: 0,
+        walls: boxes,
+        reachable: reachable,
+        maze: grid,
+        wallHit: function (x, y) {
+            const list = cellBoxes[Math.floor(x / tileM) + ',' + Math.floor(y / tileM)];
+            if (!list) return false;
+            for (let i = 0; i < list.length; i++) if (inBox(x, y, list[i])) return true;
+            return false;
+        },
+        distMap: function (fx, fy) {
+            const dist = new Array(w);
+            for (let x = 0; x < w; x++) dist[x] = new Array(h).fill(null);
+            if (!walkable(fx, fy)) return dist;
+            dist[fx][fy] = 0;
+            const queue = [[fx, fy]];
+            let head = 0;
+            while (head < queue.length) {
+                const cur = queue[head++];
+                const d = dist[cur[0]][cur[1]];
+                const nb = [[cur[0], cur[1] - 1], [cur[0] + 1, cur[1]], [cur[0], cur[1] + 1], [cur[0] - 1, cur[1]]];
+                for (let i = 0; i < 4; i++) {
+                    const nx = nb[i][0], ny = nb[i][1];
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                    if (!walkable(nx, ny) || dist[nx][ny] !== null) continue;
+                    dist[nx][ny] = d + 1;
+                    queue.push([nx, ny]);
+                }
+            }
+            return dist;
+        },
+        cellOf: function (x, y) { return [Math.floor(x / tileM), Math.floor(y / tileM)]; },
+        width: w,
+        height: h
+    };
+}

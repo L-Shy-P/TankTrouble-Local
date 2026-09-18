@@ -1982,6 +1982,14 @@
         fusedEnabled: fusedEnabled,
         setFusedEnabled: setFusedEnabled,
         clearCaches: clearCaches,
+        /** v37：把融合世界的墙多边形交出去（外接 AI 复用同一份墙几何，避免"各画一套地图"）。
+         *  K（Killfield）就是靠这个看到和 V 完全一致的地图；拿不到就返回 null。 */
+        getFusedWallShapes: function(gameController, aiId) {
+            try {
+                var fc = getFusedWorld(gameController, aiId);
+                return (fc && fc.wallShapes) ? fc.wallShapes : null;
+            } catch (eWallShapes) { return null; }
+        },
         rustPhysicsEnabled: rustPhysicsEnabled,
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
