@@ -1256,6 +1256,12 @@
                     me._computeRotationSpeed();
                     speeds[i] = me.speed;
                     rotSpds[i] = me.rotationSpeed;
+                    // v128：贴墙爬行校准。树发现真实车在贴墙爬行（实际速度<<名义速度）时
+                    // 传入 opt.speedCap（实测 m/s），rollout 的前进速度一律钳到实测值——
+                    // 否则模拟车沿墙滑得比真实车快 2~3 倍，段末偏 2+米（实测）。
+                    if (typeof opt.speedCap === 'number' && opt.speedCap > 0 && speeds[i] > opt.speedCap) {
+                        speeds[i] = opt.speedCap;
+                    }
                 }
             }
             me.forward = snapFwd; me.back = snapBack;
@@ -2135,6 +2141,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v42：候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v43：贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);

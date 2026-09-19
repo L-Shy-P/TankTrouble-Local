@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v127';
+    var TREE_VERSION = 'v128';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -602,6 +602,9 @@
     var _lastGameClockId = null;
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
     var _lastTankState = null;                // v104：本帧坦克位置（几何威胁提前量用）
+    var _speedCap = 0;                        // v128：贴墙爬行时的实测速度上限（m/s），0=不限制
+    var _last2TankPos = null;                 // v128：前两帧真实位置（算实际速度用）
+    var _last2TankT = 0;
     var _threatEtaOverride = null;            // v105：测试用——直接指定“还有几秒挨打”
     // v110（主人方向）：把遮蔽分从“谁离得更远”改成“安不安全”，并用“动作成本”
     // 在安全的时候挑最省事的操作。三项都默认关闭，保持原有行为。
@@ -731,6 +734,7 @@
             // 当时的视野不完整，橙色/绿色节点上死要先查这里）
             fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null,
             frameDt: Math.round(FRAME_DT * 100000) / 100000,
+            speedCap: _speedCap > 0 ? Math.round(_speedCap * 100) / 100 : 0,   // v128：贴墙爬行校准（0=不限制）
             frameDtMeasured: _frameDtMeasured > 0 ? Math.round(_frameDtMeasured * 100000) / 100000 : null,
             frameDtSrc: _frameDtMeasured > 0 ? 'measured' : 'default',
             // v122：轨迹时间基准的直接证据 = 每帧"按轨迹预测的现在弹位 vs 真实弹位"误差
@@ -3366,6 +3370,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     EVAL_FRAMES, {
                         startPose: simState.tank,
                         trace: rollTrace,
+                        speedCap: _speedCap,
                         threats: threats,
                         tGlobal: simState.tGlobal,
                         // v119：融合世界"现在"相对 rootAbsT 的位置。无威胁条目/
@@ -6294,6 +6299,26 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // v104：几何威胁提前量要用（同一帧的子弹位置 + 坦克位置）
         _lastAdapter = adapter;
         _lastTankState = { x: tankState.x, y: tankState.y };
+        // v128：贴墙爬行检测——用最近 3 帧真实位移算实际速度，若远低于名义速度则钳制 rollout。
+        if (_last2TankPos && _timeAcc > _last2TankT + 0.01) {
+            var realDisp = Math.sqrt(
+                (tankState.x - _last2TankPos.x) * (tankState.x - _last2TankPos.x) +
+                (tankState.y - _last2TankPos.y) * (tankState.y - _last2TankPos.y));
+            var realDt = _timeAcc - _last2TankT;
+            var obsSpeed = realDisp / realDt;
+            // 名义全速（前/后最大值）× 0.6 = 判定"在爬"的阈值
+            var nominal = (typeof Constants !== 'undefined' && Constants.TANK && Constants.TANK.FORWARD_SPEED)
+                ? Constants.TANK.FORWARD_SPEED.m : 15.95;
+            var cmt = _tree && _tree.commitNode;
+            var isMovingOp = cmt && cmt.inputs && (cmt.inputs.forward || cmt.inputs.back);
+            if (isMovingOp && obsSpeed > 0.05 && obsSpeed < nominal * 0.6) {
+                _speedCap = obsSpeed;   // 正在贴墙爬行：钳到实测速度
+            } else if (!isMovingOp || obsSpeed >= nominal * 0.6) {
+                _speedCap = 0;          // 正常移动/没在动：解除限制
+            }
+        }
+        _last2TankPos = { x: tankState.x, y: tankState.y };
+        _last2TankT = _timeAcc;
         // v102：杀戮场“当前格子”基准——记真实世界里坦克站的这一格，
         // 选路时用“操作终点相对它的安全提升”打分，静止永远是 0 分。
         var tileM = (typeof Constants !== 'undefined' && Constants.MAZE_TILE_SIZE && Constants.MAZE_TILE_SIZE.m)
