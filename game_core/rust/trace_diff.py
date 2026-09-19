@@ -114,6 +114,24 @@ def main():
     else:
         print()
         print('本录像没有 bulletErr（v122 之前录的）')
+    if errs:
+        # 取误差最大的那一帧，给出该弹的三个判别量 → 直接定性
+        tw = mx[0]
+        worst_frame = [r for r in recs if abs(r['t'] - tw) < 1e-9]
+        wf = worst_frame[0] if worst_frame else None
+        wid = mx[2]
+        if wf and wf.get('anchors'):
+            for a2 in wf['anchors']:
+                if a2.get('id') == wid:
+                    v0, vr, dr = a2.get('v0'), a2.get('vr'), a2.get('drift')
+                    print('   误差最大那帧的该弹判别量: 轨迹初速 v0=%s  真实初速 vr=%s  锚点漂移 drift=%s' % (v0, vr, dr))
+                    if v0 is not None and vr is not None and vr >= 5 and v0 <= 1.5:
+                        print('   ⇒ 判定：轨迹天生是"静止点"（建轨迹时那颗弹的速度被当成 0）')
+                    elif dr is not None and dr > 0.5:
+                        print('   ⇒ 判定：锚点记账不实（轨迹第 0 帧并不在 abs0 那个时刻）')
+                    else:
+                        print('   ⇒ 判定：轨迹过期发散（真实弹反弹/变向后，旧轨迹被继续复用）')
+                    break
     last = recs[-1]
     if last.get('anchors'):
         print('   最后一帧每弹锚点（anchorOffset / 轨迹第0帧对应绝对时刻 / 轨迹长度）：')

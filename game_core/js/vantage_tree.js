@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v122';
+    var TREE_VERSION = 'v123';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -732,7 +732,9 @@
                 ? Math.round(tree.diag.lastBulletError * 1000) / 1000 : null,
             bulletErrId: (tree && tree.diag) ? (tree.diag.lastBulletErrorId || null) : null,
             // 每颗弹的轨迹锚点：abs0 = rootAbsT + anchorOffset（= 轨迹第 0 帧对应的绝对时刻）
-            anchors: (function () {
+            anchors: (tree && tree.diag && tree.diag.anchorProbe && tree.diag.anchorProbe.length)
+                ? tree.diag.anchorProbe
+                : (function () {
                 var out = [], ths = (tree && tree.threats) || [], rT = (tree && tree.rootAbsT) || 0;
                 for (var ai = 0; ai < ths.length && out.length < 8; ai++) {
                     var th = ths[ai];
@@ -6011,6 +6013,40 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         refreshThreatAnchors(tree);   // v27：回填 path0Now/path0Drift/anchorAge
         d.lastBulletError = worst;
         d.lastBulletErrorId = worstId;
+
+        // v123：轨迹保真判别三量（用来区分：轨迹失效发散 / 轨迹天生静止 / 锚点记账不实）
+        //   v0    = 轨迹第 0→1 帧位移换算的速度（轨迹自己认为的初速）
+        //   vr    = 该弹此刻的真实速度
+        //   drift = 轨迹第 0 帧位置 vs "按真实速度从此刻反推到 abs0 时刻"的位置差
+        var probe = [];
+        for (i = 0; i < tree.threats.length && probe.length < 8; i++) {
+            th = tree.threats[i];
+            if (!th || th.id === undefined) continue;
+            var pr2 = byId[th.id];
+            if (!pr2) continue;
+            var t0 = (th.track && th.track.length) ? th.track[0] : null;
+            var t1 = (th.track && th.track.length > 1) ? th.track[1] : null;
+            var v0 = (t0 && t1) ? Math.sqrt((t1.x - t0.x) * (t1.x - t0.x) + (t1.y - t0.y) * (t1.y - t0.y)) / FRAME_DT : null;
+            var vrx = (typeof pr2.vx === 'number') ? pr2.vx : 0;
+            var vry = (typeof pr2.vy === 'number') ? pr2.vy : 0;
+            var vr = Math.sqrt(vrx * vrx + vry * vry);
+            var abs0 = tree.rootAbsT + (th.anchorOffset || 0);
+            var back = Math.max(0, _timeAcc - abs0);
+            var drift = null;
+            if (t0) {
+                var ex = pr2.x - vrx * back, ey = pr2.y - vry * back;
+                drift = Math.sqrt((t0.x - ex) * (t0.x - ex) + (t0.y - ey) * (t0.y - ey));
+            }
+            probe.push({
+                id: th.id,
+                abs0: Math.round(abs0 * 1000) / 1000,
+                len: (th.track && th.track.length) ? th.track.length : 0,
+                v0: (v0 === null) ? null : Math.round(v0 * 10) / 10,
+                vr: Math.round(vr * 10) / 10,
+                drift: (drift === null) ? null : Math.round(drift * 100) / 100
+            });
+        }
+        d.anchorProbe = probe;
         if (worst > 0.5) {
             d.bulletDesyncs.push({ t: _timeAcc, id: worstId, error: worst });
             if (d.bulletDesyncs.length > 30) d.bulletDesyncs.shift();
@@ -7273,5 +7309,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
