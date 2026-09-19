@@ -748,6 +748,30 @@
         return _fusedCache;
     }
 
+    // v38：融合世界"摆不了位的弹"统计。**绝不静默**：任何一颗真实存在的弹
+    // 若进不了融合世界，死亡权威就会对它失明（预测"还活着/死得更晚"），
+    // 主人实测的"橙色/绿色节点上死"就在这一族里。要么按真实位姿近似摆进去，
+    // 要么留下响亮的记录。
+    var _fusedDropStats = {
+        approxPlaced: 0,      // 无 track/折线可用 → 按"真实位姿 + 真实速度"前推后摆上
+        noThreat: 0,          // 连威胁条目都找不到（威胁表漏了它）
+        skipped: 0,           // 其它原因没摆（保留计数，不允许无声）
+        lastLogMs: 0,
+        lastDetail: ''
+    };
+    function fusedDropLog(detail) {
+        var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now - _fusedDropStats.lastLogMs < 1000) return;   // 每秒最多一条
+        _fusedDropStats.lastLogMs = now;
+        _fusedDropStats.lastDetail = detail;
+        if (global.console && console.warn) {
+            console.warn('[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：' + detail +
+                ' 累计: 近似摆=' + _fusedDropStats.approxPlaced +
+                ' 无威胁条目=' + _fusedDropStats.noThreat +
+                ' 跳过=' + _fusedDropStats.skipped);
+        }
+    }
+
     function acquireFusedBullet(fc, projectile) {
         var i, slot = null;
         for (i = 0; i < fc.bulletSlots.length; i++) {
@@ -1066,9 +1090,46 @@
                 }
             }
             if (!placed) {
-                slot.body.SetActive(false);
-                slot.lastRound = -1;
-                continue;
+                // v38：**不允许静默丢弹**。方向只有两个：
+                //   ① 有威胁条目但轨迹/折线取不到位 → 用"真实弹体位姿 + 真实速度"
+                //      从"现在"前推到本节点起点（tGlobal），近似摆进融合世界；
+                //      弹是直线飞行，短程前推与真实基本一致，远比"当它不存在"安全。
+                //   ② 连威胁条目都没有 → 也按真实位姿摆，但单独计数（威胁表漏弹）。
+                var advFrames = 0;
+                if (opt.tGlobal > 0) {
+                    var nowTg = (typeof opt.nowTGlobal === 'number' && isFinite(opt.nowTGlobal))
+                        ? opt.nowTGlobal : 0;
+                    advFrames = Math.max(0, Math.round((opt.tGlobal - nowTg) / FRAME));
+                }
+                try {
+                    var fpx = rpos.x + rvel.x * advFrames * FRAME;
+                    var fpy = rpos.y + rvel.y * advFrames * FRAME;
+                    slot.body.SetPositionAndAngle(
+                        Box2D.Common.Math.b2Vec2.Make(fpx, fpy), rb.GetAngle());
+                    slot.body.SetLinearVelocity(Box2D.Common.Math.b2Vec2.Make(rvel.x, rvel.y));
+                    slot.body.SetAngularVelocity(rb.GetAngularVelocity());
+                    slot.body.SetActive(true);
+                    slot.body.SetAwake(true);
+                    slot.lastRound = fc.round;
+                    slot.initialSpeed = rvel.Length();
+                    slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
+                    slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
+                    slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge - qLife);
+                    slot.active = slot.initialSpeed > 0 && slot.lifeLeft > 0;
+                    if (!slot.active) { slot.body.SetActive(false); continue; }
+                    if (th) _fusedDropStats.approxPlaced++;
+                    else _fusedDropStats.noThreat++;
+                    fusedDropLog('id=' + (pr.id !== undefined ? pr.id : '?') +
+                        ' 原因=' + (th ? (th.track ? 'track取不到位' : '无track且折线越界/缺失') : '威胁表无此弹') +
+                        ' 前推=' + advFrames + '帧 tGlobal=' + opt.tGlobal);
+                    continue;
+                } catch (ePlace) {
+                    _fusedDropStats.skipped++;
+                    fusedDropLog('id=' + (pr.id !== undefined ? pr.id : '?') + ' 近似摆放也失败: ' + ePlace);
+                    slot.body.SetActive(false);
+                    slot.lastRound = -1;
+                    continue;
+                }
             }
             slot.body.SetActive(true);
             slot.body.SetLinearVelocity(Box2D.Common.Math.b2Vec2.Make(vx, vy));
@@ -1523,6 +1584,15 @@
              * 任何失败/不支持都返回 null，由 tree.rolloutNine 静默回退
              * VantageScoring.scorePaths（JS 融合路径）。
              */
+            // v38：融合世界摆放弹药的统计（树侧每帧记录 + 响度检查用）
+            getFusedDropStats: function() {
+                return {
+                    approxPlaced: _fusedDropStats.approxPlaced,
+                    noThreat: _fusedDropStats.noThreat,
+                    skipped: _fusedDropStats.skipped,
+                    lastDetail: _fusedDropStats.lastDetail
+                };
+            },
             simulateTankBatchScored: function(state, operations, durationFrames, opt) {
                 if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
                 if (durationFrames > 75) return null;
@@ -1995,6 +2065,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v37：遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v38：不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);

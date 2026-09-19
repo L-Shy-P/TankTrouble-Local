@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v118';
+    var TREE_VERSION = 'v119';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -566,8 +566,14 @@
     var _nodeCapEnabled = true;              // v85：节点数上限开关
     var _horizonCapEnabled = true;           // v85：时间视界上限开关
     var _horizonSec = 8.0;                   // v91：预测时长上限（秒，1~15）
-    var _pruneCompensateLayers = 0;          // v91：新弹剪枝后每帧额外补偿层数（0~9）
-    var _pruneCompensateFrames = 1;          // v91：补偿持续帧数（1~60）
+    var _pruneCompensateLayers = 1;          // v91：新弹剪枝后每帧额外补偿层数（0~9）
+
+    var _pruneCompensateFrames = 10;
+    var _retreatCompensateLayers = 1;
+    var _retreatCompensateFrames = 10;
+    var MAX_GROW_BOOST_STACKS = 10;
+    var MAX_LAYERS_PER_TICK = 11;
+          // v91：补偿持续帧数（1~60）
     var _refineBeyondLimits = false;         // v85：达到上限后继续细化长操作
     var _continuousRefine = false;           // v88：不等上限，每 tick 主动细化一次
     var _moveTarget = null;                  // v92：点击地面后的末端姿态目标（格子坐标）
@@ -717,7 +723,10 @@
             threats: (tree && tree.threats) ? tree.threats.length : 0,
             threatIds: (tree && tree.threatIds) || '',
             live: (tree && typeof tree._liveProjectileCount === 'number') ? tree._liveProjectileCount : null,
-            retreats: (tree && tree.stats) ? (tree.stats.retreats || 0) : 0
+            retreats: (tree && tree.stats) ? (tree.stats.retreats || 0) : 0,
+            // v119：本帧融合世界因摆不了位而"近似摆/漏摆"的弹数（>0 说明权威
+            // 当时的视野不完整，橙色/绿色节点上死要先查这里）
+            fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null
         };
         // 执行节点换了 → 记一次“当时 9 个候选各自什么分、选了谁、各自预测死在第几帧”。
         // 这是回答“预测到死亡为什么还选它 / 有没有回退”的关键证据。
@@ -885,8 +894,12 @@
         tMin: 3,                          // 段长下限
         tMax: 30,                         // 段长上限
         horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
-        pruneCompensateLayers: 0,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
-        pruneCompensateFrames: 1,        // v91：补偿持续帧数（1~60）
+        pruneCompensateLayers: 1,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
+
+        pruneCompensateFrames: 10,
+        retreatCompensateLayers: 1,
+        retreatCompensateFrames: 10,
+        // v91：补偿持续帧数（1~60）
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
         maxNodes: 500,                    // 节点数上限（v84 起可调，默认仍 500）
@@ -1299,6 +1312,8 @@
         tree.cfg.horizonSec = _horizonSec;                 // v91
         tree.cfg.pruneCompensateLayers = _pruneCompensateLayers; // v91
         tree.cfg.pruneCompensateFrames = _pruneCompensateFrames; // v91
+        tree.cfg.retreatCompensateLayers = _retreatCompensateLayers; // v119
+        tree.cfg.retreatCompensateFrames = _retreatCompensateFrames; // v119
         tree.cfg.refineBeyondLimits = _refineBeyondLimits; // v85
         tree.cfg.continuousRefine = _continuousRefine;     // v88
         tree.cfg.retreatNodes = _retreatNodes;             // v89
@@ -1595,10 +1610,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!node.inputs) return null;
         var startSample = node.rolloutSamples[0];
         var startPose = { x: startSample.x, y: startSample.y, rot: startSample.rot };
+        // v119：断链修复——本函数的 pending 参数**以前从未被使用**，扫描只拿
+        // tree.threats。虽然 attachNewThreats 会把新弹并进 tree.threats，但只要
+        // 有任何环节让某颗真实存在的弹不在表里（轨迹生成失败、过滤/上限裁剪、
+        // 极端时序），死亡权威就会对它失明 → 预测"活着/死得更晚" → 橙/绿节点上死。
+        // 这里改成并集，保证"触发这次重扫的那颗弹"一定在扫描视野内。
+        var scanThreats = unionThreats(tree.threats, pending);
         var opt = {
             startPose: startPose,
-            threats: tree.threats || [],
-            tGlobal: node.rolloutStartT || 0
+            threats: scanThreats,
+            tGlobal: node.rolloutStartT || 0,
+            nowTGlobal: nowTGlobalOf(tree)
         };
         var op = [{ name: node.opName || '?', inputs: node.inputs }];
 
@@ -1607,6 +1629,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (typeof adapter.simulateTankBatchJsFused === 'function') {
             try {
                 jsBatch = adapter.simulateTankBatchJsFused(startPose, op, segF, opt);
+                noteFusedDrops(tree, adapter);
             } catch (eJsFused) {
                 jsBatch = null;
             }
@@ -1761,6 +1784,131 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             a.minY - margin <= b.maxY && b.minY - margin <= a.maxY;
     }
 
+    /** v119：融合世界"现在"相对 rootAbsT 的时间（秒）。 */
+    function nowTGlobalOf(tree) {
+        var root = (tree && typeof tree.rootAbsT === 'number') ? tree.rootAbsT : 0;
+        return Math.max(0, _timeAcc - root);
+    }
+
+    /** v119：威胁表并集（按 id 去重）。death 权威的视野不允许有洞。 */
+    function unionThreats(a, b) {
+        var out = [], seen = {}, i, th;
+        for (i = 0; i < ((a && a.length) || 0); i++) {
+            th = a[i];
+            if (!th || th.id === undefined) continue;
+            if (seen[th.id]) continue;
+            seen[th.id] = 1;
+            out.push(th);
+        }
+        for (i = 0; i < ((b && b.length) || 0); i++) {
+            th = b[i];
+            if (!th || th.id === undefined) continue;
+            if (seen[th.id]) continue;
+            seen[th.id] = 1;
+            out.push(th);
+        }
+        return out;
+    }
+
+    /** v119：把沙箱"摆放弹药不完整"的计数搬进 tree.stats 与逐帧记录。
+     *  这是"静默跳过"的响亮出口：盘后看统计就能知道权威有没有瞎过。 */
+    function noteFusedDrops(tree, adapter) {
+        if (!tree || !adapter || typeof adapter.getFusedDropStats !== 'function') return;
+        var st = null;
+        try { st = adapter.getFusedDropStats(); } catch (eSt) { return; }
+        if (!st) return;
+        var prev = tree._fusedDropSeen || { approxPlaced: 0, noThreat: 0, skipped: 0 };
+        var dApprox = Math.max(0, (st.approxPlaced || 0) - prev.approxPlaced);
+        var dNoTh = Math.max(0, (st.noThreat || 0) - prev.noThreat);
+        var dSkip = Math.max(0, (st.skipped || 0) - prev.skipped);
+        tree._fusedDropSeen = {
+            approxPlaced: st.approxPlaced || 0,
+            noThreat: st.noThreat || 0,
+            skipped: st.skipped || 0
+        };
+        if (!(dApprox + dNoTh + dSkip)) return;
+        tree.stats.fusedApproxPlaced = (tree.stats.fusedApproxPlaced || 0) + dApprox;
+        tree.stats.fusedNoThreat = (tree.stats.fusedNoThreat || 0) + dNoTh;
+        tree.stats.fusedSkipped = (tree.stats.fusedSkipped || 0) + dSkip;
+        tree._fusedDropFrame = { approx: dApprox, noThreat: dNoTh, skipped: dSkip, detail: st.lastDetail || '' };
+    }
+
+
+    /**
+     * v119：生长补偿**栈**。
+     * ---------------------------------------------------------------------------
+     * 口径（主人定）：剪枝补偿与回退补偿各给"每帧多长 1 层、持续 10 帧"。
+     * 高危场景里回退/剪枝会连续发生，所以补偿必须**叠加**（旧实现是覆盖，
+     * 叠不上去，也拿不到"最多每帧 11 层"的效果）。叠加份数上限 10，
+     * 于是每帧最多 1(基础) + 10 = 11 层节点，节点增长速度能立刻跟上回退速度。
+     * 每帧末尾所有活跃补偿各消耗 1 帧，10 帧后自动消失。
+     */
+    function noteGrowCompensation(tree, layers, frames, reason, detail) {
+        if (!tree || !tree.cfg) return 0;
+        var L = Math.max(0, Math.min(9, Math.floor(layers || 0)));
+        if (L <= 0) return 0;
+        var F = Math.max(1, Math.min(60, Math.floor(frames || 1)));
+        var stacks = tree._growBoosts || (tree._growBoosts = []);
+        var i;
+        for (i = stacks.length - 1; i >= 0; i--) {
+            if (!stacks[i] || stacks[i].framesLeft <= 0) stacks.splice(i, 1);
+        }
+        if (stacks.length >= MAX_GROW_BOOST_STACKS) {
+            // 已满：给剩余帧数最少的那份续时间，层数不再叠加（锁死 11 层/帧上限）
+            var weakest = 0;
+            for (i = 1; i < stacks.length; i++) {
+                if (stacks[i].framesLeft < stacks[weakest].framesLeft) weakest = i;
+            }
+            stacks[weakest].framesLeft = Math.max(stacks[weakest].framesLeft, F);
+            stacks[weakest].totalFrames = Math.max(stacks[weakest].totalFrames || 0, F);
+            tree.stats.growBoostRefreshes = (tree.stats.growBoostRefreshes || 0) + 1;
+        } else {
+            stacks.push({ layers: L, framesLeft: F, totalFrames: F, reason: reason || '' });
+        }
+        tree.stats.growCompensations = (tree.stats.growCompensations || 0) + 1;
+        tree.stats.growBoostStacks = stacks.length;
+        recordStructure(tree, 'grow-compensate',
+            'layers=' + L + ' frames=' + F + ' stacks=' + stacks.length +
+            ' perTick=' + (1 + computeGrowBoostLayers(tree)) +
+            (detail ? ' ' + detail : '') + (reason ? ' ' + reason : ''));
+        return L;
+    }
+
+    /** v119：当前所有活跃补偿合计能多加几层（上限 MAX_GROW_BOOST_STACKS）。 */
+    function computeGrowBoostLayers(tree) {
+        if (!tree || !tree._growBoosts || !tree._growBoosts.length) return 0;
+        var sum = 0;
+        for (var i = 0; i < tree._growBoosts.length; i++) {
+            var b = tree._growBoosts[i];
+            if (b && b.framesLeft > 0) sum += Math.max(0, b.layers || 0);
+        }
+        return Math.min(MAX_GROW_BOOST_STACKS, sum);
+    }
+
+    /** v119：每帧末尾——所有活跃补偿各消耗一帧。 */
+    function consumeGrowBoostTick(tree) {
+        if (!tree || !tree._growBoosts || !tree._growBoosts.length) return;
+        for (var i = tree._growBoosts.length - 1; i >= 0; i--) {
+            var b = tree._growBoosts[i];
+            if (!b) { tree._growBoosts.splice(i, 1); continue; }
+            b.framesLeft--;
+            if (b.framesLeft <= 0) tree._growBoosts.splice(i, 1);
+        }
+        tree.stats.growBoostStacks = tree._growBoosts.length;
+    }
+
+    /** v119：真死回退补偿（与剪枝补偿同款：默认 1 层 × 10 帧，可叠加）。 */
+    function noteRetreatCompensation(tree, detail) {
+        if (!tree || !tree.cfg) return 0;
+        var layers = Math.max(0, Math.min(9,
+            Math.floor(tree.cfg.retreatCompensateLayers || 0)));
+        if (layers <= 0) return 0;
+        var frames = Math.max(1, Math.min(60,
+            Math.floor(tree.cfg.retreatCompensateFrames || 1)));
+        tree.stats.retreatCompensations = (tree.stats.retreatCompensations || 0) + 1;
+        return noteGrowCompensation(tree, layers, frames, 'retreat', detail || '');
+    }
+
     /** v91：记录新弹剪枝损失，并按配置给接下来几帧加生长补偿。
      *  默认补偿层数=0、持续=1，等于不改变默认行为。 */
     function notePruneLoss(tree, beforeCount, reason) {
@@ -1769,21 +1917,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (lost <= 0) return 0;
         var layers = Math.max(0, Math.min(9,
             Math.floor(tree.cfg.pruneCompensateLayers || 0)));
-        if (layers <= 0) return lost;
         var frames = Math.max(1, Math.min(60,
             Math.floor(tree.cfg.pruneCompensateFrames || 1)));
-        tree._growBoost = {
-            layers: layers,
-            framesLeft: frames,
-            totalFrames: frames,
-            lost: lost,
-            reason: reason || ''
-        };
-        tree.stats.pruneCompensations = (tree.stats.pruneCompensations || 0) + 1;
         tree.stats.pruneLostNodes = (tree.stats.pruneLostNodes || 0) + lost;
-        recordStructure(tree, 'grow-compensate',
-            'lost=' + lost + ' layers=' + layers + ' frames=' + frames +
-            (reason ? ' ' + reason : ''));
+        if (layers > 0) {
+            tree.stats.pruneCompensations = (tree.stats.pruneCompensations || 0) + 1;
+            noteGrowCompensation(tree, layers, frames, 'prune', 'lost=' + lost);
+        }
         return lost;
     }
 
@@ -3138,8 +3278,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         startPose: simState.tank,
                         threats: threats,
                         tGlobal: simState.tGlobal,
+                        // v119：融合世界"现在"相对 rootAbsT 的位置。无威胁条目/
+                        // 轨迹取不到位时，融合世界要按真实位姿前推到本节点起点，
+                        // 而不是把那颗弹静默删掉（v38 沙箱侧配套）。
+                        nowTGlobal: nowTGlobalOf(tree),
                         cfg: cfg
                     });
+                noteFusedDrops(tree, adapter);
                 if (rustScored && rustScored.length === ops.length) {
                     tree.stats.rustScoredBatches = (tree.stats.rustScoredBatches || 0) + 1;
                     var okAll = true;
@@ -4763,6 +4908,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!isTrueDeadNode(leaf)) return null;
         leaf.exhausted = true;
         tree.stats.retreats++;
+        // v119：真死回退 → 生长补偿（默认 1 层 × 10 帧，可叠加）
+        noteRetreatCompensation(tree, 'leaf=' + (leaf.opName || ('n' + leaf.id)));
         var rt = pickRetreatLeaf(tree, leaf, adapter);
         var onPath = false;
         var path = commitPathOf(tree.root, tree.commitNode);
@@ -4934,13 +5081,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (fusedBatchReady(adapter)) {
             var layersPerTick = Math.max(1, Math.min(6,
                 Math.floor(tree.cfg.growLayersPerTick || 1)));
-            // v91：新弹剪枝后的临时生长补偿，叠加在正常层数上。
-            if (tree._growBoost && tree._growBoost.framesLeft > 0) {
-                var boostLayers = Math.max(0, Math.min(9, Math.floor(tree._growBoost.layers || 0)));
-                layersPerTick = Math.min(15, layersPerTick + boostLayers);
-                tree.stats.growBoostLayers = (tree.stats.growBoostLayers || 0) + boostLayers;
-                tree._growBoost.framesLeft--;
-                if (tree._growBoost.framesLeft <= 0) tree._growBoost = null;
+            // v91/v119：剪枝补偿 + 回退补偿（栈式叠加），叠加在正常层数上。
+            // 上限 1 + 10 = 11 层/帧：高危场景连续回退时节点增长立刻跟上。
+            if (tree._growBoosts && tree._growBoosts.length) {
+                var boostLayers = computeGrowBoostLayers(tree);
+                if (boostLayers > 0) {
+                    layersPerTick = Math.min(MAX_LAYERS_PER_TICK, layersPerTick + boostLayers);
+                    tree.stats.growBoostLayers = (tree.stats.growBoostLayers || 0) + boostLayers;
+                    tree.stats.growBoostTicks = (tree.stats.growBoostTicks || 0) + 1;
+                }
+                consumeGrowBoostTick(tree);
             }
             var t0 = performance.now();
             var grown = 0;
@@ -5616,8 +5766,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 startPose: st,
                 threats: slice.threats,
                 tGlobal: 0,
+                nowTGlobal: nowTGlobalOf(tree),
                 cfg: treeScoringCfg(tree)
             });
+            noteFusedDrops(tree, slice.adapter);
         } catch (eCommitRust) {
             tree.stats.commitSliceRustFails = (tree.stats.commitSliceRustFails || 0) + 1;
             return null;
@@ -6584,6 +6736,24 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return _pruneCompensateLayers;
     }
 
+    /** v119：回退补偿层数（0~9，默认 1）。 */
+    function setRetreatCompensateLayers(v) {
+        var n = parseInt(v, 10);
+        if (!isFinite(n)) n = 1;
+        _retreatCompensateLayers = Math.max(0, Math.min(9, n));
+        if (_tree && _tree.cfg) _tree.cfg.retreatCompensateLayers = _retreatCompensateLayers;
+        return _retreatCompensateLayers;
+    }
+
+    /** v119：回退补偿持续帧数（1~60，默认 10）。 */
+    function setRetreatCompensateFrames(v) {
+        var n = parseInt(v, 10);
+        if (!isFinite(n)) n = 10;
+        _retreatCompensateFrames = Math.max(1, Math.min(60, n));
+        if (_tree && _tree.cfg) _tree.cfg.retreatCompensateFrames = _retreatCompensateFrames;
+        return _retreatCompensateFrames;
+    }
+
     /** v91：剪枝补偿持续帧数（1~60）。 */
     function setPruneCompensateFrames(v) {
         var n = Math.round(Number(v));
@@ -6853,7 +7023,34 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         debugObjective: debugObjective,
-        debugObjective: debugObjective,
+        // v119：生长补偿调试钩子（回归测试用：叠加 / 衰减 / 11 层上限）
+        _growBoost: {
+            boostLayers: function () { return computeGrowBoostLayers(_tree); },
+            stacks: function () {
+                var out = [];
+                var arr = (_tree && _tree._growBoosts) || [];
+                for (var i = 0; i < arr.length; i++) {
+                    out.push({ layers: arr[i].layers, framesLeft: arr[i].framesLeft });
+                }
+                return out;
+            },
+            layersCap: function () { return MAX_LAYERS_PER_TICK; },
+            maxStacks: function () { return MAX_GROW_BOOST_STACKS; },
+            notePrune: function (layers, frames) {
+                return noteGrowCompensation(_tree, layers, frames, 'test');
+            },
+            noteRetreat: function (detail) { return noteRetreatCompensation(_tree, detail || 'test'); },
+            consumeTick: function () { consumeGrowBoostTick(_tree); },
+            // 传树版本（回归测试用：纯函数、不动全局 _tree）
+            makeTestTree: function () {
+                return { cfg: {}, stats: {}, diag: {}, nodeCount: 0, _growBoosts: [] };
+            },
+            boostLayersOf: function (t) { return computeGrowBoostLayers(t); },
+            stacksOf: function (t) { return (t && t._growBoosts) ? t._growBoosts.slice() : []; },
+            noteRetreatOn: function (t, detail) { return noteRetreatCompensation(t, detail || 'test'); },
+            notePruneOn: function (t, l, f) { return noteGrowCompensation(t, l, f, 'test'); },
+            consumeTickOn: function (t) { consumeGrowBoostTick(t); }
+        },
         // v118：粗筛判定的调试钩子（回归测试用：验证"子弹能不能打到这个盒子"）
         _coarse: {
             threatCurrentPoint: threatCurrentPoint,
@@ -6943,6 +7140,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setHorizonSec: setHorizonSec,
         setPruneCompensateLayers: setPruneCompensateLayers,
         setPruneCompensateFrames: setPruneCompensateFrames,
+        setRetreatCompensateLayers: setRetreatCompensateLayers,
+        setRetreatCompensateFrames: setRetreatCompensateFrames,
         notePruneLoss: notePruneLoss,
         setRefineBeyondLimits: setRefineBeyondLimits,
         setContinuousRefine: setContinuousRefine,
@@ -6981,5 +7180,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

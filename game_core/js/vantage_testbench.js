@@ -197,7 +197,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 10, retreatCompensateLayers: 1, retreatCompensateFrames: 10, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2170,7 +2170,7 @@
         rustMinimal: false, rustPhysics: true, growWithoutThreats: true,
         growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false,
         horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
-        pruneCompensateLayers: 0, pruneCompensateFrames: 1, retreatNodes: 3,
+        pruneCompensateLayers: 1, pruneCompensateFrames: 10, retreatCompensateLayers: 1, retreatCompensateFrames: 10, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
         killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0,
         occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true,
@@ -2388,8 +2388,10 @@
                 expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="8" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">8秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>') +
-                expItem('剪枝补偿层数 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="0" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers">0层</span>') +
-                expItem('补偿持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="1" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">1帧</span>')
+                expItem('剪枝补偿层数 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers">1层</span>') +
+                expItem('补偿持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">10帧</span>') +
+                expItem('回退补偿层数 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers">1层</span>') +
+                expItem('回退补偿帧数 <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames">10帧</span>（两类补偿叠加，每帧最多 11 层）')
             ) +
             // 回退：只在“树”模式显示
             expLine('回退', '#cba6f7', 'vt-exp-retreatRow',
@@ -2470,6 +2472,10 @@
             pruneCompensateLayersSpan: expRow.querySelector('span[id="vt-exp-pruneCompensateLayers"]'),
             pruneCompensateFrames: expRow.querySelector('[data-act="exp-pruneCompensateFrames"]'),
             pruneCompensateFramesSpan: expRow.querySelector('span[id="vt-exp-pruneCompensateFrames"]'),
+            retreatCompensateLayers: expRow.querySelector('[data-act="exp-retreatCompensateLayers"]'),
+            retreatCompensateLayersSpan: expRow.querySelector('span[id="vt-exp-retreatCompensateLayers"]'),
+            retreatCompensateFrames: expRow.querySelector('[data-act="exp-retreatCompensateFrames"]'),
+            retreatCompensateFramesSpan: expRow.querySelector('span[id="vt-exp-retreatCompensateFrames"]'),
             refineBeyond: expRow.querySelector('[data-act="exp-refineBeyond"]'),
             continuousRefine: expRow.querySelector('[data-act="exp-continuousRefine"]'),
             retreatNodes: expRow.querySelector('[data-act="exp-retreatNodes"]'),
@@ -2517,8 +2523,10 @@
                 'exp-horizonCap': '预测时长上限（危险项，关闭会标红）：关掉会无限叠加节点，性能雪崩、AI 明显变卡。开关和滑块同组，关闭时一起变灰。开启后，超过设定秒数就不再继续往前生长。',
                 'exp-refineBeyond': '达到节点或时长上限后，不再直接停止，而是继续把长操作拆得更细，寻找更多分叉。',
                 'exp-continuousRefine': '不等到达上限，每帧都额外拆一次长操作，让树更细腻；计算量和节点增长都会明显变大。',
-                'exp-pruneCompensateLayers': '新子弹出现导致节点被大量剪掉后，接下来几帧每帧额外多长多少层树节点。默认 0 层，等于关闭。',
-                'exp-pruneCompensateFrames': '剪枝补偿持续多少帧。默认 1 帧，范围 1~60。',
+                'exp-pruneCompensateLayers': '新子弹出现导致节点被大量剪掉后，接下来几帧每帧额外多长多少层树节点。默认 1 层。',
+                'exp-pruneCompensateFrames': '剪枝补偿持续多少帧。默认 10 帧，范围 1~60。',
+                'exp-retreatCompensateLayers': '真死回退（深度掉层）后每帧额外多长多少层树节点。默认 1 层；与剪枝补偿叠加，合计每帧最多 11 层。',
+                'exp-retreatCompensateFrames': '回退补偿持续多少帧。默认 10 帧，范围 1~60。',
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关（危险，开启会标红）：只让 Rust 参与最终选路，不参与物理模拟和树结构，AI 行为偏差很大。适合单独测试 Rust 的选路效果。',
@@ -2636,6 +2644,28 @@
                 state.exp.pruneCompensateLayers = Math.max(0, Math.min(9, parseInt(_expCtrl.pruneCompensateLayers.value, 10) || 0));
                 if (_expCtrl.pruneCompensateLayersSpan) {
                     _expCtrl.pruneCompensateLayersSpan.textContent = state.exp.pruneCompensateLayers + '层';
+                }
+            });
+        }
+        if (_expCtrl.retreatCompensateLayers) {
+            _expCtrl.retreatCompensateLayers.addEventListener('input', function() {
+                state.exp.retreatCompensateLayers = Math.max(0, Math.min(9, parseInt(_expCtrl.retreatCompensateLayers.value, 10) || 0));
+                if (_expCtrl.retreatCompensateLayersSpan) {
+                    _expCtrl.retreatCompensateLayersSpan.textContent = state.exp.retreatCompensateLayers + '层';
+                }
+                if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateLayers) {
+                    VantageTree.setRetreatCompensateLayers(state.exp.retreatCompensateLayers);
+                }
+            });
+        }
+        if (_expCtrl.retreatCompensateFrames) {
+            _expCtrl.retreatCompensateFrames.addEventListener('input', function() {
+                state.exp.retreatCompensateFrames = Math.max(1, Math.min(60, parseInt(_expCtrl.retreatCompensateFrames.value, 10) || 1));
+                if (_expCtrl.retreatCompensateFramesSpan) {
+                    _expCtrl.retreatCompensateFramesSpan.textContent = state.exp.retreatCompensateFrames + '帧';
+                }
+                if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateFrames) {
+                    VantageTree.setRetreatCompensateFrames(state.exp.retreatCompensateFrames);
                 }
             });
         }
@@ -3026,8 +3056,10 @@
             state.exp.horizonSec = 8;
             state.exp.refineBeyond = true;
             state.exp.continuousRefine = false;
-            state.exp.pruneCompensateLayers = 0;
-            state.exp.pruneCompensateFrames = 1;
+            state.exp.pruneCompensateLayers = 1;
+            state.exp.pruneCompensateFrames = 10;
+            state.exp.retreatCompensateLayers = 1;
+            state.exp.retreatCompensateFrames = 10;
             state.exp.retreatNodes = 3;
             state.exp.retreatFrames = 200;
             state.exp.targetMix = true;
@@ -3059,6 +3091,8 @@
                 VantageTree.setContinuousRefine(state.exp.continuousRefine);
                 VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
                 VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
+                if (VantageTree.setRetreatCompensateLayers) VantageTree.setRetreatCompensateLayers(state.exp.retreatCompensateLayers);
+                if (VantageTree.setRetreatCompensateFrames) VantageTree.setRetreatCompensateFrames(state.exp.retreatCompensateFrames);
                 VantageTree.setRetreatNodes(state.exp.retreatNodes);
                 VantageTree.setRetreatFrames(state.exp.retreatFrames);
                 VantageTree.setTargetMixEnabled(state.exp.targetMix);
@@ -3109,6 +3143,18 @@
             if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
             if (_expCtrl.pruneCompensateLayersSpan) _expCtrl.pruneCompensateLayersSpan.textContent = state.exp.pruneCompensateLayers + '层';
             updatePanel();
+            return;
+        }
+        if (act === 'exp-retreatCompensateLayers') {
+            state.exp.retreatCompensateLayers = Math.max(0, Math.min(9, parseInt(srcEl.value, 10) || 0));
+            if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateLayers) VantageTree.setRetreatCompensateLayers(state.exp.retreatCompensateLayers);
+            if (_expCtrl.retreatCompensateLayersSpan) _expCtrl.retreatCompensateLayersSpan.textContent = state.exp.retreatCompensateLayers + '层';
+            return;
+        }
+        if (act === 'exp-retreatCompensateFrames') {
+            state.exp.retreatCompensateFrames = Math.max(1, Math.min(60, parseInt(srcEl.value, 10) || 1));
+            if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateFrames) VantageTree.setRetreatCompensateFrames(state.exp.retreatCompensateFrames);
+            if (_expCtrl.retreatCompensateFramesSpan) _expCtrl.retreatCompensateFramesSpan.textContent = state.exp.retreatCompensateFrames + '帧';
             return;
         }
         if (act === 'exp-pruneCompensateFrames') {
@@ -3499,6 +3545,7 @@
         dimGroup([_expCtrl.warmupMaxNodes, _expCtrl.growWithoutThreats], !state.exp.growWithoutThreats);
         dimGroup([_expCtrl.horizonSec, _expCtrl.horizonCap], !state.exp.horizonCap);
         dimGroup([_expCtrl.pruneCompensateLayers, _expCtrl.pruneCompensateFrames], !(state.exp.pruneCompensateLayers > 0));
+        dimGroup([_expCtrl.retreatCompensateLayers, _expCtrl.retreatCompensateFrames], !(state.exp.retreatCompensateLayers > 0));
         dimGroup([_expCtrl.targetMixRatio, _expCtrl.targetMix], !state.exp.targetMix);
         dimGroup([_expCtrl.killfieldWeight, _expCtrl.killfield], !state.exp.killfieldEnabled);
         // 空场安全感知和杀戮场绑定：杀戮场关掉时它变灰且不生效。
@@ -3607,6 +3654,10 @@
         if (_expCtrl.pruneCompensateLayersSpan && _expCtrl.pruneCompensateLayersSpan.textContent !== state.exp.pruneCompensateLayers + '层') _expCtrl.pruneCompensateLayersSpan.textContent = state.exp.pruneCompensateLayers + '层';
         if (_expCtrl.pruneCompensateFrames && parseInt(_expCtrl.pruneCompensateFrames.value, 10) !== state.exp.pruneCompensateFrames) _expCtrl.pruneCompensateFrames.value = String(state.exp.pruneCompensateFrames);
         if (_expCtrl.pruneCompensateFramesSpan && _expCtrl.pruneCompensateFramesSpan.textContent !== state.exp.pruneCompensateFrames + '帧') _expCtrl.pruneCompensateFramesSpan.textContent = state.exp.pruneCompensateFrames + '帧';
+        if (_expCtrl.retreatCompensateLayers && parseInt(_expCtrl.retreatCompensateLayers.value, 10) !== state.exp.retreatCompensateLayers) _expCtrl.retreatCompensateLayers.value = String(state.exp.retreatCompensateLayers);
+        if (_expCtrl.retreatCompensateLayersSpan && _expCtrl.retreatCompensateLayersSpan.textContent !== state.exp.retreatCompensateLayers + '层') _expCtrl.retreatCompensateLayersSpan.textContent = state.exp.retreatCompensateLayers + '层';
+        if (_expCtrl.retreatCompensateFrames && parseInt(_expCtrl.retreatCompensateFrames.value, 10) !== state.exp.retreatCompensateFrames) _expCtrl.retreatCompensateFrames.value = String(state.exp.retreatCompensateFrames);
+        if (_expCtrl.retreatCompensateFramesSpan && _expCtrl.retreatCompensateFramesSpan.textContent !== state.exp.retreatCompensateFrames + '帧') _expCtrl.retreatCompensateFramesSpan.textContent = state.exp.retreatCompensateFrames + '帧';
         if (_expCtrl.refineBeyond && _expCtrl.refineBeyond.checked !== state.exp.refineBeyond) _expCtrl.refineBeyond.checked = state.exp.refineBeyond;
         if (_expCtrl.continuousRefine && _expCtrl.continuousRefine.checked !== state.exp.continuousRefine) _expCtrl.continuousRefine.checked = state.exp.continuousRefine;
         if (_expCtrl.retreatNodes && parseInt(_expCtrl.retreatNodes.value, 10) !== state.exp.retreatNodes) _expCtrl.retreatNodes.value = String(state.exp.retreatNodes);
@@ -3627,6 +3678,8 @@
         if (typeof VantageTree !== 'undefined') VantageTree.setContinuousRefine(state.exp.continuousRefine);
         if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
         if (typeof VantageTree !== 'undefined') VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames);
+        if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateLayers) VantageTree.setRetreatCompensateLayers(state.exp.retreatCompensateLayers);
+        if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateFrames) VantageTree.setRetreatCompensateFrames(state.exp.retreatCompensateFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatNodes(state.exp.retreatNodes);
         if (typeof VantageTree !== 'undefined') VantageTree.setRetreatFrames(state.exp.retreatFrames);
         if (typeof VantageTree !== 'undefined') VantageTree.setTargetMixEnabled(state.exp.targetMix);
@@ -4171,6 +4224,9 @@
         try { VantageTree.setRefineBeyondLimits(state.exp.refineBeyond); } catch (eRefineInit) {}
         try { VantageTree.setContinuousRefine(state.exp.continuousRefine); } catch (eContRefineInit) {}
         try { VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers); } catch (ePruneLayersInit) {}
+        try { VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames); } catch (ePruneFramesInit) {}
+        try { if (VantageTree.setRetreatCompensateLayers) VantageTree.setRetreatCompensateLayers(state.exp.retreatCompensateLayers); } catch (eRetLInit) {}
+        try { if (VantageTree.setRetreatCompensateFrames) VantageTree.setRetreatCompensateFrames(state.exp.retreatCompensateFrames); } catch (eRetFInit) {}
         try { VantageTree.setPruneCompensateFrames(state.exp.pruneCompensateFrames); } catch (ePruneFramesInit) {}
         try { VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes); } catch (eWarmupInit) {}
         try { VantageTree.setRetreatNodes(state.exp.retreatNodes); } catch (eRetreatNodesInit) {}

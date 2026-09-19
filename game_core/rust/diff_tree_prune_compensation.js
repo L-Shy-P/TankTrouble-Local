@@ -14,11 +14,16 @@ const VT=sandbox.VantageTree;
 // defaults + clamps
 const t0=VT.createTree({x:0,y:0,rot:0});
 if(t0.cfg.horizonSec!==8) throw new Error('default horizonSec should be 8');
-if(t0.cfg.pruneCompensateLayers!==0) throw new Error('default compensate layers should be 0');
-if(t0.cfg.pruneCompensateFrames!==1) throw new Error('default compensate frames should be 1');
+// v119：两类补偿默认开，各 1 层 / 10 帧
+if(t0.cfg.pruneCompensateLayers!==1) throw new Error('default compensate layers should be 1');
+if(t0.cfg.pruneCompensateFrames!==10) throw new Error('default compensate frames should be 10');
+if(t0.cfg.retreatCompensateLayers!==1) throw new Error('default retreat compensate layers should be 1');
+if(t0.cfg.retreatCompensateFrames!==10) throw new Error('default retreat compensate frames should be 10');
 if(VT.setHorizonSec(0)!==1 || VT.setHorizonSec(99)!==15 || VT.setHorizonSec(8)!==8) throw new Error('horizonSec clamp failed');
 if(VT.setPruneCompensateLayers(-1)!==0 || VT.setPruneCompensateLayers(99)!==9) throw new Error('compensate layers clamp failed');
 if(VT.setPruneCompensateFrames(0)!==1 || VT.setPruneCompensateFrames(99)!==60) throw new Error('compensate frames clamp failed');
+if(VT.setRetreatCompensateLayers(-1)!==0 || VT.setRetreatCompensateLayers(99)!==9) throw new Error('retreat compensate layers clamp failed');
+if(VT.setRetreatCompensateFrames(0)!==1 || VT.setRetreatCompensateFrames(99)!==60) throw new Error('retreat compensate frames clamp failed');
 
 function mkAdapter(){return {constants:{FRAME_DT:0.02},simulateTankBatch:function(state,ops,frames){
     return ops.map(()=>({samples:Array.from({length:frames+1},(_,k)=>({x:state.x+k*0.01,y:state.y,rot:state.rot})),hitWall:false,dead:false,deathFrame:-1}));
@@ -42,7 +47,7 @@ function freshTree(layers,framesCount,boostLayers){
     t.nodeCount=100;
     const lost=VT.notePruneLoss(t,200,'test');
     if(lost!==100) throw new Error('notePruneLoss should report 100, got '+lost);
-    if(t._growBoost) throw new Error('layers=0 must not create a boost');
+    if(t._growBoosts && t._growBoosts.length) throw new Error('layers=0 must not create a boost');
     const e0=t.stats.expands;
     VT.growStep(t,a,[]);
     if(t.stats.expands-e0!==1) throw new Error('without compensation should expand 1 layer');
@@ -53,19 +58,19 @@ function freshTree(layers,framesCount,boostLayers){
     const t=freshTree(1,2,2), a=mkAdapter();
     t.nodeCount=100;
     VT.notePruneLoss(t,200,'test');
-    if(!t._growBoost || t._growBoost.layers!==2 || t._growBoost.framesLeft!==2) throw new Error('boost state wrong');
+    if(!t._growBoosts || t._growBoosts.length!==1 || t._growBoosts[0].layers!==2 || t._growBoosts[0].framesLeft!==2) throw new Error('boost state wrong');
     const e0=t.stats.expands;
     VT.growStep(t,a,[]);
     if(t.stats.expands-e0!==3) throw new Error('boost tick1 should expand 3 layers, got '+(t.stats.expands-e0));
-    if(!t._growBoost || t._growBoost.framesLeft!==1) throw new Error('boost should have 1 frame left');
+    if(!t._growBoosts || t._growBoosts.length!==1 || t._growBoosts[0].framesLeft!==1) throw new Error('boost should have 1 frame left');
     const e1=t.stats.expands;
     VT.growStep(t,a,[]);
     if(t.stats.expands-e1!==3) throw new Error('boost tick2 should expand 3 layers, got '+(t.stats.expands-e1));
-    if(t._growBoost) throw new Error('boost should be consumed after 2 ticks');
+    if(t._growBoosts && t._growBoosts.length) throw new Error('boost should be consumed after 2 ticks');
     const e2=t.stats.expands;
     VT.growStep(t,a,[]);
     if(t.stats.expands-e2!==1) throw new Error('after boost should expand 1 layer, got '+(t.stats.expands-e2));
 }
 
-VT.setPruneCompensateLayers(0);VT.setPruneCompensateFrames(1);VT.setHorizonSec(8);
+VT.setPruneCompensateLayers(1);VT.setPruneCompensateFrames(10);VT.setHorizonSec(8);
 console.log('diff_tree_prune_compensation PASS (horizon 1..15, compensate 0..9 / 1..60, boost 2x2 ticks)');
