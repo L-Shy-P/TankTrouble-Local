@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v123';
+    var TREE_VERSION = 'v124';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -597,6 +597,9 @@
     var _killfieldAnchorTile = null;          // v103：上面那块地皮的格子坐标（空场引导的目标）
     var _autoTarget = null;                   // v103：杀戮场自动寻路目标（与用户点击目标分开）
     var _emptyFieldLaziness = 0;              // v104：空场“懒惰倾向”0~1（0=只要不是最安全就走，1=只在明显危险时才走）
+    var _frameDtMeasured = 0;   // v124：实测每帧时长（秒），0=未测到
+    var _lastGameClock = null;  // 上一 tick 的游戏时钟（弹的 getTimeAlive）
+    var _lastGameClockId = null;
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
     var _lastTankState = null;                // v104：本帧坦克位置（几何威胁提前量用）
     var _threatEtaOverride = null;            // v105：测试用——直接指定“还有几秒挨打”
@@ -727,6 +730,7 @@
             // v119：本帧融合世界因摆不了位而"近似摆/漏摆"的弹数（>0 说明权威
             // 当时的视野不完整，橙色/绿色节点上死要先查这里）
             fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null,
+            frameDt: Math.round(FRAME_DT * 100000) / 100000,   // v124：本 tick 用的帧步长（实测校准）
             // v122：轨迹时间基准的直接证据 = 每帧"按轨迹预测的现在弹位 vs 真实弹位"误差
             bulletErr: (tree && tree.diag && typeof tree.diag.lastBulletError === 'number')
                 ? Math.round(tree.diag.lastBulletError * 1000) / 1000 : null,
@@ -6232,11 +6236,48 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * @param {Object} ai - VantageAI 实例（取 _vantageAdapter / gameController / aiId）
      * @param {number} dt - 游戏帧时长（秒；ai_vantage 已把 Phaser 毫秒÷1000）
      */
+    /**
+     * v124：用游戏自己的时钟校准"一帧 = 多少秒"。
+     * 只用同一个弹的 getTimeAlive() 相邻 tick 之差（换弹就重新起算），
+     * 平滑后写入 FRAME_DT，并同步给沙箱与适配器常量，保证树/沙箱/评分
+     * 三处的时间步长是同一个数。
+     */
+    function calibrateFrameDt(adapter) {
+        var g = null, gid = null;
+        try {
+            var ps = adapter.getProjectiles ? adapter.getProjectiles() : null;
+            for (var id in ps) {
+                if (!ps.hasOwnProperty(id)) continue;
+                var pr = ps[id];
+                if (pr && typeof pr.getTimeAlive === 'function') {
+                    var v = pr.getTimeAlive();
+                    if (typeof v === 'number' && isFinite(v) && v > 0) { g = v; gid = id; break; }
+                }
+            }
+        } catch (eCal) { g = null; }
+        if (g === null) { _lastGameClock = null; _lastGameClockId = null; return; }
+        if (gid !== _lastGameClockId || _lastGameClock === null) {
+            _lastGameClockId = gid; _lastGameClock = g; return;
+        }
+        var adv = g - _lastGameClock;
+        _lastGameClock = g;
+        if (!(adv > 0.005 && adv < 0.2)) return;
+        _frameDtMeasured = (_frameDtMeasured > 0) ? (_frameDtMeasured * 0.8 + adv * 0.2) : adv;
+        if (_frameDtMeasured >= 0.01 && _frameDtMeasured <= 0.1) {
+            FRAME_DT = _frameDtMeasured;
+            if (adapter.constants) adapter.constants.FRAME_DT = FRAME_DT;
+            if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) {
+                try { global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (eSd) {}
+            }
+        }
+    }
+
     function tick(ai, dt) {
         var adapter = ai._vantageAdapter;
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
+        calibrateFrameDt(adapter);
         perfBegin();   // v103：整个 tick 的耗时（含下面各阶段）
         // v104：几何威胁提前量要用（同一帧的子弹位置 + 坦克位置）
         _lastAdapter = adapter;
@@ -7327,5 +7368,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 帧步长按游戏时钟实测校准（修时钟慢一半） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

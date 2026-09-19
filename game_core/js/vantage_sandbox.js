@@ -282,7 +282,7 @@
      */
     function computeBulletTrackFrames(gameController, horizonFrames) {
         var maxFrames = Math.max(1, Math.round(horizonFrames || 0));
-        var FRAME = 0.02;
+        var FRAME = _frameDtSec;
         var projectiles = gameController.getProjectiles();
         for (var id in projectiles) {
             if (!projectiles.hasOwnProperty(id)) continue;
@@ -308,7 +308,7 @@
         var cw = getBulletTrackWorld(gameController);
         if (!cw) return null;
         var projectiles = gameController.getProjectiles();
-        var FRAME = 0.02;
+        var FRAME = _frameDtSec;
         var i, k, id;
         // v22：允许只模拟指定 id 的子弹（新弹局部追加时，旧弹轨迹可复用，
         // 不必为 1 颗新弹把全场 20~40 颗弹各 roll 480 帧）。
@@ -422,7 +422,7 @@
 
     function simulateTankClone(gameController, aiId, inputs, durationFrames, opt) {
         var cw = getCloneWorld(gameController);
-        var FRAME = 0.02;
+        var FRAME = _frameDtSec;
         var i;
         opt = opt || {};
 
@@ -772,6 +772,17 @@
         }
     }
 
+    // v124：每帧时长（秒）。默认 0.02 不变（测试/离线均按 0.02）；
+    // 实战中由树按"游戏自己的时钟"实测校准后写入——实测世界每 tick 推进约 0.035 秒，
+    // 而代码固定按 0.02 模拟，会让树时钟慢一半 → 预测"还有 5 帧"现实只剩 2~3 帧。
+    var _frameDtSec = 0.02;
+    function setFrameDtSec(v) {
+        var n2 = parseFloat(v);
+        if (isFinite(n2) && n2 >= 0.005 && n2 <= 0.2) _frameDtSec = n2;
+        return _frameDtSec;
+    }
+    function getFrameDtSec() { return _frameDtSec; }
+
     function acquireFusedBullet(fc, projectile) {
         var i, slot = null;
         for (i = 0; i < fc.bulletSlots.length; i++) {
@@ -965,7 +976,7 @@
         var me = gameController.getTank(aiId);
         if (!me || !me.getB2DBody || !me.getB2DBody()) return null;
 
-        var FRAME = 0.02;
+        var FRAME = _frameDtSec;
         opt = opt || {};
         var i, k, id;
 
@@ -1628,6 +1639,8 @@
              * VantageScoring.scorePaths（JS 融合路径）。
              */
             // v38：融合世界摆放弹药的统计（树侧每帧记录 + 响度检查用）
+            setFrameDtSec: setFrameDtSec,
+            getFrameDtSec: getFrameDtSec,
             getFusedDropStats: function() {
                 return {
                     approxPlaced: _fusedDropStats.approxPlaced,
@@ -2108,6 +2121,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v40：轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v41：帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
