@@ -1383,7 +1383,8 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
             var pts = null;
             // v22：有 Box2D 逐帧轨迹时，车道压分不再使用 raycast 折线。
             if (th.track && th.track.length) {
-                var dtTrack = 0.02;   // 轨迹帧率与 sandbox FRAME_DT 一致
+                // v129：轨迹帧率 = 生成时的步长（轨迹自带）；没有才退回 0.02
+                var dtTrack = (th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : 0.02;
                 var idx0 = Math.max(0, Math.round(q / dtTrack));
                 var stride = th.track.length > 96 ? 4 : 1;   // 0.08s/点，车道宽度量级足够
                 pts = [];

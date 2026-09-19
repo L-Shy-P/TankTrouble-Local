@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v128';
+    var TREE_VERSION = 'v129';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1494,6 +1494,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!th || th.id === undefined || !byId[th.id]) continue;
             th.track = byId[th.id].frames || [];
             th.trackSource = 'box2d';
+            // v129：记住这条轨迹生成时的帧长，查询下标必须用它（不能用全局 FRAME_DT）
+            th.trackFrameDt = (typeof byId[th.id].frameDt === 'number' && byId[th.id].frameDt > 0)
+                ? byId[th.id].frameDt : FRAME_DT;
             // 新生成的 track[0] 永远对应“本次调用时的当前时刻”，
             // 调用方锚点若已推进到新 rootAbsT，偏移必须归零。
             th.anchorOffset = 0;
@@ -1540,7 +1543,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!th || !th.track || !th.track.length) return null;
         var q = relT - (th.anchorOffset || 0);
         if (q < 0) return null;
-        var idx = Math.round(q / FRAME_DT);
+        // v129：下标必须按"这条轨迹生成时的帧长"算，不能用全局 FRAME_DT——
+        // 否则校准前后生成的轨迹会被误读，弹速虚高 ~20%，撞击时刻整体偏晚。
+        var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT));
         if (idx < 0 || idx >= th.track.length) return null;
         var s = th.track[idx];
         if (!s || s.alive === false) return null;
@@ -1553,7 +1558,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var q = tGlobal - (th.anchorOffset || 0);
         if (q < 0) return null;
         if (th.track && th.track.length) {
-            var idx = Math.round(q / FRAME_DT);
+            var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT));
             if (idx < 0 || idx >= th.track.length) return null;
             var s = th.track[idx];
             if (!s || s.alive === false) return null;
@@ -1619,6 +1624,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (byId[th.id]) {
                 th.track = byId[th.id].frames || [];
                 th.trackSource = 'box2d';
+                th.trackFrameDt = (typeof byId[th.id].frameDt === 'number' && byId[th.id].frameDt > 0)
+                    ? byId[th.id].frameDt : FRAME_DT;   // v129
             }
         }
 

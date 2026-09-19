@@ -328,6 +328,9 @@
 
         var active = [];
         var results = [];
+        // v129：轨迹自带自己的帧长。查询端必须按"生成时的步长"解读下标，
+        // 否则校准（v124~v126）前后生成的轨迹会被当成另一个帧率 → 弹速虚高 20%。
+        var trackFrameDt = FRAME;
         for (id in projectiles) {
             if (!projectiles.hasOwnProperty(id)) continue;
             if (idFilter && !idFilter[id]) continue;
@@ -366,7 +369,8 @@
             slot.frames = [];
             slot.trackId = id;
             active.push(slot);
-            results.push({ id: id, type: pr.getType ? pr.getType() : null, frames: slot.frames });
+            results.push({ id: id, type: pr.getType ? pr.getType() : null,
+                           frameDt: trackFrameDt, frames: slot.frames });   // v129
         }
 
         // 没有可预测弹 → 空数组（调用方回退折线）。
