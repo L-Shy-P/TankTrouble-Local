@@ -110,4 +110,20 @@ assert.strictEqual(ring[0].frames[1].bs[0].id, 'b1', '子弹条目应带 id（�
 for (let i = 0; i < 20; i++) ST.record(fakeTree, node, i, frames);
 assert.strictEqual(ST.ring(fakeTree).length, 12, '轨迹环最多留 12 条');
 
+// ---- 11) v122 时间基准取证接线 ----
+const TR3 = fs.readFileSync(path.join(root, 'js', 'vantage_tree.js'), 'utf8');
+assert(TR3.indexOf('bulletErr: (tree && tree.diag') >= 0, '逐帧记录必须带 bulletErr（轨迹 vs 真实弹位误差）');
+assert(TR3.indexOf('bulletErrId') >= 0, '逐帧记录必须带出误差最大的弹 id');
+assert(TR3.indexOf('abs0: Math.round((rT + (th.anchorOffset || 0))') >= 0, '逐帧记录必须带每弹锚点 abs0');
+assert(TR3.indexOf("recordScanTrace(tree, null, null, rollTrace, 'rollout')") >= 0,
+    '九候选打分那条 rollout 路径也必须采轨迹（这才是产出 fd 的地方）');
+assert(TR3.indexOf('var rollTrace = _rec.on ? [] : null') >= 0, 'rollout 轨迹只在开录时采（常态零开销）');
+assert(TR3.indexOf('d.lastBulletErrorId = worstId;') >= 0, '诊断里要存下误差最大的弹 id');
+const SB3 = fs.readFileSync(path.join(root, 'js', 'vantage_sandbox.js'), 'utf8');
+assert(SB3.indexOf("slot.srcInfo = { src: 'real'") >= 0, '沙箱要记录摆位来源=real');
+assert(SB3.indexOf("src: (th.track && th.track.length) ? 'track' : 'path'") >= 0, '沙箱要记录 track/path 摆位基准');
+assert(SB3.indexOf('off: si.off') >= 0 && SB3.indexOf('idx: si.idx') >= 0, '轨迹帧要带 anchorOffset 与 track 下标');
+assert(fs.readFileSync(path.join(root, 'rust', 'trace_diff.py'), 'utf8').indexOf('bulletErr') >= 0,
+    '对拍脚本要能读 bulletErr');
+
 console.log('PASS：两类补偿默认开(1层/10帧) ＋ 连续事件叠加(3份=3层) ＋ 上限10份=每帧11层 ＋ 10帧后清零 ＋ 关闭时为零');

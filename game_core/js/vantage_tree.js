@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v121';
+    var TREE_VERSION = 'v122';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -726,7 +726,26 @@
             retreats: (tree && tree.stats) ? (tree.stats.retreats || 0) : 0,
             // v119：本帧融合世界因摆不了位而"近似摆/漏摆"的弹数（>0 说明权威
             // 当时的视野不完整，橙色/绿色节点上死要先查这里）
-            fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null
+            fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null,
+            // v122：轨迹时间基准的直接证据 = 每帧"按轨迹预测的现在弹位 vs 真实弹位"误差
+            bulletErr: (tree && tree.diag && typeof tree.diag.lastBulletError === 'number')
+                ? Math.round(tree.diag.lastBulletError * 1000) / 1000 : null,
+            bulletErrId: (tree && tree.diag) ? (tree.diag.lastBulletErrorId || null) : null,
+            // 每颗弹的轨迹锚点：abs0 = rootAbsT + anchorOffset（= 轨迹第 0 帧对应的绝对时刻）
+            anchors: (function () {
+                var out = [], ths = (tree && tree.threats) || [], rT = (tree && tree.rootAbsT) || 0;
+                for (var ai = 0; ai < ths.length && out.length < 8; ai++) {
+                    var th = ths[ai];
+                    if (!th || th.id === undefined) continue;
+                    out.push({
+                        id: th.id,
+                        off: Math.round((th.anchorOffset || 0) * 1000) / 1000,
+                        abs0: Math.round((rT + (th.anchorOffset || 0)) * 1000) / 1000,
+                        len: (th.track && th.track.length) ? th.track.length : 0
+                    });
+                }
+                return out;
+            })()
         };
         // 执行节点换了 → 记一次“当时 9 个候选各自什么分、选了谁、各自预测死在第几帧”。
         // 这是回答“预测到死亡为什么还选它 / 有没有回退”的关键证据。
@@ -1793,10 +1812,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 每次 scanNodeDeath 采一次融合世界逐帧的坦克/每颗弹位置（≤25 帧、≤12 次），
      * 导出录制时带出，用来和真实弹位逐帧对拍，定位"预测比真实物理慢几帧"。
      */
-    function recordScanTrace(tree, node, scanDeath, frames) {
+    function recordScanTrace(tree, node, scanDeath, frames, kind) {
         if (!tree || !frames || !frames.length) return;
         var ring = tree._scanTraces || (tree._scanTraces = []);
         ring.push({
+            kind: kind || 'scan',
             t: Math.round(_timeAcc * 1000) / 1000,
             nodeId: node ? node.id : null,
             op: node ? (node.opName || '?') : null,
@@ -3333,9 +3353,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var cfg = treeScoringCfg(tree);
         if (adapter && typeof adapter.simulateTankBatchScored === 'function') {
             try {
+                var rollTrace = _rec.on ? [] : null;   // v122：只在开录时采轨迹，常态零开销
                 var rustScored = adapter.simulateTankBatchScored(simState.tank, ops,
                     EVAL_FRAMES, {
                         startPose: simState.tank,
+                        trace: rollTrace,
                         threats: threats,
                         tGlobal: simState.tGlobal,
                         // v119：融合世界"现在"相对 rootAbsT 的位置。无威胁条目/
@@ -3345,6 +3367,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         cfg: cfg
                     });
                 noteFusedDrops(tree, adapter);
+                if (rollTrace && rollTrace.length) recordScanTrace(tree, null, null, rollTrace, 'rollout');
                 if (rustScored && rustScored.length === ops.length) {
                     tree.stats.rustScoredBatches = (tree.stats.rustScoredBatches || 0) + 1;
                     var okAll = true;
@@ -5987,6 +6010,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         refreshThreatAnchors(tree);   // v27：回填 path0Now/path0Drift/anchorAge
         d.lastBulletError = worst;
+        d.lastBulletErrorId = worstId;
         if (worst > 0.5) {
             d.bulletDesyncs.push({ t: _timeAcc, id: worstId, error: worst });
             if (d.bulletDesyncs.length > 30) d.bulletDesyncs.shift();
@@ -7249,5 +7273,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描逐帧轨迹外供（只记录） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

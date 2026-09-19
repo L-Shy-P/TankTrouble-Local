@@ -102,7 +102,44 @@ def main():
             print('  说明：报告死亡比"用录像弹位算的几何接触"早 %0.1f 帧，这差额就是"预测用的弹药状态落后真实物理"的帧数。'
                   % ((tHit - tDeath) / FRAME))
 
+    # ---------- ①.5 轨迹时间基准（每帧 bulletErr + 每弹锚点）----------
+    errs = [(r['t'], r.get('bulletErr'), r.get('bulletErrId')) for r in recs if r.get('bulletErr') is not None]
+    if errs:
+        mx = max(errs, key=lambda x: x[1])
+        pos = [e[1] for e in errs if e[1] is not None and e[1] > 0.05]
+        print()
+        print('轨迹 vs 真实弹位误差（bulletErr，米）：样本 %d，>0.05m 的 %d 个，最大 %.3f @ t=%.3f 弹=%s'
+              % (len(errs), len(pos), mx[1], mx[0], mx[2]))
+        print('   判读：这个数≈0 说明轨迹时间基准对；≈0.36/0.72 米说明轨迹比现实落后 1/2 帧。')
+    else:
+        print()
+        print('本录像没有 bulletErr（v122 之前录的）')
+    last = recs[-1]
+    if last.get('anchors'):
+        print('   最后一帧每弹锚点（anchorOffset / 轨迹第0帧对应绝对时刻 / 轨迹长度）：')
+        for a in last['anchors'][:6]:
+            print('     %-14s off=%.3f  abs0=%.3f  len=%d' % (a['id'], a['off'], a['abs0'], a['len']))
+
     # ---------- ② 融合世界轨迹对拍 ----------
+    traces = [t for t in (d.get('scanTraces') or []) if t.get('kind') == 'rollout']
+    scans = [t for t in (d.get('scanTraces') or []) if t.get('kind') != 'rollout']
+    if traces:
+        print()
+        print('九候选打分（rollout）轨迹 %d 条，看它们用的弹位时间基准：' % len(traces))
+        for tr in traces[-2:]:
+            h = tr.get('header') or (tr.get('frames') and getattr(tr['frames'], 'header', None))
+            fr = tr.get('frames') or []
+            head = fr[0] if fr else {}
+            bs = head.get('bs') or []
+            print('  t=%.3f 节点=%s 帧数=%d 弹=%d' % (tr['t'], tr.get('nodeId'), len(fr), len(bs)))
+            for b in bs[:4]:
+                print('     弹 %-14s 摆位来源=%s anchorOffset=%s 查询q=%s track下标=%s'
+                      % (b.get('id'), b.get('src'), b.get('off'), b.get('q'), b.get('idx')))
+    if not (traces or scans):
+        print()
+        print('本录像没有轨迹（需 v122 及以后版本录制）')
+        return 0
+
     traces = d.get('scanTraces') or []
     if not traces:
         print('\n本录像没有 scanTraces（v121 之前的版本录的，或这局没触发权威扫描）。')

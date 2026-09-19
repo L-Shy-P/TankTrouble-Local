@@ -1001,6 +1001,7 @@
             var rb = pr.getB2DBody();
             var slot = acquireFusedBullet(fc, pr);
             slot.pid = (pr && pr.id !== undefined) ? pr.id : null;   // v39：轨迹导出用
+            slot.srcInfo = null;                                     // v122：本帧用了哪个时间基准
             var rpos = rb.GetPosition();
             var rvel = rb.GetLinearVelocity();
             var th = threatById[id];
@@ -1014,6 +1015,7 @@
                 vx = rvel.x;
                 vy = rvel.y;
                 placed = true;
+                slot.srcInfo = { src: 'real', off: 0, q: 0, idx: 0 };
             } else if (th) {
                 var q = opt.tGlobal - (th.anchorOffset || 0);
                 qLife = Math.max(0, q);
@@ -1066,6 +1068,12 @@
                         }
                     }
                     if (posNow) {
+                        slot.srcInfo = {
+                            src: (th.track && th.track.length) ? 'track' : 'path',
+                            off: (th.anchorOffset || 0),
+                            q: q,
+                            idx: Math.round(q / FRAME)
+                        };
                         slot.body.SetPositionAndAngle(
                             Box2D.Common.Math.b2Vec2.Make(posNow.x, posNow.y), rb.GetAngle());
                         var dirX = 0, dirY = 0;
@@ -1118,6 +1126,7 @@
                     slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge - qLife);
                     slot.active = slot.initialSpeed > 0 && slot.lifeLeft > 0;
                     if (!slot.active) { slot.body.SetActive(false); continue; }
+                    slot.srcInfo = { src: 'approx', off: 0, q: qLife, idx: advFrames };
                     if (th) _fusedDropStats.approxPlaced++;
                     else _fusedDropStats.noThreat++;
                     fusedDropLog('id=' + (pr.id !== undefined ? pr.id : '?') +
@@ -1178,7 +1187,22 @@
                     var ts = fc.bulletSlots[i];
                     if (!ts || !ts.body || !ts.body.IsActive() || ts.lastRound !== fc.round) continue;
                     var tp = ts.body.GetPosition();
-                    tb.push({ id: ts.pid, x: Math.round(tp.x * 100) / 100, y: Math.round(tp.y * 100) / 100 });
+                    var si = ts.srcInfo || {};
+                    tb.push({
+                        id: ts.pid,
+                        x: Math.round(tp.x * 100) / 100,
+                        y: Math.round(tp.y * 100) / 100,
+                        src: si.src || null,
+                        off: si.off,
+                        q: si.q,
+                        idx: si.idx
+                    });
+                }
+                if (k === 0) {
+                    var h0 = { tGlobal: (typeof opt.tGlobal === 'number') ? opt.tGlobal : 0,
+                               nowTGlobal: (typeof opt.nowTGlobal === 'number') ? opt.nowTGlobal : 0,
+                               segStartAbs: null };
+                    opt.trace.header = h0;   // v122：本次 rollout 的时间基准
                 }
                 opt.trace.push({
                     k: k,
@@ -2084,6 +2108,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v39：逐帧轨迹导出可外供 + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v40：轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
