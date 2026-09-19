@@ -2389,9 +2389,11 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>') +
                 expItem('剪枝补偿层数 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers">1层</span>') +
-                expItem('补偿持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">10帧</span>') +
+                expItem('持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">10帧</span>') +
                 expItem('回退补偿层数 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers">1层</span>') +
-                expItem('回退补偿帧数 <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames">10帧</span>（两类补偿叠加，每帧最多 11 层）')
+                expItem('持续帧数 <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames">10帧</span>') +
+                expItem('当前补偿 <b id="vt-exp-boostSum" data-act="exp-boostExpand" style="cursor:pointer;color:#f9e2af">0+0=0</b> <span style="color:#6c7086">帧</span>' +
+                    '<div id="vt-exp-boostList" style="display:none;margin:2px 0 0 6px;color:#a6adc8;font-size:11px;line-height:1.5"></div>')
             ) +
             // 回退：只在“树”模式显示
             expLine('回退', '#cba6f7', 'vt-exp-retreatRow',
@@ -2476,6 +2478,8 @@
             retreatCompensateLayersSpan: expRow.querySelector('span[id="vt-exp-retreatCompensateLayers"]'),
             retreatCompensateFrames: expRow.querySelector('[data-act="exp-retreatCompensateFrames"]'),
             retreatCompensateFramesSpan: expRow.querySelector('span[id="vt-exp-retreatCompensateFrames"]'),
+            boostSum: expRow.querySelector('b[id="vt-exp-boostSum"]'),
+            boostList: expRow.querySelector('div[id="vt-exp-boostList"]'),
             refineBeyond: expRow.querySelector('[data-act="exp-refineBeyond"]'),
             continuousRefine: expRow.querySelector('[data-act="exp-continuousRefine"]'),
             retreatNodes: expRow.querySelector('[data-act="exp-retreatNodes"]'),
@@ -2523,10 +2527,11 @@
                 'exp-horizonCap': '预测时长上限（危险项，关闭会标红）：关掉会无限叠加节点，性能雪崩、AI 明显变卡。开关和滑块同组，关闭时一起变灰。开启后，超过设定秒数就不再继续往前生长。',
                 'exp-refineBeyond': '达到节点或时长上限后，不再直接停止，而是继续把长操作拆得更细，寻找更多分叉。',
                 'exp-continuousRefine': '不等到达上限，每帧都额外拆一次长操作，让树更细腻；计算量和节点增长都会明显变大。',
-                'exp-pruneCompensateLayers': '新子弹出现导致节点被大量剪掉后，接下来几帧每帧额外多长多少层树节点。默认 1 层。',
-                'exp-pruneCompensateFrames': '剪枝补偿持续多少帧。默认 10 帧，范围 1~60。',
-                'exp-retreatCompensateLayers': '真死回退（深度掉层）后每帧额外多长多少层树节点。默认 1 层；与剪枝补偿叠加，合计每帧最多 11 层。',
-                'exp-retreatCompensateFrames': '回退补偿持续多少帧。默认 10 帧，范围 1~60。',
+                'exp-pruneCompensateLayers': '新弹剪枝后，接下来每帧多长几层节点。',
+                'exp-pruneCompensateFrames': '剪枝补偿持续帧数。',
+                'exp-retreatCompensateLayers': '真死回退掉层后，接下来每帧多长几层节点。',
+                'exp-retreatCompensateFrames': '回退补偿持续帧数。',
+                'exp-boostExpand': '点一下展开当前正在生效的每一份补偿：类型、剩余帧数，按补偿开始时刻排序。',
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关（危险，开启会标红）：只让 Rust 参与最终选路，不参与物理模拟和树结构，AI 行为偏差很大。适合单独测试 Rust 的选路效果。',
@@ -3145,6 +3150,11 @@
             updatePanel();
             return;
         }
+        if (act === 'exp-boostExpand') {
+            state.exp.boostExpanded = !state.exp.boostExpanded;
+            if (_expCtrl.boostList) _expCtrl.boostList.style.display = state.exp.boostExpanded ? 'block' : 'none';
+            return;
+        }
         if (act === 'exp-retreatCompensateLayers') {
             state.exp.retreatCompensateLayers = Math.max(0, Math.min(9, parseInt(srcEl.value, 10) || 0));
             if (typeof VantageTree !== 'undefined' && VantageTree.setRetreatCompensateLayers) VantageTree.setRetreatCompensateLayers(state.exp.retreatCompensateLayers);
@@ -3658,6 +3668,27 @@
         if (_expCtrl.retreatCompensateLayersSpan && _expCtrl.retreatCompensateLayersSpan.textContent !== state.exp.retreatCompensateLayers + '层') _expCtrl.retreatCompensateLayersSpan.textContent = state.exp.retreatCompensateLayers + '层';
         if (_expCtrl.retreatCompensateFrames && parseInt(_expCtrl.retreatCompensateFrames.value, 10) !== state.exp.retreatCompensateFrames) _expCtrl.retreatCompensateFrames.value = String(state.exp.retreatCompensateFrames);
         if (_expCtrl.retreatCompensateFramesSpan && _expCtrl.retreatCompensateFramesSpan.textContent !== state.exp.retreatCompensateFrames + '帧') _expCtrl.retreatCompensateFramesSpan.textContent = state.exp.retreatCompensateFrames + '帧';
+        // v120：当前补偿总帧数 a(剪枝)+b(回退)=s，点开看每层明细
+        if (_expCtrl.boostSum && typeof VantageTree !== 'undefined' && VantageTree.getGrowBoostStatus) {
+            var bs = null;
+            try { bs = VantageTree.getGrowBoostStatus(); } catch (eBs) {}
+            if (bs) {
+                var sumTxt = bs.pruneFrames + '+' + bs.retreatFrames + '=' + bs.totalFrames;
+                if (_expCtrl.boostSum.textContent !== sumTxt) _expCtrl.boostSum.textContent = sumTxt;
+                if (_expCtrl.boostList && state.exp.boostExpanded) {
+                    var lines = '';
+                    for (var bi = 0; bi < bs.stacks.length; bi++) {
+                        var st = bs.stacks[bi];
+                        var head = (st.layers > 1 ? st.layers + '层 × ' : '') +
+                            (st.type === 'retreat' ? '回退补偿' : '剪枝补偿');
+                        lines += head + ' 剩余 ' + st.framesLeft + '/' + st.totalFrames + ' 帧' +
+                            ' <span style="color:#6c7086">开始于 ' + st.startT.toFixed(2) + 's</span><br>';
+                    }
+                    if (!lines) lines = '<span style="color:#6c7086">当前没有生效中的补偿</span>';
+                    if (_expCtrl.boostList.innerHTML !== lines) _expCtrl.boostList.innerHTML = lines;
+                }
+            }
+        }
         if (_expCtrl.refineBeyond && _expCtrl.refineBeyond.checked !== state.exp.refineBeyond) _expCtrl.refineBeyond.checked = state.exp.refineBeyond;
         if (_expCtrl.continuousRefine && _expCtrl.continuousRefine.checked !== state.exp.continuousRefine) _expCtrl.continuousRefine.checked = state.exp.continuousRefine;
         if (_expCtrl.retreatNodes && parseInt(_expCtrl.retreatNodes.value, 10) !== state.exp.retreatNodes) _expCtrl.retreatNodes.value = String(state.exp.retreatNodes);

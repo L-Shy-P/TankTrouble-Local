@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v119';
+    var TREE_VERSION = 'v120';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1861,9 +1861,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
             stacks[weakest].framesLeft = Math.max(stacks[weakest].framesLeft, F);
             stacks[weakest].totalFrames = Math.max(stacks[weakest].totalFrames || 0, F);
+            stacks[weakest].startT = _timeAcc;
             tree.stats.growBoostRefreshes = (tree.stats.growBoostRefreshes || 0) + 1;
         } else {
-            stacks.push({ layers: L, framesLeft: F, totalFrames: F, reason: reason || '' });
+            stacks.push({ layers: L, framesLeft: F, totalFrames: F, reason: reason || '', startT: _timeAcc });
         }
         tree.stats.growCompensations = (tree.stats.growCompensations || 0) + 1;
         tree.stats.growBoostStacks = stacks.length;
@@ -1872,6 +1873,37 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             ' perTick=' + (1 + computeGrowBoostLayers(tree)) +
             (detail ? ' ' + detail : '') + (reason ? ' ' + reason : ''));
         return L;
+    }
+
+    /**
+     * v120：补偿状态查询（界面用）。
+     * 返回 { pruneFrames, retreatFrames, totalFrames, stacks }：
+     *   pruneFrames / retreatFrames = 该类型**剩余补偿帧数**之和，
+     *   totalFrames = 两者之和（界面显示成 "a+b=s"），
+     *   stacks 按补偿开始时刻排序，每项 { type, framesLeft, totalFrames, startT }。
+     */
+    function growBoostStatus(tree) {
+        var t = tree || _tree;
+        var out = { pruneFrames: 0, retreatFrames: 0, totalFrames: 0, stacks: [] };
+        if (!t || !t._growBoosts || !t._growBoosts.length) return out;
+        for (var i = 0; i < t._growBoosts.length; i++) {
+            var b = t._growBoosts[i];
+            if (!b || b.framesLeft <= 0) continue;
+            var type = (b.reason === 'retreat') ? 'retreat' : 'prune';
+            var frames = b.framesLeft * Math.max(1, b.layers || 1);
+            out.stacks.push({
+                type: type,
+                framesLeft: b.framesLeft,
+                totalFrames: b.totalFrames || b.framesLeft,
+                layers: b.layers || 1,
+                startT: (typeof b.startT === 'number') ? b.startT : 0
+            });
+            if (type === 'retreat') out.retreatFrames += frames;
+            else out.pruneFrames += frames;
+        }
+        out.stacks.sort(function (a, b) { return a.startT - b.startT; });
+        out.totalFrames = out.pruneFrames + out.retreatFrames;
+        return out;
     }
 
     /** v119：当前所有活跃补偿合计能多加几层（上限 MAX_GROW_BOOST_STACKS）。 */
@@ -7140,6 +7172,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         setHorizonSec: setHorizonSec,
         setPruneCompensateLayers: setPruneCompensateLayers,
         setPruneCompensateFrames: setPruneCompensateFrames,
+        getGrowBoostStatus: growBoostStatus,          // v120：界面显示补偿状态
         setRetreatCompensateLayers: setRetreatCompensateLayers,
         setRetreatCompensateFrames: setRetreatCompensateFrames,
         notePruneLoss: notePruneLoss,
@@ -7180,5 +7213,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
