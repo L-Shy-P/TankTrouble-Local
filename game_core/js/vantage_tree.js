@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v124';
+    var TREE_VERSION = 'v125';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -730,7 +730,8 @@
             // v119：本帧融合世界因摆不了位而"近似摆/漏摆"的弹数（>0 说明权威
             // 当时的视野不完整，橙色/绿色节点上死要先查这里）
             fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null,
-            frameDt: Math.round(FRAME_DT * 100000) / 100000,   // v124：本 tick 用的帧步长（实测校准）
+            frameDt: Math.round(FRAME_DT * 100000) / 100000,
+            frameDtSrc: _frameDtMeasured > 0 ? 'measured' : 'default',   // v125：measured=校准已生效
             // v122：轨迹时间基准的直接证据 = 每帧"按轨迹预测的现在弹位 vs 真实弹位"误差
             bulletErr: (tree && tree.diag && typeof tree.diag.lastBulletError === 'number')
                 ? Math.round(tree.diag.lastBulletError * 1000) / 1000 : null,
@@ -6242,10 +6243,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 平滑后写入 FRAME_DT，并同步给沙箱与适配器常量，保证树/沙箱/评分
      * 三处的时间步长是同一个数。
      */
-    function calibrateFrameDt(adapter) {
+    function calibrateFrameDt(ai, adapter) {
         var g = null, gid = null;
+        // v125：**必须用真实游戏弹体**——适配器的 getProjectiles() 返回普通快照对象，
+        // 没有 getTimeAlive；带游戏时钟的是 gameController 里的真实 projectile。
         try {
-            var ps = adapter.getProjectiles ? adapter.getProjectiles() : null;
+            var gc = (ai && ai.gameController) ? ai.gameController : null;
+            var ps = gc && gc.getProjectiles ? gc.getProjectiles() : null;
+            if (!ps && adapter && adapter.getProjectiles) ps = adapter.getProjectiles();
             for (var id in ps) {
                 if (!ps.hasOwnProperty(id)) continue;
                 var pr = ps[id];
@@ -6277,7 +6282,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
-        calibrateFrameDt(adapter);
+        calibrateFrameDt(ai, adapter);
         perfBegin();   // v103：整个 tick 的耗时（含下面各阶段）
         // v104：几何威胁提前量要用（同一帧的子弹位置 + 坦克位置）
         _lastAdapter = adapter;
