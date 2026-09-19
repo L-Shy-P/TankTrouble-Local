@@ -1000,6 +1000,7 @@
             if (projectileDoneOrInactive(pr)) continue;
             var rb = pr.getB2DBody();
             var slot = acquireFusedBullet(fc, pr);
+            slot.pid = (pr && pr.id !== undefined) ? pr.id : null;   // v39：轨迹导出用
             var rpos = rb.GetPosition();
             var rvel = rb.GetLinearVelocity();
             var th = threatById[id];
@@ -1166,6 +1167,24 @@
                     x: cb2.GetPosition().x,
                     y: cb2.GetPosition().y,
                     rot: cb2.GetAngle()
+                });
+            }
+            // v39：逐帧轨迹导出（只在调用方显式给 opt.trace 时；用于和真实弹位逐帧对拍，
+            // 定位"预测用的弹药状态比真实物理慢几帧"这类时间错位）。
+            if (opt.trace && samples[0] && samples[0].length) {
+                var tSm = samples[0][samples[0].length - 1];
+                var tb = [];
+                for (i = 0; i < fc.bulletSlots.length; i++) {
+                    var ts = fc.bulletSlots[i];
+                    if (!ts || !ts.body || !ts.body.IsActive() || ts.lastRound !== fc.round) continue;
+                    var tp = ts.body.GetPosition();
+                    tb.push({ id: ts.pid, x: Math.round(tp.x * 100) / 100, y: Math.round(tp.y * 100) / 100 });
+                }
+                opt.trace.push({
+                    k: k,
+                    x: Math.round(tSm.x * 100) / 100,
+                    y: Math.round(tSm.y * 100) / 100,
+                    bs: tb
                 });
             }
             if (k >= durationFrames) break;
@@ -2065,6 +2084,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v38：不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v39：逐帧轨迹导出可外供 + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);

@@ -2392,7 +2392,7 @@
                 expItem('持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">10帧</span>') +
                 expItem('回退补偿层数 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers">1层</span>') +
                 expItem('持续帧数 <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames">10帧</span>') +
-                expItem('当前补偿 <b id="vt-exp-boostSum" data-act="exp-boostExpand" style="cursor:pointer;color:#f9e2af">0+0=0</b> <span style="color:#6c7086">帧</span>' +
+                expItem('本帧补偿层数 <b id="vt-exp-boostSum" data-act="exp-boostExpand" style="cursor:pointer;color:#f9e2af">0+0=0</b> <span style="color:#6c7086">层</span>' +
                     '<div id="vt-exp-boostList" style="display:none;margin:2px 0 0 6px;color:#a6adc8;font-size:11px;line-height:1.5"></div>')
             ) +
             // 回退：只在“树”模式显示
@@ -2531,7 +2531,7 @@
                 'exp-pruneCompensateFrames': '剪枝补偿持续帧数。',
                 'exp-retreatCompensateLayers': '真死回退掉层后，接下来每帧多长几层节点。',
                 'exp-retreatCompensateFrames': '回退补偿持续帧数。',
-                'exp-boostExpand': '点一下展开当前正在生效的每一份补偿：类型、剩余帧数，按补偿开始时刻排序。',
+                'exp-boostExpand': '点一下展开当前生效的每一份补偿：类型、剩余持续帧数，按开始时刻排序。',
                 'exp-retreatNodes': '预测到必死时，最多向上退多少个树节点再找替代路线。',
                 'exp-retreatFrames': '预测到必死时，最多向上退多少帧的操作时间。和回退节点数谁先到，就从哪里开始找替代路线。',
                 'exp-rustMinimal': '实验开关（危险，开启会标红）：只让 Rust 参与最终选路，不参与物理模拟和树结构，AI 行为偏差很大。适合单独测试 Rust 的选路效果。',
@@ -3673,15 +3673,15 @@
             var bs = null;
             try { bs = VantageTree.getGrowBoostStatus(); } catch (eBs) {}
             if (bs) {
-                var sumTxt = bs.pruneFrames + '+' + bs.retreatFrames + '=' + bs.totalFrames;
+                var sumTxt = bs.pruneLayers + '+' + bs.retreatLayers + '=' + bs.totalLayers;
                 if (_expCtrl.boostSum.textContent !== sumTxt) _expCtrl.boostSum.textContent = sumTxt;
                 if (_expCtrl.boostList && state.exp.boostExpanded) {
                     var lines = '';
                     for (var bi = 0; bi < bs.stacks.length; bi++) {
                         var st = bs.stacks[bi];
-                        var head = (st.layers > 1 ? st.layers + '层 × ' : '') +
+                        var head = (st.layers > 1 ? st.layers + ' 层 ' : '') +
                             (st.type === 'retreat' ? '回退补偿' : '剪枝补偿');
-                        lines += head + ' 剩余 ' + st.framesLeft + '/' + st.totalFrames + ' 帧' +
+                        lines += head + '，剩余持续 ' + st.framesLeft + '/' + st.totalFrames + ' 帧' +
                             ' <span style="color:#6c7086">开始于 ' + st.startT.toFixed(2) + 's</span><br>';
                     }
                     if (!lines) lines = '<span style="color:#6c7086">当前没有生效中的补偿</span>';

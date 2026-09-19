@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v120';
+    var TREE_VERSION = 'v121';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -803,6 +803,7 @@
             startReason: _rec.startReason,
             frames: _rec.buf.length,
             deaths: _rec.autoEvents.slice(),
+            scanTraces: (_tree && _tree._scanTraces) ? _tree._scanTraces : [],   // v121：权威扫描逐帧轨迹
             meta: {
                 treeVersion: TREE_VERSION,
                 frameDt: FRAME_DT,
@@ -1620,7 +1621,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             startPose: startPose,
             threats: scanThreats,
             tGlobal: node.rolloutStartT || 0,
-            nowTGlobal: nowTGlobalOf(tree)
+            nowTGlobal: nowTGlobalOf(tree),
+            trace: []          // v121：逐帧轨迹（只记录）
         };
         var op = [{ name: node.opName || '?', inputs: node.inputs }];
 
@@ -1630,6 +1632,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             try {
                 jsBatch = adapter.simulateTankBatchJsFused(startPose, op, segF, opt);
                 noteFusedDrops(tree, adapter);
+                recordScanTrace(tree, node, null, opt.trace);
             } catch (eJsFused) {
                 jsBatch = null;
             }
@@ -1654,6 +1657,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         if (!batch || !batch.length) return null;
         var b0 = batch[0];
+        recordScanTrace(tree, node, b0.deathFrame, opt.trace);   // v121
         if (!b0 || !b0.dead || b0.deathFrame == null) return null;
         var death = b0.deathFrame;
         var absDeath = tree.rootAbsT + (node.rolloutStartT || 0) + death * FRAME_DT;
@@ -1784,6 +1788,27 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             a.minY - margin <= b.maxY && b.minY - margin <= a.maxY;
     }
 
+    /**
+     * v121：权威扫描的逐帧轨迹环（只记录，不参与任何决策）。
+     * 每次 scanNodeDeath 采一次融合世界逐帧的坦克/每颗弹位置（≤25 帧、≤12 次），
+     * 导出录制时带出，用来和真实弹位逐帧对拍，定位"预测比真实物理慢几帧"。
+     */
+    function recordScanTrace(tree, node, scanDeath, frames) {
+        if (!tree || !frames || !frames.length) return;
+        var ring = tree._scanTraces || (tree._scanTraces = []);
+        ring.push({
+            t: Math.round(_timeAcc * 1000) / 1000,
+            nodeId: node ? node.id : null,
+            op: node ? (node.opName || '?') : null,
+            planned: node ? node.plannedFrames : null,
+            seg: node ? node.segmentFrames : null,
+            fullDeathFrame: node ? node.fullDeathFrame : null,
+            scanDeath: scanDeath,
+            frames: frames.slice(0, 25)
+        });
+        if (ring.length > 12) ring.shift();
+    }
+
     /** v119：融合世界"现在"相对 rootAbsT 的时间（秒）。 */
     function nowTGlobalOf(tree) {
         var root = (tree && typeof tree.rootAbsT === 'number') ? tree.rootAbsT : 0;
@@ -1876,21 +1901,22 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     /**
-     * v120：补偿状态查询（界面用）。
-     * 返回 { pruneFrames, retreatFrames, totalFrames, stacks }：
-     *   pruneFrames / retreatFrames = 该类型**剩余补偿帧数**之和，
-     *   totalFrames = 两者之和（界面显示成 "a+b=s"），
-     *   stacks 按补偿开始时刻排序，每项 { type, framesLeft, totalFrames, startT }。
+     * v121：补偿状态查询（界面用）。
+     * a + b = s 是**本帧补偿的层数**（不是帧数）：
+     *   pruneLayers   = 剪枝补偿本帧多加的层数
+     *   retreatLayers = 回退补偿本帧多加的层数
+     *   totalLayers   = 两者之和（本帧额外生长的总层数）
+     * stacks 按补偿开始时刻排序，每项 { type, layers, framesLeft, totalFrames, startT }，
+     * 供界面展开看"每层补偿的类型 + 剩余持续帧数"。
      */
     function growBoostStatus(tree) {
         var t = tree || _tree;
-        var out = { pruneFrames: 0, retreatFrames: 0, totalFrames: 0, stacks: [] };
+        var out = { pruneLayers: 0, retreatLayers: 0, totalLayers: 0, stacks: [] };
         if (!t || !t._growBoosts || !t._growBoosts.length) return out;
         for (var i = 0; i < t._growBoosts.length; i++) {
             var b = t._growBoosts[i];
             if (!b || b.framesLeft <= 0) continue;
             var type = (b.reason === 'retreat') ? 'retreat' : 'prune';
-            var frames = b.framesLeft * Math.max(1, b.layers || 1);
             out.stacks.push({
                 type: type,
                 framesLeft: b.framesLeft,
@@ -1898,11 +1924,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 layers: b.layers || 1,
                 startT: (typeof b.startT === 'number') ? b.startT : 0
             });
-            if (type === 'retreat') out.retreatFrames += frames;
-            else out.pruneFrames += frames;
+            if (type === 'retreat') out.retreatLayers += Math.max(1, b.layers || 1);
+            else out.pruneLayers += Math.max(1, b.layers || 1);
         }
         out.stacks.sort(function (a, b) { return a.startT - b.startT; });
-        out.totalFrames = out.pruneFrames + out.retreatFrames;
+        out.pruneLayers = Math.min(MAX_GROW_BOOST_STACKS, out.pruneLayers);
+        out.retreatLayers = Math.min(MAX_GROW_BOOST_STACKS, out.retreatLayers);
+        out.totalLayers = Math.min(MAX_GROW_BOOST_STACKS, out.pruneLayers + out.retreatLayers);
         return out;
     }
 
@@ -6616,6 +6644,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     function reset() {
         if (_tree && _tree.active) {
+            // v121：扫描轨迹环是跨帧状态，开局必须清
+            _tree._scanTraces = [];
+            _tree._fusedDropFrame = null;
             var cmt = _tree.commitNode;
             var eventsTail = _events.slice(-30).map(function(e) {
                 return { t: e.t, type: e.type, info: e.info };
@@ -7055,6 +7086,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         debugObjective: debugObjective,
+        // v121：权威扫描轨迹环（回归测试用）
+        _scanTrace: {
+            record: function (t, n, d, f) { recordScanTrace(t, n, d, f); },
+            ring: function (t) { return (t && t._scanTraces) || []; }
+        },
         // v119：生长补偿调试钩子（回归测试用：叠加 / 衰减 / 11 层上限）
         _growBoost: {
             boostLayers: function () { return computeGrowBoostLayers(_tree); },
@@ -7213,5 +7249,5 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描逐帧轨迹外供（只记录） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);

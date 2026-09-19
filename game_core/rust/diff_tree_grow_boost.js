@@ -93,4 +93,21 @@ assert(treeSrc.indexOf('var scanThreats = unionThreats(tree.threats, pending);')
 assert(treeSrc.indexOf('function nowTGlobalOf(tree)') >= 0 && treeSrc.indexOf('function unionThreats(a, b)') >= 0,
     '缺少 nowTGlobalOf / unionThreats 助手');
 
+// ---- 10) v121 轨迹环：记录/裁剪/上限/字段 ----
+const ST = ctx.VantageTree._scanTrace;
+assert(ST && typeof ST.record === 'function', '缺少 _scanTrace 调试钩子');
+const fakeTree = {diag: {}, stats: {}, nodeCount: 0};
+const node = {id: 7, opName: 'op3', plannedFrames: 3, segmentFrames: 3, fullDeathFrame: 6};
+const frames = Array.from({length: 40}, (_, i) => ({k: i, x: i * 0.1, y: 0, bs: [{id: 'b1', x: i, y: i}]}));
+ST.record(fakeTree, node, 6, frames);
+let ring = ST.ring(fakeTree);
+assert.strictEqual(ring.length, 1, '应记录一条轨迹');
+assert.strictEqual(ring[0].frames.length, 25, '每条轨迹最多留 25 帧');
+assert.strictEqual(ring[0].scanDeath, 6, 'scanDeath 应被记录');
+assert.strictEqual(ring[0].nodeId, 7, 'nodeId 应被记录');
+assert.strictEqual(ring[0].op, 'op3', 'op 应被记录');
+assert.strictEqual(ring[0].frames[1].bs[0].id, 'b1', '子弹条目应带 id（对拍用）');
+for (let i = 0; i < 20; i++) ST.record(fakeTree, node, i, frames);
+assert.strictEqual(ST.ring(fakeTree).length, 12, '轨迹环最多留 12 条');
+
 console.log('PASS：两类补偿默认开(1层/10帧) ＋ 连续事件叠加(3份=3层) ＋ 上限10份=每帧11层 ＋ 10帧后清零 ＋ 关闭时为零');
