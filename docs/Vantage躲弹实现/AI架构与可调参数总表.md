@@ -86,7 +86,9 @@
 | 预测时长上限 / 时长 | `horizonCap` / `horizonSec` | 开 / 8s | 限制树看多远 | **关上限危险**：无限叠节点 → 性能雪崩 |
 | 超上限细化 | `refineBeyond` | 开 | 超过视野也把长路径细化 | 探索参数 |
 | 连续细化 | `continuousRefine` | 关 | 每帧都细化而不是等段末 | 更贵 |
-| 剪枝补偿（层/帧） | `pruneCompensateLayers` / `pruneCompensateFrames` | 0 / 1 | 剪枝后补回等效深度 | 探索参数 |
+| 剪枝补偿（层/帧） | `pruneCompensateLayers` / `pruneCompensateFrames` | **1 / 10（v119 起默认开）** | 新弹剪枝后每帧多长 N 层，持续 M 帧 | 探索参数 |
+| 回退补偿（层/帧） | `retreatCompensateLayers` / `retreatCompensateFrames` | **1 / 10（v119 新增，默认开）** | 真死回退（掉层）后每帧多长 N 层，持续 M 帧 | 探索参数 |
+| 补偿叠加上限 | （常量 `MAX_GROW_BOOST_STACKS` / `MAX_LAYERS_PER_TICK`） | 10 份 / 每帧 11 层 | 两类补偿**栈式叠加**，高危场景跟上回退速度 | 常量（改动需评估） |
 | 回退节点数 / 帧数 | `retreatNodes` / `retreatFrames` | 3 / 200 | 真死回退时往父链退多少 | 探索参数 |
 
 ### 2.5 选路 / 地形类
