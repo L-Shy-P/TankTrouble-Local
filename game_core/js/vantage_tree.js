@@ -6027,8 +6027,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var t0 = (th.track && th.track.length) ? th.track[0] : null;
             var t1 = (th.track && th.track.length > 1) ? th.track[1] : null;
             var v0 = (t0 && t1) ? Math.sqrt((t1.x - t0.x) * (t1.x - t0.x) + (t1.y - t0.y) * (t1.y - t0.y)) / FRAME_DT : null;
-            var vrx = (typeof pr2.vx === 'number') ? pr2.vx : 0;
-            var vry = (typeof pr2.vy === 'number') ? pr2.vy : 0;
+            // v123b：真实速度用"相邻帧位置差"自算，不依赖投影对象里字段叫什么
+            var prevP = d._probePrev && d._probePrev[th.id];
+            var vrx = 0, vry = 0;
+            if (prevP && _timeAcc > prevP.t) {
+                vrx = (pr2.x - prevP.x) / (_timeAcc - prevP.t);
+                vry = (pr2.y - prevP.y) / (_timeAcc - prevP.t);
+            } else if (typeof pr2.vx === 'number') {
+                vrx = pr2.vx; vry = (typeof pr2.vy === 'number') ? pr2.vy : 0;
+            }
             var vr = Math.sqrt(vrx * vrx + vry * vry);
             var abs0 = tree.rootAbsT + (th.anchorOffset || 0);
             var back = Math.max(0, _timeAcc - abs0);
@@ -6037,8 +6044,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 var ex = pr2.x - vrx * back, ey = pr2.y - vry * back;
                 drift = Math.sqrt((t0.x - ex) * (t0.x - ex) + (t0.y - ey) * (t0.y - ey));
             }
+            var predNow = trackPosAt(th, relT);
             probe.push({
                 id: th.id,
+                px: predNow ? Math.round(predNow.x * 100) / 100 : null,   // 轨迹预测的"现在"位置
+                py: predNow ? Math.round(predNow.y * 100) / 100 : null,
+                rx: Math.round(pr2.x * 100) / 100,                        // 真实位置
+                ry: Math.round(pr2.y * 100) / 100,
                 abs0: Math.round(abs0 * 1000) / 1000,
                 len: (th.track && th.track.length) ? th.track.length : 0,
                 v0: (v0 === null) ? null : Math.round(v0 * 10) / 10,
@@ -6047,6 +6059,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             });
         }
         d.anchorProbe = probe;
+        var prevMap = {};
+        for (i = 0; i < probe.length; i++) {
+            var pth2 = byId[probe[i].id];
+            if (pth2) prevMap[probe[i].id] = { x: pth2.x, y: pth2.y, t: _timeAcc };
+        }
+        d._probePrev = prevMap;
         if (worst > 0.5) {
             d.bulletDesyncs.push({ t: _timeAcc, id: worstId, error: worst });
             if (d.bulletDesyncs.length > 30) d.bulletDesyncs.shift();

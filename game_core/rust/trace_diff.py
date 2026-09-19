@@ -114,6 +114,24 @@ def main():
     else:
         print()
         print('本录像没有 bulletErr（v122 之前录的）')
+    # 轨迹是否"停住不动"：看同一颗弹的 (px,py) 在连续帧里动不动
+    try:
+        series = {}
+        for r in recs:
+            for a3 in (r.get('anchors') or []):
+                if a3.get('px') is None:
+                    continue
+                series.setdefault(a3['id'], []).append((r['t'], a3['px'], a3['py'], a3.get('rx'), a3.get('ry')))
+        for bid, arr in list(series.items())[:3]:
+            if len(arr) < 6:
+                continue
+            span = arr[-1][0] - arr[0][0]
+            mv_t = (((arr[-1][1] - arr[0][1]) ** 2 + (arr[-1][2] - arr[0][2]) ** 2) ** 0.5)
+            mv_r = (((arr[-1][3] - arr[0][3]) ** 2 + (arr[-1][4] - arr[0][4]) ** 2) ** 0.5) if (arr[-1][3] is not None) else 0
+            print('   弹 %-14s 时长%.2fs: 轨迹预测位移动 %.2f 米，真实位移动 %.2f 米 %s'
+                  % (bid, span, mv_t, mv_r, '← 轨迹几乎不动（停住了）' if (mv_t < 0.5 and mv_r > 2) else ''))
+    except Exception as _e1:
+        print('   （px/py 判读跳过：%s）' % _e1)
     if errs:
         # 取误差最大的那一帧，给出该弹的三个判别量 → 直接定性
         tw = mx[0]
