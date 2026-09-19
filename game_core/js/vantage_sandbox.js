@@ -980,6 +980,20 @@
         opt = opt || {};
         var i, k, id;
 
+        // v127：候选坦克必须**继承真实坦克的线速度与角速度**。
+        // 原来一律清零 → 现实里带着动量（原地旋转、贴墙蹭行）的坦克，在模拟里是
+        // 一辆从静止起步的车：原地旋转被子弹扫到、被墙卡住只能爬，这两种情况
+        // 模拟里都不会出现 ⇒ 树判"无威胁/可以前进" ⇒ 静止被单杀 / 按住前进蹭墙。
+        var realVX = 0, realVY = 0, realVW = 0;
+        try {
+            var meBody0 = me.getB2DBody();
+            var lv0 = meBody0.GetLinearVelocity();
+            realVX = lv0.x; realVY = lv0.y;
+            realVW = meBody0.GetAngularVelocity();
+            if (!isFinite(realVX) || !isFinite(realVY)) { realVX = 0; realVY = 0; }
+            if (!isFinite(realVW)) realVW = 0;
+        } catch (eV0) { realVX = 0; realVY = 0; realVW = 0; }
+
         for (i = 0; i < fc.candidates.length; i++) {
             var cb = fc.candidates[i];
             var active = i < operations.length;
@@ -988,8 +1002,8 @@
                 cb.SetPositionAndAngle(
                     Box2D.Common.Math.b2Vec2.Make(opt.startPose.x, opt.startPose.y),
                     opt.startPose.rot);
-                cb.SetLinearVelocity(Box2D.Common.Math.b2Vec2.Make(0, 0));
-                cb.SetAngularVelocity(0);
+                cb.SetLinearVelocity(Box2D.Common.Math.b2Vec2.Make(realVX, realVY));
+                cb.SetAngularVelocity(realVW);
                 cb.SetAwake(true);
             }
         }
@@ -2121,6 +2135,6 @@
         setRustPhysicsEnabled: setRustPhysicsEnabled
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v41：帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v42：候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
