@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v125';
+    var TREE_VERSION = 'v126';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -731,7 +731,8 @@
             // 当时的视野不完整，橙色/绿色节点上死要先查这里）
             fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null,
             frameDt: Math.round(FRAME_DT * 100000) / 100000,
-            frameDtSrc: _frameDtMeasured > 0 ? 'measured' : 'default',   // v125：measured=校准已生效
+            frameDtMeasured: _frameDtMeasured > 0 ? Math.round(_frameDtMeasured * 100000) / 100000 : null,
+            frameDtSrc: _frameDtMeasured > 0 ? 'measured' : 'default',
             // v122：轨迹时间基准的直接证据 = 每帧"按轨迹预测的现在弹位 vs 真实弹位"误差
             bulletErr: (tree && tree.diag && typeof tree.diag.lastBulletError === 'number')
                 ? Math.round(tree.diag.lastBulletError * 1000) / 1000 : null,
@@ -6267,9 +6268,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var adv = g - _lastGameClock;
         _lastGameClock = g;
         if (!(adv > 0.005 && adv < 0.2)) return;
-        _frameDtMeasured = (_frameDtMeasured > 0) ? (_frameDtMeasured * 0.8 + adv * 0.2) : adv;
-        if (_frameDtMeasured >= 0.01 && _frameDtMeasured <= 0.1) {
-            FRAME_DT = _frameDtMeasured;
+        // v126：逐帧实测抖动很大（实测 0.011~0.030 秒），**绝不能每 tick 改帧步长**——
+        // 那会让融合世界/轨迹的步长抖动，反而制造误差（v125 实测 bulletErr 涨到 3.1 米）。
+        // 改成极慢平滑（alpha 0.02，约 50 tick 时间常数），只做"长期均值校正"，
+        // 并且限制在 [0.015, 0.03]，偏离 0.02 不到 5% 就维持常数。
+        _frameDtMeasured = (_frameDtMeasured > 0) ? (_frameDtMeasured * 0.98 + adv * 0.02) : adv;
+        if (_frameDtMeasured >= 0.015 && _frameDtMeasured <= 0.03) {
+            var want = _frameDtMeasured;
+            if (Math.abs(want - 0.02) < 0.001) want = 0.02;      // 太接近就保持常数
+            if (Math.abs(want - FRAME_DT) > 0.0005) FRAME_DT = want;
             if (adapter.constants) adapter.constants.FRAME_DT = FRAME_DT;
             if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) {
                 try { global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (eSd) {}
