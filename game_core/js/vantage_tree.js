@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v129';
+    var TREE_VERSION = 'v131';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -5387,7 +5387,17 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
             for (var i = 0; i < n.children.length; i++) rec(n.children[i]);
         })(tree.root);
-        return count;
+                // v131：消除浮点残余——减法后 tGlobal 可能残留 2e-16 级值，
+        // 导致 tGlobal>0 误判走轨迹分支。绝对值 < 1e-9 一律归零。
+        for (var zi = 0; zi < tree.leaves.length; zi++) {
+            var zn = tree.leaves[zi];
+            if (zn && zn.simState && Math.abs(zn.simState.tGlobal) < 1e-9) zn.simState.tGlobal = 0;
+        }
+        for (var zi2 = 0; zi2 < tree.root.children.length; zi2++) {
+            var zn2 = tree.root.children[zi2];
+            if (zn2 && zn2.simState && Math.abs(zn2.simState.tGlobal) < 1e-9) zn2.simState.tGlobal = 0;
+        }
+return count;
     }
 
     function rebaseSubtreeRigid(tree, oldPose, newPose) {
@@ -5511,6 +5521,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 tank: { x: realTankState.x, y: realTankState.y, rot: realTankState.rot },
                 tGlobal: 0
             };
+            // v131：清浮点残余——shiftSubtreeTime 的减法会在子节点 tGlobal 上
+            // 留下 2e-16 级残余，导致 tGlobal>0 误判，必须归零。
             prev.tEndSec = _timeAcc;
             if (hasKids) {
                 var shifted = shiftSubtreeTime(tree, prevTg);

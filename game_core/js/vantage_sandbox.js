@@ -1038,7 +1038,9 @@
             var placed = false;
             var vx = 0, vy = 0;
             var qLife = 0;
-            if (!(opt.tGlobal > 0)) {
+            // v131：浮点容差——tGlobal 可能是 2.2e-16（shiftSubtreeTime/rebase 累积误差），
+            // 绝不能判成"未来节点"走轨迹分支，否则真实弹体摆位被跳过 → 致死弹从融合世界消失。
+            if (!(opt.tGlobal > 1e-6)) {
                 slot.body.SetPositionAndAngle(
                     Box2D.Common.Math.b2Vec2.Make(rpos.x, rpos.y), rb.GetAngle());
                 vx = rvel.x;
@@ -1046,12 +1048,13 @@
                 placed = true;
                 slot.srcInfo = { src: 'real', off: 0, q: 0, idx: 0 };
             } else if (th) {
-                var q = opt.tGlobal - (th.anchorOffset || 0);
+                var q = (opt.tGlobal > 1e-6 ? opt.tGlobal : 0) - (th.anchorOffset || 0);
                 qLife = Math.max(0, q);
                 if (q >= 0) {
                     var posNow = null, posNext = null, posPrev = null;
                     if (th.track && th.track.length) {
-                        var idx = Math.round(q / FRAME);
+                        // v131：下标必须按轨迹自己的帧长（trackFrameDt）算，不能用 FRAME
+                        var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME));
                         if (idx >= 0 && idx < th.track.length) {
                             var s0 = th.track[idx];
                             if (s0 && s0.alive !== false) {
