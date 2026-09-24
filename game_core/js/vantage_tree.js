@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v131';
+    var TREE_VERSION = 'v132';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -6313,6 +6313,19 @@ return count;
         if (!adapter) return;
         var tankState = adapter.getTankState();
         if (!tankState) return;
+        // v132：死亡定格——树不再生长/提交/重建，只让执行轨迹再走一帧就永久停住。
+        if (_frozen) {
+            if (_frozenFrame < 1 && _tree) {
+                _frozenFrame++;
+                // 再走一帧执行轨迹（视觉上路线多走一步），然后永久定格。
+                _lastTankState = { x: tankState.x, y: tankState.y };
+                _timeAcc += dt;
+                if (_tree.commitNode) {
+                    try { recNoteSegmentEnd(_tree, _tree.commitNode, tankState); } catch (eFz) {}
+                }
+            }
+            return;   // 不再做任何树操作
+        }
         calibrateFrameDt(ai, adapter);
         perfBegin();   // v103：整个 tick 的耗时（含下面各阶段）
         // v104：几何威胁提前量要用（同一帧的子弹位置 + 坦克位置）
@@ -6816,8 +6829,12 @@ return count;
 
     var _lastResetSnapshot = null;   // v63：AI 死亡 reset 前的预测快照（诊断用）
     var _lastKillInfo = null;         // v66：最近一次本 AI 被击杀的击杀事件信息
+    var _frozen = false;              // v132：死亡定格标志
+    var _frozenFrame = 0;             // v132：定格后再走的帧数（0/1）
 
     function reset() {
+        _frozen = false;
+        _frozenFrame = 0;
         if (_tree && _tree.active) {
             // v121：扫描轨迹环是跨帧状态，开局必须清
             _tree._scanTraces = [];
@@ -6895,6 +6912,10 @@ return count;
         };
         // v106：死亡自动抓取——把死亡前 6 秒的逐帧记录留住（含树的预测）。
         try { recNoteDeath(_lastKillInfo); } catch (eRecDeath) {}
+        // v132：死亡定格——不动树、不重建，保留突变前最后的状态供树图观察。
+        // 只允许执行轨迹再走一帧（execTrail），然后永久定格。
+        _frozen = true;
+        _frozenFrame = 0;
     }
 
     /** 评估深度可调（testbench 固定帧滑块联动，1~300） */
@@ -7247,6 +7268,7 @@ return count;
         reset: reset,
         getLastResetSnapshot: getLastResetSnapshot,
         noteDeath: noteDeath,
+        isFrozen: function() { return _frozen; },
         setEvalFrames: setEvalFrames,
         setLaneEnabled: setLaneEnabled,
         setSpringRopeEnabled: setSpringRopeEnabled,

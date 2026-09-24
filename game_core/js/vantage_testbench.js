@@ -1637,7 +1637,9 @@
         var statusTxt = n.status === 'dead' ? '段内死亡'
             : (n.status === 'alive' ? '存活'
             : (n.fullDead ? '软死' : (n.status || '未知')));
-        _tv.info.innerHTML = '#' + n.id + ' ' + (n.opName || '根') +
+        var frozenTag = '';
+        try { if (VantageTree.isFrozen && VantageTree.isFrozen()) frozenTag = ' <b style="color:#f38ba8">[死亡定格]</b>'; } catch (eFz) {}
+        _tv.info.innerHTML = frozenTag + ' #' + n.id + ' ' + (n.opName || '根') +
             (n.exhausted ? ' <b style="color:#cba6f7">已回退</b>' : '') +
             ' <b style="color:' + (n.status === 'dead' ? '#f38ba8'
                 : n.fullDead ? '#fab387' : '#a6e3a1') + '">' + statusTxt + '</b>' +
@@ -2387,12 +2389,13 @@
                 expItem('节点数量上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap"> 启用</label>') +
                 expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="8" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">8秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +
-                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>') +
-                expItem('剪枝补偿层数 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers">1层</span>') +
-                expItem('持续帧数 <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames">10帧</span>') +
-                expItem('回退补偿层数 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers">1层</span>') +
-                expItem('持续帧数 <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames">10帧</span>') +
-                expItem('本帧补偿层数 <b id="vt-exp-boostSum" data-act="exp-boostExpand" style="cursor:pointer;color:#f9e2af">0+0=0</b> <span style="color:#6c7086">层</span>' +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>')
+            ) +
+            // v130：补偿独立成行，滑块统一宽度、数值右对齐等宽，不再挤在生长行里
+            expLine('补偿', '#f9e2af', 'vt-exp-boostRow',
+                expItem('剪枝 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="1" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers" style="width:24px;text-align:right">1层</span> <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames" style="width:32px;text-align:right">10帧</span>') +
+                expItem('回退 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers" style="width:24px;text-align:right">1层</span> <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames" style="width:32px;text-align:right">10帧</span>') +
+                expItem('本帧 <b id="vt-exp-boostSum" data-act="exp-boostExpand" style="cursor:pointer;color:#f9e2af">0+0=0</b><span style="color:#6c7086">层</span>' +
                     '<div id="vt-exp-boostList" style="display:none;margin:2px 0 0 6px;color:#a6adc8;font-size:11px;line-height:1.5"></div>')
             ) +
             // 回退：只在“树”模式显示
