@@ -1057,28 +1057,27 @@
                         var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME));
                         if (idx >= 0 && idx < th.track.length) {
                             var s0 = th.track[idx];
-                            if (s0 && s0.alive !== false) {
+                            // v134：轨迹里的坐标**永远有效**（它记录了弹在哪），
+                            // alive 标志只该管寿命（弹是否消失），不该管位置查询。
+                            // 原来 alive===false 就放弃摆弹 → 真实还在飞的弹从融合世界消失 → 绿死。
+                            if (s0) {
                                 posNow = { x: s0.x, y: s0.y };
                                 if (idx + 1 < th.track.length) {
                                     var s1 = th.track[idx + 1];
-                                    if (s1 && s1.alive !== false) {
+                                    if (s1) {
                                         posNext = { x: s1.x, y: s1.y };
-                                    } else {
-                                        // 未来帧已死亡/不可用：飞出可用轨迹，不摆弹。
-                                        posNow = null;
+                                    } else if (idx > 0) {
+                                        s1 = th.track[idx - 1];
+                                        if (s1) posPrev = { x: s1.x, y: s1.y };
                                     }
                                 } else if (idx > 0) {
-                                    // 当前就是轨迹最后一帧且 alive：用最后两帧差分
-                                    // 保留当前速度方向（前向），不得反向。
                                     s1 = th.track[idx - 1];
-                                    if (s1 && s1.alive !== false) {
-                                        posPrev = { x: s1.x, y: s1.y };
-                                    } else {
-                                        posNow = null;
-                                    }
-                                } else {
-                                    // 只有一帧轨迹，无法取未来方向，不摆弹。
-                                    posNow = null;
+                                    if (s1) posPrev = { x: s1.x, y: s1.y };
+                                }
+                                // 没有 posNext/posPrev 时：用 s0 自身（静止摆位），
+                                // 比完全不摆安全得多。
+                                if (!posNext && !posPrev) {
+                                    posNext = { x: s0.x + 0.01, y: s0.y };
                                 }
                             }
                         }

@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v133';
+    var TREE_VERSION = 'v134';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1552,8 +1552,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT));
         if (idx < 0 || idx >= th.track.length) return null;
         var s = th.track[idx];
-        if (!s || s.alive === false) return null;
-        return { x: s.x, y: s.y };
+        if (!s) return null;
+        return { x: s.x, y: s.y };   // v134：alive 不该管位置查询
     }
 
     /** v31：树内统一取某威胁在 tGlobal（相对 rootAbsT）的预测位置。 */
