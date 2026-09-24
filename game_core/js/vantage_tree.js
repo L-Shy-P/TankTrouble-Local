@@ -549,7 +549,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v132';
+    var TREE_VERSION = 'v133';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1425,6 +1425,10 @@
                 th.track = old.track;
                 th.trackSource = old.trackSource || 'box2d';
                 th.anchorOffset = (old.anchorOffset || 0) - shift;
+                // v133：**必须拷 trackFrameDt**——v129 给轨迹加了自带帧长，
+                // 但复用时漏拷 → 查询端回退到全局 FRAME 算下标 → 偏大 20% →
+                // 越界/错帧 → 弹位错 → 绿橙死亡。这是 v129 之后持续问题的根源。
+                th.trackFrameDt = old.trackFrameDt;
             } else {
                 th.track = null;
                 th.anchorOffset = 0;
@@ -6056,7 +6060,9 @@ return count;
             if (!pr2) continue;
             var t0 = (th.track && th.track.length) ? th.track[0] : null;
             var t1 = (th.track && th.track.length > 1) ? th.track[1] : null;
-            var v0 = (t0 && t1) ? Math.sqrt((t1.x - t0.x) * (t1.x - t0.x) + (t1.y - t0.y) * (t1.y - t0.y)) / FRAME_DT : null;
+            // v133：v0 必须用轨迹自己的帧长换算——用全局 FRAME_DT 会虚高 20%
+            var trackDt = (th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT;
+            var v0 = (t0 && t1) ? Math.sqrt((t1.x - t0.x) * (t1.x - t0.x) + (t1.y - t0.y) * (t1.y - t0.y)) / trackDt : null;
             // v123b：真实速度用"相邻帧位置差"自算，不依赖投影对象里字段叫什么
             var prevP = d._probePrev && d._probePrev[th.id];
             var vrx = 0, vry = 0;
