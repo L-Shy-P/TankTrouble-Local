@@ -1050,6 +1050,7 @@
             } else if (th) {
                 var q = (opt.tGlobal > 1e-6 ? opt.tGlobal : 0) - (th.anchorOffset || 0);
                 qLife = Math.max(0, q);
+                var qClamped = Math.max(0, q);   // v135：钳到 0，弹锚点比节点晚时也查轨迹
                 if (q >= 0) {
                     var posNow = null, posNext = null, posPrev = null;
                     if (th.track && th.track.length) {
