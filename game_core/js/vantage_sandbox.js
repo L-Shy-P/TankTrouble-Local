@@ -1051,12 +1051,13 @@
                 var q = (opt.tGlobal > 1e-6 ? opt.tGlobal : 0) - (th.anchorOffset || 0);
                 qLife = Math.max(0, q);
                 var qClamped = Math.max(0, q);   // v135：钳到 0，弹锚点比节点晚时也查轨迹
-                if (q >= 0) {
+                {
+                    // v136：q<0 不再跳过 + idx 用 qClamped + 越界钳到最后一帧
                     var posNow = null, posNext = null, posPrev = null;
                     if (th.track && th.track.length) {
-                        // v131：下标必须按轨迹自己的帧长（trackFrameDt）算，不能用 FRAME
-                        var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME));
-                        if (idx >= 0 && idx < th.track.length) {
+                        var idx = Math.round(qClamped / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME));
+                        if (idx >= th.track.length) idx = th.track.length - 1;
+                        if (idx >= 0) {
                             var s0 = th.track[idx];
                             // v134：轨迹里的坐标**永远有效**（它记录了弹在哪），
                             // alive 标志只该管寿命（弹是否消失），不该管位置查询。
@@ -1156,7 +1157,9 @@
                     slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
                     slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
                     slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge - qLife);
-                    slot.active = slot.initialSpeed > 0 && slot.lifeLeft > 0;
+                    // v136：不再因 lifeLeft<=0 关弹——弹在 getProjectiles 里就是活的，
+                    // 哪怕 1 帧后到期也活满 rollout。原来 lifeLeft<=0 直接关 → 树看不见 → 被打。
+                    slot.active = slot.initialSpeed > 0;
                     if (!slot.active) { slot.body.SetActive(false); continue; }
                     slot.srcInfo = { src: 'approx', off: 0, q: qLife, idx: advFrames };
                     if (th) _fusedDropStats.approxPlaced++;
