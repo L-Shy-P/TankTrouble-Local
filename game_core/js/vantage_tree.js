@@ -1,6 +1,48 @@
 /**
  * Vantage Tree · 阶段③ 树结构（段制，docs/Vantage躲弹实现/03-树结构.md 第二版）
  *
+ * 2026-09-10 v137（主人实测「树显示完全安全却死了」+ 新弹将命中时卡顿明显）：
+ *   按主人点的四类排查（时间错位 / 真死粗筛 / 物理引擎错位 / 子弹状态陈旧）
+ *   逐条对账，抓到 4 个互相独立的漏判点，全部是"死亡权威失明"而非评分问题：
+ *   ① **子弹状态陈旧（真凶）**：`simulateFusedBatch` 摆弹时 `slot.active =
+ *      initialSpeed>0 && lifeLeft>0`。一颗"现在还活着、但到这个未来节点已经/即将
+ *      到期"的弹，会在**它仍然存活的那几帧**里被整颗关掉 → 融合世界看不见它 →
+ *      fd=-1 绿节点 → 实际被打死。`lifeLeft` 只该回答"还剩几帧"，到期由逐帧递减
+ *      自然退场（v136 已在 !placed 兜底分支改过，主分支漏改）。Rust
+ *      rollout.rs/rescore.rs 同源同修。
+ *   ② **时间错位**：v129 给轨迹加了自带帧长 `trackFrameDt`，但只改了
+ *      trackPosAt/threatPosAtTree/沙箱摆弹三处；`threatCurrentPoint`、
+ *      `threatCoarseBox.t1`、`nodeWindowSig.t1`、`VantageScoring.threatBulletPos`
+ *      仍在用全局 FRAME_DT。校准把 FRAME_DT 从 0.02 调到 0.0167 后，同一条轨迹
+ *      被读成快 20% 的弹道 → `bulletCannotReach` 误判"打不到" → 粗筛跳过死亡重扫。
+ *      统一收敛到 `trackDtOf(th)`。
+ *   ③ **真死粗筛假阴**：`threatCoarseBox` 遇 `alive===false` 直接 break，把时空
+ *      盒在轨迹中段截断 → 后半段弹道不进粗筛 → 同样跳过死亡重扫。粗盒只许假阳
+ *      不许假阴（铁律：粗滤只决定算的先后，不决定算不算），去掉该 break。
+ *   ④ **物理引擎错位**：Rust 核心的 FRAME_DT/RESCORE_DT 是**写死的 0.02**，JS 侧
+ *      校准后是 0.0167 —— 75 帧视界 JS 1.25s / Rust 1.5s，逐帧弹位都对不上，
+ *      而**选路**用的是 Rust 结论（JS 只复核被选中那条）。加护栏
+ *      `rustFrameDtCompatible()`：步长不是 0.02 就不用 Rust 快路，回退 JS 融合
+ *      （正确性优先）。等 Rust ABI 传真实 frame_dt 再放行。
+ *   为什么"关掉遮蔽评分才暴露"：遮蔽分是死权之外的第二张安全网——子弹在 3.05m
+ *   内会给低分、把 AI 推开，死权漏判时它在兜底；关掉后 9 个操作的存活帧都是满分
+ *   (2π)²，唯一知道子弹在哪的就是死亡帧，于是上面的漏判全部裸露成"绿节点死亡"。
+ *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
+ *   时卡顿的主因）、杀戮场强度 100%→275%。
+ *
+ * 2026-09-10 v138（纯取证，零行为改变）：录制器在死亡时把自己的证据弄丢了
+ *   对 `vantage_record_1790509445005.json` 做死因分析时发现：segSnaps / scanTraces
+ *   导出时**全是 0 条**，而它们正是"树当时看没看见、有没有更安全候选"的唯一证据。
+ *   两个自伤：
+ *     ① `recBegin('auto-death')` 会 `_rec.segSnaps = []` —— 死亡瞬间清空候选快照，
+ *        而死亡后树被冻结、再不产生新快照 → 导出必然为空。改为先存后复。
+ *     ② `scanTraces` 挂在 `tree._scanTraces`，死亡后 `reset()` 换新树 → 导出读到
+ *        空数组。改为同时写一份**模块级环**（跨 reset 存活），导出读它。
+ *   另新增**每帧 9 候选各自的 fd + rootAbsT/rolloutStartT**：能把 fd 换算成
+ *   绝对预测死期与真实死期对账。
+ *   本次分析的结论（详见踩坑记录 §57.10）：预测死期恒定在 8.0~8.2s、**永不收敛**
+ *   到真实死期 7.867s —— 树预测的是**另一场碰撞**，从来没预测到真正杀死它的那一下。
+ *
  * 2026-09-07 v113（只动记账，不动走位）：
  *   ① 版本号改成单一来源常量 TREE_VERSION（升版只改一处）。此前录制元数据里的
  *      treeVersion 是写死的字符串，早就和实际版本脱节（主人那批录制写着 v106，
@@ -549,7 +591,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v136';
+    var TREE_VERSION = 'v138';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -568,9 +610,9 @@
     var _horizonSec = 8.0;                   // v91：预测时长上限（秒，1~15）
     var _pruneCompensateLayers = 1;          // v91：新弹剪枝后每帧额外补偿层数（0~9）
 
-    var _pruneCompensateFrames = 10;
+    var _pruneCompensateFrames = 3;
     var _retreatCompensateLayers = 1;
-    var _retreatCompensateFrames = 10;
+    var _retreatCompensateFrames = 3;
     var MAX_GROW_BOOST_STACKS = 10;
     var MAX_LAYERS_PER_TICK = 11;
           // v91：补偿持续帧数（1~60）
@@ -583,7 +625,7 @@
     var _moveTargetWrites = 0;               // v103：目标真正被写入/清除的次数（性能回归用）
     var _scoreOnlyPlanned = false;           // v98：评分范围仅限操作时长（false=固定75帧）
     var _killfieldEnabled = true;            // v100：杀戮场地形引导
-    var _killfieldWeight = 1.0;              // v102：杀戮场权重（0~4，1=与一帧安全分同量级）
+    var _killfieldWeight = 2.75;             // v137：杀戮场权重（0~4，275%=提前走位默认强度）
     var _emptyFieldSafety = false;           // v101：空场安全感知（无弹时也由杀戮场引导）
     var _killfieldGrid = null;               // v100：静态地形安全分格子表
     var _killfieldMazeRef = null;
@@ -645,6 +687,10 @@
         version: 0
     };
     var _recRing = [];      // 滚动环形缓冲（始终保留最近 maxFrames 帧）
+    // v137：权威扫描轨迹挂在 tree._scanTraces 上，死亡后 reset() 换新树 → 导出时
+    // 必然是空的。改成同时写一份**模块级环**，跨 reset 存活，导出读它。
+    var _scanTraceRing = [];
+    var MAX_SCAN_TRACES = 40;
 
     function recBegin(reason) {
         _rec.on = true;
@@ -675,7 +721,13 @@
         });
         if (_rec.autoEvents.length > 20) _rec.autoEvents.shift();
         if (!_rec.on) {
+            // v137：自动抓取**绝不能把死亡前的候选快照清掉**——那正是"树当时到底
+            // 看没看见、有没有更安全候选可选"的唯一证据。recBegin 会把
+            // `_rec.segSnaps` 清空，而死亡后树被冻结、再不会产生新快照，于是导出
+            // 必然为空（这次分析就是被它挡住）。这里先存后复。
+            var savedSnaps = _rec.segSnaps.slice(-160);
             recBegin('auto-death');
+            _rec.segSnaps = savedSnaps;
             _rec.autoTail = _rec.autoPostFrames;
             var ring = _recRing.slice(-_rec.autoKeepFrames);
             for (var i = 0; i < ring.length; i++) _rec.buf.push(ring[i]);
@@ -757,7 +809,36 @@
                     });
                 }
                 return out;
-            })()
+            })(),
+            // v137：**9 候选各自的死亡帧 + 时间锚**。这是回答"树当时到底看没看见、
+            // 有没有更安全的候选可选"的唯一办法。真死案例应是 9 个 fd<=1（全红）；
+            // 出问题那次却是一片 fd=15~74 而真实 1 帧就死 → 说明树预测到的是**另一场
+            // 碰撞**。有了 rootAbsT/rolloutStartT 才能把 fd 换算成绝对预测死期对账。
+            candFd: (function () {
+                var host = (tree && tree.root && tree.root.children && tree.root.children.length)
+                    ? tree.root.children
+                    : ((node && node.parent && node.parent.children) || []);
+                var out = [];
+                for (var ci = 0; ci < host.length && out.length < 9; ci++) {
+                    var cc = host[ci];
+                    if (!cc || cc.invalid) continue;
+                    out.push({
+                        id: cc.id,
+                        op: cc.opName || '?',
+                        fd: (typeof cc.fullDeathFrame === 'number') ? cc.fullDeathFrame : null,
+                        seg: cc.segmentFrames,
+                        plan: cc.plannedFrames,
+                        st: cc.status,
+                        auth: cc.deathAuthority || '',
+                        rStartT: (typeof cc.rolloutStartT === 'number')
+                            ? Math.round(cc.rolloutStartT * 1000) / 1000 : null,
+                        chosen: node ? (cc.id === node.id) : false
+                    });
+                }
+                return out;
+            })(),
+            rootAbsT: tree ? Math.round((tree.rootAbsT || 0) * 1000) / 1000 : null,
+            rolloutStartT: node ? Math.round((node.rolloutStartT || 0) * 1000) / 1000 : null
         };
         // 执行节点换了 → 记一次“当时 9 个候选各自什么分、选了谁、各自预测死在第几帧”。
         // 这是回答“预测到死亡为什么还选它 / 有没有回退”的关键证据。
@@ -834,7 +915,7 @@
             startReason: _rec.startReason,
             frames: _rec.buf.length,
             deaths: _rec.autoEvents.slice(),
-            scanTraces: (_tree && _tree._scanTraces) ? _tree._scanTraces : [],   // v121：权威扫描逐帧轨迹
+            scanTraces: _scanTraceRing.slice(),   // v121/v137：权威扫描逐帧轨迹（模块级环，跨 reset 存活）
             meta: {
                 treeVersion: TREE_VERSION,
                 frameDt: FRAME_DT,
@@ -928,9 +1009,9 @@
         horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
         pruneCompensateLayers: 1,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
 
-        pruneCompensateFrames: 10,
+        pruneCompensateFrames: 3,
         retreatCompensateLayers: 1,
-        retreatCompensateFrames: 10,
+        retreatCompensateFrames: 3,
         // v91：补偿持续帧数（1~60）
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
@@ -947,7 +1028,7 @@
         growLayersPerTick: 1,             // v80：每 tick 最多生长层数（1=原行为）
         scoreOnlyPlanned: false,          // v98：评分范围仅限操作时长（默认固定75帧）
         killfieldEnabled: true,           // v100：杀戮场地形引导
-        killfieldWeight: 1.0,             // v102：杀戮场权重（0~4，只管有子弹时的行为）
+        killfieldWeight: 2.75,            // v137：杀戮场权重（0~4，只管有子弹时的行为，默认275%）
         emptyFieldLaziness: 0,            // v104：空场懒惰倾向（0~1）
         emptyFieldSafety: false,          // v101：空场安全感知
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
@@ -1541,6 +1622,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
     }
 
+    /** v137：某条轨迹自己的帧长。v129 给轨迹加了自带帧长(trackFrameDt)，但当时
+     *  只改了 `trackPosAt`/`threatPosAtTree`/沙箱摆弹三处，剩下的“按帧数换算时间”
+     *  的地方仍在用全局 FRAME_DT。校准一旦把 FRAME_DT 从 0.02 改成 0.0167，
+     *  这些地方就会把同一条轨迹读成快 20% 的另一条弹道：
+     *    · threatCurrentPoint 把子弹当前位置算到“更前面” → bulletCannotReach
+     *      误判“打不到” → 粗筛跳过死亡重扫 → **执行节点不复核 → 绿节点死亡**；
+     *    · threatCoarseBox / nodeWindowSig 的 t1 虚高 → 时空窗口错位。
+     *  统一从这里取，禁止再散写 FRAME_DT。 */
+    function trackDtOf(th) {
+        return (th && th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT;
+    }
+
     /** v28/v31：Box2D 轨迹按帧索引取位（不插值）。track[0] 与 rootAbsT 同帧；
      *  新弹后补的 threat 带 anchorOffset，查询时间要扣掉偏移。 */
     function trackPosAt(th, relT) {
@@ -1549,7 +1642,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (q < 0) return null;
         // v129：下标必须按"这条轨迹生成时的帧长"算，不能用全局 FRAME_DT——
         // 否则校准前后生成的轨迹会被误读，弹速虚高 ~20%，撞击时刻整体偏晚。
-        var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT));
+        var idx = Math.round(q / trackDtOf(th));
         if (idx < 0 || idx >= th.track.length) return null;
         var s = th.track[idx];
         if (!s) return null;
@@ -1562,7 +1655,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var q = tGlobal - (th.anchorOffset || 0);
         if (q < 0) return null;
         if (th.track && th.track.length) {
-            var idx = Math.round(q / ((th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT));
+            var idx = Math.round(q / trackDtOf(th));
             if (idx < 0 || idx >= th.track.length) return null;
             var s = th.track[idx];
             if (!s || s.alive === false) return null;
@@ -1718,14 +1811,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var i, p;
         for (i = 0; i < arr.length; i++) {
             p = arr[i];
-            if (!p || p.alive === false) break;
+            if (!p) continue;
+            // v137：粗盒是"只许假阳、不许假阴"的过滤器。原来 `alive===false 就 break`
+            // 会把盒子在轨迹中段截断 → 后半段弹道根本不进时空粗筛 → bulletCannotReach
+            // 误判"打不到" → **跳过死亡重扫**。轨迹里的坐标永远有效（v134 原则），
+            // alive 只表示那一步之后弹没了，不该拿来缩盒子。
             if (p.x < box.minX) box.minX = p.x;
             if (p.x > box.maxX) box.maxX = p.x;
             if (p.y < box.minY) box.minY = p.y;
             if (p.y > box.maxY) box.maxY = p.y;
         }
         if (th.track && th.track.length) {
-            box.t1 = box.t0 + th.track.length * FRAME_DT;
+            box.t1 = box.t0 + th.track.length * trackDtOf(th);   // v137：帧长跟轨迹走
         } else {
             var len = 0;
             for (i = 0; i < arr.length - 1; i++) {
@@ -1793,7 +1890,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var t0 = (typeof _rootAbsTNow === 'number' ? _rootAbsTNow : 0) + (th.anchorOffset || 0);
         var elapsed = Math.max(0, _timeAcc - t0);
         if (th.track && th.track.length) {
-            var idx = Math.round(elapsed / FRAME_DT);
+            var idx = Math.round(elapsed / trackDtOf(th));   // v137：帧长跟轨迹走
             idx = Math.max(0, Math.min(th.track.length - 1, idx));
             var p = th.track[idx];
             if (p) return { x: p.x, y: p.y };
@@ -1838,7 +1935,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function recordScanTrace(tree, node, scanDeath, frames, kind) {
         if (!tree || !frames || !frames.length) return;
         var ring = tree._scanTraces || (tree._scanTraces = []);
-        ring.push({
+        var snap = {
             kind: kind || 'scan',
             t: Math.round(_timeAcc * 1000) / 1000,
             nodeId: node ? node.id : null,
@@ -1848,8 +1945,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             fullDeathFrame: node ? node.fullDeathFrame : null,
             scanDeath: scanDeath,
             frames: frames.slice(0, 25)
-        });
+        };
+        ring.push(snap);
         if (ring.length > 12) ring.shift();
+        // v137：同时写模块级环（跨 reset 存活），自动抓取才拿得到。
+        _scanTraceRing.push(snap);
+        if (_scanTraceRing.length > MAX_SCAN_TRACES) _scanTraceRing.shift();
     }
 
     /** v119：融合世界"现在"相对 rootAbsT 的时间（秒）。 */
@@ -1905,11 +2006,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /**
      * v119：生长补偿**栈**。
      * ---------------------------------------------------------------------------
-     * 口径（主人定）：剪枝补偿与回退补偿各给"每帧多长 1 层、持续 10 帧"。
+     * 口径（主人定）：剪枝补偿与回退补偿各给"每帧多长 1 层"；持续帧数默认 3
+     * （v137 主人定：10 帧时新弹一来就叠满 11 层/帧，卡顿明显）。
      * 高危场景里回退/剪枝会连续发生，所以补偿必须**叠加**（旧实现是覆盖，
      * 叠不上去，也拿不到"最多每帧 11 层"的效果）。叠加份数上限 10，
      * 于是每帧最多 1(基础) + 10 = 11 层节点，节点增长速度能立刻跟上回退速度。
-     * 每帧末尾所有活跃补偿各消耗 1 帧，10 帧后自动消失。
+     * 每帧末尾所有活跃补偿各消耗 1 帧，到期自动消失。
      */
     function noteGrowCompensation(tree, layers, frames, reason, detail) {
         if (!tree || !tree.cfg) return 0;
@@ -2000,7 +2102,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         tree.stats.growBoostStacks = tree._growBoosts.length;
     }
 
-    /** v119：真死回退补偿（与剪枝补偿同款：默认 1 层 × 10 帧，可叠加）。 */
+    /** v119：真死回退补偿（与剪枝补偿同款：默认 1 层 × 3 帧，可叠加）。 */
     function noteRetreatCompensation(tree, detail) {
         if (!tree || !tree.cfg) return 0;
         var layers = Math.max(0, Math.min(9,
@@ -3579,7 +3681,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!th || th.id === undefined || th.id === null) continue;
             t0 = th.anchorOffset || 0;
             if (th.track && th.track.length) {
-                t1 = t0 + th.track.length * FRAME_DT;
+                t1 = t0 + th.track.length * trackDtOf(th);   // v137：帧长跟轨迹走
             } else if (th.path && th.speed > 0) {
                 pathLen = 0;
                 for (j = 0; j < th.path.length - 1; j++) {
@@ -5015,7 +5117,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!isTrueDeadNode(leaf)) return null;
         leaf.exhausted = true;
         tree.stats.retreats++;
-        // v119：真死回退 → 生长补偿（默认 1 层 × 10 帧，可叠加）
+        // v119：真死回退 → 生长补偿（默认 1 层 × 3 帧，可叠加）
         noteRetreatCompensation(tree, 'leaf=' + (leaf.opName || ('n' + leaf.id)));
         var rt = pickRetreatLeaf(tree, leaf, adapter);
         var onPath = false;
@@ -7010,10 +7112,10 @@ return count;
         return _retreatCompensateLayers;
     }
 
-    /** v119：回退补偿持续帧数（1~60，默认 10）。 */
+    /** v119：回退补偿持续帧数（1~60，默认 3）。 */
     function setRetreatCompensateFrames(v) {
         var n = parseInt(v, 10);
-        if (!isFinite(n)) n = 10;
+        if (!isFinite(n)) n = 3;
         _retreatCompensateFrames = Math.max(1, Math.min(60, n));
         if (_tree && _tree.cfg) _tree.cfg.retreatCompensateFrames = _retreatCompensateFrames;
         return _retreatCompensateFrames;
@@ -7195,7 +7297,8 @@ return count;
         return _killfieldEnabled;
     }
 
-    /** v102：杀戮场权重（0~4）。1 = 与一帧安全分同量级，0 = 完全不引导。 */
+    /** v102：杀戮场权重（0~4）。1 = 与一帧安全分同量级，0 = 完全不引导。
+     *  v137 主人定默认 2.75（=275%，更愿意为地形让出安全分）。 */
     function setKillfieldWeight(v) {
         var n = Number(v);
         if (!isFinite(n)) n = 1.0;
@@ -7452,5 +7555,5 @@ return count;
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×10 帧，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 帧步长按游戏时钟实测校准（修时钟慢一半） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×3 帧默认，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 帧步长按游戏时钟实测校准（修时钟慢一半） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
