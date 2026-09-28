@@ -30,6 +30,15 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v142（低 evalFrames 节点时间轴修复）：
+ *   主人指出 evalFrames=1 时既有纯红也有纯绿，低模拟时长是关键切入点。定位确认：
+ *   `probeSegment` 原来 `Math.max(cfg.tMin=3, ...)`，`effectiveExpandCfg` 又用
+ *   `minGrowTicks=3` 把下限抬回 3；因此只模拟 1/2 帧却推进 3 帧节点时间，
+ *   `buildCandidate` 还会因 samples 不足回退到最后样本。v142 把 tMin/minGrowTicks
+ *   默认改为 1，并硬性限制 `segmentFrames <= evaluatedFrames`。这不是把游戏帧率
+ *   改成整数倍，而是保证“模拟了几帧，就只推进几帧”的时间轴不变量。
+ *   回归：diff_tree_low_eval_frames.js。
+ *
  * 2026-09-10 v141（录像补记 fixed/evalFrames，避免六局实验无法分组）：
  *   v140 之前 exportRecord 没有记录 testbench 的 fixed75/evalFrames。主人做了
  *   3 局固定1帧 + 3 局固定300帧后，录像无法从 meta 确认哪份属于哪组，离线分析
@@ -623,7 +632,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v141';
+    var TREE_VERSION = 'v142';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1048,7 +1057,7 @@
         epsilon: Math.PI * Math.PI,       // ≈9.87 = 0.25×遮蔽满分（v5：旧 39.5 实测
                                           // spread峰仅 8.4 永不触发→段长恒 30 帧
                                           // 上限→"一直按住前进"真凶；调至 1/4 档）
-        tMin: 3,                          // 段长下限
+        tMin: 1,                          // v142：段长下限；必须不超过最短评估窗口
         tMax: 30,                         // 段长上限
         horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
         pruneCompensateLayers: 1,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
@@ -1078,7 +1087,7 @@
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
-        minGrowTicks: 3,                  // v43：每段至少给 3 个真实帧用于生长。
+        minGrowTicks: 1,                  // v142：低 evalFrames 不能被强行抬回 3 帧。
                                           // 帧率低时 3~4 帧段实际只有 1 步，树每段
                                           // 只能长 1 层、坍缩又删 8 条，深度永远 1。
                                           // tMin 会按 _lastWorldDt 换算成最小帧数。
@@ -3465,7 +3474,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (len > evaluatedFrames) evaluatedFrames = len;
         }
         if (evaluatedFrames <= 0) {
-            return { segmentFrames: cfg.tMax, tDiv: -1, tDivFound: false,
+            return { segmentFrames: 0, tDiv: -1, tDivFound: false,
                 spreadCurve: [], spreadPeak: 0, evaluatedFrames: 0, cum: null,
                 epsilon: cfg.epsilon, tMin: cfg.tMin, tMax: cfg.tMax };
         }
@@ -3494,7 +3503,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!tDivFound && sp > cfg.epsilon) { tDiv = k; tDivFound = true; }
         }
         var segSrc = tDivFound ? tDiv : evaluatedFrames;
-        var segmentFrames = Math.max(cfg.tMin, Math.min(cfg.tMax, segSrc));
+        // v142：段长不得超过本轮实际评估帧数。旧式 Math.max(tMin, ...) 在
+        // evalFrames=1/2 时把只模拟了 1/2 帧的结果伪装成 3 帧，节点时间轴
+        // 向前跳、真实游戏却只走了 1/2 帧，正是低视界绿死/反应滞后的确定性根因。
+        var maxEvaluated = Math.max(1, evaluatedFrames);
+        var segmentFrames = Math.max(1, Math.min(cfg.tMax, segSrc, maxEvaluated));
         return {
             segmentFrames: segmentFrames,
             tDiv: tDiv,
@@ -3626,7 +3639,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var k;
         for (k in tree.cfg) cfg[k] = tree.cfg[k];
         var estDt = (_lastWorldDt > 0 && _lastWorldDt < 1) ? _lastWorldDt : FRAME_DT;
-        var minFrames = Math.ceil(((tree.cfg.minGrowTicks || 3) * estDt) / FRAME_DT);
+        var minFrames = Math.ceil(((tree.cfg.minGrowTicks || 1) * estDt) / FRAME_DT);
         cfg.tMin = Math.max(cfg.tMin, Math.min(cfg.tMax, minFrames));
         return cfg;
     }
