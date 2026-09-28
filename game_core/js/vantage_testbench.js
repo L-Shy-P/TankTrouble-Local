@@ -2839,6 +2839,7 @@
         }
         if (act === 'exp-fixed75') {
             state.exp.fixed75 = srcEl.checked;
+            try { if (VantageTree.setFixedEvalMode) VantageTree.setFixedEvalMode(state.exp.fixed75); } catch (eFixedMeta) {}
             if (state.paused) { runNineOps(); renderViz(); }   // 暂停态立即按新模式重跑
             updatePanel();
             return;
@@ -4283,6 +4284,7 @@
         try { if (VantageTree.setKfScaleWithK) VantageTree.setKfScaleWithK(state.exp.kfScaleWithK); } catch (eKfKInit) {}
         try { if (VantageTree.setActionCostPerFrame) VantageTree.setActionCostPerFrame(state.exp.actionCost); } catch (eAcInit) {}
         try { VantageTree.setScoreOnlyPlanned(state.exp.scoreOnlyPlanned); } catch (eScoreShortInit) {}
+        try { if (VantageTree.setFixedEvalMode) VantageTree.setFixedEvalMode(state.exp.fixed75); } catch (eFixedMetaInit) {}
         try { VantageTree.setDeepSelectEnabled(state.exp.deepSelect); } catch (eDeepInit) {}
     }
     // v54：Rust 物理预测初始值同步；任意 Rust 实验开关打开时初始化桥。

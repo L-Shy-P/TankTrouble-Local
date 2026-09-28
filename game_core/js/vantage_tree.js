@@ -30,6 +30,12 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v141（录像补记 fixed/evalFrames，避免六局实验无法分组）：
+ *   v140 之前 exportRecord 没有记录 testbench 的 fixed75/evalFrames。主人做了
+ *   3 局固定1帧 + 3 局固定300帧后，录像无法从 meta 确认哪份属于哪组，离线分析
+ *   不能把“纯红/纯绿”与 evalFrames 绑定。现在记录 evalFrames/fixedEvalMode、
+ *   scoreOnlyPlanned、frameDtCalibrationEnabled；纯诊断，零决策行为改变。
+ *
  * 2026-09-10 v140（把"猜测→预测→主人实测"做成可执行的调试闭环）：
  *   主人指出我列的验证项里有几项**根本没有控件**，等于给了没法跑的测试。本次
  *   把缺的补齐，并把诊断字段加够，让每个假设都能被证伪：
@@ -617,7 +623,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v140';
+    var TREE_VERSION = 'v141';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -670,6 +676,8 @@
     // 用途：证伪"时间刻度错配"假设 —— 关掉校准后若弹位滞后消失，说明滞后来自
     // _timeAcc 与轨迹帧长不同源；若仍在，则滞后另有来源。主人实测需要一个可点的开关。
     var _frameDtCalibEnabled = true;
+    // v141：只读记录实验配置，不能让录像再丢失“到底是固定1/300还是默认动态”。
+    var _fixedEvalMode = false;
     var _lastGameClock = null;  // 上一 tick 的游戏时钟（弹的 getTimeAlive）
     var _lastGameClockId = null;
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
@@ -963,6 +971,11 @@
                 emptyFieldLaziness: _emptyFieldLaziness,
                 targetMixEnabled: _targetMixEnabled,
                 targetMixRatio: _targetMixRatio,
+                // v141：录像必须知道固定帧实验的真实设置；否则 1/300 两组无法分箱。
+                evalFrames: EVAL_FRAMES,
+                fixedEvalMode: _fixedEvalMode,
+                scoreOnlyPlanned: _scoreOnlyPlanned,
+                frameDtCalibrationEnabled: _frameDtCalibEnabled,
                 liveProjectiles: _liveProjectilesNow,
                 currentTile: _currentTile ? { x: _currentTile.x, y: _currentTile.y } : null,
                 anchorTile: _killfieldAnchorTile ? { x: _killfieldAnchorTile.x, y: _killfieldAnchorTile.y } : null,
@@ -7454,6 +7467,8 @@ return count;
             return _frameDtCalibEnabled;
         },
         getFrameDtCalibrationEnabled: function() { return _frameDtCalibEnabled; },
+        setFixedEvalMode: function(v) { _fixedEvalMode = !!v; return _fixedEvalMode; },
+        getFixedEvalMode: function() { return _fixedEvalMode; },
         setEvalFrames: setEvalFrames,
         setLaneEnabled: setLaneEnabled,
         setSpringRopeEnabled: setSpringRopeEnabled,

@@ -30,6 +30,8 @@ VT.setOcclusionEnabled(true);
 VT.setSafeFilterK(0.4);
 VT.setActionCostPerFrame(3);
 VT.setKfScaleWithK(true);
+if (typeof VT.setFixedEvalMode === 'function') VT.setFixedEvalMode(true);
+VT.setEvalFrames(300);
 VT.startRecord('diff_record_meta');
 const rec=VT.exportRecord();
 VT.stopRecord();
@@ -38,10 +40,13 @@ if(rec.meta.occlusionEnabled!==true) fail('录制元数据没记遮蔽开关');
 if(rec.meta.safeFilterK!==0.4) fail('录制元数据没记安全过滤 k: '+rec.meta.safeFilterK);
 if(rec.meta.actionCostPerFrame!==3) fail('录制元数据没记动作成本: '+rec.meta.actionCostPerFrame);
 if(rec.meta.kfScaleWithK!==true) fail('录制元数据没记杀戮场等比调整');
+if(rec.meta.fixedEvalMode!==true || rec.meta.evalFrames!==300) fail('录制元数据没记 fixed/evalFrames: '+rec.meta.fixedEvalMode+'/'+rec.meta.evalFrames);
 // 改一个开关，元数据必须跟着变（防止又写成常量）
 VT.setSafeFilterK(0.7); VT.setActionCostPerFrame(0);
 const rec2=VT.exportRecord();
 if(rec2.meta.safeFilterK!==0.7||rec2.meta.actionCostPerFrame!==0) fail('录制元数据的开关没跟着设置走');
 // 恢复默认，别把实验设置漏给别的套件
 VT.setSafeFilterK(1); VT.setActionCostPerFrame(0); VT.setOcclusionEnabled(true); VT.setKfScaleWithK(true);
+if (typeof VT.setFixedEvalMode === 'function') VT.setFixedEvalMode(false);
+VT.setEvalFrames(75);
 console.log('diff_record_meta OK: '+VT.VERSION+' / index.html ?v='+mTree[1]+' / 录制元数据含四个实验开关');
