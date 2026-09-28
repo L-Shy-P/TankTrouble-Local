@@ -30,6 +30,19 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v139（主人实测「都已经死了，红节点延伸出几个绿的」）：
+ *   用三份新录制核对后定位到 `splitLongSegmentLeaf`（refineBeyondLimits 的
+ *   长段细化）：它把长叶切成前缀叶时**无条件**：
+ *       newNode.status = 'alive'; newNode.fullDeathFrame = -1;
+ *   于是 fd=2/3 的橙红软死节点被切成"短前缀"后，前缀被涂成绿节点（fd=-1），
+ *   挂在同一个父层——树图上就是"红/橙节点后面延伸出几个绿的"。这不是新的
+ *   物理模拟结论，只是把旧 rolloutSamples 切片，不能伪造存活。
+ *   修法：继承父节点的 fullDeathFrame/rolloutDeathFrame；若死亡落在前缀内
+ *   （inheritedFd <= splitAt），按统一安全帧口径截短 segmentFrames/simState/帧分。
+ *   仅当 inheritedFd 落在前缀之后时前缀本身仍为 alive，但**保留 fd 号**，
+ *   节点色按 fd 照常分档（此时是黄/橙，不是绿）。
+ *   回归 diff_tree_refine_split_death_inherit.js。
+ *
  * 2026-09-10 v138（纯取证，零行为改变）：录制器在死亡时把自己的证据弄丢了
  *   对 `vantage_record_1790509445005.json` 做死因分析时发现：segSnaps / scanTraces
  *   导出时**全是 0 条**，而它们正是"树当时看没看见、有没有更安全候选"的唯一证据。
@@ -591,7 +604,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v138';
+    var TREE_VERSION = 'v139';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -5192,15 +5205,25 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (splitAt >= bestFrames || splitAt >= best.rolloutSamples.length) return null;
         var sample = best.rolloutSamples[splitAt];
         if (!sample) return null;
+        // v139：细化不能把父节点的软死结论伪造为绿节点。
+        var inheritedFd = (typeof best.fullDeathFrame === 'number')
+            ? best.fullDeathFrame
+            : ((typeof best.rolloutDeathFrame === 'number') ? best.rolloutDeathFrame : -1);
+        var inheritedDead = inheritedFd >= 0;
+        var deathInPrefix = inheritedDead && inheritedFd <= splitAt;
+        var actualPrefix = deathInPrefix
+            ? safeFramesForDeath(tree, inheritedFd, splitAt)
+            : splitAt;
+        var endSample = best.rolloutSamples[actualPrefix] || sample;
         var newNode = createTreeNode(best.parent, best.inputs, {
-            tank: { x: sample.x, y: sample.y, rot: sample.rot },
-            tGlobal: (best.rolloutStartT || 0) + splitAt * FRAME_DT
+            tank: { x: endSample.x, y: endSample.y, rot: endSample.rot },
+            tGlobal: (best.rolloutStartT || 0) + actualPrefix * FRAME_DT
         });
         newNode.plannedFrames = splitAt;
-        newNode.segmentFrames = splitAt;
+        newNode.segmentFrames = actualPrefix;
         newNode.rolloutSamples = best.rolloutSamples.slice(0, splitAt + 1);
         newNode.perFrameScores = Array.isArray(best.perFrameScores)
-            ? best.perFrameScores.slice(0, splitAt) : null;
+            ? best.perFrameScores.slice(0, actualPrefix) : null;
         var sum = 0;
         if (newNode.perFrameScores) {
             for (var k = 0; k < newNode.perFrameScores.length; k++) {
@@ -5211,13 +5234,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         newNode.rolloutTotal = sum;
         newNode.baseExt = 0;
         newNode.subtreeBest = sum;
-        newNode.status = 'alive';
-        newNode.fullDead = false;
-        newNode.fullDeathFrame = -1;
-        newNode.rolloutDeathFrame = -1;
+        newNode.status = deathInPrefix ? 'dead' : 'alive';
+        newNode.fullDead = inheritedDead;
+        newNode.fullDeathFrame = inheritedFd;
+        newNode.rolloutDeathFrame = inheritedFd;
         newNode.deathAuthority = best.deathAuthority || 'fused';
         newNode.rolloutStartT = best.rolloutStartT;
-        newNode.tEndSec = tree.rootAbsT + (best.rolloutStartT || 0) + splitAt * FRAME_DT;
+        newNode.tEndSec = tree.rootAbsT + (best.rolloutStartT || 0) + actualPrefix * FRAME_DT;
+        if (inheritedDead) {
+            recordStructure(tree, 'refine-inherit-death',
+                'from=n' + (best.id || '?') + ' fd=' + inheritedFd +
+                ' split=' + splitAt + ' actual=' + actualPrefix);
+        }
         newNode.opName = best.opName;
         newNode.threats = threats || best.threats || null;
         newNode.freshSig = nodeWindowSig(null, newNode, threats || tree.threats || []);
@@ -6985,6 +7013,22 @@ return count;
         _timeAcc = 0;
         _lastWorldDt = FRAME_DT;
         _lastSeenWorldStep = null;
+        // v139：帧步长校准是**跨局状态**，漏清会让上一局的 dt 带进下一局。
+        // 证据（主人「运行越久 AI 越笨、刚开机更聪明」）：
+        //   · FRAME_DT 被 calibrateFrameDt 改成 0.015~0.020 后**不随 reset 归零**；
+        //   · 一旦它离开 0.02，v137 的 rustFrameDtCompatible 护栏就停用 Rust 快路
+        //     （Rust 核心写死 0.02），整树退回 JS 慢路 → 每 tick 能长的层更少 → 变笨；
+        //   · 开机时 FRAME_DT 恰好是 0.02 → Rust 全速 → 显得更聪明。
+        // 这正是铁律「新增跨帧状态必须在 reset() 清掉」（v108 清 _stuckOps 同款）。
+        FRAME_DT = 0.02;
+        _frameDtMeasured = 0;
+        _lastGameClock = null;
+        _lastGameClockId = null;
+        _speedCap = 0;
+        _last2TankPos = null;
+        _last2TankT = 0;
+        try { if (_lastAdapter && _lastAdapter.constants) _lastAdapter.constants.FRAME_DT = FRAME_DT; } catch (eDtRst) {}
+        try { if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (eSdRst) {}
         _events = [];
         _moveTarget = null;   // v92：换局/重生不保留旧点击目标
         _moveTargetDirty = false;
