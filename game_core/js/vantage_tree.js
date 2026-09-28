@@ -30,6 +30,19 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v140（把"猜测→预测→主人实测"做成可执行的调试闭环）：
+ *   主人指出我列的验证项里有几项**根本没有控件**，等于给了没法跑的测试。本次
+ *   把缺的补齐，并把诊断字段加够，让每个假设都能被证伪：
+ *   ① 新增调试开关 `setFrameDtCalibrationEnabled(false)` + 面板勾选项
+ *      「冻结帧步长0.02」——用于证伪"时间刻度错配"假设（弹位滞后是否来自
+ *      _timeAcc 与轨迹帧长不同源）。
+ *   ② anchors 增记 `tdt`（该轨迹实际使用的帧长）——离线即可判断查询下标
+ *      用的是哪个刻度，不用再猜。
+ *   ③ 复用已有控件：`固定帧数评估` 滑块（exp-frames，25~200）本就存在，
+ *      用于验证滞后是否与预测视界相关。
+ *   诊断已从录像确认：5 颗弹的弹位偏差**方向全部 = 弹速方向 + 180°**（25 个样本
+ *   误差 ±2°），即纯时间滞后约 5 帧，不是坐标平移、不是反弹轨迹错。
+ *
  * 2026-09-10 v139（主人实测「都已经死了，红节点延伸出几个绿的」）：
  *   用三份新录制核对后定位到 `splitLongSegmentLeaf`（refineBeyondLimits 的
  *   长段细化）：它把长叶切成前缀叶时**无条件**：
@@ -604,7 +617,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v139';
+    var TREE_VERSION = 'v140';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -653,6 +666,10 @@
     var _autoTarget = null;                   // v103：杀戮场自动寻路目标（与用户点击目标分开）
     var _emptyFieldLaziness = 0;              // v104：空场“懒惰倾向”0~1（0=只要不是最安全就走，1=只在明显危险时才走）
     var _frameDtMeasured = 0;   // v124：实测每帧时长（秒），0=未测到
+    // v140：帧步长校准开关（调试用）。关掉后 FRAME_DT 恒为 0.02、不再随游戏时钟漂移。
+    // 用途：证伪"时间刻度错配"假设 —— 关掉校准后若弹位滞后消失，说明滞后来自
+    // _timeAcc 与轨迹帧长不同源；若仍在，则滞后另有来源。主人实测需要一个可点的开关。
+    var _frameDtCalibEnabled = true;
     var _lastGameClock = null;  // 上一 tick 的游戏时钟（弹的 getTimeAlive）
     var _lastGameClockId = null;
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
@@ -818,7 +835,8 @@
                         id: th.id,
                         off: Math.round((th.anchorOffset || 0) * 1000) / 1000,
                         abs0: Math.round((rT + (th.anchorOffset || 0)) * 1000) / 1000,
-                        len: (th.track && th.track.length) ? th.track.length : 0
+                        len: (th.track && th.track.length) ? th.track.length : 0,
+                        tdt: (typeof trackDtOf === 'function' ? trackDtOf(th) : FRAME_DT)
                     });
                 }
                 return out;
@@ -6219,6 +6237,7 @@ return count;
                 ry: Math.round(pr2.y * 100) / 100,
                 abs0: Math.round(abs0 * 1000) / 1000,
                 len: (th.track && th.track.length) ? th.track.length : 0,
+                tdt: trackDtOf(th),
                 v0: (v0 === null) ? null : Math.round(v0 * 10) / 10,
                 vr: Math.round(vr * 10) / 10,
                 drift: (drift === null) ? null : Math.round(drift * 100) / 100
@@ -6405,6 +6424,7 @@ return count;
      * 三处的时间步长是同一个数。
      */
     function calibrateFrameDt(ai, adapter) {
+        if (!_frameDtCalibEnabled) return;   // v140：调试开关，冻结 FRAME_DT=0.02
         var g = null, gid = null;
         // v125：**必须用真实游戏弹体**——适配器的 getProjectiles() 返回普通快照对象，
         // 没有 getTimeAlive；带游戏时钟的是 gameController 里的真实 projectile。
@@ -7422,6 +7442,18 @@ return count;
         getLastResetSnapshot: getLastResetSnapshot,
         noteDeath: noteDeath,
         isFrozen: function() { return _frozen; },
+        // v140：调试开关——冻结帧步长（关校准）。用于证伪"时间刻度错配"假设。
+        setFrameDtCalibrationEnabled: function(v) {
+            _frameDtCalibEnabled = (v !== false);
+            if (!_frameDtCalibEnabled) {
+                FRAME_DT = 0.02; _frameDtMeasured = 0;
+                _lastGameClock = null; _lastGameClockId = null;
+                try { if (_lastAdapter && _lastAdapter.constants) _lastAdapter.constants.FRAME_DT = FRAME_DT; } catch (e) {}
+                try { if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (e) {}
+            }
+            return _frameDtCalibEnabled;
+        },
+        getFrameDtCalibrationEnabled: function() { return _frameDtCalibEnabled; },
         setEvalFrames: setEvalFrames,
         setLaneEnabled: setLaneEnabled,
         setSpringRopeEnabled: setSpringRopeEnabled,

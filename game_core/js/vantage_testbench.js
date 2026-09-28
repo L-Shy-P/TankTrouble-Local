@@ -197,7 +197,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 10, retreatCompensateLayers: 1, retreatCompensateFrames: 10, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2172,9 +2172,9 @@
         rustMinimal: false, rustPhysics: true, growWithoutThreats: true,
         growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false,
         horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
-        pruneCompensateLayers: 1, pruneCompensateFrames: 10, retreatCompensateLayers: 1, retreatCompensateFrames: 10, retreatNodes: 3,
+        pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
-        killfieldEnabled: true, killfieldWeight: 1.0, emptyFieldSafety: false, emptyFieldLaziness: 0,
+        killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0,
         occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true,
         scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75
     };
@@ -2365,6 +2365,7 @@
             // 评分/死亡：所有模式通用
             expLine('评分', '#f5c2e7', 'vt-exp-scoreRow',
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-fixed75"> 固定帧数评估</label>') +
+                expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-freezeDt"> 冻结帧步长0.02</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-scoreShort"> 仅操作时长评分</label>') +
                 expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="">75帧</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 轨迹距离评分</label>') +
@@ -2393,8 +2394,8 @@
             ) +
             // v130：补偿独立成行，滑块统一宽度、数值右对齐等宽，不再挤在生长行里
             expLine('补偿', '#f9e2af', 'vt-exp-boostRow',
-                expItem('剪枝 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="1" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers" style="width:24px;text-align:right">1层</span> <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="10" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames" style="width:32px;text-align:right">10帧</span>') +
-                expItem('回退 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers" style="width:24px;text-align:right">1层</span> <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="10" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames" style="width:32px;text-align:right">10帧</span>') +
+                expItem('剪枝 <input type="range" data-act="exp-pruneCompensateLayers" min="0" max="9" step="1" value="1" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateLayers" style="width:24px;text-align:right">1层</span> <input type="range" data-act="exp-pruneCompensateFrames" min="1" max="60" step="1" value="3" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-pruneCompensateFrames" style="width:32px;text-align:right">3帧</span>') +
+                expItem('回退 <input type="range" data-act="exp-retreatCompensateLayers" min="0" max="9" step="1" value="1" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateLayers" style="width:24px;text-align:right">1层</span> <input type="range" data-act="exp-retreatCompensateFrames" min="1" max="60" step="1" value="3" style="width:60px;cursor:pointer;background:#313244"> <span id="vt-exp-retreatCompensateFrames" style="width:32px;text-align:right">3帧</span>') +
                 expItem('本帧 <b id="vt-exp-boostSum" data-act="exp-boostExpand" style="cursor:pointer;color:#f9e2af">0+0=0</b><span style="color:#6c7086">层</span>' +
                     '<div id="vt-exp-boostList" style="display:none;margin:2px 0 0 6px;color:#a6adc8;font-size:11px;line-height:1.5"></div>')
             ) +
@@ -2411,7 +2412,7 @@
                 // v106：开关和它控制的滑块一对一，并且**各自占一行**——
                 // 上一版两对挤在一行，“杀戮场强度”看着像空场开关的滑块（主人报的错位）。
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-killfield"> 杀戮场引导</label>') +
-                expItem('杀戮场强度 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="100" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">100%</span>') +
+                expItem('杀戮场强度 <input type="range" data-act="exp-killfieldWeight" min="0" max="400" step="5" value="275" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-killfieldWeight">275%</span>') +
                 '<span style="flex-basis:100%;height:0"></span>' +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-emptyFieldSafety"> 空场安全感知</label>') +
                 expItem('懒惰倾向 <input type="range" data-act="exp-emptyFieldLaziness" min="0" max="100" step="5" value="0" style="width:76px;cursor:pointer;background:#313244"> <span id="vt-exp-emptyFieldLaziness">0%</span>') +
@@ -2507,6 +2508,7 @@
             if (!expRow || expRow._vtTipBound) return;
             expRow._vtTipBound = true;
             var tips = {
+                'exp-freezeDt': '【调试】冻结帧步长=0.02，停用随游戏时钟的校准。用于验证“弹位滞后是否来自时间刻度错配”：勾上后若弹位滞后消失，则假设成立；若仍在，则另有来源。',
                 'exp-fixed75': '固定帧数评估（探索参数，不标红）。开启后不管真实帧率怎么变，都按滑块帧数评估每个操作，方便复现实验。注意：滑块帧数低于 25 会让 AI 变短视、高于 200 会明显变卡，只有极端取值才标红。',
                 'exp-scoreShort': '仅操作时长评分（实验）。开启后只看操作自身时长内的帧分，不再固定看 75 帧；更容易发现先转向再前进这类组合技，但当前实测会让 AI 更短视、更晚躲弹，不建议常规开启。',
                 'exp-frames': '固定帧数评估使用的帧数。数值越大，看得越远，但计算量也越大。',
@@ -2830,6 +2832,11 @@
             return;
         }
         // —— v7.4 实验模式（A/B 对比）——
+        if (act === 'exp-freezeDt') {
+            var fdOn = !srcEl.checked;
+            try { if (VantageTree.setFrameDtCalibrationEnabled) VantageTree.setFrameDtCalibrationEnabled(fdOn); } catch (eFd) {}
+            return;
+        }
         if (act === 'exp-fixed75') {
             state.exp.fixed75 = srcEl.checked;
             if (state.paused) { runNineOps(); renderViz(); }   // 暂停态立即按新模式重跑
@@ -3065,15 +3072,15 @@
             state.exp.refineBeyond = true;
             state.exp.continuousRefine = false;
             state.exp.pruneCompensateLayers = 1;
-            state.exp.pruneCompensateFrames = 10;
+            state.exp.pruneCompensateFrames = 3;
             state.exp.retreatCompensateLayers = 1;
-            state.exp.retreatCompensateFrames = 10;
+            state.exp.retreatCompensateFrames = 3;
             state.exp.retreatNodes = 3;
             state.exp.retreatFrames = 200;
             state.exp.targetMix = true;
             state.exp.targetMixRatio = 0.5;
             state.exp.killfieldEnabled = true;
-            state.exp.killfieldWeight = 1.0;
+            state.exp.killfieldWeight = 2.75;
             state.exp.emptyFieldSafety = false;
             state.exp.emptyFieldLaziness = 0;
             state.exp.occlusion = true;
