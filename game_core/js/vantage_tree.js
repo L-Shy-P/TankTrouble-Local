@@ -30,6 +30,13 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v143（修完第二处低 evalFrames 段长抬升）：
+ *   v142 只限制了 probeSegment() 的 `segmentFrames <= evaluatedFrames`，但
+ *   effectiveExpandCfg() 仍按 `_lastWorldDt * minGrowTicks / FRAME_DT` 抬高 tMin。
+ *   v142 录像已实证：evalFrames=1 仍出现 seg/plan=15。v143 保留旧公式注释，
+ *   并新增 `evalCap=EVAL_FRAMES` 硬上限：1/2 帧窗口不会再被抬高；300 帧仍受
+ *   tMax=30 限制。回归 low-eval 测试扩展覆盖 effective 配置的源码契约。
+ *
  * 2026-09-10 v142（低 evalFrames 节点时间轴修复）：
  *   主人指出 evalFrames=1 时既有纯红也有纯绿，低模拟时长是关键切入点。定位确认：
  *   `probeSegment` 原来 `Math.max(cfg.tMin=3, ...)`，`effectiveExpandCfg` 又用
@@ -632,7 +639,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v142';
+    var TREE_VERSION = 'v143';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -3639,8 +3646,15 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var k;
         for (k in tree.cfg) cfg[k] = tree.cfg[k];
         var estDt = (_lastWorldDt > 0 && _lastWorldDt < 1) ? _lastWorldDt : FRAME_DT;
-        var minFrames = Math.ceil(((tree.cfg.minGrowTicks || 1) * estDt) / FRAME_DT);
-        cfg.tMin = Math.max(cfg.tMin, Math.min(cfg.tMax, minFrames));
+        var rawMinFrames = Math.ceil(((tree.cfg.minGrowTicks || 1) * estDt) / FRAME_DT);
+        // v143：保留 v43 的旧策略作为注释备份：原来直接用 rawMinFrames，
+        // 低 evalFrames 时可能把 1 帧窗口抬成 15 帧（主人 v142 录像已实证）。
+        // 原式：cfg.tMin = Math.max(cfg.tMin, Math.min(cfg.tMax, rawMinFrames));
+        // 这违反“模拟几帧只能推进几帧”。现在再受当前评估窗口硬上限约束：
+        //   evalFrames=1/2 -> tMin<=1/2；evalFrames=300 -> 仍由 tMax=30 限制。
+        var evalCap = Math.max(1, Math.round(EVAL_FRAMES));
+        var minFrames = Math.min(evalCap, rawMinFrames);
+        cfg.tMin = Math.max(1, Math.min(cfg.tMax, minFrames));
         return cfg;
     }
 
