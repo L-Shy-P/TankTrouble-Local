@@ -767,6 +767,8 @@
     // track 索引、威胁条目和实际 fusedSensor×PROJECTILE 接触。
     var _lastFusedBatchSummary = null;
     var _fusedBatchSeq = 0;
+    var _fusedBatchAuditHistory = [];
+    var MAX_FUSED_AUDIT_HISTORY = 40;
     function fusedDropLog(detail) {
         var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         if (now - _fusedDropStats.lastLogMs < 1000) return;   // 每秒最多一条
@@ -1048,6 +1050,7 @@
         var tactics = global.TankTroubleAITactics;
         var audit = { seq: ++_fusedBatchSeq,
             durationFrames: durationFrames,
+            purpose: opt.auditPurpose || 'unknown',
             tGlobal: (typeof opt.tGlobal === 'number') ? opt.tGlobal : 0,
             nowTGlobal: (typeof opt.nowTGlobal === 'number') ? opt.nowTGlobal : 0,
             threats: (opt.threats || []).map(function(th) { return th && th.id; }).slice(0,80),
@@ -1407,6 +1410,8 @@
         audit.deathFrames = deathFrame.slice();
         audit.dead = dead.slice();
         _lastFusedBatchSummary = audit;
+        _fusedBatchAuditHistory.push(audit);
+        if (_fusedBatchAuditHistory.length > MAX_FUSED_AUDIT_HISTORY) _fusedBatchAuditHistory.shift();
         var results = [];
         for (i = 0; i < operations.length; i++) {
             results.push({
@@ -1743,6 +1748,7 @@
                 };
             },
             getLastFusedBatchSummary: function() { return _lastFusedBatchSummary; },
+            getFusedBatchAuditHistory: function() { return _fusedBatchAuditHistory.slice(); },
             simulateTankBatchScored: function(state, operations, durationFrames, opt) {
                 if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
                 if (!rustFrameDtCompatible()) return null;   // v137：帧步长不一致不走 Rust 快路
@@ -2218,6 +2224,6 @@
         rustFrameDtCompatible: rustFrameDtCompatible   // v137：Rust 快路是否安全可用
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v49：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v50：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);

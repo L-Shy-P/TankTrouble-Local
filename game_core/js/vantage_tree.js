@@ -30,6 +30,12 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v146（融合审计环按用途冻结，避免最后一次 0 帧预检查覆盖案发现场）：
+ *   v144 的 fusedAudit 只有最后一批；Rust 评分路径先做 durationFrames=0 预检查，
+ *   后续记录会把真正 JS 融合/扫描结果覆盖掉。v146 给 auditPurpose 标记
+ *   rolloutNine/commitSliceRust/jsConfirm/scanNodeDeath，并在 sandbox 保留最近 40
+ *   个批次；死亡时 recFrame 导出最近非零批次摘要。纯诊断，不改决策。
+ *
  * 2026-09-10 v145（切换 fixed/evalFrames 时重建旧树，避免实验状态污染）：
  *   v143 录像虽标记 fixedEvalMode=true/evalFrames=1，但同一份 ring 中仍出现旧的
  *   seg=10/15，原因是 setEvalFrames/setFixedEvalMode 只改全局开关、不清旧树。
@@ -653,7 +659,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v145';
+    var TREE_VERSION = 'v146';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -862,8 +868,18 @@
             // v144：死亡权威审计摘要，仅记录最后一次融合批次，不参与决策。
             fusedAudit: (function() {
                 try {
-                    return adapter && adapter.getLastFusedBatchSummary
-                        ? adapter.getLastFusedBatchSummary() : null;
+                    var ah = adapter && adapter.getFusedBatchAuditHistory
+                        ? adapter.getFusedBatchAuditHistory() : [];
+                    var nz = null;
+                    for (var aiAudit = ah.length - 1; aiAudit >= 0; aiAudit--) {
+                        if ((ah[aiAudit].durationFrames || 0) > 0) { nz = ah[aiAudit]; break; }
+                    }
+                    return {
+                        last: adapter && adapter.getLastFusedBatchSummary
+                            ? adapter.getLastFusedBatchSummary() : null,
+                        recent: ah.slice(-12),
+                        lastNonZero: nz
+                    };
                 } catch (eAudit) { return null; }
             })(),
             frameDt: Math.round(FRAME_DT * 100000) / 100000,
@@ -2858,6 +2874,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var jsAdapter = Object.create(adapter);
         var fusedBatchOk = false;
         jsAdapter.simulateTankBatch = function(state, operations, durationFrames, opt) {
+            opt = opt || {};
+            opt.auditPurpose = 'jsConfirm';
             var b = adapter.simulateTankBatchJsFused(state, operations, durationFrames, opt);
             if (b) fusedBatchOk = true;
             return b;
@@ -3581,7 +3599,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         // 轨迹取不到位时，融合世界要按真实位姿前推到本节点起点，
                         // 而不是把那颗弹静默删掉（v38 沙箱侧配套）。
                         nowTGlobal: nowTGlobalOf(tree),
-                        cfg: cfg
+                        cfg: cfg,
+                        auditPurpose: 'rolloutNine'
                     });
                 noteFusedDrops(tree, adapter);
                 if (rollTrace && rollTrace.length) recordScanTrace(tree, null, null, rollTrace, 'rollout');
@@ -6101,7 +6120,8 @@ return count;
                 threats: slice.threats,
                 tGlobal: 0,
                 nowTGlobal: nowTGlobalOf(tree),
-                cfg: treeScoringCfg(tree)
+                cfg: treeScoringCfg(tree),
+                auditPurpose: 'commitSliceRust'
             });
             noteFusedDrops(tree, slice.adapter);
         } catch (eCommitRust) {

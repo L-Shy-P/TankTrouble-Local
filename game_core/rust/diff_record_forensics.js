@@ -94,7 +94,7 @@ const tSrc = fs.readFileSync(path.join(root, 'js', 'vantage_tree.js'), 'utf8');
 {
     assert(/var MAX_SCAN_TRACES = \d+;/.test(tSrc), '④ 必须有 MAX_SCAN_TRACES 上限');
     const sbSrc = fs.readFileSync(path.join(root, 'js', 'vantage_sandbox.js'), 'utf8');
-    for (const f of ['getLastFusedBatchSummary','placements','contacts','deathFrames','_lastFusedBatchSummary']) assert(sbSrc.indexOf(f)>=0, '④ 融合审计缺字段 '+f);
+    for (const f of ['getLastFusedBatchSummary','getFusedBatchAuditHistory','placements','contacts','deathFrames','_lastFusedBatchSummary','purpose','MAX_FUSED_AUDIT_HISTORY']) assert(sbSrc.indexOf(f)>=0, '④ 融合审计缺字段 '+f);
     assert(/_scanTraceRing\.length > MAX_SCAN_TRACES/.test(tSrc), '④ 轨迹环必须按上限裁剪');
 }
 
