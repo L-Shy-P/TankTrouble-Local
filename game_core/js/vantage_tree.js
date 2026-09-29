@@ -30,6 +30,15 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v144（死亡权威审计：摆弹/接触/死亡帧逐批记录）：
+ *   主人指出死亡粗筛 + Rust 物理复刻很难保证无错，并允许调试字段直接加入。
+ *   `simulateFusedBatch` 现在只记录最后批次的：
+ *     · threats 输入；每颗弹实际是否摆入、src/trackLen/idx/坐标/速度；
+ *     · 每个候选的 deathFrames/dead；
+ *     · 真实 `fusedSensor × PROJECTILE` 接触（k/op/pid/category）。
+ *   通过 recFrame 导出为 `fusedAudit`，纯诊断、零决策改变。下一次绿死时可以直接
+ *   二分：弹没摆入？摆入位置错？有接触但 deathFrame 没写？还是只在 Rust 候选丢失？
+ *
  * 2026-09-10 v143（修完第二处低 evalFrames 段长抬升）：
  *   v142 只限制了 probeSegment() 的 `segmentFrames <= evaluatedFrames`，但
  *   effectiveExpandCfg() 仍按 `_lastWorldDt * minGrowTicks / FRAME_DT` 抬高 tMin。
@@ -639,7 +648,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v143';
+    var TREE_VERSION = 'v144';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -839,6 +848,13 @@
             // v119：本帧融合世界因摆不了位而"近似摆/漏摆"的弹数（>0 说明权威
             // 当时的视野不完整，橙色/绿色节点上死要先查这里）
             fusedDrop: (tree && tree._fusedDropFrame) ? tree._fusedDropFrame : null,
+            // v144：死亡权威审计摘要，仅记录最后一次融合批次，不参与决策。
+            fusedAudit: (function() {
+                try {
+                    return adapter && adapter.getLastFusedBatchSummary
+                        ? adapter.getLastFusedBatchSummary() : null;
+                } catch (eAudit) { return null; }
+            })(),
             frameDt: Math.round(FRAME_DT * 100000) / 100000,
             speedCap: _speedCap > 0 ? Math.round(_speedCap * 100) / 100 : 0,   // v128：贴墙爬行校准（0=不限制）
             frameDtMeasured: _frameDtMeasured > 0 ? Math.round(_frameDtMeasured * 100000) / 100000 : null,

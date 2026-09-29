@@ -763,6 +763,10 @@
         lastLogMs: 0,
         lastDetail: ''
     };
+    // v144：融合死亡审计（只读，不参与决策）。记录最后批次的摆弹来源、坐标、
+    // track 索引、威胁条目和实际 fusedSensor×PROJECTILE 接触。
+    var _lastFusedBatchSummary = null;
+    var _fusedBatchSeq = 0;
     function fusedDropLog(detail) {
         var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         if (now - _fusedDropStats.lastLogMs < 1000) return;   // 每秒最多一条
@@ -786,6 +790,32 @@
         return _frameDtSec;
     }
     function getFrameDtSec() { return _frameDtSec; }
+
+    /** v137：Rust 核心里的时间步长是**写死的 0.02**（rollout.rs `FRAME_DT`、
+     *  rescore.rs `RESCORE_DT`），JS 侧却会在 v124 校准后把它改成实测值
+     *  （0.015~0.03）。两边不一致时同一批弹会被算成两条不同的弹道：
+     *    · 75 帧视界 JS 是 1.25s、Rust 是 1.5s；
+     *    · 每颗弹的位置逐帧偏开，Rust 说"9 个操作都安全"，JS 融合世界里却在撞。
+     *  Rust 只是候选、JS 融合才是死亡权威，但**选路**用的是 Rust 结论——
+     *  这就是"树显示安全却死了"的物理引擎错位来源。
+     *  这里做一道响亮的护栏：步长不是 0.02 就不用 Rust 快路，回退 JS 融合路径
+     *  （正确性优先，速度退回 v114 之前）。等 Rust ABI 传入真实 frame_dt 再放行。 */
+    var _rustDtWarned = false;
+    function rustFrameDtCompatible() {
+        var ok = Math.abs(_frameDtSec - 0.02) < 1e-9;
+        if (!ok && !_rustDtWarned) {
+            // 铁律：上限/护栏要"留余量 + 响亮失败"，不许静默降级。
+            // 这里只提示一次，避免每帧刷屏（主人早就提过日志要节流）。
+            _rustDtWarned = true;
+            if (global.console && console.warn) {
+                console.warn('[VantageSandbox] 帧步长 ' + _frameDtSec.toFixed(5) +
+                    's 与 Rust 核心写死的 0.02s 不一致 → Rust 快路停用，回退 JS 融合路径' +
+                    '（正确性优先，速度会退到 v114 之前）。要恢复 Rust 速度，需把真实' +
+                    ' frame_dt 传进 vantage_core ABI（rollout.rs FRAME_DT / rescore.rs RESCORE_DT）。');
+            }
+        }
+        return ok;
+    }
 
     function acquireFusedBullet(fc, projectile) {
         var i, slot = null;
@@ -888,6 +918,7 @@
      */
     function simulateRustBatch(gameController, aiId, operations, durationFrames, opt) {
         if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
+        if (!rustFrameDtCompatible()) return null;   // v137：帧步长不一致不走 Rust 快路
         if (durationFrames > 75) return null;
         if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
 
@@ -1015,6 +1046,12 @@
         fc.round++;
         var projectiles = gameController.getProjectiles();
         var tactics = global.TankTroubleAITactics;
+        var audit = { seq: ++_fusedBatchSeq,
+            durationFrames: durationFrames,
+            tGlobal: (typeof opt.tGlobal === 'number') ? opt.tGlobal : 0,
+            nowTGlobal: (typeof opt.nowTGlobal === 'number') ? opt.nowTGlobal : 0,
+            threats: (opt.threats || []).map(function(th) { return th && th.id; }).slice(0,80),
+            placements: [], contacts: [] };
         var threatById = {};
         if (opt.threats) {
             for (i = 0; i < opt.threats.length; i++) {
@@ -1162,6 +1199,9 @@
                     slot.active = slot.initialSpeed > 0;
                     if (!slot.active) { slot.body.SetActive(false); continue; }
                     slot.srcInfo = { src: 'approx', off: 0, q: qLife, idx: advFrames };
+                    audit.placements.push({ pid: slot.pid, active: true, src: 'approx', x: fpx, y: fpy,
+                        vx: rvel.x, vy: rvel.y, threat: !!th, trackLen: th && th.track ? th.track.length : 0,
+                        idx: advFrames });
                     if (th) _fusedDropStats.approxPlaced++;
                     else _fusedDropStats.noThreat++;
                     fusedDropLog('id=' + (pr.id !== undefined ? pr.id : '?') +
@@ -1184,9 +1224,24 @@
             slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
             slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
             slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge - qLife);
-            slot.active = slot.initialSpeed > 0 && slot.lifeLeft > 0;
+            // v137：**不再因 lifeLeft<=0 把整颗弹关掉**。lifeLeft 只回答“这颗弹还剩
+            // 几帧”，应当由下面逐帧循环到期时自然退场（`bs.lifeLeft -= FRAME` 那段）。
+            // 原来 placement 阶段就 `active = speed>0 && lifeLeft>0`，于是一颗
+            // “现在还活着、但在这个未来节点已经/即将到期”的弹，会在**它仍然存活的
+            // 那几帧**里从融合世界整颗消失 → 死权失明 → 树判 fd=-1 绿节点 → 实际被
+            // 打死。这就是“树显示完全安全但 AI 死了”的直接来源。
+            // 与 v136 在 !placed 兜底分支改过的口径统一：placement 只看有没有速度。
+            slot.active = slot.initialSpeed > 0;
             if (!slot.active) slot.body.SetActive(false);
+            if (slot.active) {
+                var ap = slot.body.GetPosition(), av = slot.body.GetLinearVelocity(), asi = slot.srcInfo || {};
+                audit.placements.push({ pid: slot.pid, active: true, src: asi.src || null,
+                    x: ap.x, y: ap.y, vx: av.x, vy: av.y, threat: !!th,
+                    trackLen: th && th.track ? th.track.length : 0,
+                    idx: asi.idx == null ? null : asi.idx });
+            }
         }
+        if (audit.placements.length > 80) audit.placements.length = 80;
         parkUnusedFusedBullets(fc);
 
         var samples = [], dead = [], deathFrame = [], speeds = [], rotSpds = [];
@@ -1331,6 +1386,11 @@
                     if (sensorUd && otherCat === Constants.COLLISION_CATEGORIES.PROJECTILE) {
                         var op = sensorUd.opIndex;
                         if (op >= 0 && op < dead.length && !dead[op]) {
+                            var otherUdAudit = (udA && udA.type === 'fusedSensor') ? udB : udA;
+                            var otherObjAudit = otherUdAudit && otherUdAudit.gameObject;
+                            audit.contacts.push({ k: k, op: op,
+                                pid: otherObjAudit && otherObjAudit.id !== undefined ? otherObjAudit.id : null,
+                                category: otherCat });
                             dead[op] = true;
                             deathFrame[op] = k + 1;
                         }
@@ -1344,6 +1404,9 @@
         me.left = snapLeft; me.right = snapRight;
         me.speed = snapSpeed; me.rotationSpeed = snapRotSpd;
 
+        audit.deathFrames = deathFrame.slice();
+        audit.dead = dead.slice();
+        _lastFusedBatchSummary = audit;
         var results = [];
         for (i = 0; i < operations.length; i++) {
             results.push({
@@ -1679,8 +1742,10 @@
                     lastDetail: _fusedDropStats.lastDetail
                 };
             },
+            getLastFusedBatchSummary: function() { return _lastFusedBatchSummary; },
             simulateTankBatchScored: function(state, operations, durationFrames, opt) {
                 if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
+                if (!rustFrameDtCompatible()) return null;   // v137：帧步长不一致不走 Rust 快路
                 if (durationFrames > 75) return null;
                 if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
                 opt = opt || {};
@@ -1847,6 +1912,7 @@
              */
             rescoreTankSamples: function(nodes, threats, cfg, pendingThreats) {
                 if (!RUST_PHYSICS_ENABLED || !FUSED_ENABLED) return null;
+                if (!rustFrameDtCompatible()) return null;   // v137：帧步长不一致不走 Rust 快路
                 if (!global.VantageRustBridge || !global.VantageRustBridge._ready) return null;
                 if (!Array.isArray(nodes) || nodes.length < 1 || nodes.length > 512) return null;
                 if (!Array.isArray(threats)) return null;
@@ -2148,9 +2214,10 @@
             } catch (eWallShapes) { return null; }
         },
         rustPhysicsEnabled: rustPhysicsEnabled,
-        setRustPhysicsEnabled: setRustPhysicsEnabled
+        setRustPhysicsEnabled: setRustPhysicsEnabled,
+        rustFrameDtCompatible: rustFrameDtCompatible   // v137：Rust 快路是否安全可用
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v49：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
