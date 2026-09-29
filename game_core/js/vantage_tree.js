@@ -30,6 +30,11 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v145（切换 fixed/evalFrames 时重建旧树，避免实验状态污染）：
+ *   v143 录像虽标记 fixedEvalMode=true/evalFrames=1，但同一份 ring 中仍出现旧的
+ *   seg=10/15，原因是 setEvalFrames/setFixedEvalMode 只改全局开关、不清旧树。
+ *   v145 在两者变化时 reset()，让新实验从新 root 开始；这是诊断/实验隔离修复。
+ *
  * 2026-09-10 v144（死亡权威审计：摆弹/接触/死亡帧逐批记录）：
  *   主人指出死亡粗筛 + Rust 物理复刻很难保证无错，并允许调试字段直接加入。
  *   `simulateFusedBatch` 现在只记录最后批次的：
@@ -648,7 +653,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v144';
+    var TREE_VERSION = 'v145';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -841,6 +846,12 @@
             segEndErr: (node && node._segEndErr) ? node._segEndErr
                 : (tree && tree._lastSegEndErr ? tree._lastSegEndErr : null),
             nodes: tree ? tree.nodeCount : -1,
+            // v144：调试低 evalFrames 下“树是否真的在生长”——无弹时如果 nodes 只有
+            // 19/46 且 growStalls/growSkip 持续增长，说明是生长预算/叶选择被卡，
+            // 不要把它误判成死亡检测问题。
+            growStalls: (tree && tree.stats) ? (tree.stats.growStalls || null) : null,
+            growSkips: (tree && tree.stats) ? (tree.stats.growSkips || 0) : 0,
+            lastEffTMin: (tree && tree.diag) ? tree.diag.lastEffTMin : null,
             threats: (tree && tree.threats) ? tree.threats.length : 0,
             threatIds: (tree && tree.threatIds) || '',
             live: (tree && typeof tree._liveProjectileCount === 'number') ? tree._liveProjectileCount : null,
@@ -7149,7 +7160,11 @@ return count;
     /** 评估深度可调（testbench 固定帧滑块联动，1~300） */
     function setEvalFrames(v) {
         var n = Math.max(1, Math.min(300, Math.round(v || 75)));
+        var prev = EVAL_FRAMES;
         EVAL_FRAMES = n;
+        // v145：实验滑块变化后重建旧树。旧行为只改全局 EVAL_FRAMES，会让同一份
+        // 录像前段残留旧 evalFrames 的 10/15 帧节点，后段才变成 1 帧。
+        if (prev !== n && _tree) reset();
         return n;
     }
 
@@ -7510,7 +7525,14 @@ return count;
             return _frameDtCalibEnabled;
         },
         getFrameDtCalibrationEnabled: function() { return _frameDtCalibEnabled; },
-        setFixedEvalMode: function(v) { _fixedEvalMode = !!v; return _fixedEvalMode; },
+        setFixedEvalMode: function(v) {
+            var next = !!v;
+            var prev = _fixedEvalMode;
+            _fixedEvalMode = next;
+            // v145：固定/动态评估模式切换也必须清掉旧树时间轴。
+            if (prev !== next && _tree) reset();
+            return _fixedEvalMode;
+        },
         getFixedEvalMode: function() { return _fixedEvalMode; },
         setEvalFrames: setEvalFrames,
         setLaneEnabled: setLaneEnabled,

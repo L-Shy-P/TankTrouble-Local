@@ -8,7 +8,10 @@ const sb={console,performance,Math,JSON,Array,Object,String,Number,isFinite,pars
 const ctx=vm.createContext(sb);vm.runInContext(fs.readFileSync(path.join(root,'js','vantage_scoring.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(path.join(root,'js','vantage_tree.js'),'utf8'),ctx);const VT=sb.VantageTree;
 function results(n){return Array.from({length:9},(_,i)=>({perFrameScores:Array.from({length:n},()=>i===0?1:0),totalScore:i===0?n:0,samples:Array.from({length:n+1},(_,k)=>({x:k,y:0,rot:0})),dead:false,deathFrame:-1}));}
 for(const n of [1,2,3,75,300]){const p=VT.probeSegment(results(n),{tMin:1,tMax:30});assert(p.segmentFrames<=n,'evalFrames='+n+' produced segmentFrames='+p.segmentFrames);assert(p.segmentFrames>=1,'evalFrames='+n+' segment must remain >=1');}
-assert.strictEqual(VT.VERSION,'v144');
+assert.strictEqual(VT.VERSION,'v145');
+const treeSrc=fs.readFileSync(path.join(root,'js','vantage_tree.js'),'utf8');
+assert(treeSrc.includes('if (prev !== n && _tree) reset();'),'setEvalFrames must rebuild old tree');
+assert(treeSrc.includes('if (prev !== next && _tree) reset();'),'setFixedEvalMode must rebuild old tree');
 const src=fs.readFileSync(path.join(root,'js','vantage_tree.js'),'utf8');
 assert(src.includes('var evalCap = Math.max(1, Math.round(EVAL_FRAMES));'),'effectiveExpandCfg must cap tMin by EVAL_FRAMES');
 assert(src.includes('var rawMinFrames = Math.ceil'),'must retain raw min frame calculation');
