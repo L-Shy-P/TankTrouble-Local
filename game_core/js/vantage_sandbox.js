@@ -651,6 +651,59 @@
      * v24：候选坦克体恢复使用游戏原版 B2DUtils.createTankBody 创建，
      * 然后逐个夹具修改 filter，再为每个原有夹具复制同形状传感器夹具。
      */
+    // v148：纯诊断几何工具。不能使用 GetAABB（不同 Box2D 构建 ABI 不一致），
+    // 只从真实 fixture shape + body transform 计算融合传感器 AABB。
+    function fusedWorldPoint(body, x, y) {
+        var p = body.GetPosition(), a = body.GetAngle(), c = Math.cos(a), s = Math.sin(a);
+        return { x: p.x + c * x - s * y, y: p.y + s * x + c * y };
+    }
+    function fusedSensorAabb(body) {
+        var out = null, f = body && body.GetFixtureList ? body.GetFixtureList() : null;
+        while (f) {
+            var ud = f.GetUserData && f.GetUserData();
+            if (ud && ud.type === 'fusedSensor') {
+                var sh = f.GetShape(), pts = [], type = sh && sh.GetType ? sh.GetType() : null;
+                if (type === Box2D.Collision.Shapes.b2Shape.e_circleShape) {
+                    var cp = sh.m_p || { x: 0, y: 0 }, cw = fusedWorldPoint(body, cp.x, cp.y), cr = sh.m_radius || 0;
+                    pts = [{x:cw.x-cr,y:cw.y-cr},{x:cw.x+cr,y:cw.y+cr}];
+                } else {
+                    var vs = sh && (typeof sh.GetVertices === 'function' ? sh.GetVertices() : sh.m_vertices) || [];
+                    for (var vi=0; vi<vs.length; vi++) pts.push(fusedWorldPoint(body, vs[vi].x, vs[vi].y));
+                }
+                if (pts.length) {
+                    var ax=pts[0].x,bx=pts[0].x,ay=pts[0].y,by=pts[0].y;
+                    for (var pi=1;pi<pts.length;pi++){ax=Math.min(ax,pts[pi].x);bx=Math.max(bx,pts[pi].x);ay=Math.min(ay,pts[pi].y);by=Math.max(by,pts[pi].y);}
+                    out = { minX:ax,maxX:bx,minY:ay,maxY:by, op:ud.opIndex, type:type };
+                }
+            }
+            f = f.GetNext();
+        }
+        return out;
+    }
+    function fusedCircleAabbGap(px, py, radius, box) {
+        if (!box) return null;
+        var dx = px < box.minX ? box.minX-px : (px > box.maxX ? px-box.maxX : 0);
+        var dy = py < box.minY ? box.minY-py : (py > box.maxY ? py-box.maxY : 0);
+        return Math.sqrt(dx*dx+dy*dy) - radius;
+    }
+    function auditFusedGeometry(audit, fc, k) {
+        if (!audit || !audit.geometryEnabled) return;
+        var slots = fc.bulletSlots || [], cands = fc.candidates || [];
+        for (var bi=0; bi<slots.length; bi++) {
+            var bs=slots[bi]; if (!bs || !bs.body || !bs.body.IsActive() || bs.lastRound!==fc.round) continue;
+            var bp=bs.body.GetPosition(), bf=bs.body.GetFixtureList(), rad=0;
+            try { rad=bf && bf.GetShape && (bf.GetShape().m_radius || 0); } catch(eRad) {}
+            var pid=bs.pid == null ? ('slot'+bi) : bs.pid;
+            for (var oi=0; oi<cands.length; oi++) {
+                var box=fusedSensorAabb(cands[oi]); if (!box) continue;
+                var gap=fusedCircleAabbGap(bp.x,bp.y,rad,box), key=String(oi)+'|'+String(pid);
+                var old=audit.geometry.proximity[key];
+                if (!old || gap<old.minGap) audit.geometry.proximity[key]={op:oi,pid:pid,minGap:gap,k:k,
+                    bullet:{x:bp.x,y:bp.y,r:rad},sensor:box};
+            }
+        }
+    }
+
     function createFusedCandidateBody(world, tank, opIndex) {
         var body = B2DUtils.createTankBody(world, tank);
         var MAZE = Constants.COLLISION_CATEGORIES.MAZE;
@@ -1054,6 +1107,8 @@
             tGlobal: (typeof opt.tGlobal === 'number') ? opt.tGlobal : 0,
             nowTGlobal: (typeof opt.nowTGlobal === 'number') ? opt.nowTGlobal : 0,
             threats: (opt.threats || []).map(function(th) { return th && th.id; }).slice(0,80),
+            geometryEnabled: durationFrames > 0 && (opt.auditPurpose === 'jsConfirm' || opt.auditPurpose === 'scanNodeDeath'),
+            geometry: { proximity: {} },
             placements: [], contacts: [] };
         var threatById = {};
         if (opt.threats) {
@@ -1262,6 +1317,7 @@
         var locked = !!me.locked;
 
         for (k = 0; k <= durationFrames; k++) {
+            auditFusedGeometry(audit, fc, k);
             for (i = 0; i < operations.length; i++) {
                 var cb2 = fc.candidates[i];
                 samples[i].push({
@@ -1409,6 +1465,10 @@
 
         audit.deathFrames = deathFrame.slice();
         audit.dead = dead.slice();
+        if (audit.geometry && audit.geometry.proximity) {
+            var gkeys = Object.keys(audit.geometry.proximity);
+            if (gkeys.length > 180) { var keep={}; for (var gi=0;gi<180;gi++) keep[gkeys[gi]]=audit.geometry.proximity[gkeys[gi]]; audit.geometry.proximity=keep; }
+        }
         _lastFusedBatchSummary = audit;
         _fusedBatchAuditHistory.push(audit);
         if (_fusedBatchAuditHistory.length > MAX_FUSED_AUDIT_HISTORY) _fusedBatchAuditHistory.shift();
