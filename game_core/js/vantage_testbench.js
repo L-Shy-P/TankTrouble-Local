@@ -145,6 +145,7 @@
  *   - 新增 TB_VERSION 版本自报（console 启动行 + VantageTestbench.VERSION）——
  *     连续两轮"修一个错另一个"实为浏览器缓存旧版 js，版本必须可一眼核验
  */
+// v147：固定帧评估滑块支持滚轮±1，并提供数字输入/快捷提示。
 (function(global) {
     'use strict';
 
@@ -2367,7 +2368,7 @@
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-fixed75"> 固定帧数评估</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-freezeDt"> 冻结帧步长0.02</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-scoreShort"> 仅操作时长评分</label>') +
-                expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-frames" style="">75帧</span>') +
+                expItem('<input type="range" data-act="exp-frames" min="1" max="300" step="1" value="75" style="width:86px;cursor:pointer;background:#313244"> <input type="number" data-act="exp-frames-number" min="1" max="300" step="1" value="75" style="width:46px;background:#313244;color:#cdd6f4;border:1px solid #6c7086"> <span id="vt-exp-frames" style="">75帧</span><span id="vt-exp-frameQuick" style="color:#89b4fa">1/3/30/75/300（滚轮±1）</span>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-lane"> 轨迹距离评分</label>') +
                 expItem('<span id="vt-exp-springItem" style="display:inline-flex"><label style="cursor:pointer;"><input type="checkbox" data-act="exp-springRope"> 弹簧绳评分</label></span>') +
                 '<span style="flex-basis:100%;height:0"></span>' +
@@ -2491,6 +2492,7 @@
             retreatFrames: expRow.querySelector('[data-act="exp-retreatFrames"]'),
             retreatFramesSpan: expRow.querySelector('span[id="vt-exp-retreatFrames"]'),
             slider: expRow.querySelector('[data-act="exp-frames"]'),
+            framesNumber: expRow.querySelector('[data-act="exp-frames-number"]'),
             framesSpan: expRow.querySelector('span[id="vt-exp-frames"]'),
             // 分类行/条件显示引用
             scoreRow: expRow.querySelector('#vt-exp-scoreRow'),
@@ -2590,12 +2592,31 @@
         })();
 
         // 滑块 input：实时数字（change 委托落值+重跑，防抖不叠加）
+        function setEvalFramesUi(v) {
+            var n = Math.max(1, Math.min(300, Math.round(Number(v) || 75)));
+            state.exp.evalFrames = n;
+            if (_expCtrl.slider) _expCtrl.slider.value = String(n);
+            if (_expCtrl.framesNumber) _expCtrl.framesNumber.value = String(n);
+            if (_expCtrl.framesSpan) _expCtrl.framesSpan.textContent = n + '帧';
+        }
         if (_expCtrl.slider) {
-            _expCtrl.slider.addEventListener('input', function() {
-                state.exp.evalFrames = Math.max(1, Math.min(300, parseInt(_expCtrl.slider.value, 10) || 75));
-                if (_expCtrl.framesSpan) {
-                    _expCtrl.framesSpan.textContent = state.exp.evalFrames + '帧';
-                }
+            _expCtrl.slider.addEventListener('input', function() { setEvalFramesUi(_expCtrl.slider.value); });
+            // v147：滑块获得焦点时滚轮每格精确 ±1，阻止页面滚动。
+            _expCtrl.slider.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                setEvalFramesUi(Number(_expCtrl.slider.value) + (e.deltaY < 0 ? 1 : -1));
+                try { VantageTree.setEvalFrames(state.exp.evalFrames); } catch (eWheel) {}
+                if (state.paused) { runNineOps(); renderViz(); }
+                updatePanel();
+            }, { passive: false });
+        }
+        if (_expCtrl.framesNumber) {
+            _expCtrl.framesNumber.addEventListener('input', function() { setEvalFramesUi(_expCtrl.framesNumber.value); });
+            _expCtrl.framesNumber.addEventListener('change', function() {
+                setEvalFramesUi(_expCtrl.framesNumber.value);
+                try { VantageTree.setEvalFrames(state.exp.evalFrames); } catch (eNum) {}
+                if (state.paused) { runNineOps(); renderViz(); }
+                updatePanel();
             });
         }
         if (_expCtrl.growLayers) {
@@ -3742,6 +3763,9 @@
         }
         if (_expCtrl.slider && parseInt(_expCtrl.slider.value, 10) !== state.exp.evalFrames) {
             _expCtrl.slider.value = String(state.exp.evalFrames);
+        }
+        if (_expCtrl.framesNumber && parseInt(_expCtrl.framesNumber.value, 10) !== state.exp.evalFrames) {
+            _expCtrl.framesNumber.value = String(state.exp.evalFrames);
         }
         if (_expCtrl.framesSpan) {
             var txt = state.exp.evalFrames + '帧';
