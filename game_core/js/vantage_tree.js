@@ -30,6 +30,9 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v147（扫描用途标记补齐）：scanNodeDeath 的 JS 融合审计标记为
+ *   `auditPurpose=scanNodeDeath`，固定帧数滑块改由面板 v147 支持滚轮/数字输入。
+ *
  * 2026-09-10 v146（融合审计环按用途冻结，避免最后一次 0 帧预检查覆盖案发现场）：
  *   v144 的 fusedAudit 只有最后一批；Rust 评分路径先做 durationFrames=0 预检查，
  *   后续记录会把真正 JS 融合/扫描结果覆盖掉。v146 给 auditPurpose 标记
@@ -659,7 +662,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v146';
+    var TREE_VERSION = 'v147';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1860,6 +1863,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             threats: scanThreats,
             tGlobal: node.rolloutStartT || 0,
             nowTGlobal: nowTGlobalOf(tree),
+            auditPurpose: 'scanNodeDeath',
             trace: []          // v121：逐帧轨迹（只记录）
         };
         var op = [{ name: node.opName || '?', inputs: node.inputs }];
