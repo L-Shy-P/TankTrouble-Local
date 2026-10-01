@@ -30,6 +30,15 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v155（锁死主人不变量：只要有非红，红的就绝对不能选）：
+ *   v154 后主人观察到 3 局里有 1 局选中了红（走 1 步就死）而兄弟里还有 3 个橙
+ *   （走 2 步才死）。主人的判断：「分数竞争里确实存在活的时间短但分高的情况，
+ *   忘了过滤这种根本没活的」。核对代码：硬过滤其实有，但只认 `fd===1`，漏了
+ *   `fd=0`；而且选完之后 fd 可能被重评分改成红，没有兜底。
+ *   v155：①三处过滤统一改用 `isTerminalDead`（fd<=1）；②新增 enforceNonRedPrefer
+ *   兜底——选完后若选中红而兄弟有非红，强制改选非红。兄弟全是红=节点真死，不干预。
+ *   旧写法备份：`c.fullDeathFrame === 1`。
+ *
  * 2026-09-10 v154（软死节点在段末提交后立即再分叉一层）：
  *   主人模型要求“只要有一种操作没红，就还能多活几帧、继续分叉，直到 9 种全红”。
  *   旧实现的缺口：seg 被 safeFramesForDeath 压到 1 帧时，每 tick 都到段末 →
@@ -728,7 +737,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v154';
+    var TREE_VERSION = 'v155';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -4859,7 +4868,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;
             anyActive = true;
-            if (!(c.fullDeathFrame === 1)) { onlyImmediateDead = false; break; }
+            // v155：主人不变量「只要有非红，红的就绝对不能选」。红=能走<=1步=fd<=1，
+            // 旧写法只认 fd===1，漏了 fd=0（起手就撞上）。
+            if (!isTerminalDead(c)) { onlyImmediateDead = false; break; }
         }
         if (!anyActive) onlyImmediateDead = false;
         // v94：混合选路的安全底线——只要还有非 dead 候选，就不选 dead 候选去换目标。
@@ -4883,7 +4894,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
-            if (!onlyImmediateDead && c.fullDeathFrame === 1) continue;   // 有可苟候选时跳过立即真死
+            if (!onlyImmediateDead && isTerminalDead(c)) continue;   // v155：有非红候选时红的绝对不选
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
             // v103：空场地形引导阶段——9 个操作安全分完全一样，只有“往安全地形
             // 挪了多少”能分胜负，所以此时它优先于平局规则（含“优先静止”）。
@@ -4922,6 +4933,30 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 仅排除 invalid/exhausted；有非真死候选时跳过 fullDeathFrame===1 的真死候选。
      * 软死不额外偏置，靠总分自然排序。
      */
+    /**
+     * v155 兜底：主人不变量「只要有非红，红的就绝对不能选」。
+     * 覆盖两种漏网：
+     *   ① 选完之后 fd 被重评分从橙/绿改成红（death-update-audit 里出现过）；
+     *   ② 评分竞争里软死候选分数高、把红的顶上来。
+     * 兄弟全是红（节点真死）时不干预——那时死是唯一出路。
+     */
+    function enforceNonRedPrefer(tree, chosen, parent) {
+        if (!chosen || !parent || !parent.children || !parent.children.length) return chosen;
+        if (!isTerminalDead(chosen)) return chosen;
+        var alt = null;
+        for (var i = 0; i < parent.children.length; i++) {
+            var c = parent.children[i];
+            if (!c || c === chosen || c.invalid || c.exhausted) continue;
+            if (isTerminalDead(c)) continue;            // 红的不要
+            if (!alt || fullRolloutTotalOf(c) > fullRolloutTotalOf(alt)) alt = c;
+        }
+        if (!alt) return chosen;                        // 全红=节点真死，只能接受
+        recordStructure(tree, 'red-over-nonred-retarget',
+            '#' + (chosen.id || '?') + ' fd=' + chosen.fullDeathFrame +
+            ' -> #' + (alt.id || '?') + ' fd=' + alt.fullDeathFrame);
+        return alt;
+    }
+
     function pickBestChildByRolloutTotal(children, exclude) {
         var i, c;
         var anyActive = false, allTrueDead = true, anyNotDead = false;
@@ -4930,7 +4965,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
             anyActive = true;
             if (c.status !== 'dead') anyNotDead = true;
-            if (c.fullDeathFrame !== 1) allTrueDead = false;
+            // v155：红 = fd<=1（能走<=1步），不是只有 fd===1。
+            if (!isTerminalDead(c)) allTrueDead = false;
         }
         if (!anyActive) allTrueDead = false;
         // v102：目标分/杀戮场分各自缩放（不再要求有点击目标）。
@@ -4941,7 +4977,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
-            if (!allTrueDead && c.fullDeathFrame === 1) continue;
+            if (!allTrueDead && isTerminalDead(c)) continue;   // v155：有非红候选时红的绝对不选
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
             // v103：空场地形引导阶段：安全分全平，用“地形增益 → 兜底安全分”排名。
             var rawTotal = fullRolloutTotalOf(c);
@@ -6189,6 +6225,8 @@ return count;
         if (!best) return false;
         // v77：freshRoot 若走了 Rust 物理预测，选中节点仍需 JS 融合世界确认。
         best = confirmExecutionRoutePick(tree, adapter, best, root);
+        // v155 兜底：选完后若选中的是红、而兄弟里还有非红，强制改选非红。
+        best = enforceNonRedPrefer(tree, best, root);
 
         // v46 根修：完整 9 候选留档，但不再删 8 兄弟——它们就是下一段
         // 提交的比较集和根层活预览。旧逻辑让首次提交后树立刻只剩 2 节点。
@@ -7854,6 +7892,7 @@ return count;
         rerouteTreeForCurrentThreats: rerouteTreeForCurrentThreats,
         fullRolloutTotalOf: fullRolloutTotalOf,
         pickBestChildByRolloutTotal: pickBestChildByRolloutTotal,
+        enforceNonRedPrefer: enforceNonRedPrefer,   // v155：主人不变量，导出供回归直接验证
         backpropBest: backpropBest,
         pickBest: pickBest,
         routeAvgOfLeaf: routeAvgOfLeaf,
