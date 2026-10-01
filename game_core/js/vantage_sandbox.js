@@ -651,56 +651,106 @@
      * v24：候选坦克体恢复使用游戏原版 B2DUtils.createTankBody 创建，
      * 然后逐个夹具修改 filter，再为每个原有夹具复制同形状传感器夹具。
      */
-    // v148：纯诊断几何工具。不能使用 GetAABB（不同 Box2D 构建 ABI 不一致），
+    // v149：纯诊断几何工具。不能使用 GetAABB（不同 Box2D 构建 ABI 不一致），
     // 只从真实 fixture shape + body transform 计算融合传感器 AABB。
+    // v149 修 v148 自身的 bug：旧 fusedSensorAabb 用 `out = ...` 覆盖，只留下
+    // **最后一个** sensor 夹具，而候选坦克有"车体 + 炮塔"两个 sensor，于是测量
+    // 打在了错误的那个上，出现"明明有 contacts 却显示 gap=1.8m"的假矛盾。
+    function fusedR2(v) { return Math.round(v * 100) / 100; }
     function fusedWorldPoint(body, x, y) {
         var p = body.GetPosition(), a = body.GetAngle(), c = Math.cos(a), s = Math.sin(a);
         return { x: p.x + c * x - s * y, y: p.y + s * x + c * y };
     }
-    function fusedSensorAabb(body) {
-        var out = null, f = body && body.GetFixtureList ? body.GetFixtureList() : null;
+    function fusedFixtureAabb(body, fixture) {
+        var sh = fixture && fixture.GetShape ? fixture.GetShape() : null;
+        if (!sh) return null;
+        var pts = [], type = sh.GetType ? sh.GetType() : null;
+        if (type === Box2D.Collision.Shapes.b2Shape.e_circleShape) {
+            var cp = sh.m_p || { x: 0, y: 0 }, cw = fusedWorldPoint(body, cp.x, cp.y), cr = sh.m_radius || 0;
+            pts = [{ x: cw.x - cr, y: cw.y - cr }, { x: cw.x + cr, y: cw.y + cr }];
+        } else {
+            var vs = (typeof sh.GetVertices === 'function' ? sh.GetVertices() : sh.m_vertices) || [];
+            for (var vi = 0; vi < vs.length; vi++) pts.push(fusedWorldPoint(body, vs[vi].x, vs[vi].y));
+        }
+        if (!pts.length) return null;
+        var ax = pts[0].x, bx = pts[0].x, ay = pts[0].y, by = pts[0].y;
+        for (var pi = 1; pi < pts.length; pi++) {
+            ax = Math.min(ax, pts[pi].x); bx = Math.max(bx, pts[pi].x);
+            ay = Math.min(ay, pts[pi].y); by = Math.max(by, pts[pi].y);
+        }
+        return { minX: ax, maxX: bx, minY: ay, maxY: by, type: type };
+    }
+    /** 返回该候选体的**全部** sensor 夹具 AABB（车体 + 炮塔）。 */
+    function fusedSensorAabbs(body) {
+        var out = [], f = body && body.GetFixtureList ? body.GetFixtureList() : null;
         while (f) {
             var ud = f.GetUserData && f.GetUserData();
             if (ud && ud.type === 'fusedSensor') {
-                var sh = f.GetShape(), pts = [], type = sh && sh.GetType ? sh.GetType() : null;
-                if (type === Box2D.Collision.Shapes.b2Shape.e_circleShape) {
-                    var cp = sh.m_p || { x: 0, y: 0 }, cw = fusedWorldPoint(body, cp.x, cp.y), cr = sh.m_radius || 0;
-                    pts = [{x:cw.x-cr,y:cw.y-cr},{x:cw.x+cr,y:cw.y+cr}];
-                } else {
-                    var vs = sh && (typeof sh.GetVertices === 'function' ? sh.GetVertices() : sh.m_vertices) || [];
-                    for (var vi=0; vi<vs.length; vi++) pts.push(fusedWorldPoint(body, vs[vi].x, vs[vi].y));
-                }
-                if (pts.length) {
-                    var ax=pts[0].x,bx=pts[0].x,ay=pts[0].y,by=pts[0].y;
-                    for (var pi=1;pi<pts.length;pi++){ax=Math.min(ax,pts[pi].x);bx=Math.max(bx,pts[pi].x);ay=Math.min(ay,pts[pi].y);by=Math.max(by,pts[pi].y);}
-                    out = { minX:ax,maxX:bx,minY:ay,maxY:by, op:ud.opIndex, type:type };
-                }
+                var a = fusedFixtureAabb(body, f);
+                if (a) { a.op = ud.opIndex; out.push(a); }
             }
             f = f.GetNext();
         }
         return out;
     }
-    function fusedCircleAabbGap(px, py, radius, box) {
-        if (!box) return null;
-        var dx = px < box.minX ? box.minX-px : (px > box.maxX ? px-box.maxX : 0);
-        var dy = py < box.minY ? box.minY-py : (py > box.maxY ? py-box.maxY : 0);
-        return Math.sqrt(dx*dx+dy*dy) - radius;
+    /** 子弹圆到"若干传感器 AABB"的最近 gap；负值=已重叠。 */
+    function fusedCircleSensorGap(px, py, radius, boxes) {
+        var best = null, bestBox = null;
+        for (var i = 0; i < boxes.length; i++) {
+            var b = boxes[i];
+            var dx = px < b.minX ? b.minX - px : (px > b.maxX ? px - b.maxX : 0);
+            var dy = py < b.minY ? b.minY - py : (py > b.maxY ? py - b.maxY : 0);
+            var g = Math.sqrt(dx * dx + dy * dy) - radius;
+            if (best === null || g < best) { best = g; bestBox = b; }
+        }
+        return { gap: best, box: bestBox };
     }
     function auditFusedGeometry(audit, fc, k) {
         if (!audit || !audit.geometryEnabled) return;
         var slots = fc.bulletSlots || [], cands = fc.candidates || [];
-        for (var bi=0; bi<slots.length; bi++) {
-            var bs=slots[bi]; if (!bs || !bs.body || !bs.body.IsActive() || bs.lastRound!==fc.round) continue;
-            var bp=bs.body.GetPosition(), bf=bs.body.GetFixtureList(), rad=0;
-            try { rad=bf && bf.GetShape && (bf.GetShape().m_radius || 0); } catch(eRad) {}
-            var pid=bs.pid == null ? ('slot'+bi) : bs.pid;
-            for (var oi=0; oi<cands.length; oi++) {
-                var box=fusedSensorAabb(cands[oi]); if (!box) continue;
-                var gap=fusedCircleAabbGap(bp.x,bp.y,rad,box), key=String(oi)+'|'+String(pid);
-                var old=audit.geometry.proximity[key];
-                if (!old || gap<old.minGap) audit.geometry.proximity[key]={op:oi,pid:pid,minGap:gap,k:k,
-                    bullet:{x:bp.x,y:bp.y,r:rad},sensor:box};
+        for (var bi = 0; bi < slots.length; bi++) {
+            var bs = slots[bi];
+            if (!bs || !bs.body || !bs.body.IsActive() || bs.lastRound !== fc.round) continue;
+            var bp = bs.body.GetPosition(), bf = bs.body.GetFixtureList(), rad = 0;
+            try { rad = bf && bf.GetShape && (bf.GetShape().m_radius || 0); } catch (eRad) {}
+            var pid = bs.pid == null ? ('slot' + bi) : bs.pid;
+            for (var oi = 0; oi < cands.length; oi++) {
+                var boxes = fusedSensorAabbs(cands[oi]);
+                if (!boxes.length) continue;
+                var gg = fusedCircleSensorGap(bp.x, bp.y, rad, boxes);
+                var key = String(oi) + '|' + String(pid);
+                var old = audit.geometry.proximity[key];
+                // 只留"最近的一次"，并把坐标压到 2 位小数（15 位浮点是录像体积元凶）。
+                if (!old || gg.gap < old.minGap) {
+                    audit.geometry.proximity[key] = {
+                        op: oi, pid: pid, minGap: fusedR2(gg.gap), k: k, sensorCount: boxes.length,
+                        bullet: { x: fusedR2(bp.x), y: fusedR2(bp.y), r: fusedR2(rad) },
+                        sensor: gg.box ? { minX: fusedR2(gg.box.minX), maxX: fusedR2(gg.box.maxX),
+                            minY: fusedR2(gg.box.minY), maxY: fusedR2(gg.box.maxY), op: gg.box.op } : null
+                    };
+                }
             }
+        }
+    }
+    /** 接触瞬间的真值：直接对那个 sensor 夹具量一次。 */
+    function auditContactTruth(fc, sensorFixture, otherFixture, k, op, pid, category, audit) {
+        try {
+            var sBody = sensorFixture.GetBody && sensorFixture.GetBody();
+            var oBody = otherFixture.GetBody && otherFixture.GetBody();
+            var sa = fusedFixtureAabb(sBody, sensorFixture);
+            var op2 = oBody && oBody.GetPosition ? oBody.GetPosition() : null;
+            var orad = 0;
+            try { orad = otherFixture.GetShape && (otherFixture.GetShape().m_radius || 0); } catch (eOr) {}
+            var gap = (sa && op2) ? fusedCircleSensorGap(op2.x, op2.y, orad, [sa]) : null;
+            audit.contacts.push({
+                k: k, op: op, pid: pid, category: category,
+                bullet: op2 ? { x: fusedR2(op2.x), y: fusedR2(op2.y), r: fusedR2(orad) } : null,
+                sensor: sa ? { minX: fusedR2(sa.minX), maxX: fusedR2(sa.maxX),
+                    minY: fusedR2(sa.minY), maxY: fusedR2(sa.maxY) } : null,
+                gapAtContact: gap ? fusedR2(gap.gap) : null
+            });
+        } catch (eTruth) {
+            audit.contacts.push({ k: k, op: op, pid: pid, category: category, truthError: String(eTruth) });
         }
     }
 
@@ -1257,8 +1307,8 @@
                     slot.active = slot.initialSpeed > 0;
                     if (!slot.active) { slot.body.SetActive(false); continue; }
                     slot.srcInfo = { src: 'approx', off: 0, q: qLife, idx: advFrames };
-                    audit.placements.push({ pid: slot.pid, active: true, src: 'approx', x: fpx, y: fpy,
-                        vx: rvel.x, vy: rvel.y, threat: !!th, trackLen: th && th.track ? th.track.length : 0,
+                    audit.placements.push({ pid: slot.pid, active: true, src: 'approx', x: fusedR2(fpx), y: fusedR2(fpy),
+                        vx: fusedR2(rvel.x), vy: fusedR2(rvel.y), threat: !!th, trackLen: th && th.track ? th.track.length : 0,
                         idx: advFrames });
                     if (th) _fusedDropStats.approxPlaced++;
                     else _fusedDropStats.noThreat++;
@@ -1294,7 +1344,7 @@
             if (slot.active) {
                 var ap = slot.body.GetPosition(), av = slot.body.GetLinearVelocity(), asi = slot.srcInfo || {};
                 audit.placements.push({ pid: slot.pid, active: true, src: asi.src || null,
-                    x: ap.x, y: ap.y, vx: av.x, vy: av.y, threat: !!th,
+                    x: fusedR2(ap.x), y: fusedR2(ap.y), vx: fusedR2(av.x), vy: fusedR2(av.y), threat: !!th,
                     trackLen: th && th.track ? th.track.length : 0,
                     idx: asi.idx == null ? null : asi.idx });
             }
@@ -1445,11 +1495,13 @@
                     if (sensorUd && otherCat === Constants.COLLISION_CATEGORIES.PROJECTILE) {
                         var op = sensorUd.opIndex;
                         if (op >= 0 && op < dead.length && !dead[op]) {
+                            var sensorFixAudit = (udA && udA.type === 'fusedSensor') ? fixA : fixB;
+                            var otherFixAudit = (udA && udA.type === 'fusedSensor') ? fixB : fixA;
                             var otherUdAudit = (udA && udA.type === 'fusedSensor') ? udB : udA;
                             var otherObjAudit = otherUdAudit && otherUdAudit.gameObject;
-                            audit.contacts.push({ k: k, op: op,
-                                pid: otherObjAudit && otherObjAudit.id !== undefined ? otherObjAudit.id : null,
-                                category: otherCat });
+                            auditContactTruth(fc, sensorFixAudit, otherFixAudit, k, op,
+                                otherObjAudit && otherObjAudit.id !== undefined ? otherObjAudit.id : null,
+                                otherCat, audit);
                             dead[op] = true;
                             deathFrame[op] = k + 1;
                         }
@@ -1466,8 +1518,15 @@
         audit.deathFrames = deathFrame.slice();
         audit.dead = dead.slice();
         if (audit.geometry && audit.geometry.proximity) {
-            var gkeys = Object.keys(audit.geometry.proximity);
-            if (gkeys.length > 180) { var keep={}; for (var gi=0;gi<180;gi++) keep[gkeys[gi]]=audit.geometry.proximity[gkeys[gi]]; audit.geometry.proximity=keep; }
+            // v149：只留"近失"(gap<2m) 的条目，远距离的整片 45 条是录像体积元凶。
+            var gkeys = Object.keys(audit.geometry.proximity), gkeep = {};
+            for (var gi = 0; gi < gkeys.length; gi++) {
+                var gv = audit.geometry.proximity[gkeys[gi]];
+                if (gv && typeof gv.minGap === 'number' && gv.minGap < 2.0) gkeep[gkeys[gi]] = gv;
+            }
+            var gk2 = Object.keys(gkeep);
+            if (gk2.length > 16) { var g2 = {}; for (var gj = 0; gj < 16; gj++) g2[gk2[gj]] = gkeep[gk2[gj]]; gkeep = g2; }
+            audit.geometry.proximity = gkeep;
         }
         _lastFusedBatchSummary = audit;
         _fusedBatchAuditHistory.push(audit);

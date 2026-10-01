@@ -30,6 +30,17 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v149（修 v148 审计自身 bug + 加死亡时整树快照 + 压缩录像体积）：
+ *   ① v148 的 fusedSensorAabb 用 `out=` 覆盖，只留下**最后一个** sensor 夹具，
+ *      而候选坦克有"车体+炮塔"两个 sensor，导致测量打在错误夹具上——出现
+ *      "明明 contacts 有记录、minGap 却显示 1.8m"的假矛盾。v149 返回全部夹具。
+ *   ② 接触瞬间记录真值（那一个 sensor 夹具 AABB + 子弹位置 + gapAtContact）。
+ *   ③ 录像体积从 6.4MB 降下来：坐标压到 2 位小数、proximity 只留 gap<2m 的
+ *      近失且上限 16 条、recent 12→6 条。
+ *   ④ 新增 deathTree：死亡瞬间整棵树 {id,fd,seg,st,ch,d} 紧凑快照，用来回答
+ *      主人的"分叉都是真死、选中的路却是橙色"——此前 candFd 只记 root 的 9 个
+ *      孩子，深层分支的颜色根本没进录像，无从对账。
+ *
  * 2026-09-10 v148（融合几何接触审计）：绿死案例中凶器已 placements 但 contacts=0，
  *   现在额外记录 sensor AABB、凶器位置/半径、最近几何 gap（距离 AABB；负值表示
  *   已重叠）。只对 jsConfirm/scanNodeDeath 的非零批次开启，且有上限，不改死亡判定。
@@ -666,7 +677,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v148';
+    var TREE_VERSION = 'v149';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -763,6 +774,7 @@
         autoPostFrames: 90, // 死亡后继续录 1.5 秒
         autoTail: 0,
         autoEvents: [],
+        deathTree: null,   // v149：死亡瞬间整棵树的紧凑快照（回答"分叉都是红、选中的却是橙"）
         startedAt: null,
         startReason: '',
         version: 0
@@ -791,6 +803,31 @@
 
     function isRecording() { return !!_rec.on; }
 
+    /**
+     * v149：整棵树的紧凑快照。每节点只留 4 个字段：
+     *   id / fd(预测死亡帧) / seg(实际执行帧) / ch(是否在 commitPath 上)
+     * 这是回答主人"大多数分叉都是真死，选的路却是橙色"的唯一办法——之前的
+     * candFd/segSnap 只记 root 的 9 个孩子，深层分支的颜色根本没进录像。
+     */
+    function compactTreeDump(tree) {
+        if (!tree || !tree.root) return null;
+        var commitIds = {};
+        try {
+            var path = commitPathOf(tree.root, tree.commitNode) || [];
+            for (var pi = 0; pi < path.length; pi++) commitIds[path[pi].id] = true;
+        } catch (ePath) {}
+        var out = [];
+        (function rec(n, depth) {
+            if (!n || out.length >= 600) return;
+            out.push({
+                id: n.id, fd: (typeof n.fullDeathFrame === 'number') ? n.fullDeathFrame : null,
+                seg: n.segmentFrames || 0, st: n.status || '', ch: !!commitIds[n.id], d: depth
+            });
+            for (var i = 0; i < n.children.length; i++) rec(n.children[i], depth + 1);
+        })(tree.root, 0);
+        return out;
+    }
+
     /** 死亡自动抓取：即使没手动录，也把死亡前后这一段留住。 */
     function recNoteDeath(info) {
         if (!_rec.armed) return;
@@ -801,6 +838,8 @@
             projectileType: info && info.projectileType !== undefined ? info.projectileType : null
         });
         if (_rec.autoEvents.length > 20) _rec.autoEvents.shift();
+        // v149：死亡瞬间冻结整棵树结构（此时 _frozen 尚未置位，树还在）。
+        try { _rec.deathTree = compactTreeDump(_tree); } catch (eDT) { _rec.deathTree = null; }
         if (!_rec.on) {
             // v137：自动抓取**绝不能把死亡前的候选快照清掉**——那正是"树当时到底
             // 看没看见、有没有更安全候选可选"的唯一证据。recBegin 会把
@@ -884,7 +923,7 @@
                     return {
                         last: adapter && adapter.getLastFusedBatchSummary
                             ? adapter.getLastFusedBatchSummary() : null,
-                        recent: ah.slice(-12),
+                        recent: ah.slice(-6),
                         lastNonZero: nz
                     };
                 } catch (eAudit) { return null; }
@@ -1021,6 +1060,7 @@
             frames: _rec.buf.length,
             deaths: _rec.autoEvents.slice(),
             scanTraces: _scanTraceRing.slice(),   // v121/v137：权威扫描逐帧轨迹（模块级环，跨 reset 存活）
+            deathTree: _rec.deathTree,            // v149：死亡瞬间整棵树枝干（含深层分支颜色）
             meta: {
                 treeVersion: TREE_VERSION,
                 frameDt: FRAME_DT,
