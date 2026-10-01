@@ -779,8 +779,12 @@
                 var boxes = fusedSensorAabbs(cands[oi]);
                 if (!boxes.length) continue;
                 var gg = fusedCircleSensorGap(bp.x, bp.y, rad, boxes);
-                // v150：同时算精确多边形 gap。AABB 会假阳，定案只认 polyGap。
-                var gp = fusedCircleSensorPolyGap(bp.x, bp.y, rad, cands[oi]);
+                // v152 性能：精确多边形距离是热路径大头。先用 AABB 粗筛，
+                // 只有 AABB gap 已经很小（<0.35m）才做精确测试——绝大多数帧
+                // 子弹离坦克几米，粗筛就挡掉了。v150 无条件算，是"现象更严重"的来源。
+                var gp = (gg.gap !== null && gg.gap < 0.35)
+                    ? fusedCircleSensorPolyGap(bp.x, bp.y, rad, cands[oi])
+                    : null;
                 var key = String(oi) + '|' + String(pid);
                 var old = audit.geometry.proximity[key];
                 var refGap = (gp && typeof gp.gap === 'number') ? gp.gap : gg.gap;
@@ -1465,13 +1469,14 @@
         if (audit.placements.length > 80) audit.placements.length = 80;
         parkUnusedFusedBullets(fc);
 
-        var samples = [], dead = [], deathFrame = [], speeds = [], rotSpds = [];
+        var samples = [], dead = [], deathFrame = [], speeds = [], rotSpds = [], geoHit = [];
         for (i = 0; i < operations.length; i++) {
             samples.push([]);
             dead.push(false);
             deathFrame.push(-1);
             speeds.push(0);
             rotSpds.push(0);
+            geoHit.push(-1);
         }
 
         var snapFwd = me.forward, snapBack = me.back,
@@ -1523,6 +1528,35 @@
                     bs: tb
                 });
             }
+            // v153：几何判死**扫描**（只记不改速）。Box2D 对 sensor 的精确形状测试
+            // 被 fat-AABB 门挡住时 e_touchingFlag 保持 false，整场碰撞被漏掉（v151
+            // 录像实证 polyGap=-0.34 却 touching=false）。这里逐帧记录“第一次几何
+            // 重叠”发生在第几帧，但**不立刻置 dead**——立刻置 dead 会把候选停车，
+            // 使 JS/Rust 轨迹分叉（实测 diff_rollout_bridge 会因此报 0.32m 轨迹偏差）。
+            // 改成 rollout 跑完后回溯补判：接触路径没抓到时才用它，抓到时以接触为准。
+            for (i = 0; i < operations.length; i++) {
+                if (geoHit[i] >= 0) continue;
+                for (var gbi = 0; gbi < fc.bulletSlots.length; gbi++) {
+                    var gbs = fc.bulletSlots[gbi];
+                    if (!gbs || !gbs.body || !gbs.body.IsActive() || gbs.lastRound !== fc.round) continue;
+                    var gbp = gbs.body.GetPosition(), gbf = gbs.body.GetFixtureList(), gbr = 0;
+                    try { gbr = gbf && gbf.GetShape && (gbf.GetShape().m_radius || 0); } catch (eGbr) {}
+                    var gBoxes = fusedSensorAabbs(fc.candidates[i]);
+                    if (!gBoxes.length) continue;
+                    var gGate = fusedCircleSensorGap(gbp.x, gbp.y, gbr, gBoxes);
+                    if (gGate.gap === null || gGate.gap >= 0.35) continue;
+                    var gExact = fusedCircleSensorPolyGap(gbp.x, gbp.y, gbr, fc.candidates[i]);
+                    if (gExact && typeof gExact.gap === 'number' && gExact.gap < 0) {
+                        geoHit[i] = k;
+                        if (audit && audit.geometryEnabled) {
+                            audit.contacts.push({ k: k, op: i, pid: gbs.pid, category: 'geometry',
+                                polyGapAtContact: fusedR2(gExact.gap), source: 'polyGap-scan' });
+                        }
+                        break;
+                    }
+                }
+            }
+
             if (k >= durationFrames) break;
 
             for (i = 0; i < operations.length; i++) {
@@ -1616,7 +1650,12 @@
                                 otherObjAudit && otherObjAudit.id !== undefined ? otherObjAudit.id : null,
                                 otherCat, audit);
                             dead[op] = true;
-                            deathFrame[op] = k + 1;
+                            // v153：IsTouching() 反映的是 Step **之前**那一帧
+                            // （b2World::Step 先 Collide() 再 Solve()），所以这里
+                            // 记的是“第 k 帧撞上” = 能走 k 步。旧写法 k+1 是整体
+                            // 偏大 1 的来源：它把“走 1 步就死”标成 fd=2（橙）而不是
+                            // fd=1（红），于是“9 种全红=节点真死”永远凑不齐。
+                            deathFrame[op] = k;
                         }
                     }
                 }
@@ -1630,6 +1669,16 @@
         me.left = snapLeft; me.right = snapRight;
         me.speed = snapSpeed; me.rotationSpeed = snapRotSpd;
 
+        // v153：回溯补判。接触路径没抓到、但几何上确实重叠的，补上死亡帧。
+        // 只会让死权更敏感（少漏），不会更迟钝；且不影响 rollout 轨迹，
+        // 因此 JS 与 Rust 的物理轨迹保持一致。
+        for (i = 0; i < operations.length; i++) {
+            if (!dead[i] && geoHit[i] >= 0) {
+                dead[i] = true;
+                deathFrame[i] = geoHit[i];
+                if (audit) audit.geometryFallback = true;
+            }
+        }
         audit.deathFrames = deathFrame.slice();
         audit.dead = dead.slice();
         // v151：把"几何已重叠但整段 rollout 没有任何接触"的 pair 摘出来，一眼可见。

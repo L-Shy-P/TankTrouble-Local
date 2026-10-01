@@ -1171,7 +1171,9 @@ pub fn verify_death_for_node(
 
             let q_life = (t_k - th.anchor_offset).max(0.0);
             let life_left = (th.life_left_seconds - q_life).max(0.0);
-            let active = initial_speed > 0.0 && life_left > 0.0;
+            // v137：同 rollout.rs —— placement 不因 life_left<=0 关整颗弹，
+            // 交给逐帧 life_left 递减自然退场，否则这几帧的死亡会被漏判。
+            let active = initial_speed > 0.0;
             vw.bullet_slots[slot_idx].initial_speed = initial_speed;
             vw.bullet_slots[slot_idx].life_left = life_left;
             vw.bullet_slots[slot_idx].active = active;
@@ -1244,7 +1246,8 @@ pub fn verify_death_for_node(
         }
 
         if hit {
-            return Ok(((k + 1) as i32, verified_frames));
+            // v153：与 rollout.rs/JS 融合世界同口径——death_frame = 能走几步。
+            return Ok((k as i32, verified_frames));
         }
     }
 

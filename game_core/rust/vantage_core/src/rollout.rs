@@ -678,7 +678,11 @@ pub fn run_rollout_batch(
 
         let initial_speed = (bullet.vx * bullet.vx + bullet.vy * bullet.vy).sqrt();
         let life_left = bullet.life_left.max(0.0);
-        let slot_active = initial_speed > 0.0 && life_left > 0.0;
+        // v137（与 JS `simulateFusedBatch` 同口径）：`life_left` 只回答“这颗弹还剩
+        // 几帧”，到期由下面逐帧 `life_left -= FRAME_DT` 自然退场。placement 阶段
+        // 不能因为 life_left<=0 就把整颗弹关掉——那会让它在**仍然存活的那几帧**里
+        // 从融合世界消失 → 死亡检测失明 → 树判 fd=-1 → 实际被打死。
+        let slot_active = initial_speed > 0.0;
         fc.bullet_slots[idx].initial_speed = initial_speed;
         fc.bullet_slots[idx].life_left = life_left;
         fc.bullet_slots[idx].active = slot_active;
@@ -798,7 +802,11 @@ pub fn run_rollout_batch(
         for op in hits {
             if op < dead.len() && !dead[op] {
                 dead[op] = true;
-                death_frame[op] = (k + 1) as i32;
+                // v153：death_frame 数的是“能走几步”，不是“走完后第几格”。
+                // b2World::Step 先 Collide() 再 Solve()，IsTouching() 反映 Step
+                // **之前**那一帧，所以第 k 帧撞上 = 能走 k 步。旧写法 k+1 与 JS
+                // 同步偏大 1，导致“走 1 步就死”被标成 fd=2（橙）而不是 fd=1（红）。
+                death_frame[op] = k as i32;
             }
         }
     }

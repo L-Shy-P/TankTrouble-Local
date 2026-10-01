@@ -30,6 +30,30 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v153（fullDeathFrame 改成数“能走几步”，修整体偏大 1）：
+ *   主人定义：红=操作真死=执行 1 帧就会死；橙=软死=还能活 2 帧及以上。
+ *   旧实现 deathFrame[op] = k + 1，而 b2World::Step 先 Collide() 再 Solve()，
+ *   IsTouching() 反映的是 Step **之前**第 k 帧 ⇒ deathFrame = 碰撞帧 + 1。
+ *   后果：‘走 1 步就死’被标成 fd=2（画橙），只有‘起手就撞上’才是 fd=1（红）。
+ *   于是 isTerminalDead 的 fd<=1 永远凑不齐 ⇒ 节点真死判定不出来 ⇒ AI 一直以为
+ *   还有余地，一路操作到死。这正是主人说的“橙死不该出现”。
+ *   v153 修：JS 融合 + Rust rollout/rescore 统一改成 deathFrame = 碰撞帧 =
+ *   “能走几步”。红严格 = 走 ≤1 步就死，与主人定义一一对应。
+ *   旧口径备份：`deathFrame[op] = k + 1`（JS）、`(k + 1) as i32`（Rust）。
+ *   几何判死补网同时移到 Step 之前，与 IsTouching 同一帧口径。
+ *
+ * 2026-09-10 v152（几何判死补网 + 审计热路径收窄）：
+ *   v151 三层定位到第二层：pair 在接触链表、bodyActive=true、但 IsTouching()=false。
+ *   读 Box2D 源码确认门在这里：b2Contact.Update() 的 sensor 分支
+ *   `if (f) touching = TestOverlap(...)`，f = fixtureA.m_aabb.TestOverlap(fixtureB.m_aabb)
+ *   （fat-AABB 门）；b2ContactManager.Collide() 还要求至少一个 body awake +
+ *   broadphase proxy 重叠。任一门不满足 → e_touchingFlag 保持 false → 我们只读
+ *   IsTouching() → 整场碰撞漏判。
+ *   修法（补网，不动 Box2D）：每帧对未死候选用同一批夹具形状算精确圆-多边形距离，
+ *   polyGap<0 即判死。只会更敏感（少漏），不会更迟钝。
+ *   顺带修我自己 v150 的性能回归：精确距离改成 AABB gap<0.35 才算，否则无条件算
+ *   9 候选×弹×帧，正是主人说“现象更严重了”的来源。
+ *
  * 2026-09-10 v151（定案"树不认为它会死"的物理层 + 接触链表逐帧审计）：
  *   v150 的精确多边形距离给出了决定性数据：3 帧局凶器 b-8371-13 在
  *   t=7.933~8.067 连续 5 帧 `polyGap = -0.13 ~ -0.30`（子弹圆真压进坦克多边形），
@@ -697,7 +721,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v151';
+    var TREE_VERSION = 'v153';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -3785,7 +3809,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  让 AI 更频繁换路，而不是按住一个操作直到接近死亡。 */
     function safeFramesForDeath(tree, fd, planned) {
         if (!(fd >= 0)) return planned;
-        if (fd === 1) return 1;
+        // v153：fd 现在数“能走几步”（见 §57.24）。fd=0=起手就撞上、fd=1=走 1 步就死，
+        // 两者都是“一选就是死”，都只执行 1 帧。旧写法只认 fd===1，fd=0 会算出 -1。
+        if (fd <= 1) return 1;
         var ratio = (tree && tree.cfg && typeof tree.cfg.deathDurationRatio === 'number')
             ? tree.cfg.deathDurationRatio : 0.5;
         if (!(ratio > 0) || ratio >= 1) return Math.min(fd - 1, planned);
