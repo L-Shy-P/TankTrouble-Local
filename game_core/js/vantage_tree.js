@@ -30,6 +30,13 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v154（软死节点在段末提交后立即再分叉一层）：
+ *   主人模型要求“只要有一种操作没红，就还能多活几帧、继续分叉，直到 9 种全红”。
+ *   旧实现的缺口：seg 被 safeFramesForDeath 压到 1 帧时，每 tick 都到段末 →
+ *   tick 提交后直接 return → growStep 永远不跑 → 树深度停在 1 层，来不及在死前
+ *   再分叉。v154 新增 growAfterCommitIfNeeded：提交后若新 commitNode 是软死
+ *   （fd>=2）且无子节点，补一次生长。带性能护栏（growSkip/growMs<=60）。
+ *
  * 2026-09-10 v153（fullDeathFrame 改成数“能走几步”，修整体偏大 1）：
  *   主人定义：红=操作真死=执行 1 帧就会死；橙=软死=还能活 2 帧及以上。
  *   旧实现 deathFrame[op] = k + 1，而 b2World::Step 先 Collide() 再 Solve()，
@@ -721,7 +728,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v153';
+    var TREE_VERSION = 'v154';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -5453,6 +5460,34 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return newNode;
     }
 
+    /**
+     * v153：软死节点在段末提交后立即再分叉一层。
+     * 主人模型：只要 9 种操作里有任意一种不是红，就还能多活几帧、继续分叉，
+     * 直到某一节点 9 种全红才算节点真死。
+     *
+     * 旧实现的缺口：`safeFramesForDeath` 把软死节点的 seg 压到 1 帧时，每个 tick
+     * 都到段末 → tick 提交后直接 `return` → `growStep` 永远不跑 → 树深度停在
+     * 1 层（root + 9 孩子），来不及在死前再分叉一层。这正是主人说的
+     * 「它明明有机会在死之前再建立节点，却持续进行同一个操作到死」。
+     *
+     * 仅当新 commitNode 是**软死**（fd>=2，还能活几帧）且还没子节点时才补一次生长；
+     * 已是真死（fd<=1）或本来就活满的，交给常规生长节奏，避免无谓开销。
+     */
+    function growAfterCommitIfNeeded(tree, adapter, threats) {
+        var n = tree && tree.commitNode;
+        if (!n || n.children.length > 0) return false;
+        if (isTerminalDead(n)) return false;                 // 已是真死，无需再分叉
+        if (!(n.fullDeathFrame >= 2)) return false;          // 没死/活满 → 常规节奏
+        if (tree._growSkip) return false;                    // 性能熔断中
+        if (!(tree.stats && tree.stats.growMs <= 60)) return false;  // 生长已超时不再加
+        try {
+            growStep(tree, adapter, threats || tree.threats || []);
+            return true;
+        } catch (eGrowAfterCommit) {
+            return false;
+        }
+    }
+
     function growStep(tree, adapter, threats) {
         if (tree._expandSlice) {
             stepExpandSlice(tree, adapter);
@@ -7029,12 +7064,14 @@ return count;
                 perfEnd('commit');
                 commit(tree, adapter, evalThreats, tankState, { freshRoot: false });
                 perfEnd('commit');
+                growAfterCommitIfNeeded(tree, adapter, evalThreats);   // v153
                 return;
             }
             perfEnd('commit');
             startCommitSlice(tree, adapter, evalThreats, tankState, { freshRoot: freshRoot });
             stepCommitSlice(tree);
             perfEnd('commit');
+            growAfterCommitIfNeeded(tree, adapter, evalThreats);   // v153
             return;
         }
 
