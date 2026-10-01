@@ -714,12 +714,20 @@
     function fusedPointPolygonGap(px, py, radius, verts) {
         if (!verts || verts.length < 2) return null;
         var n = verts.length, inside = true, minD = Infinity;
+        // v151：先判绕向。旧写法只认逆时针（cross>=0 为内），顺时针多边形会让
+        // inside 永远 false，深处的点被当成"外部"返回正值 → 假阴。
+        var area2 = 0;
+        for (var wi = 0; wi < n; wi++) {
+            var wa = verts[wi], wb = verts[(wi + 1) % n];
+            area2 += wa.x * wb.y - wb.x * wa.y;
+        }
+        var ccw = area2 >= 0;
         for (var i = 0; i < n; i++) {
             var a = verts[i], b = verts[(i + 1) % n];
             var ex = b.x - a.x, ey = b.y - a.y;
-            // 凸多边形内点判定：所有边的叉积同号（这里统一取 >=0 为内侧）
+            // 凸多边形内点判定：所有边的叉积同号，符号由绕向决定
             var cross = ex * (py - a.y) - ey * (px - a.x);
-            if (cross < 0) inside = false;
+            if (ccw ? (cross < 0) : (cross > 0)) inside = false;
             var el = ex * ex + ey * ey;
             var t = el > 0 ? ((px - a.x) * ex + (py - a.y) * ey) / el : 0;
             t = t < 0 ? 0 : (t > 1 ? 1 : t);
@@ -791,6 +799,50 @@
             }
         }
     }
+    /**
+     * v151：接触链表逐帧快照（纯诊断）。
+     * 已实证：polyGap<0（子弹圆真压进坦克多边形）却 IsTouching=false、deathFrame=-1。
+     * 要分清是哪一层，必须看接触链表本身：
+     *   · pair 根本不在链表里 → broadphase / filter / body active 问题
+     *   · pair 在链表但 IsTouching=false → narrowphase / shape 问题
+     *   · IsTouching=true 却没写 deathFrame → 我们的扫描/写回问题
+     */
+    function auditContactList(audit, fc, k) {
+        if (!audit || !audit.geometryEnabled) return;
+        var out = { k: k, total: 0, sensorProj: [], projCats: {}, sensorOps: {} };
+        var contact = fc.world.GetContactList();
+        while (contact) {
+            out.total++;
+            var fa = contact.GetFixtureA(), fb = contact.GetFixtureB();
+            var ua = fa && fa.GetUserData && fa.GetUserData();
+            var ub = fb && fb.GetUserData && fb.GetUserData();
+            var sUd = (ua && ua.type === 'fusedSensor') ? ua : ((ub && ub.type === 'fusedSensor') ? ub : null);
+            var oUd = (ua && ua.type === 'fusedSensor') ? ub : ((ub && ub.type === 'fusedSensor') ? ua : null);
+            if (sUd) {
+                out.sensorOps[sUd.opIndex] = (out.sensorOps[sUd.opIndex] || 0) + 1;
+                var oBody = ((ua && ua.type === 'fusedSensor') ? fb : fa).GetBody();
+                var oCat = ((ua && ua.type === 'fusedSensor') ? fb : fa).GetFilterData().categoryBits;
+                out.projCats[oCat] = (out.projCats[oCat] || 0) + 1;
+                if (oCat === Constants.COLLISION_CATEGORIES.PROJECTILE && out.sensorProj.length < 24) {
+                    var oObj = oUd && oUd.gameObject;
+                    out.sensorProj.push({
+                        op: sUd.opIndex,
+                        pid: oObj && oObj.id !== undefined ? oObj.id : null,
+                        touching: !!contact.IsTouching(),
+                        enabled: !!contact.IsEnabled(),
+                        bodyActive: !!(oBody && oBody.IsActive())
+                    });
+                }
+            }
+            contact = contact.GetNext();
+        }
+        if (out.sensorProj.length || out.total) {
+            audit.contactList = audit.contactList || [];
+            audit.contactList.push(out);
+            if (audit.contactList.length > 12) audit.contactList.shift();
+        }
+    }
+
     /** 接触瞬间的真值：直接对那个 sensor 夹具量一次。 */
     function auditContactTruth(fc, sensorFixture, otherFixture, k, op, pid, category, audit) {
         try {
@@ -1570,6 +1622,8 @@
                 }
                 contact = contact.GetNext();
             }
+            // v151：记录本帧接触链表真值（只在几何审计开启时）。
+            auditContactList(audit, fc, k);
         }
 
         me.forward = snapFwd; me.back = snapBack;
@@ -1578,6 +1632,16 @@
 
         audit.deathFrames = deathFrame.slice();
         audit.dead = dead.slice();
+        // v151：把"几何已重叠但整段 rollout 没有任何接触"的 pair 摘出来，一眼可见。
+        if (audit.geometry && audit.geometry.proximity) {
+            var missed = [];
+            for (var mk in audit.geometry.proximity) {
+                if (!audit.geometry.proximity.hasOwnProperty(mk)) continue;
+                var mv = audit.geometry.proximity[mk];
+                if (mv && typeof mv.polyGap === 'number' && mv.polyGap < 0) missed.push(mv);
+            }
+            if (missed.length) audit.overlapNoContact = missed.slice(0, 12);
+        }
         if (audit.geometry && audit.geometry.proximity) {
             // v149：只留"近失"(gap<2m) 的条目，远距离的整片 45 条是录像体积元凶。
             var gkeys = Object.keys(audit.geometry.proximity), gkeep = {};

@@ -30,6 +30,19 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v151（定案"树不认为它会死"的物理层 + 接触链表逐帧审计）：
+ *   v150 的精确多边形距离给出了决定性数据：3 帧局凶器 b-8371-13 在
+ *   t=7.933~8.067 连续 5 帧 `polyGap = -0.13 ~ -0.30`（子弹圆真压进坦克多边形），
+ *   但 `contacts=[] / deathFrames=[-1]`；直到 t=8.167 重叠到 0.39m 才报接触。
+ *   ⇒ Box2D 融合世界在子弹已经几何重叠时**不产生** fusedSensor×PROJECTILE 接触。
+ *   这就是"绿死/橙死"的物理层根因：死权看不见那场碰撞。
+ *   v151 新增 `auditContactList`：每帧记录接触链表真值（pair 是否在链表、
+ *   IsTouching、IsEnabled、body active、category），并把 polyGap<0 的 pair 摘成
+ *   `overlapNoContact`。据此三层定位：
+ *     pair 不在链表 → broadphase/filter/body active；
+ *     pair 在链表但 IsTouching=false → narrowphase/shape；
+ *     IsTouching=true 却没写 deathFrame → 扫描/写回。
+ *
  * 2026-09-10 v150（审计距离改精确多边形口径）：
  *   v149 的 minGap 是 AABB 口径，旋转矩形的 AABB 比实体大 → 边缘假阳，无法定案
  *   "几何重叠却没接触"。v150 新增 `fusedPointPolygonGap`（圆到凸多边形精确距离），
@@ -684,7 +697,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v150';
+    var TREE_VERSION = 'v151';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）

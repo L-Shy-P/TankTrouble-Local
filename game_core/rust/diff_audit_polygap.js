@@ -22,8 +22,28 @@ function polyGap(px,py,r,vs){
   }
   return (inside?-minD:minD)-r;
 }
+// 与实现一致：先判绕向
+function polyGapW(px,py,r,vs){
+  const n=vs.length; let inside=true,minD=Infinity; let a2=0;
+  for(let i=0;i<n;i++){const a=vs[i],b=vs[(i+1)%n];a2+=a.x*b.y-b.x*a.y;}
+  const ccw=a2>=0;
+  for(let i=0;i<n;i++){
+    const a=vs[i],b=vs[(i+1)%n],ex=b.x-a.x,ey=b.y-a.y;
+    const cr=ex*(py-a.y)-ey*(px-a.x);
+    if(ccw?(cr<0):(cr>0)) inside=false;
+    const el=ex*ex+ey*ey; let t=el>0?((px-a.x)*ex+(py-a.y)*ey)/el:0;
+    t=t<0?0:(t>1?1:t);
+    const qx=a.x+ex*t-px,qy=a.y+ey*t-py; const d=Math.hypot(qx,qy); if(d<minD)minD=d;
+  }
+  return (inside?-minD:minD)-r;
+}
 const sq=[{x:-1,y:-1},{x:1,y:-1},{x:1,y:1},{x:-1,y:1}];
 assert(polyGap(0,0,0.25,sq)<0,'中心在正方形内必须算重叠');
+// 顺时针绕向不得假阴（v151 修的 bug）
+const sqCW=[...sq].reverse();
+assert(polyGapW(0,0,0.25,sqCW)<0,'顺时针正方形中心也必须算重叠');
+assert(polyGapW(0.5,0.5,0.25,sqCW)<0,'顺时针正方形内部点必须算重叠');
+assert(polyGapW(5,5,0.25,sqCW)>0,'顺时针正方形远处必须算不重叠');
 assert(polyGap(5,5,0.25,sq)>0,'远处必须算不重叠');
 assert(Math.abs(polyGap(1.5,0,0.25,sq)-(0.5-0.25))<1e-9,'边上距离必须 = 边距 - 半径');
 // AABB 会假阳的场景：点在旋转矩形 AABB 角落、但在实体外
