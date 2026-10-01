@@ -693,7 +693,8 @@
         }
         return out;
     }
-    /** 子弹圆到"若干传感器 AABB"的最近 gap；负值=已重叠。 */
+    /** 子弹圆到"若干传感器 AABB"的最近 gap；负值=已重叠。
+     *  注意：AABB 只是粗口径。旋转矩形的 AABB 比实体大，边缘会假阳。 */
     function fusedCircleSensorGap(px, py, radius, boxes) {
         var best = null, bestBox = null;
         for (var i = 0; i < boxes.length; i++) {
@@ -702,6 +703,58 @@
             var dy = py < b.minY ? b.minY - py : (py > b.maxY ? py - b.maxY : 0);
             var g = Math.sqrt(dx * dx + dy * dy) - radius;
             if (best === null || g < best) { best = g; bestBox = b; }
+        }
+        return { gap: best, box: bestBox };
+    }
+    /**
+     * v150：**精确**的圆到凸多边形距离（减去半径）。AABB 在旋转矩形边缘会假阳，
+     * 只有这个口径才能定案"几何上到底有没有重叠"。
+     * 返回 gap：<=0 表示圆与多边形真正相交。
+     */
+    function fusedPointPolygonGap(px, py, radius, verts) {
+        if (!verts || verts.length < 2) return null;
+        var n = verts.length, inside = true, minD = Infinity;
+        for (var i = 0; i < n; i++) {
+            var a = verts[i], b = verts[(i + 1) % n];
+            var ex = b.x - a.x, ey = b.y - a.y;
+            // 凸多边形内点判定：所有边的叉积同号（这里统一取 >=0 为内侧）
+            var cross = ex * (py - a.y) - ey * (px - a.x);
+            if (cross < 0) inside = false;
+            var el = ex * ex + ey * ey;
+            var t = el > 0 ? ((px - a.x) * ex + (py - a.y) * ey) / el : 0;
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
+            var qx = a.x + ex * t - px, qy = a.y + ey * t - py;
+            var d = Math.sqrt(qx * qx + qy * qy);
+            if (d < minD) minD = d;
+        }
+        return (inside ? -minD : minD) - radius;
+    }
+    /** 精确口径：子弹圆到该候选体**全部** sensor 多边形的最近 gap。 */
+    function fusedCircleSensorPolyGap(px, py, radius, body) {
+        var best = null, bestBox = null, f = body && body.GetFixtureList ? body.GetFixtureList() : null;
+        while (f) {
+            var ud = f.GetUserData && f.GetUserData();
+            if (ud && ud.type === 'fusedSensor') {
+                var sh = f.GetShape(), pts = [];
+                var type = sh && sh.GetType ? sh.GetType() : null;
+                if (type === Box2D.Collision.Shapes.b2Shape.e_circleShape) {
+                    var cp = sh.m_p || { x: 0, y: 0 }, cw = fusedWorldPoint(body, cp.x, cp.y), cr = sh.m_radius || 0;
+                    // 圆形 sensor：退化为点到圆心距离
+                    var ddx = cw.x - px, ddy = cw.y - py;
+                    var g = Math.sqrt(ddx * ddx + ddy * ddy) - cr - radius;
+                    if (best === null || g < best) { best = g; bestBox = fusedFixtureAabb(body, f); }
+                } else {
+                    var vs = (typeof sh.GetVertices === 'function' ? sh.GetVertices() : sh.m_vertices) || [];
+                    for (var vi = 0; vi < vs.length; vi++) pts.push(fusedWorldPoint(body, vs[vi].x, vs[vi].y));
+                    if (pts.length >= 2) {
+                        var gp = fusedPointPolygonGap(px, py, radius, pts);
+                        if (gp !== null && (best === null || gp < best)) {
+                            best = gp; bestBox = fusedFixtureAabb(body, f);
+                        }
+                    }
+                }
+            }
+            f = f.GetNext();
         }
         return { gap: best, box: bestBox };
     }
@@ -718,15 +771,21 @@
                 var boxes = fusedSensorAabbs(cands[oi]);
                 if (!boxes.length) continue;
                 var gg = fusedCircleSensorGap(bp.x, bp.y, rad, boxes);
+                // v150：同时算精确多边形 gap。AABB 会假阳，定案只认 polyGap。
+                var gp = fusedCircleSensorPolyGap(bp.x, bp.y, rad, cands[oi]);
                 var key = String(oi) + '|' + String(pid);
                 var old = audit.geometry.proximity[key];
-                // 只留"最近的一次"，并把坐标压到 2 位小数（15 位浮点是录像体积元凶）。
-                if (!old || gg.gap < old.minGap) {
+                var refGap = (gp && typeof gp.gap === 'number') ? gp.gap : gg.gap;
+                if (!old || refGap < old.polyGap) {
                     audit.geometry.proximity[key] = {
-                        op: oi, pid: pid, minGap: fusedR2(gg.gap), k: k, sensorCount: boxes.length,
+                        op: oi, pid: pid,
+                        polyGap: fusedR2(refGap), aabbGap: fusedR2(gg.gap),
+                        k: k, sensorCount: boxes.length,
                         bullet: { x: fusedR2(bp.x), y: fusedR2(bp.y), r: fusedR2(rad) },
-                        sensor: gg.box ? { minX: fusedR2(gg.box.minX), maxX: fusedR2(gg.box.maxX),
-                            minY: fusedR2(gg.box.minY), maxY: fusedR2(gg.box.maxY), op: gg.box.op } : null
+                        sensor: (gp && gp.box) ? { minX: fusedR2(gp.box.minX), maxX: fusedR2(gp.box.maxX),
+                            minY: fusedR2(gp.box.minY), maxY: fusedR2(gp.box.maxY), op: gp.box.op }
+                            : (gg.box ? { minX: fusedR2(gg.box.minX), maxX: fusedR2(gg.box.maxX),
+                                minY: fusedR2(gg.box.minY), maxY: fusedR2(gg.box.maxY), op: gg.box.op } : null)
                     };
                 }
             }
@@ -742,12 +801,14 @@
             var orad = 0;
             try { orad = otherFixture.GetShape && (otherFixture.GetShape().m_radius || 0); } catch (eOr) {}
             var gap = (sa && op2) ? fusedCircleSensorGap(op2.x, op2.y, orad, [sa]) : null;
+            var polyGapTruth = (op2 && sBody) ? fusedCircleSensorPolyGap(op2.x, op2.y, orad, sBody) : null;
             audit.contacts.push({
                 k: k, op: op, pid: pid, category: category,
                 bullet: op2 ? { x: fusedR2(op2.x), y: fusedR2(op2.y), r: fusedR2(orad) } : null,
                 sensor: sa ? { minX: fusedR2(sa.minX), maxX: fusedR2(sa.maxX),
                     minY: fusedR2(sa.minY), maxY: fusedR2(sa.maxY) } : null,
-                gapAtContact: gap ? fusedR2(gap.gap) : null
+                gapAtContact: gap ? fusedR2(gap.gap) : null,
+                polyGapAtContact: polyGapTruth ? fusedR2(polyGapTruth.gap) : null
             });
         } catch (eTruth) {
             audit.contacts.push({ k: k, op: op, pid: pid, category: category, truthError: String(eTruth) });
@@ -1522,7 +1583,7 @@
             var gkeys = Object.keys(audit.geometry.proximity), gkeep = {};
             for (var gi = 0; gi < gkeys.length; gi++) {
                 var gv = audit.geometry.proximity[gkeys[gi]];
-                if (gv && typeof gv.minGap === 'number' && gv.minGap < 2.0) gkeep[gkeys[gi]] = gv;
+                if (gv && typeof gv.polyGap === 'number' && gv.polyGap < 2.0) gkeep[gkeys[gi]] = gv;
             }
             var gk2 = Object.keys(gkeep);
             if (gk2.length > 16) { var g2 = {}; for (var gj = 0; gj < 16; gj++) g2[gk2[gj]] = gkeep[gk2[gj]]; gkeep = g2; }

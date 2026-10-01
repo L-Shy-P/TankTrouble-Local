@@ -20,7 +20,7 @@ for (const f of ['auditContactTruth','gapAtContact','sensorCount']) assert(sb.in
 
 // ④ 体积上限：坐标压小数 + 只留近失 + 条数上限
 assert(sb.includes('function fusedR2(v)'), '必须有坐标压缩函数');
-assert(sb.includes('gv.minGap < 2.0'), 'proximity 必须只留近失');
+assert(sb.includes('gv.polyGap < 2.0'), 'proximity 必须只留近失');
 assert(sb.includes('gk2.length > 16'), 'proximity 必须有条数上限');
 assert(tr.includes('recent: ah.slice(-6)'), 'recent 必须收敛到 6 条');
 
