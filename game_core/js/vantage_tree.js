@@ -30,8 +30,19 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v158（撤回 v156 的存活分层——重复了 2026-09-09 已被纠正的错误）：
+ *   主人纠正：「我不认为有绿就一定不能选橙……绿的只是预测范围内没死，不代表安全，
+ *   擦弹 75 帧也是绿。原本的语义是正常比较分数，谁分高选谁，不管它几帧死。
+ *   当然，死得早，能累积的分就少，所以更不容易被选到。」
+ *   设计文档 03-树结构 §1.5 原文：「软死候选与存活候选在选路上一视同仁；软死只停止
+ *   累计分数，分数低所以自然不易被选，但绝不因『死过』被跳过。」
+ *   §52 已经记过一次同款错误（v115 的“有活路就不走死路”一票否决，当时撤回）。
+ *   v158 删除存活分层的三个函数与两处层级过滤，
+ *   树回到「谁分高选谁」；只保留 v155 的红（fd<=1）硬过滤——那是主人明确的不变量
+ *   「只要有非红，红的就绝对不能选」，不是分层。
+ *
  * 2026-09-10 v157（分层过滤与 JS 死亡确认的分工——拆开，别互相打架）：
- *   v156 把 enforceSurvivalTier 挂到 commit 兜底上，结果和 confirmExecutionRoutePick
+ *   v156 把存活分层挂到 commit 兜底上，结果和 confirmExecutionRoutePick
  *   打架：刚被 JS 融合确认过的节点（fd 已确认）被兄弟的**未确认**绿值挤掉，
  *   diff_commit_slice_rust ⑤ 直接炸（authority 变 rust-candidate）。
  *   根因：不能拿「未确认的绿」压「已确认的橙」。
@@ -752,7 +763,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v157';
+    var TREE_VERSION = 'v158';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -4903,15 +4914,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 旧版没点击目标时系数恒 0，杀戮场一分都没进过选路）。
         // v103：空场地形引导阶段——安全分对 9 个操作完全一样，只有地形偏好能分
         // 胜负，所以这里用“往安全地形挪了多少”直接决定走位（不动的操作增益为 0）。
-        var minTierBest = bestSurvivalTier(children, null);   // v156：存活分层
         var targetScale = targetScaleOf(children, null);
         var kfScale = killfieldScaleOf(children, null);
         var kfSafety = terrainSafetyFactor(children, null);
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
-            // v156：存活分层，绿>橙>红。
-            if (survivalTierOf(c) > minTierBest) continue;
             if (!onlyImmediateDead && isTerminalDead(c)) continue;   // v155：有非红候选时红的绝对不选
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
             // v103：空场地形引导阶段——9 个操作安全分完全一样，只有“往安全地形
@@ -4952,42 +4960,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * 软死不额外偏置，靠总分自然排序。
      */
     /**
-     * v156：按「活得久」分层过滤——主人模型的完整形式。
-     * 主人原话：「只要某个节点延伸出的 9 种操作有任意一种没红，就还能选、就还能多活
-     * 几帧，然后在多活的几帧里继续分叉，直到 9 种全死，也就是这个节点真死。」
-     *
-     * v155 只挡了「红压非红」，但主人复测发现 AI **在有绿（没死）时选了橙（2~3 步就死）**：
-     *   文件3 t=3.567 选 fd=2，兄弟 8 个全是 fd=-1；
-     *   文件2 t=6.017 选 fd=3，兄弟 3 个是 fd=-1。
-     * 这就是「AI 极其蠢、主动撞子弹」的直接原因——评分允许软死候选靠高分压过活路。
-     *
-     * v156 完整分层（先保命，同层再比分数）：
-     *   绿 fd=-1（没死）  >  橙 fd>=2（软死，fd 大=活更久）  >  红 fd<=1（一选就死）
-     * 兄弟全是红 = 节点真死，不干预，死是唯一出路。
-     * 旧写法备份：只判 `isTerminalDead(c)` 跳过红。
-     */
-    function survivalTierOf(n) {
-        if (!n) return 2;
-        if (isTerminalDead(n)) return 2;            // 红：走<=1步就死
-        if (n.fullDeathFrame === -1) return 0;      // 绿：没死
-        return 1;                                   // 橙：软死
-    }
-
-    function bestSurvivalTier(children, exclude) {
-        var best = 2;
-        for (var i = 0; i < children.length; i++) {
-            var c = children[i];
-            if (!c || c.invalid || c.exhausted || c === exclude) continue;
-            var t = survivalTierOf(c);
-            if (t < best) best = t;
-        }
-        return best;
-    }
-
-    /**
      * v155 兜底：「只要有非红，红的就绝对不能选」。
-     * v156 拆分：绿>橙 的层过滤只在 pickBest / pickBestChildByRolloutTotal（同批同权威）
-     * 做；这里只挡**红**，因为此时选中节点刚被 JS 融合确认过、兄弟还是未确认值。
+     * 设计语义（03-树结构 §1.5）：软死与存活一视同仁，谁分高选谁，绝不因“死过”被跳过。
+     * 所以这里**只挡红**，不按存活层级过滤。
      */
     function enforceNonRedPrefer(tree, chosen, parent) {
         if (!chosen || !parent || !parent.children || !parent.children.length) return chosen;
@@ -5006,25 +4981,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return alt;
     }
 
-    function enforceSurvivalTier(tree, chosen, parent) {
-        if (!chosen || !parent || !parent.children || !parent.children.length) return chosen;
-        var minTier = bestSurvivalTier(parent.children, null);
-        if (survivalTierOf(chosen) <= minTier) return chosen;
-        var alt = null;
-        for (var i = 0; i < parent.children.length; i++) {
-            var c = parent.children[i];
-            if (!c || c === chosen || c.invalid || c.exhausted) continue;
-            if (survivalTierOf(c) !== minTier) continue;
-            if (!alt || fullRolloutTotalOf(c) > fullRolloutTotalOf(alt)) alt = c;
-        }
-        if (!alt) return chosen;
-        recordStructure(tree, 'survival-tier-retarget',
-            '#' + (chosen.id || '?') + ' fd=' + chosen.fullDeathFrame +
-            ' -> #' + (alt.id || '?') + ' fd=' + alt.fullDeathFrame +
-            ' tier=' + minTier);
-        return alt;
-    }
-
     function pickBestChildByRolloutTotal(children, exclude) {
         var i, c;
         var anyActive = false, allTrueDead = true, anyNotDead = false;
@@ -5038,7 +4994,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         if (!anyActive) allTrueDead = false;
         // v102：目标分/杀戮场分各自缩放（不再要求有点击目标）。
-        var minTier = bestSurvivalTier(children, exclude);   // v156：存活分层
         var targetScale2 = targetScaleOf(children, exclude);
         var kfScale2 = killfieldScaleOf(children, exclude);
         var kfSafety2 = terrainSafetyFactor(children, exclude);
@@ -5046,8 +5001,6 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
-            // v156：先按「活得久」分层——绿>橙>红，低层的连参选资格都没有。
-            if (survivalTierOf(c) > minTier) continue;
             if (!allTrueDead && isTerminalDead(c)) continue;   // v155：有非红候选时红的绝对不选
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
             // v103：空场地形引导阶段：安全分全平，用“地形增益 → 兜底安全分”排名。
@@ -7969,9 +7922,7 @@ return count;
         rerouteTreeForCurrentThreats: rerouteTreeForCurrentThreats,
         fullRolloutTotalOf: fullRolloutTotalOf,
         pickBestChildByRolloutTotal: pickBestChildByRolloutTotal,
-        enforceNonRedPrefer: enforceNonRedPrefer,   // v155 兼容别名
-        enforceSurvivalTier: enforceSurvivalTier,   // v156：存活分层，导出供回归直接验证
-        survivalTierOf: survivalTierOf,
+        enforceNonRedPrefer: enforceNonRedPrefer,   // v155：只要有非红红的就绝不能选
         backpropBest: backpropBest,
         pickBest: pickBest,
         routeAvgOfLeaf: routeAvgOfLeaf,
