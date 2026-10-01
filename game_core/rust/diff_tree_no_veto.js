@@ -16,7 +16,9 @@ assert(!/minTier/.test(s),'不得按存活层级过滤参选资格');
 // ② 红（fd<=1）硬过滤保留——主人不变量「只要有非红，红的就绝对不能选」
 assert(s.includes('if (!allTrueDead && isTerminalDead(c)) continue;'),'pickBestChild 必须挡红');
 assert(s.includes('if (!onlyImmediateDead && isTerminalDead(c)) continue;'),'pickBest 必须挡红');
-assert(s.includes('best = enforceNonRedPrefer(tree, best, root);'),'commit 兜底必须挡红');
+// v159：主人要求「尽可能不用兜底」→ 调用注释掉、函数保留、方案留文档
+assert(s.includes('// best = enforceNonRedPrefer(tree, best, root);'),'兜底调用必须是注释状态');
+assert(s.includes('function enforceNonRedPrefer'),'兜底函数必须保留（文档留方案）');
 
 // ③ 载入模块跑真实场景
 const Constants={BULLET:{RADIUS:{m:0.25},OFFSET:{m:2.5}},TANK:{WIDTH:{m:3},HEIGHT:{m:4}},BULLET_TURRET:{WIDTH:{m:0.7},HEIGHT:{m:1.4},OFFSET_X:{m:0},OFFSET_Y:{m:-2}},LASER_TURRET:{ANTENNA_WIDTH:{m:0.1},ANTENNA_HEIGHT:{m:1.4},ANTENNA_OFFSET_X:{m:0},ANTENNA_OFFSET_Y:{m:-2},DISH_WIDTH:{m:2},DISH_HEIGHT:{m:0.5},DISH_OFFSET_X:{m:0},DISH_OFFSET_Y:{m:-1.85}},DOUBLE_BARREL_TURRET:{WIDTH:{m:1.6},HEIGHT:{m:1.1},OFFSET_X:{m:0},OFFSET_Y:{m:-1.75}},SHOTGUN_TURRET:{WIDTH:{m:1.4},HEIGHT:{m:1.35},OFFSET_X:{m:0},OFFSET_Y:{m:-1.95}},MISSILE_TURRET:{WIDTH:{m:0.3},CENTER_HEIGHT:{m:1.4},SIDE_HEIGHT:{m:0.4},OFFSET_X:{m:0},OFFSET_Y:{m:-1.95}},GATLING_GUN_TURRET:{WIDTH:{m:1.4},HEIGHT:{m:1.35},OFFSET_X:{m:0},OFFSET_Y:{m:-1.95}},MAZE_TILE_SIZE:{m:10}};

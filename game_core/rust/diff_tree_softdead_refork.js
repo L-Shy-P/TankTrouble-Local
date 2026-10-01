@@ -8,8 +8,9 @@ const s=fs.readFileSync(path.join(root,'js','vantage_tree.js'),'utf8');
 assert(s.includes('function growAfterCommitIfNeeded'), '缺提交后补分叉函数');
 // 必须挂在两个提交出口之后
 const f=s.indexOf('function growAfterCommitIfNeeded');
-const calls=[...s.matchAll(/growAfterCommitIfNeeded\(tree, adapter, evalThreats\)/g)];
-assert(calls.length >= 2, '两个提交出口都要补分叉，实测 '+calls.length);
+// v159：主人要求注释掉（面板无开关 + seg=1 时每 tick 多一次 rolloutNine）
+assert(s.includes('// growAfterCommitIfNeeded(tree, adapter, evalThreats);'),'补分叉调用必须是注释状态');
+assert(s.includes('function growAfterCommitIfNeeded'),'函数必须保留（文档留方案）');
 // 只对软死补分叉：真死(fd<=1)和活满都不补
 assert(s.includes('if (isTerminalDead(n)) return false;'), '真死不得再分叉');
 assert(s.includes('if (!(n.fullDeathFrame >= 2)) return false;'), '只对软死(fd>=2)补分叉');

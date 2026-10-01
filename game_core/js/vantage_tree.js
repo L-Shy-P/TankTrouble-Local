@@ -30,6 +30,16 @@
  *   另按主人要求改默认：剪枝/回退补偿持续 10→3 帧（叠加到 11 层/帧是新弹将命中
  *   时卡顿的主因）、杀戮场强度 100%→275%。
  *
+ * 2026-09-10 v159（按主人要求把三个「兜底/顺手改」注释掉，方案留文档）：
+ *   主人：「B/D 都像 C 一样注释掉并保留文档……尽可能不用这些兜底。」
+ *   ① C：commit 后的 enforceNonRedPrefer 改选 → 注释掉（与定案规则 2「正常提交
+ *      不重新全局比较」冲突）。函数保留。
+ *   ② D：growAfterCommitIfNeeded 提交后补分叉 → 注释掉（面板上没有开关，seg=1 时
+ *      每 tick 多一次 rolloutNine，有性能风险）。函数保留。
+ *   ③ B：tMin/minGrowTicks 的 3→1 → 恢复 3，改动留在注释里。语义核对结论：
+ *      **tMin 不会挡住 1 帧真死**，fd 来自 rollout、与段长无关（isTerminalDead 只看 fd）。
+ *      v142 真正需要的只是「段长不得超过 evaluatedFrames」，那条保留。
+ *
  * 2026-09-10 v158（撤回 v156 的存活分层——重复了 2026-09-09 已被纠正的错误）：
  *   主人纠正：「我不认为有绿就一定不能选橙……绿的只是预测范围内没死，不代表安全，
  *   擦弹 75 帧也是绿。原本的语义是正常比较分数，谁分高选谁，不管它几帧死。
@@ -763,7 +773,7 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v158';
+    var TREE_VERSION = 'v159';
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -1240,7 +1250,9 @@
         epsilon: Math.PI * Math.PI,       // ≈9.87 = 0.25×遮蔽满分（v5：旧 39.5 实测
                                           // spread峰仅 8.4 永不触发→段长恒 30 帧
                                           // 上限→"一直按住前进"真凶；调至 1/4 档）
-        tMin: 1,                          // v142：段长下限；必须不超过最短评估窗口
+        tMin: 3,                          // 段长下限（v43）。v142 曾改成 1，v159 按主人要求注释掉：
+        //   // tMin: 1,   ← v142：段长下限；必须不超过最短评估窗口
+        // 实测语义：tMin 不会挡住 1 帧真死（fd 来自 rollout，与段长无关）。
         tMax: 30,                         // 段长上限
         horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
         pruneCompensateLayers: 1,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
@@ -1270,7 +1282,8 @@
         targetMixEnabled: false,          // v94：目标分直接混入选路总分
         targetMixRatio: 0.5,              // v95：目标分占比系数（0~3）
         deepSelectEnabled: false,         // v81：深层子树价值参与 next/commit 选路（默认关）
-        minGrowTicks: 1,                  // v142：低 evalFrames 不能被强行抬回 3 帧。
+        minGrowTicks: 3,                  // v43：每段至少给 3 个真实帧用于生长。v159 按主人要求注释掉 v142 的 3→1：
+        //   // minGrowTicks: 1,   ← v142：低 evalFrames 不能被强行抬回 3 帧。
                                           // 帧率低时 3~4 帧段实际只有 1 步，树每段
                                           // 只能长 1 层、坍缩又删 8 条，深度永远 1。
                                           // tMin 会按 _lastWorldDt 换算成最小帧数。
@@ -3693,7 +3706,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // evalFrames=1/2 时把只模拟了 1/2 帧的结果伪装成 3 帧，节点时间轴
         // 向前跳、真实游戏却只走了 1/2 帧，正是低视界绿死/反应滞后的确定性根因。
         var maxEvaluated = Math.max(1, evaluatedFrames);
-        var segmentFrames = Math.max(1, Math.min(cfg.tMax, segSrc, maxEvaluated));
+        // v142 真正的修复保留：段长不得超过本轮实际评估帧数。
+        // v159：同时恢复 v43 的 tMin 下限（但同样不得超过 evaluatedFrames）。
+        var segmentFrames = Math.max(
+            Math.min(cfg.tMin || 1, maxEvaluated),
+            Math.min(cfg.tMax, segSrc, maxEvaluated));
         return {
             segmentFrames: segmentFrames,
             tDiv: tDiv,
@@ -6256,7 +6273,10 @@ return count;
         // 橙会适得其反（diff_commit_slice_rust ⑤ 就是这么炸的）。
         // 绿>橙 的层过滤在 pickBest / pickBestChildByRolloutTotal 里做——那里 9 个
         // 候选来自同一批、同一权威，可以直接比。
-        best = enforceNonRedPrefer(tree, best, root);
+        // v159：按主人要求注释掉兜底，尽可能不用“选完再改选”这类补丁。
+        // 方案保留在此（函数仍在下方），文档见 §57.35。
+        // 主人：「你做了个防止有路却选红的兜底方案？代码注释掉，尽可能不用这些兜底。」
+        // best = enforceNonRedPrefer(tree, best, root);
 
         // v46 根修：完整 9 候选留档，但不再删 8 兄弟——它们就是下一段
         // 提交的比较集和根层活预览。旧逻辑让首次提交后树立刻只剩 2 节点。
@@ -7132,14 +7152,16 @@ return count;
                 perfEnd('commit');
                 commit(tree, adapter, evalThreats, tankState, { freshRoot: false });
                 perfEnd('commit');
-                growAfterCommitIfNeeded(tree, adapter, evalThreats);   // v153
+                // v159：注释掉（不是面板项，seg=1 时每 tick 多一次 rolloutNine，有性能风险）
+                // growAfterCommitIfNeeded(tree, adapter, evalThreats);
                 return;
             }
             perfEnd('commit');
             startCommitSlice(tree, adapter, evalThreats, tankState, { freshRoot: freshRoot });
             stepCommitSlice(tree);
             perfEnd('commit');
-            growAfterCommitIfNeeded(tree, adapter, evalThreats);   // v153
+            // v159：注释掉（同上）
+            // growAfterCommitIfNeeded(tree, adapter, evalThreats);
             return;
         }
 
