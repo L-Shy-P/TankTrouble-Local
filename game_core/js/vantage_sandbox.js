@@ -280,6 +280,26 @@
      * @param {number} horizonFrames - 树滚动需要的基准帧数
      * @returns {number} 建议传给 simulateBulletTracks 的总帧数
      */
+    /**
+     * v163：`lifetime === 0` 表示「这颗弹不靠寿命结束」。
+     *
+     * 原游戏 `Projectile.constructor(state, lifetime, ...)` 的第 2 参是 lifetime。
+     * 各弹种传的是真实常量，**只有地雷破片 `Shrapnel.create(state, 0, ...)` 传 0**——
+     * 它靠 `Shrapnel.done()`（速度≈0）判结束，不靠寿命。
+     *
+     * 旧实现把这个 0 直接当寿命用：`lifeTotal=0 → lifeLeft=0`，而融合世界逐帧循环里
+     * `bs.lifeLeft -= FRAME; if (lifeLeft<=0) 停用` ⇒ **破片在第一帧就被杀掉**。
+     * 实证：录制 vantage_record_1790927237502/1790925717252 地雷致死时
+     *   placements 里有破片、contacts=[]、dfs=[-1]、`polyGap` 最小值出现在 k=0
+     *   （之后就再没变近）——因为它第 1 帧就没了。
+     * 这是地雷"绿死"的真正根因，一直存在，与 v161/v162 无关。
+     */
+    var NO_LIFETIME_SEC = 1e9;
+    function lifetimeSecOf(pr) {
+        var lt = (pr && typeof pr.lifetime === 'number') ? pr.lifetime : 10;
+        return (lt > 0) ? lt : NO_LIFETIME_SEC;
+    }
+
     function computeBulletTrackFrames(gameController, horizonFrames) {
         var maxFrames = Math.max(1, Math.round(horizonFrames || 0));
         var FRAME = _frameDtSec;
@@ -288,7 +308,7 @@
             if (!projectiles.hasOwnProperty(id)) continue;
             var pr = projectiles[id];
             if (!pr || !isBallisticProjectile(pr)) continue;
-            var lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
+            var lifeTotal = lifetimeSecOf(pr);   // v163
             var lifeAge = (pr.getTimeAlive && typeof pr.getTimeAlive === 'function')
                 ? pr.getTimeAlive() : 0;
             var lifeLeftSec = Math.max(0, lifeTotal - lifeAge);
@@ -358,7 +378,7 @@
             slot.body.SetAngularVelocity(rb.GetAngularVelocity());
             slot.body.SetAwake(true);   // SetActive(true) 后 velocity 写入不会自动唤醒
             slot.initialSpeed = rvel.Length();
-            slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
+            slot.lifeTotal = lifetimeSecOf(pr);   // v163
             slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
             slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge);
             slot.active = slot.lifeLeft > 0;
@@ -1424,7 +1444,7 @@
                     slot.body.SetAwake(true);
                     slot.lastRound = fc.round;
                     slot.initialSpeed = rvel.Length();
-                    slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
+                    slot.lifeTotal = lifetimeSecOf(pr);   // v163
                     slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
                     slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge - qLife);
                     // v136：不再因 lifeLeft<=0 关弹——弹在 getProjectiles 里就是活的，
@@ -1459,7 +1479,7 @@
             slot.isShrapnel = slotIsShrapnel;
             slot.prevDirX = null; slot.prevDirY = null;
             slot.initialSpeed = Math.sqrt(vx * vx + vy * vy);
-            slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
+            slot.lifeTotal = lifetimeSecOf(pr);   // v163
             slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
             slot.lifeLeft = Math.max(0, slot.lifeTotal - slot.lifeAge - qLife);
             // v137：**不再因 lifeLeft<=0 把整颗弹关掉**。lifeLeft 只回答“这颗弹还剩
@@ -2562,6 +2582,6 @@
     //   done() 在速度≈0 时返回 true。原来一律用全局 pathBounces=5 → 6 次全图射线
     //   × 30 片 = 180 次，是"地雷爆炸直接卡死"的量；现在 30 片 = 30 次射线。
     //   参考待查清单 §9.2。
-    console.log('[Vantage Sandbox] 模块已加载（v52：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v53：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
