@@ -320,7 +320,7 @@ windowStub.fire('keydown', {
 
 const exp = api.getState ? api.getState().exp : null;
 assert(exp, 'state.exp must be readable, keys=' + (api.getState ? JSON.stringify(Object.keys(api.getState())) : 'none'));
-assert(Math.abs(exp.killfieldWeight - 1.0) < 1e-9, 'killfieldWeight default must be 1.0 (=100%), got ' + exp.killfieldWeight);
+assert(Math.abs(exp.killfieldWeight - 2.75) < 1e-9, 'killfieldWeight default must be 2.75 (=275%), got ' + exp.killfieldWeight);
 assert(exp.killfieldEnabled === true, 'killfieldEnabled must default ON');
 assert(exp.emptyFieldSafety === false, 'emptyFieldSafety must default OFF');
 
@@ -328,7 +328,7 @@ const panelEl = byId['vt-bench-panel'];
 const wSlider = queryIn(body, '[data-act="exp-killfieldWeight"]') || (panelEl && queryIn(panelEl, '[data-act="exp-killfieldWeight"]'));
 assert(wSlider, 'killfield weight slider must exist');
 assert(String(wSlider.max) === '400', 'killfield weight slider max must be 400, got ' + wSlider.max);
-assert(Number(wSlider.value) === 100, 'killfield weight slider value must be 100, got ' + wSlider.value);
+assert(Number(wSlider.value) === 275, 'killfield weight slider value must be 275, got ' + wSlider.value);
 
 // ---------------- v102: 显红只标真正危险/不建议的取值 ----------------
 const st = api.getState();

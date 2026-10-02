@@ -18,7 +18,25 @@ pub mod tree;
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
     // v7：两个 ABI 各加了一个 `occlusion_enabled` 尾参（把遮蔽开关接进 Rust）。
-    7
+    // v8：新增 `vt_set_frame_dt`（不改既有 ABI 签名，只加一个 setter）。
+    8
+}
+
+/// v160：把 JS 侧校准后的真实帧步长写进 Rust。
+///
+/// 背景：`rollout.rs FRAME_DT` / `rescore.rs RESCORE_DT` 原本写死 0.02，而 JS 侧
+/// `FRAME_DT` 会被校准到实测值（约 0.0167）。两边不一致时同一批弹会被算成两条不同
+/// 弹道，于是 `rustFrameDtCompatible()` 直接停用 Rust 快路——实测 1800 帧里只有 44%
+/// 时间 Rust 在跑，出问题那局只有 1%。
+///
+/// 这里选择「全局 setter」而不是给每个 ABI 加尾参，理由：
+///   · `RESCORE_DT` 在 rescore.rs 里有 20+ 处使用点，逐个穿参会大改 ABI 签名；
+///   · 帧步长是「一次设定、整局不变」的全局量，语义上就是全局。
+/// 调用方必须在**每批调用前**传当前值（JS 侧 `VantageSandbox.setFrameDtSec` 之后）。
+/// 值域钳在 [0.005, 0.2]，越界会被忽略（保持上一次的值）。
+#[no_mangle]
+pub extern "C" fn vt_set_frame_dt(dt: f64) {
+    rollout::set_frame_dt(dt);
 }
 
 /// Flat-buffer fused rollout batch ABI.

@@ -12,7 +12,10 @@ use crate::rollout::{VerificationCache, WallPoly, CATEGORY_PROJECTILE};
 use crate::scoring::{self, Point, TankPose, Threat, TrackFrame};
 
 /// Frame duration used by both the stored samples and the verification world.
-pub const RESCORE_DT: f64 = 0.02;
+/// v160：帧步长改由 `crate::rollout::frame_dt()` 提供（可设全局值）。
+/// 旧行为备份：`pub const crate::rollout::frame_dt(): f64 = 0.02;`
+/// 留一个兼容别名给旧代码/测试，但**运行时一律走 frame_dt()**。
+pub const RESCORE_DT: f64 = crate::rollout::DEFAULT_FRAME_DT;
 
 /// Small safety margin for the danger coarse filter.  False positives are
 /// allowed; false negatives are not.
@@ -292,7 +295,7 @@ pub fn threat_bullet_pos(th: &RescoreThreatInput, t_sec: f64) -> Option<Point> {
 
     if let Some(track) = &th.track {
         if !track.is_empty() {
-            let idx = (q / RESCORE_DT).round();
+            let idx = (q / crate::rollout::frame_dt()).round();
             if idx < 0.0 {
                 return None;
             }
@@ -483,7 +486,7 @@ impl ThreatCoarseChunk {
 /// Build conservative `[q, bbox]` chunks from a threat's Box2D track.
 ///
 /// The chunk time range is widened by half a frame on each side because
-/// `threat_bullet_pos` rounds `q / RESCORE_DT` to the nearest track index.
+/// `threat_bullet_pos` rounds `q / crate::rollout::frame_dt()` to the nearest track index.
 /// Dead track points are excluded from the bbox (they have no bullet
 /// position, so they can never create danger).  If a chunk has no alive
 /// points it is dropped; frames in that chunk fall back to exact checking.
@@ -495,7 +498,7 @@ fn threat_track_coarse_chunks(
         Some(t) if !t.is_empty() => t,
         _ => return Vec::new(),
     };
-    let dt = RESCORE_DT;
+    let dt = crate::rollout::frame_dt();
     let half = dt * 0.5;
     let mut chunks = Vec::new();
     let mut s = 0usize;
@@ -539,7 +542,7 @@ fn threat_tail_box_from(th: &RescoreThreatInput, t_sec: f64) -> Option<TailBox> 
             let idx = if q < 0.0 {
                 0usize
             } else {
-                (q / RESCORE_DT).round().max(0.0) as usize
+                (q / crate::rollout::frame_dt()).round().max(0.0) as usize
             };
             let mut box_ = TailBox::new_inf();
             for s in track.iter().skip(idx) {
@@ -620,7 +623,7 @@ pub fn new_threat_affected_frames(
     if cfg.lane_penalty_ratio > 0.0 {
         for i in 1..=max_i {
             let s = node.samples[i];
-            let t_sec = node.start_t + i as f64 * RESCORE_DT;
+            let t_sec = node.start_t + i as f64 * crate::rollout::frame_dt();
             let gx = s.x + s.rot.sin() * geo.geo_offset;
             let gy = s.y - s.rot.cos() * geo.geo_offset;
 
@@ -668,7 +671,7 @@ pub fn new_threat_affected_frames(
                     continue;
                 }
                 let s = node.samples[i];
-                let t_sec = node.start_t + i as f64 * RESCORE_DT;
+                let t_sec = node.start_t + i as f64 * crate::rollout::frame_dt();
                 let gx = s.x + s.rot.sin() * geo.geo_offset;
                 let gy = s.y - s.rot.cos() * geo.geo_offset;
                 match threat_bullet_pos(th, t_sec) {
@@ -703,8 +706,8 @@ pub fn new_threat_affected_frames(
                 );
             }
 
-            let q0 = node.start_t + block_start as f64 * RESCORE_DT - th.anchor_offset;
-            let q1 = node.start_t + block_end as f64 * RESCORE_DT - th.anchor_offset;
+            let q0 = node.start_t + block_start as f64 * crate::rollout::frame_dt() - th.anchor_offset;
+            let q1 = node.start_t + block_end as f64 * crate::rollout::frame_dt() - th.anchor_offset;
 
             let mut any_overlap = false;
             let mut all_overlap_far = true;
@@ -729,7 +732,7 @@ pub fn new_threat_affected_frames(
                     continue;
                 }
                 let s = node.samples[i];
-                let t_sec = node.start_t + i as f64 * RESCORE_DT;
+                let t_sec = node.start_t + i as f64 * crate::rollout::frame_dt();
                 let gx = s.x + s.rot.sin() * geo.geo_offset;
                 let gy = s.y - s.rot.cos() * geo.geo_offset;
                 match threat_bullet_pos(th, t_sec) {
@@ -843,7 +846,7 @@ where
             continue;
         }
 
-        let t_sec = node.start_t + i as f64 * RESCORE_DT;
+        let t_sec = node.start_t + i as f64 * crate::rollout::frame_dt();
         let bullet_positions: Vec<Point> = threats
             .iter()
             .filter_map(|th| bullet_pos_at(th, t_sec))
@@ -961,7 +964,7 @@ fn segment_segment_distance(a: Point, b: Point, c: Point, d: Point) -> f64 {
 /// Returns one `u8` per stored sample.  Index 0 is always 0; index `i >= 1`
 /// means "frame i is a candidate death frame" (step `i-1` -> `i`).
 pub fn danger_frames_for_node(node: &RescoreNodeInput, threats: &[RescoreThreatInput]) -> Vec<u8> {
-    danger_frames_for_samples(&node.samples, threats, node.start_t, RESCORE_DT)
+    danger_frames_for_samples(&node.samples, threats, node.start_t, crate::rollout::frame_dt())
 }
 
 /// Lower-level conservative filter with explicit start time and frame dt.
@@ -1137,15 +1140,15 @@ pub fn verify_death_for_node(
             .set_position_and_angle(candidate, p0.x, p0.y, p0.rot);
         vw.world.set_body_linear_velocity(
             candidate,
-            ((p1.x - p0.x) / RESCORE_DT, (p1.y - p0.y) / RESCORE_DT),
+            ((p1.x - p0.x) / crate::rollout::frame_dt(), (p1.y - p0.y) / crate::rollout::frame_dt()),
         );
         vw.world
-            .set_body_angular_velocity(candidate, norm_angle_delta(p1.rot - p0.rot) / RESCORE_DT);
+            .set_body_angular_velocity(candidate, norm_angle_delta(p1.rot - p0.rot) / crate::rollout::frame_dt());
         vw.world.set_body_awake(candidate, true);
 
         for (ti, th) in threats.iter().enumerate() {
-            let t_k = node.start_t + k as f64 * RESCORE_DT;
-            let t_k1 = node.start_t + (k + 1) as f64 * RESCORE_DT;
+            let t_k = node.start_t + k as f64 * crate::rollout::frame_dt();
+            let t_k1 = node.start_t + (k + 1) as f64 * crate::rollout::frame_dt();
             let pos_k = threat_bullet_pos(th, t_k);
             let pos_k1 = threat_bullet_pos(th, t_k1);
 
@@ -1159,7 +1162,7 @@ pub fn verify_death_for_node(
             let body = vw.bullet_slots[slot_idx].body;
 
             let (vx, vy) = match pos_k1 {
-                Some(p1) => ((p1.x - pos_k.x) / RESCORE_DT, (p1.y - pos_k.y) / RESCORE_DT),
+                Some(p1) => ((p1.x - pos_k.x) / crate::rollout::frame_dt(), (p1.y - pos_k.y) / crate::rollout::frame_dt()),
                 None => prev_vel[ti].unwrap_or((0.0, 0.0)),
             };
 
@@ -1188,7 +1191,7 @@ pub fn verify_death_for_node(
         }
         vw.park_unused_bullets();
 
-        vw.world.step(RESCORE_DT, 10, 10);
+        vw.world.step(crate::rollout::frame_dt(), 10, 10);
         verified_frames += 1;
 
         // Bullet lifetime / renormalization, exactly like JS.
@@ -1197,7 +1200,7 @@ pub fn verify_death_for_node(
             if slot.last_round != round || !vw.world.body_is_active(slot.body) {
                 continue;
             }
-            slot.life_left -= RESCORE_DT;
+            slot.life_left -= crate::rollout::frame_dt();
             if slot.life_left <= 0.0 {
                 slot.active = false;
                 vw.world.set_active(slot.body, false);
@@ -1308,7 +1311,7 @@ pub fn rescore_nodes(
                 &node.samples,
                 verify_threats,
                 node.start_t,
-                RESCORE_DT,
+                crate::rollout::frame_dt(),
                 verify_chunks,
             );
             let (death_frame, verified_frames) =
@@ -1784,7 +1787,7 @@ mod tests {
     fn danger_coarse_skip_matches_exact_for_moving_rotating_tank() {
         let samples: Vec<TankPoseLike> = (0..=75)
             .map(|i| {
-                let t = i as f64 * RESCORE_DT;
+                let t = i as f64 * crate::rollout::frame_dt();
                 TankPoseLike::new(
                     5.0 + t * 0.4,
                     8.0 + (t * 2.1).sin() * 1.5,
@@ -1822,14 +1825,14 @@ mod tests {
                 &samples,
                 &[th.clone()],
                 node.start_t,
-                RESCORE_DT,
+                crate::rollout::frame_dt(),
                 &[chunks],
             );
             let radius =
-                envelope + th.bullet_radius + DANGER_MARGIN + th.speed.max(0.0) * RESCORE_DT;
+                envelope + th.bullet_radius + DANGER_MARGIN + th.speed.max(0.0) * crate::rollout::frame_dt();
             let mut brute = vec![0u8; samples.len()];
             for i in 1..samples.len() {
-                if exact_danger_at_frame(&samples, &th, i, node.start_t, RESCORE_DT, radius) {
+                if exact_danger_at_frame(&samples, &th, i, node.start_t, crate::rollout::frame_dt(), radius) {
                     brute[i] = 1;
                 }
             }
@@ -1841,7 +1844,7 @@ mod tests {
     fn affected_mask_coarse_skip_matches_exact_for_occlusion_only() {
         let samples: Vec<TankPoseLike> = (0..=75)
             .map(|i| {
-                let t = i as f64 * RESCORE_DT;
+                let t = i as f64 * crate::rollout::frame_dt();
                 TankPoseLike::new(
                     5.0 + t * 0.4,
                     8.0 + (t * 2.1).sin() * 1.5,
@@ -1879,7 +1882,7 @@ mod tests {
             let mut brute = vec![false; 76];
             for i in 1..=75 {
                 let s = node.samples[i];
-                let t_sec = node.start_t + i as f64 * RESCORE_DT;
+                let t_sec = node.start_t + i as f64 * crate::rollout::frame_dt();
                 let gx = s.x + s.rot.sin() * geo.geo_offset;
                 let gy = s.y - s.rot.cos() * geo.geo_offset;
                 match threat_bullet_pos(&th, t_sec) {

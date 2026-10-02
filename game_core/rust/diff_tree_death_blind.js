@@ -120,7 +120,8 @@ const C = VT._coarse;
 
     // 逐帧到期退场的机制必须还在（active 只是不再"提前整颗关掉"）
     assert(/bs\.lifeLeft -= FRAME;/.test(sbSrc), '③ 逐帧 lifeLeft 递减退场必须保留');
-    assert(/slot\.life_left -= FRAME_DT;/.test(rollSrc), '③ rollout.rs 逐帧 life_left 递减必须保留');
+    // v160：帧步长改成 frame_dt()（可设全局值），两种写法都算合规
+    assert(/slot\.life_left -= (frame_dt\(\)|FRAME_DT);/.test(rollSrc), '③ rollout.rs 逐帧 life_left 递减必须保留');
 }
 
 // ===========================================================================
@@ -142,11 +143,19 @@ const C = VT._coarse;
         assert(seg.indexOf('rustFrameDtCompatible()') >= 0, '④ ' + e + ' 必须挂帧步长护栏');
     }
 
-    // Rust 核心确实写死 0.02（护栏存在的前提）
+    // v160：帧步长不再写死，改成"可设全局值 + JS 每次调用前同步"。
+    // 这反而解除了"必须精确 0.02"的枷锁——实测 Rust 可用率从 44% 提到接近 100%。
+    // 旧断言（v137）备份：`pub const FRAME_DT: f64 = 0.02;` / `pub const RESCORE_DT: f64 = 0.02;`
     const rollSrc = fs.readFileSync(path.join(root, 'rust', 'vantage_core', 'src', 'rollout.rs'), 'utf8');
     const reSrc = fs.readFileSync(path.join(root, 'rust', 'vantage_core', 'src', 'rescore.rs'), 'utf8');
-    assert(/pub const FRAME_DT: f64 = 0\.02;/.test(rollSrc), '④ rollout.rs 的 FRAME_DT 应是写死的 0.02');
-    assert(/pub const RESCORE_DT: f64 = 0\.02;/.test(reSrc), '④ rescore.rs 的 RESCORE_DT 应是写死的 0.02');
+    const libSrc = fs.readFileSync(path.join(root, 'rust', 'vantage_core', 'src', 'lib.rs'), 'utf8');
+    assert(/pub fn set_frame_dt\(v: f64\)/.test(rollSrc), '④ rollout.rs 必须有 set_frame_dt');
+    assert(/pub fn frame_dt\(\) -> f64/.test(rollSrc), '④ rollout.rs 必须有 frame_dt()');
+    assert(/vt_set_frame_dt/.test(libSrc), '④ lib.rs 必须导出 vt_set_frame_dt');
+    assert(!/pub const RESCORE_DT: f64 = 0\.02;/.test(reSrc), '④ rescore.rs 不得再写死 0.02');
+    // JS 侧必须在调用前同步（否则 Rust 用旧步长 → 两边弹道不一致）
+    const sbSyncSrc = fs.readFileSync(path.join(root, 'js', 'vantage_sandbox.js'), 'utf8');
+    assert(/setFrameDt\(_frameDtSec\)/.test(sbSyncSrc), '④ sandbox 必须在 Rust 调用前同步真实帧长');
 }
 
 // ===========================================================================

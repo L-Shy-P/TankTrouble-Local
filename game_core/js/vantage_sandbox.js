@@ -1024,6 +1024,14 @@
      *  （正确性优先，速度退回 v114 之前）。等 Rust ABI 传入真实 frame_dt 再放行。 */
     var _rustDtWarned = false;
     function rustFrameDtCompatible() {
+        // v160：帧步长已经通过 `vt_set_frame_dt` 传进 Rust，两边同口径，
+        // **不再要求精确 == 0.02**。旧行为备份：`Math.abs(_frameDtSec - 0.02) < 1e-9`。
+        // 保留这个入口只为兼容旧 wasm：没有 vt_set_frame_dt 时仍按旧规则禁用。
+        if (global.VantageRustBridge && global.VantageRustBridge._ready &&
+                global.VantageRustBridge.setFrameDt) {
+            try { global.VantageRustBridge.setFrameDt(_frameDtSec); } catch (eSyncDt) {}
+            return true;
+        }
         var ok = Math.abs(_frameDtSec - 0.02) < 1e-9;
         if (!ok && !_rustDtWarned) {
             // 铁律：上限/护栏要"留余量 + 响亮失败"，不许静默降级。

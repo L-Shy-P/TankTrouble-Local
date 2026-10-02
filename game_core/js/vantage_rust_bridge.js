@@ -157,6 +157,18 @@
          * aligned. Outputs are copied into plain JS objects because the wasm
          * call may grow memory and detach every pre-call typed-array view.
          */
+        /**
+         * v160：把 JS 侧校准后的真实帧步长写进 Rust（ABI v8 `vt_set_frame_dt`）。
+         * 背景：rollout.rs / rescore.rs 原本把 0.02 写死，JS 校准后是 ~0.0167，
+         * 两边不一致 → rustFrameDtCompatible() 停用 Rust 快路 → 实测只有 44%
+         * 时间 Rust 在跑。现在两边同口径，Rust 可以一直开着。
+         * 值域 Rust 侧钳在 [0.005, 0.2]，越界忽略。
+         */
+        setFrameDt: function (dt) {
+            if (!this._ready || !this._exports || typeof this._exports.vt_set_frame_dt !== 'function') return false;
+            try { this._exports.vt_set_frame_dt(Number(dt)); return true; } catch (eDt) { return false; }
+        },
+
         rolloutBatch: function (input) {
             try {
                 this._ensureReady();

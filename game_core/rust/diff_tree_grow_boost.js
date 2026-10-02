@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // v119 回归：生长补偿（剪枝补偿 + 回退补偿）
 // ---------------------------------------------------------------------------
-// 主人定的口径：两类补偿都**默认开**、各给"每帧多长 1 层、持续 10 帧"，
+// 主人定的口径：两类补偿都**默认开**、各给"每帧多长 1 层"；持续帧数 v137
+// 由主人改默认 10→3（10 帧时新弹一来就叠满 11 层/帧，实测卡顿明显）。
 // 高危场景里连续回退/剪枝时补偿要**叠加**（旧实现是覆盖，叠不上去），
 // 叠加份数上限 10 → 每帧最多 1(基础) + 10 = 11 层节点。
 'use strict';
@@ -23,16 +24,16 @@ assert(C && typeof C.boostLayersOf === 'function', '缺少 _growBoost 调试钩�
 const FRAMES = 10;
 const BASE = 1;
 
-// ---- 1) 默认值：两类补偿默认开、层数 1、持续 10 帧（源码级钉死，防止被误改回去）----
+// ---- 1) 默认值：两类补偿默认开、层数 1、持续 3 帧（源码级钉死，防止被误改回去）----
 const defs = [
     ['剪枝补偿层数默认 1', /var _pruneCompensateLayers = 1;/],
-    ['剪枝补偿帧数默认 10', /var _pruneCompensateFrames = 10;/],
+    ['剪枝补偿帧数默认 3', /var _pruneCompensateFrames = 3;/],
     ['回退补偿层数默认 1', /var _retreatCompensateLayers = 1;/],
-    ['回退补偿帧数默认 10', /var _retreatCompensateFrames = 10;/],
+    ['回退补偿帧数默认 3', /var _retreatCompensateFrames = 3;/],
     ['TREE_DEFAULTS 剪枝补偿层数 1', /pruneCompensateLayers: 1,/],
-    ['TREE_DEFAULTS 剪枝补偿帧数 10', /pruneCompensateFrames: 10,/],
+    ['TREE_DEFAULTS 剪枝补偿帧数 3', /pruneCompensateFrames: 3,/],
     ['TREE_DEFAULTS 回退补偿层数 1', /retreatCompensateLayers: 1,/],
-    ['TREE_DEFAULTS 回退补偿帧数 10', /retreatCompensateFrames: 10,/],
+    ['TREE_DEFAULTS 回退补偿帧数 3', /retreatCompensateFrames: 3,/],
     ['回退路径挂了补偿', /noteRetreatCompensation\(tree, 'leaf='/]
 ];
 for (const [name, re] of defs) assert(re.test(treeSrc), '默认值/接线不符：' + name);
@@ -41,7 +42,7 @@ for (const [name, re] of defs) assert(re.test(treeSrc), '默认值/接线不符�
 assert.strictEqual(C.layersCap(), 11, '每帧层数上限应为 11（基础 1 + 补偿 10）');
 assert.strictEqual(C.maxStacks(), 10, '补偿最多叠 10 份');
 
-// ---- 3) 单份补偿：1 层、持续 10 帧 ----
+// ---- 3) 单份补偿：1 层、持续 10 帧（显式传 10，测栈生命周期而非默认值）----
 let t = C.makeTestTree();
 assert.strictEqual(C.boostLayersOf(t), 0, '新树不该有补偿');
 assert.strictEqual(C.notePruneOn(t, 1, FRAMES), 1, '剪枝补偿应返回 1 层');
@@ -66,12 +67,12 @@ assert.strictEqual(BASE + C.boostLayersOf(t), C.layersCap(), '基础 + 补偿 = 
 
 // ---- 6) 回退补偿：走 tree.cfg 的默认口径，与剪枝补偿同款 ----
 t = C.makeTestTree();
-t.cfg = {retreatCompensateLayers: 1, retreatCompensateFrames: 10};
+t.cfg = {retreatCompensateLayers: 1, retreatCompensateFrames: 3};
 assert.strictEqual(C.noteRetreatOn(t, 'n1'), 1, '回退补偿应给 1 层');
 assert.strictEqual(C.boostLayersOf(t), 1, '回退补偿应生效');
 // 关掉（层数 0）时不该产生任何补偿
 t = C.makeTestTree();
-t.cfg = {retreatCompensateLayers: 0, retreatCompensateFrames: 10};
+t.cfg = {retreatCompensateLayers: 0, retreatCompensateFrames: 3};
 assert.strictEqual(C.noteRetreatOn(t, 'n2'), 0, '层数 0 = 关闭，不该补偿');
 assert.strictEqual(C.boostLayersOf(t), 0, '关闭时补偿应为 0');
 

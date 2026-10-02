@@ -11,7 +11,26 @@ use crate::box2d::{
     B2_DYNAMIC_BODY,
 };
 
-pub const FRAME_DT: f64 = 0.02;
+/// v160：帧步长从"写死常量"改成"可设全局值"。
+/// 背景：JS 侧 `FRAME_DT` 会被校准到真实帧长（实测约 0.0167），而这里原本写死
+/// 0.02，导致 `rustFrameDtCompatible()` 判定不一致 → **Rust 快路被永久停用**，
+/// 实测 1800 帧里只有 44% 时间 Rust 在跑，出问题那局只有 1%。
+/// 旧行为备份：`pub const FRAME_DT: f64 = 0.02;`
+/// 现在由 `set_frame_dt()` 在每次调用前写入真实帧长，两边同口径。
+pub const DEFAULT_FRAME_DT: f64 = 0.02;
+
+static FRAME_DT_BITS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0x3f947ae147ae147b); // f64 0.02 的位模式
+
+/// 由 ABI `vt_set_frame_dt` 调用；值域按 JS 侧约束 [0.005, 0.2]。
+pub fn set_frame_dt(v: f64) {
+    if v.is_finite() && (0.005..=0.2).contains(&v) {
+        FRAME_DT_BITS.store(v.to_bits(), std::sync::atomic::Ordering::Relaxed);
+    }
+}
+pub fn frame_dt() -> f64 {
+    f64::from_bits(FRAME_DT_BITS.load(std::sync::atomic::Ordering::Relaxed))
+}
 pub const MAX_OPS: usize = 9;
 pub const MAX_FRAMES: usize = 75;
 pub const MAX_SAMPLES: usize = MAX_FRAMES + 1;
@@ -719,7 +738,7 @@ pub fn run_rollout_batch(
             let (x, y) = fc.world.body_position(body);
             let rot = fc.world.body_angle(body);
             samples[i].push(RolloutSample {
-                t: k as f64 * FRAME_DT,
+                t: k as f64 * frame_dt(),
                 x,
                 y,
                 rot,
@@ -747,14 +766,14 @@ pub fn run_rollout_batch(
             fc.world.set_body_angular_velocity(body, rot_spds[i]);
         }
 
-        fc.world.step(FRAME_DT, 10, 10);
+        fc.world.step(frame_dt(), 10, 10);
 
         // JS bullet renormalization / lifetime / deactivation.
         for slot in slots.iter_mut() {
             if slot.last_round != round || !fc.world.body_is_active(slot.body) {
                 continue;
             }
-            slot.life_left -= FRAME_DT;
+            slot.life_left -= frame_dt();
             if slot.life_left <= 0.0 {
                 slot.active = false;
                 fc.world.set_active(slot.body, false);

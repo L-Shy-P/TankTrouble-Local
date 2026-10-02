@@ -14,11 +14,11 @@ const VT=sandbox.VantageTree;
 // defaults + clamps
 const t0=VT.createTree({x:0,y:0,rot:0});
 if(t0.cfg.horizonSec!==8) throw new Error('default horizonSec should be 8');
-// v119：两类补偿默认开，各 1 层 / 10 帧
+// v119：两类补偿默认开，各 1 层；持续帧数 v137 默认 10→3
 if(t0.cfg.pruneCompensateLayers!==1) throw new Error('default compensate layers should be 1');
-if(t0.cfg.pruneCompensateFrames!==10) throw new Error('default compensate frames should be 10');
+if(t0.cfg.pruneCompensateFrames!==3) throw new Error('default compensate frames should be 3');
 if(t0.cfg.retreatCompensateLayers!==1) throw new Error('default retreat compensate layers should be 1');
-if(t0.cfg.retreatCompensateFrames!==10) throw new Error('default retreat compensate frames should be 10');
+if(t0.cfg.retreatCompensateFrames!==3) throw new Error('default retreat compensate frames should be 3');
 if(VT.setHorizonSec(0)!==1 || VT.setHorizonSec(99)!==15 || VT.setHorizonSec(8)!==8) throw new Error('horizonSec clamp failed');
 if(VT.setPruneCompensateLayers(-1)!==0 || VT.setPruneCompensateLayers(99)!==9) throw new Error('compensate layers clamp failed');
 if(VT.setPruneCompensateFrames(0)!==1 || VT.setPruneCompensateFrames(99)!==60) throw new Error('compensate frames clamp failed');
@@ -72,5 +72,5 @@ function freshTree(layers,framesCount,boostLayers){
     if(t.stats.expands-e2!==1) throw new Error('after boost should expand 1 layer, got '+(t.stats.expands-e2));
 }
 
-VT.setPruneCompensateLayers(1);VT.setPruneCompensateFrames(10);VT.setHorizonSec(8);
+VT.setPruneCompensateLayers(1);VT.setPruneCompensateFrames(3);VT.setHorizonSec(8);
 console.log('diff_tree_prune_compensation PASS (horizon 1..15, compensate 0..9 / 1..60, boost 2x2 ticks)');
