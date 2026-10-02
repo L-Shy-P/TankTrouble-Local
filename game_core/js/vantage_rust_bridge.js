@@ -81,7 +81,9 @@
          */
         init: async function (wasmUrl) {
             try {
-                wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=12';
+                // v160：wasm 内容变了（ABI v7→v8 新增 vt_set_frame_dt），**这里必须同步提版本号**，
+            // 否则浏览器会一直用缓存里的旧 wasm，改了等于没改（踩过一次）。
+            wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=13';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
