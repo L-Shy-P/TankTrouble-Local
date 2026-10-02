@@ -1453,6 +1453,11 @@
             slot.body.SetLinearVelocity(Box2D.Common.Math.b2Vec2.Make(vx, vy));
             slot.body.SetAngularVelocity(rb.GetAngularVelocity());
             slot.body.SetAwake(true);
+            // v162：标记破片（破片撞墙即停，复刻 Shrapnel.hitMaze 的速度清零）。
+            var slotIsShrapnel = false;
+            try { slotIsShrapnel = (pr.getType && pr.getType() === Constants.WEAPON_TYPES.MINE); } catch (eShr) {}
+            slot.isShrapnel = slotIsShrapnel;
+            slot.prevDirX = null; slot.prevDirY = null;
             slot.initialSpeed = Math.sqrt(vx * vx + vy * vy);
             slot.lifeTotal = (typeof pr.lifetime === 'number') ? pr.lifetime : 10;
             slot.lifeAge = pr.getTimeAlive ? pr.getTimeAlive() : 0;
@@ -1623,6 +1628,22 @@
                     bs.body.SetActive(false);
                     continue;
                 }
+                // v162：破片撞墙即停 —— 复刻 `Shrapnel.hitMaze`（速度清零）。
+                // 判据：飞行方向发生了可观测变化（Box2D 的 restitution=1.0 会把它反射），
+                // 真实破片不会反弹，所以一旦方向变了就说明撞墙，立刻清零停住。
+                // 实证依据：录制 vantage_record_1790925717252.json 地雷致死时
+                //   placements=30/36/72、contacts=[]、dfs=[-1]、killer polyGap=1.22
+                //   —— 破片在该停的地方弹走了，擦过 1.22 米 → 树全绿 → 死。
+                if (bs.isShrapnel && bs.prevDirX !== null) {
+                    var dot = (bv.x / blen) * bs.prevDirX + (bv.y / blen) * bs.prevDirY;
+                    if (dot < 0.999) {           // 方向变了（约 >2.5°）就是撞墙了
+                        bs.body.SetLinearVelocity(Box2D.Common.Math.b2Vec2.Make(0, 0));
+                        bs.active = false;
+                        bs.body.SetActive(false);
+                        continue;
+                    }
+                }
+                if (bs.isShrapnel) { bs.prevDirX = bv.x / blen; bs.prevDirY = bv.y / blen; }
                 var blenSq = blen * blen;
                 var binitSq = bs.initialSpeed * bs.initialSpeed;
                 if (Math.abs(blenSq - binitSq) > 0.01) {
@@ -2541,6 +2562,6 @@
     //   done() 在速度≈0 时返回 true。原来一律用全局 pathBounces=5 → 6 次全图射线
     //   × 30 片 = 180 次，是"地雷爆炸直接卡死"的量；现在 30 片 = 30 次射线。
     //   参考待查清单 §9.2。
-    console.log('[Vantage Sandbox] 模块已加载（v51：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    console.log('[Vantage Sandbox] 模块已加载（v52：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
