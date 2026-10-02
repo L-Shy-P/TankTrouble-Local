@@ -1953,7 +1953,18 @@
                     if (!body || (body.IsActive && !body.IsActive())) continue;
                     var vel = body ? body.GetLinearVelocity() : null;
                     var speed = vel ? vel.Length() : consts.BULLET_SPEED;
-                    var pathInfo = B2DUtils.calculateProjectilePath(world, p, bounces, maxLen, false);
+                    // v161：**按弹种决定反弹次数**。原实现一律用全局 `bounces`，
+                    // 对不会反弹的弹也是 6 次全图射线，纯浪费。
+                    // 地雷破片（Shrapnel）实测：`hitMaze` 把速度清零 → 撞墙即停、不反弹，
+                    // 且 `done()` 在速度≈0 时返回 true → 立刻消失。
+                    // 所以对 MINE(4) 用 0 次反弹 = **1 次射线**（原来 6 次，省 6 倍），
+                    // 而且路径末端正好落在墙上，与真实行为一致。
+                    // 依据：`Shrapnel.hitMaze`/`done`（本地版与正式版代码一致）。
+                    var effBounces = bounces;
+                    try {
+                        if (p.getType && p.getType() === Constants.WEAPON_TYPES.MINE) effBounces = 0;
+                    } catch (eType) {}
+                    var pathInfo = B2DUtils.calculateProjectilePath(world, p, effBounces, maxLen, false);
                     var rawPath = pathInfo ? pathInfo.path : [];
                     // v17：立即深拷贝成 {x,y} 快照。
                     // B2DUtils.calculatePath 的 path[0] 是 b2body.GetPosition()
@@ -2525,6 +2536,11 @@
         rustFrameDtCompatible: rustFrameDtCompatible   // v137：Rust 快路是否安全可用
     };
 
-    console.log('[Vantage Sandbox] 模块已加载（v50：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
+    // v161：地雷破片不反弹 —— getProjectilePaths 按弹种决定反弹次数（MINE 用 0）。
+    //   依据（本地版与正式版代码一致）：Shrapnel.hitMaze 把速度清零（撞墙即停），
+    //   done() 在速度≈0 时返回 true。原来一律用全局 pathBounces=5 → 6 次全图射线
+    //   × 30 片 = 180 次，是"地雷爆炸直接卡死"的量；现在 30 片 = 30 次射线。
+    //   参考待查清单 §9.2。
+    console.log('[Vantage Sandbox] 模块已加载（v51：v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）');
 
 })(typeof window !== 'undefined' ? window : this);
