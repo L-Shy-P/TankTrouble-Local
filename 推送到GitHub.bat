@@ -4,38 +4,46 @@ cd /d "%~dp0"
 title Push to GitHub
 
 echo ============================================================
-echo   Vantage - 推送到 GitHub
-echo   （只推送，不做本地提交）
+echo   Vantage - push to GitHub
+echo   (push only; this script does NOT commit)
 echo ============================================================
 echo.
 
-echo [1/3] 当前状态：
-git status -sb
+echo [1/4] Current status:
+echo ------------------------------------------------------------
+git -c core.quotepath=false status -sb
 echo.
 
-echo [2/3] 本地领先 origin 的提交：
-git log --oneline origin/main..HEAD 2>nul
-if errorlevel 1 echo     （读不到 origin/main，可能是第一次推送或远程未获取）
+echo [2/4] Commits ahead of origin/main:
+echo ------------------------------------------------------------
+git -c core.quotepath=false log --oneline origin/main..HEAD
 echo.
 
-echo [3/3] 开始推送...
+echo [3/4] Checking remote...
+echo ------------------------------------------------------------
+git remote -v
+echo.
+
+echo [4/4] Pushing to origin main ...
 echo ------------------------------------------------------------
 git push origin main
 set PUSH_RESULT=%ERRORLEVEL%
 echo ------------------------------------------------------------
 echo.
 
-if "%PUSH_RESULT%"=="0" (
-    echo   [成功] 已经推送到 GitHub。
-) else (
-    echo   [失败] 退出码 %PUSH_RESULT%
-    echo.
-    echo   常见原因：
-    echo     1. 网络不通（多试几次，或挂上代理再试）
-    echo     2. 需要登录 / token 过期
-    echo     3. 本地没提交（本脚本只推送，不提交）
-)
+if not "%PUSH_RESULT%"=="0" goto FAILED
+echo   [OK] Pushed to GitHub.
+goto END
 
+:FAILED
+echo   [FAIL] git push returned %PUSH_RESULT%
 echo.
-echo 按任意键关闭...
+echo   Common causes:
+echo     1. Network unreachable -- retry, or turn on a proxy / VPN
+echo     2. Login or token expired
+echo     3. Nothing to push -- this script does not commit, commit first
+
+:END
+echo.
+echo Press any key to close...
 pause >nul
