@@ -25,3 +25,6 @@ Thumbs.db
 
 # Rust build output (local only)
 game_core/rust/vantage_core/target/
+
+# FlyWire connectome downloads and derived artifacts (large / regenerable)
+tools/flywire/_data/

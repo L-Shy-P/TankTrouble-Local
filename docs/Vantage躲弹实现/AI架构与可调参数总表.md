@@ -86,8 +86,8 @@
 | 预测时长上限 / 时长 | `horizonCap` / `horizonSec` | 开 / 8s | 限制树看多远 | **关上限危险**：无限叠节点 → 性能雪崩 |
 | 超上限细化 | `refineBeyond` | 开 | 超过视野也把长路径细化 | 探索参数 |
 | 连续细化 | `continuousRefine` | 关 | 每帧都细化而不是等段末 | 更贵 |
-| 剪枝补偿（层/帧） | `pruneCompensateLayers` / `pruneCompensateFrames` | **1 / 10（v119 起默认开）** | 新弹剪枝后每帧多长 N 层，持续 M 帧 | 探索参数 |
-| 回退补偿（层/帧） | `retreatCompensateLayers` / `retreatCompensateFrames` | **1 / 10（v119 新增，默认开）** | 真死回退（掉层）后每帧多长 N 层，持续 M 帧 | 探索参数 |
+| 剪枝补偿（层/帧） | `pruneCompensateLayers` / `pruneCompensateFrames` | **1 / 3（v119 起默认开；持续帧数 v137 由 10 降 3）** | 新弹剪枝后每帧多长 N 层，持续 M 帧 | 探索参数。**M 是性能旋钮**：M=10 时新弹冲击会连着十几帧顶满 11 层/帧，实测明显卡 |
+| 回退补偿（层/帧） | `retreatCompensateLayers` / `retreatCompensateFrames` | **1 / 3（v119 新增，默认开；持续帧数 v137 由 10 降 3）** | 真死回退（掉层）后每帧多长 N 层，持续 M 帧 | 探索参数 |
 | 补偿叠加上限 | （常量 `MAX_GROW_BOOST_STACKS` / `MAX_LAYERS_PER_TICK`） | 10 份 / 每帧 11 层 | 两类补偿**栈式叠加**，高危场景跟上回退速度 | 常量（改动需评估） |
 | 回退节点数 / 帧数 | `retreatNodes` / `retreatFrames` | 3 / 200 | 真死回退时往父链退多少 | 探索参数 |
 
@@ -99,7 +99,7 @@
 | 全局选路 | `deepSelect` | 关 | 用子树最优做全局重选 | **危险**：当前版本明显变呆傻 |
 | 空场安全感知 | `emptyFieldSafety` | 关 | 无弹时主动走向最安全地皮 | 与杀戮场引导配对 |
 | 懒惰倾向 | `emptyFieldLaziness` | 0 | 0=只要不是最安全就走；1=只在明显危险时才走 | 只在"杀戮场 + 空场"都开时生效 |
-| 杀戮场引导 / 权重 | `killfieldEnabled` / `killfieldWeight` | 开 / 100% | 静态地形梯度；权重 0~400% | 主人明确：**不标红**，随便调 |
+| 杀戮场引导 / 权重 | `killfieldEnabled` / `killfieldWeight` | 开 / **275%（v137 主人定）** | 静态地形梯度；权重 0~400% | 主人明确：**不标红**，随便调。**它不知道子弹在哪**：关掉遮蔽分时只能靠死亡帧躲弹 |
 | 点击地图 | — | — | 有弹=只当"目标偏好"；无弹=走迷宫最短路 | 无弹寻路会真正绕墙 |
 
 ---
