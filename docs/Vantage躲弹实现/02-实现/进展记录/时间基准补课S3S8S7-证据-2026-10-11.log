@@ -1,0 +1,241 @@
+===== E1a diff_rescore_life_anchor.js  PHASE=before（复现缺陷） =====
+### E1 diff_rescore_life_anchor.js（PHASE=before：复现缺陷）
+scene            : lifeLeftSeconds 语义（锚点复用轨迹 + 弹在节点尾部到期）
+  FRAME=0.02s  锚点偏移 A = -5 帧 = -0.100s  ⇒ Δ = now_rel - A = 0.100s（5 帧）
+  锚点起寿命 | L_now   L*      | fd_js  fd_now  fd_star  fd_param | 结论
+    9 帧     | 0.080  0.180  |   -1        -1             -1            -1      | 
+   10 帧     | 0.100  0.200  |   -1        -1             -1            -1      | 
+   11 帧     | 0.120  0.220  |   -1        -1             -1            -1      | 
+   12 帧     | 0.140  0.240  |    6        -1*            -1*           -1      | L_now 漏死 L* 不符
+   13 帧     | 0.160  0.260  |    6        -1*             6             6      | L_now 漏死
+   14 帧     | 0.180  0.280  |    6        -1*             6             6      | L_now 漏死
+   15 帧     | 0.200  0.300  |    6        -1*             6             6      | L_now 漏死
+   16 帧     | 0.220  0.320  |    6        -1*             6             6      | L_now 漏死
+   17 帧     | 0.240  0.340  |    6         6              6             6      | 
+   18 帧     | 0.260  0.360  |    6         6              6             6      | 
+   19 帧     | 0.280  0.380  |    6         6              6             6      | 
+   20 帧     | 0.300  0.400  |    6         6              6             6      | 
+   21 帧     | 0.320  0.420  |    6         6              6             6      | 
+   22 帧     | 0.340  0.440  |    6         6              6             6      | 
+   23 帧     | 0.360  0.460  |    6         6              6             6      | 
+   24 帧     | 0.380  0.480  |    6         6              6             6      | 
+   25 帧     | 0.400  0.500  |    6         6              6             6      | 
+   26 帧     | 0.420  0.520  |    6         6              6             6      | 
+   27 帧     | 0.440  0.540  |    6         6              6             6      | 
+   28 帧     | 0.460  0.560  |    6         6              6             6      | 
+   29 帧     | 0.480  0.580  |    6         6              6             6      | 
+   30 帧     | 0.500  0.600  |    6         6              6             6      | 
+   31 帧     | 0.520  0.620  |    6         6              6             6      | 
+   32 帧     | 0.540  0.640  |    6         6              6             6      | 
+   33 帧     | 0.560  0.660  |    6         6              6             6      | 
+   34 帧     | 0.580  0.680  |    6         6              6             6      | 
+   35 帧     | 0.600  0.700  |    6         6              6             6      | 
+  合计：5/27 个寿命取值上「L_now 口径」与 JS 权威死亡帧不一致
+  首个不一致：锚点起寿命 12 帧（L_now=0.140s, L*=0.240s） fd_js=6 fd_now=-1 fd_star=-1
+  [info] 行数=27  其中"JS 死帧落在 Rust 寿命窗口外"的到期边界行=1（窗口 kmax=2/3/4/5/6/7/8/9/10/11/13/14/14/15/16/17/18/19/21/22/22/23/24/25/27/28/29）
+  [info] fd_now  偏离期望的行数 : 4 / 27
+  [info] fd_star 偏离期望的行数 : 0 / 27
+  [info] L_now 漏死、L* 修回的行数 : 4 / 27（L_now=0.16→-1 L*→6; L_now=0.18→-1 L*→6; L_now=0.20→-1 L*→6; L_now=0.22→-1 L*→6）
+  [info] fd_param 偏离 fd_star 的行数 : 0 / 27
+DIFF RESCORE LIFE ANCHOR: 缺陷已复现（before）fd_now 漏死行数=4
+
+===== E1b diff_rescore_life_anchor.js  PHASE=after（新口径 = JS 权威） =====
+
+### E1 diff_rescore_life_anchor.js（PHASE=after：新口径 = JS 权威 27/27）
+scene            : lifeLeftSeconds 语义（锚点复用轨迹 + 弹在节点尾部到期）
+  FRAME=0.02s  锚点偏移 A = -5 帧 = -0.100s  ⇒ Δ = now_rel - A = 0.100s（5 帧）
+  锚点起寿命 | L_now   L*      | fd_js  fd_now  fd_star  fd_param | 结论
+    9 帧     | 0.080  0.180  |   -1        -1             -1            -1      | 
+   10 帧     | 0.100  0.200  |   -1        -1             -1            -1      | 
+   11 帧     | 0.120  0.220  |   -1        -1             -1            -1      | 
+   12 帧     | 0.140  0.240  |    6        -1*            -1*           -1      | L_now 漏死 L* 不符
+   13 帧     | 0.160  0.260  |    6        -1*             6             6      | L_now 漏死
+   14 帧     | 0.180  0.280  |    6        -1*             6             6      | L_now 漏死
+   15 帧     | 0.200  0.300  |    6        -1*             6             6      | L_now 漏死
+   16 帧     | 0.220  0.320  |    6        -1*             6             6      | L_now 漏死
+   17 帧     | 0.240  0.340  |    6         6              6             6      | 
+   18 帧     | 0.260  0.360  |    6         6              6             6      | 
+   19 帧     | 0.280  0.380  |    6         6              6             6      | 
+   20 帧     | 0.300  0.400  |    6         6              6             6      | 
+   21 帧     | 0.320  0.420  |    6         6              6             6      | 
+   22 帧     | 0.340  0.440  |    6         6              6             6      | 
+   23 帧     | 0.360  0.460  |    6         6              6             6      | 
+   24 帧     | 0.380  0.480  |    6         6              6             6      | 
+   25 帧     | 0.400  0.500  |    6         6              6             6      | 
+   26 帧     | 0.420  0.520  |    6         6              6             6      | 
+   27 帧     | 0.440  0.540  |    6         6              6             6      | 
+   28 帧     | 0.460  0.560  |    6         6              6             6      | 
+   29 帧     | 0.480  0.580  |    6         6              6             6      | 
+   30 帧     | 0.500  0.600  |    6         6              6             6      | 
+   31 帧     | 0.520  0.620  |    6         6              6             6      | 
+   32 帧     | 0.540  0.640  |    6         6              6             6      | 
+   33 帧     | 0.560  0.660  |    6         6              6             6      | 
+   34 帧     | 0.580  0.680  |    6         6              6             6      | 
+   35 帧     | 0.600  0.700  |    6         6              6             6      | 
+  合计：5/27 个寿命取值上「L_now 口径」与 JS 权威死亡帧不一致
+  首个不一致：锚点起寿命 12 帧（L_now=0.140s, L*=0.240s） fd_js=6 fd_now=-1 fd_star=-1
+  [info] 行数=27  其中"JS 死帧落在 Rust 寿命窗口外"的到期边界行=1（窗口 kmax=2/3/4/5/6/7/8/9/10/11/13/14/14/15/16/17/18/19/21/22/22/23/24/25/27/28/29）
+  [info] fd_now  偏离期望的行数 : 4 / 27
+  [info] fd_star 偏离期望的行数 : 0 / 27
+  [info] L_now 漏死、L* 修回的行数 : 4 / 27（L_now=0.16→-1 L*→6; L_now=0.18→-1 L*→6; L_now=0.20→-1 L*→6; L_now=0.22→-1 L*→6）
+  [info] fd_param 偏离 fd_star 的行数 : 0 / 27
+DIFF RESCORE LIFE ANCHOR PASSED (after) 固定修复行数=4
+
+===== E4 diff_score_paths_nowtglobal.js（S8：未来节点漏死） =====
+### E4 diff_score_paths_nowtglobal.js
+scene            : S8 未来节点 + 弹在节点起点附近到期
+  μ(nowTGlobal)=0.30s  T(tGlobal)=0.50s  A=0.00s  LT=0.70s
+  现在剩余寿命 L_now=0.400s
+  节点起点正确剩余寿命 = 0.200s（10.0 帧）
+  少传 nowTGlobal 时 = -0.100s ⇒ 少 15.0 帧
+  track 长度=35  节点起点的弹位 = track[25] = (5.00,11.00)
+  fd_missing(nowTGlobal=0) = [-1,-1,-1,-1,-1,-1,-1,-1,-1]
+  fd_correct(nowTGlobal=μ) = [3,-1,2,2,2,-1,-1,2,2]
+  [audit] purpose=unknown tGlobal=0.5 nowTGlobal=0.3 摆弹={"pid":null,"active":true,"src":"track","x":5,"y":11,"vx":0,"vy":-18,"threat":true,"trackLen":35,"idx":25}
+DIFF SCORE PATHS NOWTGLOBAL PASSED (after) 命中帧=3
+
+===== E3 diff_s7_pastnode.js（S7：段中 tGlobal≈0 弹位错位） =====
+### E3 diff_s7_pastnode.js
+scene            : S7 段中 tGlobal≈0 批次（节点起点在过去 15 帧）
+  真实弹现在 = (5, 11.00)  速度(0,-18)  现在剩余寿命 = 0.10s
+  节点起点应在 = (5, 16.40)  该处剩余寿命 = 0.40s  trackLen=20
+  旧（nowTGlobal=0）   : 摆弹={"pid":null,"active":true,"src":"real","x":5,"y":11,"vx":0,"vy":-18,"threat":true,"trackLen":20,"idx":0} fd[0]=3
+  新（nowTGlobal=0.30）: 摆弹={"pid":null,"active":true,"src":"track","x":5,"y":16.4,"vx":0,"vy":-18,"threat":true,"trackLen":20,"idx":0} fd[0]=18
+  期望摆位 y=16.40  旧摆位 y=11.00（差 5.40m = tBack×弹速）
+DIFF S7 PASTNODE PASSED (after)：摆位回推 5.40m，死帧从 3 修到 18（+15 帧 = tBack）
+
+===== 探针改前（S7: src=real 2/2；Δ 分布） =====
+=== 探针（时间基准补课 S3/S7/S8） ===
+帧数=600  采到 anchors 样本=223  projectile 累计=221
+Δ = nowTGlobal - anchorOffset（秒）: min=0.0170 median=2.1417 p90=5.3707 p99=5.3707 max=5.3707
+  换算成帧（FRAME=0.02）: median=107.1 p90=268.5 max=268.5
+  Δ≥1 帧的样本占比 = 99.6%
+融合批次 purpose 分布 = {"rolloutNine":479,"jsConfirm":40,"commitSliceRust":3}
+  [rolloutNine] n=479 tGlobal med=0.367/max=7.933  nowTGlobal med=0.119/max=0.289  | tGlobal≈0&now>0.05=0  tGlobal>0&now>0.05=403  tGlobal>0&now=0=76  双0=0
+  [jsConfirm] n=40 tGlobal med=0.000/max=0.300  nowTGlobal med=0.000/max=0.000  | tGlobal≈0&now>0.05=0  tGlobal>0&now>0.05=0  tGlobal>0&now=0=6  双0=34
+  [commitSliceRust] n=3 tGlobal med=0.000/max=0.000  nowTGlobal med=0.221/max=0.255  | tGlobal≈0&now>0.05=2  tGlobal>0&now>0.05=0  tGlobal>0&now=0=0  双0=1
+按威胁（anchor id）看 Δ: 共 6 个威胁
+   b-e6f5-16: 采样51 Δmin=0.289 Δmax=5.371 trackLen=562
+   b-e6f5-17: 采样47 Δmin=0.256 Δmax=3.978 trackLen=562
+   b-e6f5-18: 采样42 Δmin=0.120 Δmax=2.142 trackLen=565
+   b-e6f5-15: 采样8 Δmin=0.017 Δmax=2.057 trackLen=562
+   b-e6f5-19: 采样39 Δmin=0.085 Δmax=1.087 trackLen=562
+   b-e6f5-20: 采样36 Δmin=0.136 Δmax=0.136 trackLen=562
+S7（tGlobal≈0 且 nowTGlobal>0.05，有摆弹）批次数 = 2
+   其中 src='real' 摆弹数 = 2 / 2
+   nowTGlobal: median=0.255 max=0.255  ⇒ 弹位误差(×18m/s): median=4.60m max=4.60m
+   样例: [{"seq":276,"purpose":"commitSliceRust","tg":0,"nt":0.25533325195312506,"tNow":0.68066650390625,"real":1,"total":1,"sample":[{"pid":"b-e6f5-15","active":true,"src":"real","x":75,"y":30.7,"vx":0,"vy":-18,"threat":true,"trackLen":0,"idx":0}]},{"seq":302,"purpose":"commitSliceRust","tg":0,"nt":0.2206667480468747,"tNow":1.0199999999999996,"real":1,"total":1,"sample":[{"pid":"b-e6f5-15","active":true,"src":"real","x":75,"y":26.79,"vx":0,"vy":-18,"threat":true,"trackLen":0,"idx":0}]}]
+S8（purpose=unknown 且 tGlobal>0）批次数 = 0
+E8（威胁表里有、实时 projectile 取不到）次数 = 36
+   样例: [{"t":8.482666666666667,"id":"b-e6f5-16","projCount":4},{"t":8.482666666666667,"id":"b-e6f5-16","projCount":5},{"t":8.482666666666667,"id":"b-e6f5-16","projCount":5}]
+页面错误数 = 0
+
+===== 探针改后（S7: src=real 0/9；位置对拍；Δ 分布） =====
+=== 探针（时间基准补课 S3/S7/S8） ===
+帧数=700  采到 anchors 样本=69  projectile 累计=52
+Δ = nowTGlobal - anchorOffset（秒）: min=0.0163 median=0.1870 p90=3.8430 p99=5.8830 max=5.8830
+  换算成帧（FRAME=0.02）: median=9.4 p90=192.1 max=294.1
+  Δ≥1 帧的样本占比 = 95.7%
+融合批次 purpose 分布 = {"rolloutNine":1312,"commitSliceRust":13,"jsConfirm":108}
+  [rolloutNine] n=1312 tGlobal med=0.317/max=8.000  nowTGlobal med=0.119/max=0.493  | tGlobal≈0&now>0.05=0  tGlobal>0&now>0.05=1102  tGlobal>0&now=0=210  双0=0
+  [commitSliceRust] n=13 tGlobal med=0.000/max=0.000  nowTGlobal med=0.221/max=0.510  | tGlobal≈0&now>0.05=12  tGlobal>0&now>0.05=0  tGlobal>0&now=0=0  双0=1
+  [jsConfirm] n=108 tGlobal med=0.000/max=0.300  nowTGlobal med=0.000/max=0.254  | tGlobal≈0&now>0.05=0  tGlobal>0&now>0.05=1  tGlobal>0&now=0=1  双0=106
+按威胁（anchor id）看 Δ: 共 2 个威胁
+   b-59b1-15: 采样18 Δmin=0.102 Δmax=5.883 trackLen=562
+   b-59b1-16: 采样51 Δmin=0.016 Δmax=1.445 trackLen=562
+S7（tGlobal≈0 且 nowTGlobal>0.05，有摆弹）批次数 = 9
+   其中 src='real' 摆弹数 = 0 / 9
+   nowTGlobal: median=0.204 max=0.510  ⇒ 弹位误差(×18m/s): median=3.67m max=9.18m
+   位置对拍: 未移动(≈现在弹位)=0  已按 -v·tBack 反推=0  其它=9（反推距离最大 2.41m）
+   逐弹: [{"pid":"b-59b1-15","src":"path","obs":1.09,"vsBack":3.49},{"pid":"b-59b1-16","src":"path","obs":2.41,"vsBack":1.26},{"pid":"b-59b1-16","src":"path","obs":2.39,"vsBack":3.74},{"pid":"b-59b1-16","src":"path","obs":0.9,"vsBack":8.28},{"pid":"b-59b1-16","src":"path","obs":2.11,"vsBack":9.38},{"pid":"b-59b1-16","src":"path","obs":2.39,"vsBack":1.28}]
+   样例: [{"seq":293,"purpose":"commitSliceRust","tg":0,"nt":0.25433349609375006,"tNow":0.67933349609375,"real":0,"total":1,"cmp":[{"pid":"b-59b1-15","src":"path","obs":1.09,"vsBack":3.49,"v":4.58}],"sample":[{"pid":"b-59b1-15","active":true,"src":"path","x":75,"y":20.7,"vx":0,"vy":-18,"threat":true,"trackLen":0,"idx":0}]},{"seq":688,"purpose":"commitSliceRust","tg":0,"nt":0.20400000000000063,"tNow":7.479999999999998,"real":0,"total":1,"cmp":[{"pid":"b-59b1-16","src":"path","obs":2.41,"vsBack":1.26,"v":3.67}],"sample":[{"pid":"b-59b1-16","active":true,"src":"path","x":60.87,"y":25.46,"vx":13.37,"vy":-12.05,"threat":true,"trackLen":0,"idx":0}]}]
+S8（purpose=unknown 且 tGlobal>0）批次数 = 0
+E8（威胁表里有、实时 projectile 取不到）次数 = 0
+页面错误数 = 0
+
+===== 回归① 20 次独立新录→回放（1200 帧） =====
+{"start":"2026-10-11T11:28:38.168Z","mode":"record","iters":20,"parallel":1,"slow":0,"slowAsset":0,"in":"C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\base400.jsonl","recFrames":1200,"pid":31200}
+{"i":0,"ok":true,"frames":1200,"opMismatch":0,"poseMismatch":0,"maxPoseDiff":0,"projMismatch":0,"stateMismatch":0,"rngMismatch":0,"timeMismatch":0,"maxTimeDiff":0,"hiddenMismatch":0,"driveMismatch":0,"examples":[],"wallMs":8427,"recFrames":1200,"recRngLen":17744,"recOverflow":0,"recHash":1911611118,"recPageHash":1911611118,"recFramesMatch":true,"replayRngOverflow":0,"replayDriveErrs":0,"replayFramesMatch":true,"headerMaze":"8x4/theme1"}
+{"done":"2026-10-11T11:31:35.138Z","iters":20,"pass":20,"fail":0}
+
+===== 回归② 全量 diff_*.js =====
+PASS diff_audit_contactlist.js
+PASS diff_audit_geometry.js
+PASS diff_audit_polygap.js
+PASS diff_bounce_timeout_window.js
+FAIL diff_box2d.js
+    at Object..js (node:internal/modules/cjs/loader:1961:10)
+    at Module.load (node:internal/modules/cjs/loader:1553:32)
+    at Module._load (node:internal/modules/cjs/loader:1355:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+PASS diff_commit_slice_rust.js
+PASS diff_death_geometry_fallback.js
+PASS diff_external_hybrid.js
+PASS diff_external_hybrid_obs.js
+PASS diff_incremental_death_merge.js
+PASS diff_killfield_brain.js
+PASS diff_killfield_field.js
+PASS diff_killfield_risk.js
+PASS diff_killfield_walls.js
+PASS diff_lobby_hybrid.js
+PASS diff_lobby_killfield.js
+PASS diff_panel_eval_wheel.js
+PASS diff_panel_risk.js
+PASS diff_record_forensics.js
+OK   diff_record_meta.js
+FAIL diff_rescore.js
+    at Object..js (node:internal/modules/cjs/loader:1961:10)
+    at Module.load (node:internal/modules/cjs/loader:1553:32)
+    at Module._load (node:internal/modules/cjs/loader:1355:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+PASS diff_rescore_bridge.js
+OK   diff_rescore_life_anchor.js
+PASS diff_rescore_proj_semantics.js
+FAIL diff_rollout.js
+    at Object..js (node:internal/modules/cjs/loader:1961:10)
+    at Module.load (node:internal/modules/cjs/loader:1553:32)
+    at Module._load (node:internal/modules/cjs/loader:1355:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+PASS diff_rollout_bridge.js
+PASS diff_rollout_rescore_edge.js
+PASS diff_rust_frame_dt_sync.js
+PASS diff_s7_pastnode.js
+PASS diff_score_paths_bridge.js
+PASS diff_score_paths_nowtglobal.js
+PASS diff_shotgun_wall_lifetime.js
+PASS diff_shrapnel_lifetime_zero.js
+PASS diff_shrapnel_no_bounce.js
+PASS diff_shrapnel_wall_stop.js
+PASS diff_tree_coarse_reach.js
+PASS diff_tree_continuous_refine.js
+PASS diff_tree_death_blind.js
+PASS diff_tree_death_shorten.js
+PASS diff_tree_grow_boost.js
+PASS diff_tree_growth_switch.js
+PASS diff_tree_killfield.js
+PASS diff_tree_low_eval_frames.js
+PASS diff_tree_move_target.js
+PASS diff_tree_no_veto.js
+PASS diff_tree_nodecount.js
+PASS diff_tree_prune_compensation.js
+PASS diff_tree_red_never_over_nonred.js
+PASS diff_tree_refine_split.js
+PASS diff_tree_refine_split_death_inherit.js
+PASS diff_tree_reset_calib.js
+PASS diff_tree_retreat_depth.js
+PASS diff_tree_retreat_reroute.js
+PASS diff_tree_soft_dead_growth.js
+PASS diff_tree_softdead_refork.js
+PASS diff_tree_warmup_cap.js
+SUMMARY pass=53 fail=3 skip=0
+
+注：上面的 fail=3 = diff_box2d.js / diff_rescore.js / diff_rollout.js —— 本机缺 MSVC 主机链接
+（cargo run … failed (101) / linking with link.exe failed），改动前就是 SKIP 的同一批，与本次改动无关。
+本轮新增并 PASS：diff_rescore_life_anchor.js / diff_s7_pastnode.js / diff_score_paths_nowtglobal.js。
+口径见 时间基准补课S3S8S7-2026-10-11.md §六.2。

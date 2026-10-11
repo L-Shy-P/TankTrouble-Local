@@ -1,0 +1,54 @@
+PASS diff_audit_contactlist.js
+PASS diff_audit_geometry.js
+PASS diff_audit_polygap.js
+PASS diff_bounce_timeout_window.js
+SKIP diff_box2d.js :: 需 MSVC 主机链接（cargo run --bin），本机缺，改动前就如此
+PASS diff_commit_slice_rust.js
+PASS diff_death_geometry_fallback.js
+PASS diff_external_hybrid.js
+PASS diff_external_hybrid_obs.js
+PASS diff_incremental_death_merge.js
+PASS diff_killfield_brain.js
+PASS diff_killfield_field.js
+PASS diff_killfield_risk.js
+PASS diff_killfield_walls.js
+PASS diff_lobby_hybrid.js
+PASS diff_lobby_killfield.js
+PASS diff_panel_eval_wheel.js
+PASS diff_panel_risk.js
+PASS diff_record_forensics.js
+OK   diff_record_meta.js
+SKIP diff_rescore.js :: 需 MSVC 主机链接（cargo run --bin），本机缺，改动前就如此
+PASS diff_rescore_bridge.js
+PASS diff_rescore_proj_semantics.js
+SKIP diff_rollout.js :: 需 MSVC 主机链接（cargo run --bin），本机缺，改动前就如此
+PASS diff_rollout_bridge.js
+PASS diff_rollout_rescore_edge.js
+PASS diff_rust_frame_dt_sync.js
+PASS diff_score_paths_bridge.js
+PASS diff_shotgun_wall_lifetime.js
+PASS diff_shrapnel_lifetime_zero.js
+PASS diff_shrapnel_no_bounce.js
+PASS diff_shrapnel_wall_stop.js
+PASS diff_tree_coarse_reach.js
+PASS diff_tree_continuous_refine.js
+PASS diff_tree_death_blind.js
+PASS diff_tree_death_shorten.js
+PASS diff_tree_grow_boost.js
+PASS diff_tree_growth_switch.js
+PASS diff_tree_killfield.js
+PASS diff_tree_low_eval_frames.js
+PASS diff_tree_move_target.js
+PASS diff_tree_no_veto.js
+PASS diff_tree_nodecount.js
+PASS diff_tree_prune_compensation.js
+PASS diff_tree_red_never_over_nonred.js
+PASS diff_tree_refine_split.js
+PASS diff_tree_refine_split_death_inherit.js
+PASS diff_tree_reset_calib.js
+PASS diff_tree_retreat_depth.js
+PASS diff_tree_retreat_reroute.js
+PASS diff_tree_soft_dead_growth.js
+PASS diff_tree_softdead_refork.js
+PASS diff_tree_warmup_cap.js
+SUMMARY pass=50 fail=0 skip=3

@@ -1,0 +1,127 @@
+# 锚点年龄Δ实战复算 —— 证据（2026-10-11）
+# 版本指纹：vantage_tree.js md5 44d88c73932196baa5378d8a266e761a mtime 2026-10-11 19:25（TREE_VERSION=v167）
+#           vantage_sandbox.js md5 a08ac52cf7ac1ba9665da10e801b750d / vantage_scoring.js md5 c230e33f87e5726c4ca5be4cfbda020d
+# 本轮未改 game_core 任何一行。
+
+########## [1] 实战录像复算（python _tools/headless/_probe_anchor_delta_records.py）
+== A. 录像清单 ==
+  vantage_record_1789482072281.json        tree=v106   frames=505  abs0=False proj明细=True  start=manual
+  vantage_record_1789482151022.json        tree=v106   frames=238  abs0=False proj明细=True  start=manual
+  vantage_record_1789482295503.json        tree=v106   frames=116  abs0=False proj明细=True  start=manual
+  vantage_record_1789482367722.json        tree=v106   frames=37   abs0=False proj明细=True  start=manual
+  vantage_record_1789486710381.json        tree=v106   frames=40   abs0=False proj明细=True  start=manual
+  vantage_record_1789487050730.json        tree=v106   frames=156  abs0=False proj明细=True  start=manual
+  vantage_record_1789756723769.json        tree=v118   frames=91   abs0=False proj明细=True  start=manual
+  vantage_record_1790426192501.json        tree=v136   frames=360  abs0=True  proj明细=False start=auto-death
+  vantage_record_1790509445005.json        tree=v137   frames=360  abs0=True  proj明细=False start=auto-death
+
+== B. Δ 分布（= t - anchor.abs0；仅带 anchorProbe 的录像） ==
+-- vantage_record_1790426192501.json tree=v136 frameDt=0.01685 样本帧=360 Δ样本=1309 唯一威胁=5 --
+  Δ 全样本                          n=1309  min=  0.016 med=  0.083 p90=  0.200 p99=  0.334 max=  0.367
+    [子弹BULLET]                   n=1309  min=  0.016 med=  0.083 p90=  0.200 p99=  0.334 max=  0.367
+    弹种样本量: {'子弹BULLET': 1309}
+    逐威胁（Δmax=锚点最大年龄；重锚=Δ 回落到 <25% 峰值 的次数；cap=len*frameDt）:
+      b-4f8c-109     Δmax=0.367 Δmed=0.083 观测年龄=5.62s track.len=220 cap=3.71s Δmax/cap=0.10 重锚=38 采样=300
+      b-4f8c-110     Δmax=0.367 Δmed=0.083 观测年龄=5.37s track.len=232 cap=3.91s Δmax/cap=0.09 重锚=37 采样=286
+      b-4f8c-111     Δmax=0.367 Δmed=0.067 观测年龄=4.98s track.len=251 cap=4.23s Δmax/cap=0.09 重锚=36 采样=264
+      b-4f8c-112     Δmax=0.367 Δmed=0.067 观测年龄=4.70s track.len=266 cap=4.48s Δmax/cap=0.08 重锚=35 采样=248
+      b-4f8c-114     Δmax=0.367 Δmed=0.067 观测年龄=4.00s track.len=301 cap=5.07s Δmax/cap=0.07 重锚=30 采样=211
+      上升沿 dΔ/dt（应≈1）             n=1128  min=  1.000 med=  1.000 p90=  1.000 p99=  1.000 max=  1.000
+-- vantage_record_1790509445005.json tree=v137 frameDt=0.02000 样本帧=360 Δ样本=365 唯一威胁=5 --
+  Δ 全样本                          n=365   min=  0.016 med=  0.067 p90=  0.267 p99=  0.384 max=  0.417
+    [子弹BULLET]                   n=365   min=  0.016 med=  0.067 p90=  0.267 p99=  0.384 max=  0.417
+    弹种样本量: {'子弹BULLET': 365}
+    逐威胁（Δmax=锚点最大年龄；重锚=Δ 回落到 <25% 峰值 的次数；cap=len*frameDt）:
+      b-eafc-13      Δmax=0.417 Δmed=0.083 观测年龄=1.25s track.len=427 cap=8.54s Δmax/cap=0.05 重锚=9 采样=63
+      b-eafc-10      Δmax=0.384 Δmed=0.067 观测年龄=1.67s track.len=400 cap=8.00s Δmax/cap=0.05 重锚=13 采样=87
+      b-eafc-11      Δmax=0.384 Δmed=0.066 观测年龄=1.60s track.len=406 cap=8.12s Δmax/cap=0.05 重锚=13 采样=83
+      b-eafc-12      Δmax=0.384 Δmed=0.083 观测年龄=1.43s track.len=417 cap=8.34s Δmax/cap=0.05 重锚=10 采样=74
+      b-eafc-14      Δmax=0.317 Δmed=0.066 观测年龄=1.15s track.len=435 cap=8.70s Δmax/cap=0.04 重锚=9 采样=58
+      上升沿 dΔ/dt（应≈1）             n=306   min=  1.000 med=  1.000 p90=  1.000 p99=  1.000 max=  1.000
+
+== C. commit 间隔 = shift（reanchor 复用的门限是 shift<=1.0s）==
+    vantage_record_1789482072281.j n=74    min=  0.040 med=  0.040 p90=  0.040 p99=  0.040 max=  0.040
+    vantage_record_1789482151022.j n=38    min=  0.040 med=  0.040 p90=  0.040 p99=  0.040 max=  0.040
+    vantage_record_1789482295503.j n=29    min=  0.040 med=  0.040 p90=  0.040 p99=  0.060 max=  0.060
+    vantage_record_1789482367722.j n=12    min=  0.040 med=  0.040 p90=  0.060 p99=  0.080 max=  0.080
+    vantage_record_1789486710381.j n=13    min=  0.040 med=  0.040 p90=  0.040 p99=  0.040 max=  0.040
+    vantage_record_1789487050730.j n=35    min=  0.040 med=  0.040 p90=  0.040 p99=  0.060 max=  0.060
+    vantage_record_1789756723769.j n=15    min=  0.040 med=  0.040 p90=  0.040 p99=  0.040 max=  0.040
+    vantage_record_1790426192501.j n=43    min=  0.033 med=  0.033 p90=  0.034 p99=  0.034 max=  0.034
+    vantage_record_1790509445005.j n=45    min=  0.033 med=  0.033 p90=  0.034 p99=  0.034 max=  0.034
+
+== D. E8 近似（威胁表里有弹、实时 projectile 取不到）==
+  vantage_record_1789482072281.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 2164 (0.00%) 例=[]
+  vantage_record_1789482151022.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 1190 (0.00%) 例=[]
+  vantage_record_1789482295503.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 223 (0.00%) 例=[]
+  vantage_record_1789482367722.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 118 (0.00%) 例=[]
+  vantage_record_1789486710381.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 552 (0.00%) 例=[]
+  vantage_record_1789487050730.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 405 (0.00%) 例=[]
+  vantage_record_1789756723769.json      [proj明细] 缺失威胁帧发生=0 次 / 威胁-帧 628 (0.00%) 例=[]
+  vantage_record_1790426192501.json      [anchors口径] 威胁-帧 1311；其中无实时弹(anchors缺)=2 次 (0.15%)，涉及 2 帧 例=[[2.7, 3, 2], [2.983, 4, 3]]
+  vantage_record_1790509445005.json      [anchors口径] 威胁-帧 369；其中无实时弹(anchors缺)=4 次 (1.08%)，涉及 4 帧 例=[[6.25, 2, 1], [6.417, 3, 2], [6.6, 4, 3]]
+
+== E. 各录像里出现过的弹种（proj/threatIds/deaths 前缀）==
+  vantage_record_1789482072281.json      {'子弹BULLET': 2164}
+  vantage_record_1789482151022.json      {'子弹BULLET': 1190}
+  vantage_record_1789482295503.json      {'子弹BULLET': 223, '死亡:子弹BULLET': 2}
+  vantage_record_1789482367722.json      {'子弹BULLET': 118, '死亡:子弹BULLET': 3}
+  vantage_record_1789486710381.json      {'双管DOUBLE_BARREL': 396, '子弹BULLET': 156, '死亡:子弹BULLET': 4, '死亡:追踪导弹HOMING': 1, '死亡:双管DOUBLE_BARREL': 9}
+  vantage_record_1789487050730.json      {'双管DOUBLE_BARREL': 405, '死亡:双管DOUBLE_BARREL': 15, '死亡:子弹BULLET': 5}
+  vantage_record_1789756723769.json      {'双管DOUBLE_BARREL': 628, '死亡:加特林GATLING': 1, '死亡:子弹BULLET': 1, '死亡:双管DOUBLE_BARREL': 2}
+  vantage_record_1790426192501.json      {'子弹BULLET': 0, '死亡:子弹BULLET': 6}
+  vantage_record_1790509445005.json      {'子弹BULLET': 0, '死亡:子弹BULLET': 1}
+
+口径：Δ = 记录帧 t − anchor.abs0；abs0 = rootAbsT + anchorOffset（anchorProbe，逐帧）
+
+########## [2] 合并统计（两份带 abs0 的录像）
+combined n=1674 min=0.016 med=0.067 p90=0.216 p99=0.350 max=0.417
+占比 Δ>=0.02s=85.7%  >=0.1s=38.8%  >=0.3s=2.6%
+
+########## [3] 复用门探针 第一次跑（_probe_reanchor_gate.js v1, --frames=700）
+=== 锚点复用门探针（当前 build）===
+帧数=700 eval=700 失败=0 Δ样本=3469
+horizonSec=8 trackCount=2 rebuilds=undefined
+Δ 分布: min=0.016 med=0.171 p90=0.373 p99=0.765 max=1.122
+观测到威胁数=8；按 Δmax 排序前 10:
+   b-6241-15 Δmax=1.122 len=527 采样=80
+   b-6241-20 Δmax=1.036 len=135 采样=480
+   b-6241-21 Δmax=1.002 len=147 采样=467
+   b-6241-23 Δmax=0.918 len=562 采样=42
+   b-6241-16 Δmax=0.832 len=3 采样=600
+   b-6241-17 Δmax=0.628 len=9 采样=600
+   b-6241-18 Δmax=0.628 len=9 采样=600
+   b-6241-19 Δmax=0.493 len=5 采样=600
+commit 次数(rootAbsT 变化)=83
+  shift(=两次 commit 间隔 s): med=0.323 p90=0.408 max=0.493
+  needFrames(diag.trackFrames): [561,565]
+  逐威胁决策: reuse=256 resim=163 new=5
+   resim 行 lenBefore: [562,542,561,547,553,560,540,546,554,533,539,526] ; 对应 needFrames: [561]
+   reuse 行 lenBefore: [481,562,533,505,511,518,487,494,457,463,470,443] ; 对应 needFrames: [561,565]
+  shift>1.0 的 commit 数 = 0
+  commit 明细(前12): [{"t":0.34000000000000014,"shift":0.323,"need":561,"reuse":1,"resim":0,"new":0},{"t":0.67933349609375,"shift":0.323,"need":561,"reuse":0,"resim":1,"new":0},{"t":0.8833334960937498,"shift":0.221,"need":561,"reuse":1,"resim":0,"new":0},{"t":1.2239999999999995,"shift":0.341,"need":561,"reuse":2,"resim":0,"new":0},{"t":1.3933334960937491,"shift":0.153,"need":561,"reuse":2,"resim":0,"new":2},{"t":1.6659999999999988,"shift":0.272,"need":561,"reuse":4,"resim":0,"new":1},{"t":2.0053334960937486,"shift":0.356,"need":561,"reuse":5,"resim":0,"new":0},{"t":2.3459999999999965,"shift":0.323,"need":561,"reuse":0,"resim":5,"new":0},{"t":2.5499999999999954,"shift":0.221,"need":561,"reuse":5,"resim":0,"new":0},{"t":3.025333496093743,"shift":0.459,"need":561,"reuse":0,"resim":4,"new":0},{"t":3.2639999999999914,"shift":0.238,"need":561,"reuse":0,"resim":4,"new":0},{"t":3.50199999999999,"shift":0.238,"need":561,"reuse":0,"resim":4,"new":0}]
+  commit 明细(后12): [{"t":19.788000000000167,"shift":0.374,"need":561,"reuse":6,"resim":0,"new":0},{"t":20.026000000000174,"shift":0.238,"need":565,"reuse":6,"resim":0,"new":0},{"t":20.40000000000019,"shift":0.374,"need":561,"reuse":6,"resim":0,"new":0},{"t":20.773333496093954,"shift":0.373,"need":561,"reuse":6,"resim":0,"new":0},{"t":21.148000000000216,"shift":0.375,"need":561,"reuse":6,"resim":0,"new":0},{"t":21.522000000000233,"shift":0.374,"need":561,"reuse":6,"resim":0,"new":0},{"t":21.895333496093997,"shift":0.373,"need":561,"reuse":3,"resim":0,"new":0},{"t":22.27000000000026,"shift":0.375,"need":561,"reuse":2,"resim":0,"new":0},{"t":22.405333496094016,"shift":0.119,"need":561,"reuse":0,"resim":2,"new":1},{"t":22.78000000000028,"shift":0.374,"need":561,"reuse":0,"resim":3,"new":0},{"t":22.882000000000282,"shift":0.119,"need":561,"reuse":3,"resim":0,"new":0},{"t":23.358000000000303,"shift":0.476,"need":561,"reuse":3,"resim":0,"new":0}]
+
+########## [4] 复用门探针 第二次跑（v2：commit 帧 anchor 采集滞后一帧已修正，--frames=700）
+=== 锚点复用门探针 v2（当前 build）===
+帧=700 有效样本=700 horizonSec=8 frameDt=null
+Δ 分布: n=1462 min=0.016 med=7.972 p90=17.901 p99=20.145 max=20.383
+commit=139  shift: med=0.170 p90=0.170 max=0.204
+needFrames 观测值=[480,561]
+决策: reuse=288 resim=1 new=2 总威胁-commit=291
+  reuse 例: [{"id":"b-0151-15","t":0.34000000000000014,"s":0.136,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":0.5100000000000002,"s":0.17,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":0.67933349609375,"s":0.17,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":0.8499999999999999,"s":0.17,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":1.0199999999999998,"s":0.17,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":1.1893334960937494,"s":0.17,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":1.3599999999999992,"s":0.17,"need":561,"lb":562,"la":562},{"id":"b-0151-15","t":1.563999999999999,"s":0.204,"need":561,"lb":562,"la":562}]
+  resim 例: [{"id":"b-0151-15","t":0.20400000000000001,"s":0.17,"need":561,"lb":481,"la":562}]
+  门限自检（用 lb 与 commit 后的 needFrames）: reuse 且门成立=288/288  resim 且门不成立=1/1
+  resim 且门【成立】的行（应=0，否则说明还有别的重锚路径）=[]
+  reuse 且 lb<need 的行（应=0）=[]
+  shift>1.0 的 commit 数=0
+  逐威胁决策: {"b-0151-15":{"reuse":14,"resim":1,"lmin":562,"lmax":562},"b-0151-16":{"reuse":119,"resim":0,"lmin":562,"lmax":562,"new":null},"b-0151-17":{"reuse":119,"resim":0,"lmin":562,"lmax":562,"new":null},"b-0151-19":{"reuse":36,"resim":0,"lmin":565,"lmax":565}}
+
+########## [5] S2 只读核对（_probe_s2_rebase_readonly.js --frames=600；最后一次跑）
+=== S2 只读核对（坍缩/rebase 之后 samples[0] ≈ realTankState）===
+帧=600 结构事件码分布={"fresh-root":5,"js-death-confirm":48,"grow-priority":241,"collapse-root-siblings":39,"rebase-time":39,"rebase-subtree":39,"rust-rescore-layer":39,"commit-follow-next":39,"retire-new-root-siblings":39,"commit-select":39,"rust-rescore-batch":4,"global-reroute":4,"next-retarget":7,"death-update-audit":14,"death-shorten":4}
+坍缩类事件帧=44 可核对=44（无坦克=0 无子节点=0）
+  |rolloutSamples[0] − realTank|: med=0.02 p90=0.271 max=1.255 m ；>0.15m 的帧=15/44
+  |child.simState.tank − realTank|: med=2.127 p90=4.253 max=5.847 m
+  归属车计数={"vantage_1":40,"vantage_2":4}
+  样例=[{"t":0.035,"codes":"fresh-root+js-death-confirm+grow-priority","nKids":9,"best":"vantage_1","s0":0,"tg":4.785,"allTanks":["vantage_1:0"],"rootPose":{"x":15,"y":45}},{"t":0.341,"codes":"fresh-root+js-death-confirm+grow-priority","nKids":9,"best":"vantage_1","s0":0,"tg":4.253,"allTanks":["vantage_1:0"],"rootPose":{"x":15.269999999999994,"y":45.18000000000003}},{"t":0.612,"codes":"fresh-root+js-death-confirm+grow-priority","nKids":9,"best":"vantage_1","s0":0,"tg":2.658,"allTanks":["vantage_1:0"],"rootPose":{"x":15.50999999999999,"y":45.34000000000005}},{"t":0.783,"codes":"collapse-root-siblings+rebase-time+rebase-subtree+rust-rescore-layer+js-death-confirm+commit-follow-next+retire-new-root-siblings+commit-select+grow-priority","nKids":9,"best":"vantage_1","s0":0,"tg":2.658,"allTanks":["vantage_1:0"],"rootPose":{"x":15.659999999999986,"y":45.44000000000007}},{"t":0.953,"codes":"collapse-root-siblings+rebase-time+rebase-subtree+rust-rescore-layer+js-death-confirm+commit-follow-next+retire-new-root-siblings+commit-select+grow-priority","nKids":9,"best":"vantage_1","s0":0,"tg":2.658,"allTanks":["vantage_1:0"],"rootPose":{"x":15.809999999999983,"y":45.540000000000084}},{"t":1.122,"codes":"collapse-root-siblings+rebase-time+rebase-subtree+rust-rescore-layer+js-death-confirm+commit-follow-next+retire-new-root-siblings+commit-select+grow-priority","nKids":9,"best":"vantage_1","s0":0,"tg":2.658,"allTanks":["vantage_1:0"],"rootPose":{"x":15.95999999999998,"y":45.6400000000001}}]

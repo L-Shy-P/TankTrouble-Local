@@ -1,0 +1,139 @@
+# 阶段 1-2ab（①霰弹撞墙减命 / ②反弹去抖上限）施工证据日志
+# 生成：2026-10-11（所有命令均为前台串行跑，无批量杀进程；日志已裁剪到 verdict 行）
+
+## A. 新增差分对拍：diff_shotgun_wall_lifetime.js
+== ① 霰弹撞墙减命：静态依据 ==
+  ✓ 真 bundle 里 Shotgun.hitMaze/hitShield 确实是 timeAlive=max(timeAlive, MAX-AFTER)
+  ✓ Constants：SHOTGUN_MAX_LIFETIME=2.0 / SHOTGUN_LIFETIME_AFTER_MAZE_HIT=0.7
+  ✓ 霰弹的 lifetime 就是 SHOTGUN_MAX_LIFETIME（⇒ JS 原式可化简为 min(lifeLeft,AFTER)）
+  ✓ JS：函数定义 + track/融合两处调用（共 ≥3 次出现）
+  ✓ JS 公式 = lifeTotal − max(lifeTotal−lifeLeft, MAX−AFTER)（逐字对齐原版）
+  ✓ JS：track 与融合两条路径**都**在命中帧调用钳制
+  ✓ JS：两个 Rust ABI 入口（simulateRustBatch / simulateTankBatchScored）都透传 isShotgun
+  ✓ Rust：SHOTGUN_LIFETIME_AFTER_MAZE_HIT_SEC = 0.7
+  ✓ Rust：同一公式的化简式 min(lifeLeft, 0.7)（霰弹 lifeTotal≡MAX，代数等价）
+  ✓ Rust：接触帧才钳（不是无条件钳 —— 无条件钳 = 霰弹永远活不过 0.7s，方向反了）
+  ✓ JS bridge：弹种码 2=霰弹（旧 JS 只发 0/1，向后兼容）
+  ✓ Rust ABI：按码**精确**判定（不能写 `!= 0`，否则 2 会被当成破片）
+== ① 霰弹撞墙减命：数值对拍（JS 融合 vs wasm Rust，容差 1e-9）==
+  ✓ wasm ABI = v10（实际 10）
+  ✓ 霰弹撞墙后被钳到 ≤0.7s ⇒ 59 帧外的坦克**活**（JS=false Rust=false）
+  ✓ JS↔Rust 逐帧一致：maxPos=0（≤1e-9）
+  ✓ 同几何的**普通弹**在第 60 帧打死坦克（JS/Rust 同帧）⇒ 存活差异来自霰弹标记
+  ✓ JS↔Rust 逐帧一致：maxPos=0
+  ✓ 把 SHOTGUN_LIFETIME_AFTER_MAZE_HIT 改成 2.0（钳制退化）后 JS 也在第 60 帧被打死 ⇒ 上面的"活"确实来自这条钳制
+  ✓ 出生即压墙（深穿透）的霰弹同样被钳（JS/Rust 都活）
+  ✓ JS↔Rust 逐帧一致：maxPos=0
+diff_shotgun_wall_lifetime PASS（① 霰弹撞墙减命：JS track/融合 + Rust + ABI v10 弹种码，三处同改且逐帧一致）
+
+## B. 新增差分对拍：diff_bounce_timeout_window.js
+== ② 反弹去抖上限：静态依据 ==
+  ✓ 真 bundle：Projectile.update 用 new Date().getTime() 剪枝 ⇒ 单位是**毫秒**
+  ✓ 真 bundle：剪枝是「找到第一条窗口内记录才 splice(0,i) 并 break」= **粘性**剪枝
+  ✓ 真 bundle：done() 第三支 = bounces.length >= timeoutBounceCount
+  ✓ HomingMissile.update 里复制了同一段剪枝循环（≥2 处出现）
+  ✓ Constants：WINDOW=35 / COUNT=5
+  ✓ JS：pruneBounceStamps 逐字照抄粘性剪枝
+  ✓ JS：窗口常量读游戏 Constants 并毫秒→秒
+  ✓ JS：track 与融合两条路径都做了「剪枝 + ≥5」（≥3 次出现含定义/两处调用）
+  ✓ JS：破片不 push、不吃 ②（Shrapnel.hitMaze 完全覆盖不调 super）
+  ✓ JS：注释里明确写了「不是总共弹 5 次」这条禁令
+  ✓ Rust：窗口 35ms→0.035s / 次数 5
+  ✓ Rust：prune_bounce_stamps 与 JS 同口径（drain(0..i) = splice(0,i)）
+  ✓ Rust：逐弹 update 里先剪枝、再判 ≥5（顺序同原版）
+  ✓ Rust：同一帧每个 touching 接触各 push 一条时间戳
+  ✓ Rust：破片不吃 ②（Shrapnel.hitMaze 不调 super ⇒ 永不 push）
+== ② 反弹去抖上限：数值对拍（JS 融合 vs wasm Rust，容差 1e-9）==
+  ✓ wasm ABI = v10（实际 10）
+  ✓ 弹被夹在内角（2 次接触/帧）第 3 帧销毁 ⇒ 59 帧外的坦克**活**（JS/Rust 一致）
+  ✓ JS track 链同上：轨迹只到第 2 帧就断供（≤8 帧）
+  ✓ JS↔Rust 逐帧一致：maxPos=0（≤1e-9）
+  ✓ 把 COUNT 改成 99 后 JS 在第 24 帧被打死 ⇒ (A) 的"活"确实来自 ≥5 规则
+  ✓ 贴墙滑行 60 帧后仍打死坦克（第 60 帧）⇒ 1 次/帧**不累积**（不是"总接触数"）
+  ✓ JS track 链：轨迹活满 76 帧（≥ 死亡帧），弹没有被误杀
+  ✓ JS↔Rust 逐帧一致：maxPos=0
+  · 信息：dt=0.02 时内角场景 JS dead=true（第 20 帧）、track 帧数=76 —— 35ms≈1.75 帧 < 2 帧，累积不够
+  ✓ 任何帧长下 JS↔Rust 都必须逐帧一致：dt=0.02 maxPos=0
+  · 存量对照：实测长走廊 600 帧 21 次撞墙时 bounces.length 最大=1 ⇒ 本条规则永不触发。
+diff_bounce_timeout_window PASS（② 35ms 内 ≥5 去抖上限：JS track/融合 + Rust 三处同改；无「总共 5 次」实现）
+
+## C. 回归：diff_rollout_bridge.js（max pos err 必须是 0.0）
+scene            : bridge head-on bullet, call 1
+  ops compared   : 9
+  samples per op : 76
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0 rad at 
+scene            : bridge head-on bullet, call 2 (warm)
+  ops compared   : 9
+  samples per op : 76
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0 rad at 
+DIFF ROLLOUT BRIDGE PASSED
+
+## D. 回归：verify_record（同一份 1200 帧验收录制回放 3 遍 + 回放#1 vs 原始录制）
+  帧数=1200  随机序列=26499  录制时 RNG 溢出=0
+================ 对拍结果 ================
+【验收】两遍回放: PASS 逐帧完全相同
+  帧数=1200/1200 opName(含fire)不一致=0 坦克位姿不一致=0 (最大差 0) 子弹位姿不一致=0 回合状态不一致=0 随机数消费不一致=0 隐藏状态不一致=0 时间不一致=0 (最大差 0ms)
+【验收】回放#1 vs 原始录制: PASS 逐帧完全相同
+  opName(含fire)不一致=0 坦克位姿不一致=0 (最大差 0) 子弹位姿不一致=0 回合状态不一致=0 随机数消费不一致=0 隐藏状态不一致=0 实际输入不一致=0 时间不一致=0 (最大差 0ms)
+结论: PASS
+
+## E. 回归：新录→回放 1 次（1200 帧，_probe_baseline_loop.js）
+{"i":0,"ok":true,"frames":1200,"opMismatch":0,"poseMismatch":0,"maxPoseDiff":0,"projMismatch":0,"stateMismatch":0,"rngMismatch":0,"timeMismatch":0,"maxTimeDiff":0,"hiddenMismatch":0,"driveMismatch":0,"examples":[],"wallMs":10426,"recFrames":1200,"recRngLen":7890,"recOverflow":0,"recHash":4077105372,"recPageHash":4077105372,"recFramesMatch":true,"replayRngOverflow":0,"replayDriveErrs":0,"replayFramesMatch":true,"headerMaze":"6x4/theme0"}
+{"done":"2026-10-11T10:34:33.050Z","iters":1,"pass":1,"fail":0}
+
+## F. 全量 diff 套件扫描（49 个，跳过 3 个需 MSVC 主机链接的）
+diff_audit_contactlist.js :: diff_audit_contactlist PASS (三层定位字段齐全)
+diff_audit_geometry.js :: diff_audit_geometry PASS (全夹具 gap / 接触真值 / 体积上限 / 死亡整树快照)
+diff_audit_polygap.js :: diff_audit_polygap PASS (精确多边形距离 + AABB 假阳场景)
+diff_bounce_timeout_window.js :: diff_bounce_timeout_window PASS（② 35ms 内 ≥5 去抖上限：JS track/融合 + Rust 三处同改；无「总共 5 
+SKIP(host-link) diff_box2d.js
+diff_commit_slice_rust.js :: diff_commit_slice_rust PASS
+diff_death_geometry_fallback.js :: diff_death_geometry_fallback PASS (回溯补判不改轨迹 + 能走几步口径 + 粗筛性能)
+diff_external_hybrid.js :: diff_external_hybrid PASS: action=14 maxLogitErr=9.54e-7 单次前向=1.05ms
+diff_external_hybrid_obs.js :: diff_external_hybrid_obs PASS：观测 1028 维布局/左右手/历史/dodge 全部对上；策略动作=16（前进=tru
+diff_incremental_death_merge.js :: DIFF INCREMENTAL DEATH MERGE PASSED
+diff_killfield_brain.js :: diff_killfield_brain PASS：见弹会躲（换过走法）＋对准会开火（带冷却）＋没威胁会走位＋卡�
+diff_killfield_field.js :: diff_killfield_field PASS：逆杀戮场在我们的迷宫上跑通；可达格=79 墙格=41；敌人格票数=36（非�
+diff_killfield_risk.js :: diff_killfield_risk PASS：近正对=0.79 视野边缘=0.04 视野外=0 飞走=0 斜过=0 近=0.58/远=0.17；反弹命�
+diff_killfield_walls.js :: PASS：墙盒 0.8 米贴边界 ＋ 权威邻接挡墙/留缺口 ＋ 距离场逐格等于游戏规则 ＋ 旧写法穿�
+diff_lobby_hybrid.js :: diff_lobby_hybrid PASS：Hybrid 可作独立坦克（大厅注册 + 开局管理器 + 每帧提交输入 + 18 动作映�
+diff_lobby_killfield.js :: diff_lobby_killfield PASS：Killfield 可作独立坦克（大厅按钮 + 开局管理器 + 每帧提交输入 + 大脑�
+diff_panel_eval_wheel.js :: diff_panel_eval_wheel PASS (固定帧数输入框 + 滚轮±1)
+diff_panel_risk.js :: diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous val
+diff_record_forensics.js :: diff_record_forensics PASS (v138 录制器取证不丢失 + 9 候选 fd/时间锚)
+diff_record_meta.js :: diff_record_meta OK: v166 / index.html ?v=166 / 录制元数据含四个实验开关
+SKIP(host-link) diff_rescore.js
+diff_rescore_bridge.js :: DIFF RESCORE BRIDGE PASSED
+SKIP(host-link) diff_rollout.js
+diff_rollout_bridge.js :: DIFF ROLLOUT BRIDGE PASSED
+diff_rollout_rescore_edge.js :: DIFF ROLLOUT/RESCORE EDGE PASSED
+diff_rust_frame_dt_sync.js :: diff_rust_frame_dt_sync PASS (Rust 可设帧长 + JS 每批同步 + 护栏保留回退)
+diff_score_paths_bridge.js :: DIFF SCORE PATHS BRIDGE PASSED
+diff_shotgun_wall_lifetime.js :: diff_shotgun_wall_lifetime PASS（① 霰弹撞墙减命：JS track/融合 + Rust + ABI v10 弹种码，三处同改且�
+diff_shrapnel_lifetime_zero.js :: diff_shrapnel_lifetime_zero PASS (lifetime=0 走哨兵值；只有 MINE 是 0)
+diff_shrapnel_no_bounce.js :: diff_shrapnel_no_bounce PASS (破片 0 次反弹 = 1 次射线，省 6 倍；霰弹不受影响)
+diff_shrapnel_wall_stop.js :: diff_shrapnel_wall_stop PASS (破片撞墙清零停止，反弹弹种不受影响；v10 已透传 Rust 且判据一致)
+diff_tree_coarse_reach.js :: diff_tree_coarse_reach PASS：新弹粗筛用当前位置（9 米外判"能打到"）；发射点写法会误判（已�
+diff_tree_continuous_refine.js :: diff_tree_continuous_refine PASS (off=13, on=23, two ticks=42, distinct prefixes)
+diff_tree_death_blind.js :: diff_tree_death_blind PASS (v137 四个死权失明点 + trackDtOf 收敛)
+diff_tree_death_shorten.js :: diff_tree_death_shorten PASS (seg=5 fd=10 tEnd=0.1)
+diff_tree_grow_boost.js :: PASS：两类补偿默认开(1层/10帧) ＋ 连续事件叠加(3份=3层) ＋ 上限10份=每帧11层 ＋ 10帧后清�
+diff_tree_growth_switch.js :: diff_tree_growth_switch PASS (capOff=136 capOn=100)
+diff_tree_killfield.js :: diff_tree_killfield PASS (dead-end avoided; user path dominates; empty-field rules; distance gradient pulls out of dead 
+diff_tree_low_eval_frames.js :: diff_tree_low_eval_frames PASS (segmentFrames never exceeds evaluatedFrames)
+diff_tree_move_target.js :: diff_tree_move_target PASS (tie-break + hybrid mix + reset cache clear)
+diff_tree_no_veto.js :: diff_tree_no_veto PASS (软死/存活一视同仁 · 谁分高选谁 · 只挡红)
+diff_tree_nodecount.js :: diff_tree_nodecount PASS (count=2, initial=4)
+diff_tree_prune_compensation.js :: diff_tree_prune_compensation PASS (horizon 1..15, compensate 0..9 / 1..60, boost 2x2 ticks)
+diff_tree_red_never_over_nonred.js :: diff_tree_red_never_over_nonred PASS (红不压非红 / 全红不干预 / fd<=1 口径)
+diff_tree_refine_split.js :: diff_tree_refine_split PASS (splitChildren=9 nodeCount=12)
+diff_tree_refine_split_death_inherit.js :: diff_tree_refine_split_death_inherit PASS (v139 refine inherits death frame, no fake green)
+diff_tree_reset_calib.js :: diff_tree_reset_calib PASS (v139 跨局帧步长校准泄漏已清，Rust 护栏仍生效)
+diff_tree_retreat_depth.js :: diff_tree_retreat_depth PASS (nodes=1 local C, nodes=3 global B, frames=10 local C, frames=600 global B, clamp 1..32 / 1
+diff_tree_retreat_reroute.js :: diff_tree_retreat_reroute PASS (root.next=op2 reroutes=1)
+diff_tree_soft_dead_growth.js :: diff_tree_soft_dead_growth PASS (children=9 nodeCount=11)
+diff_tree_softdead_refork.js :: diff_tree_softdead_refork PASS (软死补分叉 + 真死不补 + 红=fd<=1)
+diff_tree_warmup_cap.js :: diff_tree_warmup_cap PASS (cap=120, stopped=118, live-resumed=118->127, resumed=127->136)
+SWEEP_DONE

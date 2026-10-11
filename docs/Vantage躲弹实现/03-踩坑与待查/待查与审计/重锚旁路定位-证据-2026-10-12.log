@@ -1,0 +1,239 @@
+# 重锚旁路定位 —— 证据日志（v169 只读计数），2026-10-12
+# 数字全部来自产品自身 dumpDiagnostics().reanchorDiag / liveAnchors 的原始输出；每条命令可原样复跑。
+
+## [0] 版本指纹（工作目录 = 项目根）
+
+game_core/js/vantage_tree.js                   md5=d2a311f5a84293bfd805716079867b8a  mtime=2026-10-11 20:42:28  bytes=482025
+game_core/index.html                           md5=f13aed3030483c87b6c00bf28a8c671c  mtime=2026-10-11 20:37:50  bytes=34723
+game_core/rust/diff_tree_low_eval_frames.js    md5=fdf8ecd312a6670d9fc3d27c07fd6284  mtime=2026-10-11 20:37:53  bytes=2795
+_tools/headless/_probe_reanchor_bypass.js      md5=f54ff3209d273ba282f67d6900d1e145  mtime=2026-10-11 20:42:35  bytes=9575
+
+## [1] 探针命令（场景 = 1 人操 tank_a + 1 Laika + 2 vantage，无头 Chrome + 虚拟时钟，MAZE_THEMES.RANDOM）
+
+$ node _tools/headless/_probe_reanchor_bypass.js --frames=900 --tag=runN    # 主批 10 跑
+$ bash /tmp/vtprobe/run_many.sh 10 900                                  # 循环 + 每跑清 /tmp/vt-chrome-*
+$ bash /tmp/vtprobe/run_extra.sh                                        # 追加 2 跑 x 1200 帧
+
+## [2] 主批 10 跑（frames=900）：每跑关键行原文
+
+----- RUN 1 start 20:45:06 before_chrome=0 -----
+LIVE Δ: max=1.377s  >1.0 的(弹×帧)=64 ；快照口径(旧) Δ max=8.993 >1.0=300 ；满窗口型(cover>=1s) LIVE Δ max=1.377
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 300 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=54；liveΔ 也是 >1.0 的=64；快照时 tree.threats 为空的=236
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[8.993,null,8.841,1],[8.959,null,8.807,1],[8.924,null,8.772,1],[8.891,null,8.739,1],[8.857,null,8.705,1]]
+reanchorDiag.ensureCalls=31 byCaller={"commit-fresh-root":7,"reanchor-missing":24}
+  早退出口={"noAdapterOrEmptyThreats":3,"simThrow":0,"simNull":0,"perThreatIdMissing":13}
+  逐弹门={"reuse":17,"gateBlocked":92,"noOld":0,"maxGateDelta":1.394}
+  路径审计={"reanchor-commit":{"calls":74,"threats":109,"offNonZero":15,"noTrack":0,"over1":0,"maxDelta":0.952},"ensureThreatTracks-ok:commit-fresh-root":{"calls":4,"threats":5,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":5,"threats":15,"offNonZero":9,"noTrack":0,"over1":0,"maxDelta":0.986},"ensureThreatTracks-ok:reanchor-missing":{"calls":24,"threats":105,"offNonZero":13,"noTrack":0,"over1":0,"maxDelta":0.952}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":752,"emptyThreatsEarlyReturn":762,"staleCalls":521,"maxStaleAge":8.857}
+  统计: commits=61 rebuilds=1 freshRoots=6 nodes=1522
+wallMs=13708
+----- RUN 1 end 20:45:20 exit=0 after_chrome=0 -----
+----- RUN 2 start 20:45:24 before_chrome=0 -----
+LIVE Δ: max=1.003s  >1.0 的(弹×帧)=1 ；快照口径(旧) Δ max=1.036 >1.0=12 ；满窗口型(cover>=1s) LIVE Δ max=1.003
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 12 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=1；liveΔ 也是 >1.0 的=1；快照时 tree.threats 为空的=0
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[1.036,0.135,0,0],[1.02,0.255,0,0],[1.02,0.663,0,0],[1.02,0.662,0,0],[1.02,0.663,0,0]]
+reanchorDiag.ensureCalls=161 byCaller={"commit-fresh-root":5,"reanchor-missing":156}
+  早退出口={"noAdapterOrEmptyThreats":1,"simThrow":0,"simNull":0,"perThreatIdMissing":138}
+  逐弹门={"reuse":155,"gateBlocked":557,"noOld":0,"maxGateDelta":1.037}
+  路径审计={"reanchor-commit":{"calls":193,"threats":712,"offNonZero":155,"noTrack":0,"over1":0,"maxDelta":0.969},"ensureThreatTracks-ok:commit-fresh-root":{"calls":4,"threats":4,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":5,"threats":20,"offNonZero":11,"noTrack":0,"over1":0,"maxDelta":0.765},"ensureThreatTracks-ok:reanchor-missing":{"calls":156,"threats":695,"offNonZero":138,"noTrack":0,"over1":0,"maxDelta":0.969}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":715,"emptyThreatsEarlyReturn":241,"staleCalls":0,"maxStaleAge":0}
+  统计: commits=174 rebuilds=1 freshRoots=4 nodes=1081
+wallMs=14995
+----- RUN 2 end 20:45:40 exit=0 after_chrome=0 -----
+----- RUN 3 start 20:45:44 before_chrome=0 -----
+LIVE Δ: max=1.105s  >1.0 的(弹×帧)=4 ；快照口径(旧) Δ max=1.138 >1.0=9 ；满窗口型(cover>=1s) LIVE Δ max=1.105
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 9 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=4；liveΔ 也是 >1.0 的=4；快照时 tree.threats 为空的=0
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[1.138,0,0,0],[1.105,1.105,0,0],[1.071,1.071,0,0],[1.036,1.037,0,0],[1.02,0.391,0,0]]
+reanchorDiag.ensureCalls=28 byCaller={"commit-fresh-root":19,"reanchor-missing":9}
+  早退出口={"noAdapterOrEmptyThreats":18,"simThrow":0,"simNull":0,"perThreatIdMissing":10}
+  逐弹门={"reuse":24,"gateBlocked":13,"noOld":0,"maxGateDelta":1.139}
+  路径审计={"reanchor-commit":{"calls":22,"threats":37,"offNonZero":24,"noTrack":0,"over1":0,"maxDelta":0.935},"ensureThreatTracks-ok:commit-fresh-root":{"calls":1,"threats":1,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:reanchor-missing":{"calls":9,"threats":23,"offNonZero":10,"noTrack":0,"over1":0,"maxDelta":0.816},"attach-new-bullets":{"calls":3,"threats":6,"offNonZero":5,"noTrack":0,"over1":0,"maxDelta":0.629}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":226,"emptyThreatsEarlyReturn":288,"staleCalls":47,"maxStaleAge":0.799}
+  统计: commits=23 rebuilds=1 freshRoots=2 nodes=415
+wallMs=9808
+----- RUN 3 end 20:45:55 exit=0 after_chrome=0 -----
+----- RUN 4 start 20:45:59 before_chrome=0 -----
+LIVE Δ: max=1.291s  >1.0 的(弹×帧)=39 ；快照口径(旧) Δ max=1.291 >1.0=39 ；满窗口型(cover>=1s) LIVE Δ max=1.291
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 39 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=39；liveΔ 也是 >1.0 的=39；快照时 tree.threats 为空的=0
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[1.291,1.291,0,0],[1.291,1.291,0,0],[1.258,1.258,0,0],[1.258,1.258,0,0],[1.224,1.224,0,0]]
+reanchorDiag.ensureCalls=116 byCaller={"commit-fresh-root":22,"reanchor-missing":94}
+  早退出口={"noAdapterOrEmptyThreats":15,"simThrow":0,"simNull":0,"perThreatIdMissing":19}
+  逐弹门={"reuse":21,"gateBlocked":239,"noOld":0,"maxGateDelta":1.309}
+  路径审计={"reanchor-commit":{"calls":103,"threats":260,"offNonZero":20,"noTrack":0,"over1":0,"maxDelta":0.952},"ensureThreatTracks-ok:commit-fresh-root":{"calls":7,"threats":10,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:reanchor-missing":{"calls":94,"threats":258,"offNonZero":18,"noTrack":0,"over1":0,"maxDelta":0.918},"attach-new-bullets":{"calls":4,"threats":12,"offNonZero":6,"noTrack":0,"over1":2,"maxDelta":1.309}}
+  Δ>1.0 现场=[{"t":3.451,"path":"attach-new-bullets","over":2,"threats":3,"offNonZero":3,"maxDelta":1.309,"id":"b-61c1-16"}]
+  anchorProbe 计数={"rebuilds":1799,"emptyThreatsEarlyReturn":241,"staleCalls":0,"maxStaleAge":0}
+  统计: commits=102 rebuilds=1 freshRoots=7 nodes=1090
+wallMs=21708
+----- RUN 4 end 20:46:22 exit=0 after_chrome=0 -----
+----- RUN 5 start 20:46:26 before_chrome=0 -----
+LIVE Δ: max=0.987s  >1.0 的(弹×帧)=0 ；快照口径(旧) Δ max=2.908 >1.0=62 ；满窗口型(cover>=1s) LIVE Δ max=0.987
+  ⚠️ 快照口径有 Δ>1.0 而 live 没有 ⇒ 旧口径是【探针快照陈旧】造成的虚高；样例=[{"t":1.0199999999999996,"id":"b-0731-15","d":1.003,"len":481},{"t":1.0546665039062497,"id":"b-0731-15","d":1.038,"len":481},{"t":1.0886665039062495,"id":"b-0731-15","d":1.072,"len":481}]
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 62 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=0；liveΔ 也是 >1.0 的=0；快照时 tree.threats 为空的=57
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[2.908,null,2.55,1],[2.874,null,2.516,1],[2.839,null,2.481,1],[2.806,null,2.448,1],[2.772,null,2.414,1]]
+reanchorDiag.ensureCalls=107 byCaller={"commit-fresh-root":4,"reanchor-missing":103}
+  早退出口={"noAdapterOrEmptyThreats":2,"simThrow":0,"simNull":0,"perThreatIdMissing":48}
+  逐弹门={"reuse":72,"gateBlocked":261,"noOld":0,"maxGateDelta":1.02}
+  路径审计={"reanchor-commit":{"calls":143,"threats":333,"offNonZero":71,"noTrack":0,"over1":0,"maxDelta":0.953},"ensureThreatTracks-ok:commit-fresh-root":{"calls":2,"threats":2,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":3,"threats":6,"offNonZero":6,"noTrack":0,"over1":0,"maxDelta":0.833},"ensureThreatTracks-ok:reanchor-missing":{"calls":103,"threats":309,"offNonZero":48,"noTrack":0,"over1":0,"maxDelta":0.953}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":522,"emptyThreatsEarlyReturn":390,"staleCalls":151,"maxStaleAge":2.567}
+  统计: commits=132 rebuilds=1 freshRoots=2 nodes=1135
+wallMs=12073
+----- RUN 5 end 20:46:39 exit=0 after_chrome=0 -----
+----- RUN 6 start 20:46:43 before_chrome=0 -----
+LIVE Δ: max=1.105s  >1.0 的(弹×帧)=14 ；快照口径(旧) Δ max=1.138 >1.0=24 ；满窗口型(cover>=1s) LIVE Δ max=1.105
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 24 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=14；liveΔ 也是 >1.0 的=14；快照时 tree.threats 为空的=0
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[1.138,0,0,0],[1.105,0,0,0],[1.105,1.105,0,0],[1.105,0.527,0,0],[1.105,0,0,0]]
+reanchorDiag.ensureCalls=83 byCaller={"commit-fresh-root":6,"reanchor-missing":77}
+  早退出口={"noAdapterOrEmptyThreats":2,"simThrow":0,"simNull":0,"perThreatIdMissing":44}
+  逐弹门={"reuse":56,"gateBlocked":108,"noOld":0,"maxGateDelta":1.139}
+  路径审计={"reanchor-commit":{"calls":109,"threats":164,"offNonZero":56,"noTrack":0,"over1":0,"maxDelta":0.969},"ensureThreatTracks-ok:commit-fresh-root":{"calls":4,"threats":4,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":5,"threats":16,"offNonZero":9,"noTrack":0,"over1":0,"maxDelta":0.952},"ensureThreatTracks-ok:reanchor-missing":{"calls":77,"threats":152,"offNonZero":44,"noTrack":0,"over1":0,"maxDelta":0.969}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":911,"emptyThreatsEarlyReturn":241,"staleCalls":0,"maxStaleAge":0}
+  统计: commits=91 rebuilds=1 freshRoots=4 nodes=1774
+wallMs=14320
+----- RUN 6 end 20:46:58 exit=0 after_chrome=0 -----
+----- RUN 7 start 20:47:03 before_chrome=0 -----
+LIVE Δ: max=0.341s  >1.0 的(弹×帧)=0 ；快照口径(旧) Δ max=6.461 >1.0=161 ；满窗口型(cover>=1s) LIVE Δ max=0.341
+  ⚠️ 快照口径有 Δ>1.0 而 live 没有 ⇒ 旧口径是【探针快照陈旧】造成的虚高；样例=[{"t":1.2239999999999993,"id":"b-370f-15","d":1.02,"len":562},{"t":1.2586665039062495,"id":"b-370f-15","d":1.055,"len":562},{"t":1.2926665039062493,"id":"b-370f-15","d":1.089,"len":562}]
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 161 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=0；liveΔ 也是 >1.0 的=0；快照时 tree.threats 为空的=161
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[6.461,null,6.29,1],[6.426,null,6.255,1],[6.393,null,6.222,1],[6.359,null,6.188,1],[6.324,null,6.153,1]]
+reanchorDiag.ensureCalls=115 byCaller={"commit-fresh-root":87,"reanchor-missing":28}
+  早退出口={"noAdapterOrEmptyThreats":39,"simThrow":0,"simNull":0,"perThreatIdMissing":0}
+  逐弹门={"reuse":0,"gateBlocked":28,"noOld":0,"maxGateDelta":0.137}
+  路径审计={"ensureThreatTracks-ok:commit-fresh-root":{"calls":48,"threats":48,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":1,"threats":1,"offNonZero":1,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:reanchor-missing":{"calls":28,"threats":28,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"reanchor-commit":{"calls":28,"threats":28,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":844,"emptyThreatsEarlyReturn":610,"staleCalls":371,"maxStaleAge":6.307}
+  统计: commits=99 rebuilds=1 freshRoots=71 nodes=505
+wallMs=15352
+----- RUN 7 end 20:47:19 exit=0 after_chrome=0 -----
+----- RUN 8 start 20:47:23 before_chrome=0 -----
+LIVE Δ: max=1.173s  >1.0 的(弹×帧)=27 ；快照口径(旧) Δ max=2.328 >1.0=69 ；满窗口型(cover>=1s) LIVE Δ max=1.173
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 69 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=27；liveΔ 也是 >1.0 的=27；快照时 tree.threats 为空的=40
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[2.328,null,2.142,1],[2.295,null,2.109,1],[2.261,null,2.075,1],[2.226,null,2.04,1],[2.193,null,2.007,1]]
+reanchorDiag.ensureCalls=99 byCaller={"commit-fresh-root":29,"reanchor-missing":70}
+  早退出口={"noAdapterOrEmptyThreats":25,"simThrow":0,"simNull":0,"perThreatIdMissing":25}
+  逐弹门={"reuse":43,"gateBlocked":247,"noOld":0,"maxGateDelta":1.19}
+  路径审计={"reanchor-commit":{"calls":94,"threats":290,"offNonZero":41,"noTrack":0,"over1":0,"maxDelta":0.968},"ensureThreatTracks-ok:commit-fresh-root":{"calls":4,"threats":8,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:reanchor-missing":{"calls":70,"threats":272,"offNonZero":25,"noTrack":0,"over1":0,"maxDelta":0.968},"attach-new-bullets":{"calls":5,"threats":15,"offNonZero":8,"noTrack":0,"over1":0,"maxDelta":0.595}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":826,"emptyThreatsEarlyReturn":368,"staleCalls":127,"maxStaleAge":2.159}
+  统计: commits=97 rebuilds=1 freshRoots=11 nodes=595
+wallMs=16097
+----- RUN 8 end 20:47:40 exit=0 after_chrome=0 -----
+----- RUN 9 start 20:47:45 before_chrome=0 -----
+LIVE Δ: max=1.020s  >1.0 的(弹×帧)=2 ；快照口径(旧) Δ max=1.020 >1.0=2 ；满窗口型(cover>=1s) LIVE Δ max=1.020
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 2 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=2；liveΔ 也是 >1.0 的=2；快照时 tree.threats 为空的=0
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[1.02,1.02,0,0],[1.003,1.003,0,0]]
+reanchorDiag.ensureCalls=125 byCaller={"commit-fresh-root":116,"reanchor-missing":9}
+  早退出口={"noAdapterOrEmptyThreats":2,"simThrow":0,"simNull":0,"perThreatIdMissing":2}
+  逐弹门={"reuse":7,"gateBlocked":16,"noOld":0,"maxGateDelta":1.037}
+  路径审计={"reanchor-commit":{"calls":29,"threats":23,"offNonZero":6,"noTrack":0,"over1":0,"maxDelta":0.816},"ensureThreatTracks-ok:commit-fresh-root":{"calls":114,"threats":222,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":4,"threats":9,"offNonZero":5,"noTrack":0,"over1":1,"maxDelta":1.037},"ensureThreatTracks-ok:reanchor-missing":{"calls":9,"threats":18,"offNonZero":1,"noTrack":0,"over1":0,"maxDelta":0.068}}
+  Δ>1.0 现场=[{"t":1.377,"path":"attach-new-bullets","over":1,"threats":2,"offNonZero":2,"maxDelta":1.037,"id":"b-0110-15"}]
+  anchorProbe 计数={"rebuilds":1721,"emptyThreatsEarlyReturn":241,"staleCalls":0,"maxStaleAge":0}
+  统计: commits=128 rebuilds=1 freshRoots=114 nodes=181
+wallMs=22230
+----- RUN 9 end 20:48:08 exit=0 after_chrome=0 -----
+----- RUN 10 start 20:48:12 before_chrome=0 -----
+LIVE Δ: max=1.003s  >1.0 的(弹×帧)=1 ；快照口径(旧) Δ max=7.429 >1.0=239 ；满窗口型(cover>=1s) LIVE Δ max=1.003
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 239 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=1；liveΔ 也是 >1.0 的=1；快照时 tree.threats 为空的=238
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[7.429,null,7.379,1],[7.394,null,7.344,1],[7.361,null,7.311,1],[7.327,null,7.277,1],[7.292,null,7.242,1]]
+reanchorDiag.ensureCalls=279 byCaller={"commit-fresh-root":11,"reanchor-missing":268}
+  早退出口={"noAdapterOrEmptyThreats":4,"simThrow":0,"simNull":0,"perThreatIdMissing":0}
+  逐弹门={"reuse":17,"gateBlocked":268,"noOld":0,"maxGateDelta":1.02}
+  路径审计={"reanchor-commit":{"calls":438,"threats":285,"offNonZero":16,"noTrack":0,"over1":0,"maxDelta":0.952},"ensureThreatTracks-ok:commit-fresh-root":{"calls":7,"threats":7,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"attach-new-bullets":{"calls":1,"threats":1,"offNonZero":1,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:reanchor-missing":{"calls":268,"threats":268,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":1220,"emptyThreatsEarlyReturn":820,"staleCalls":579,"maxStaleAge":7.379}
+  统计: commits=425 rebuilds=1 freshRoots=8 nodes=496
+wallMs=18505
+----- RUN 10 end 20:48:31 exit=0 after_chrome=0 -----
+
+## [3] 追加 2 跑（frames=1200）：run12 = 本次异常读数的干净复现（snapΔ 40.562s / liveΔ 0.187s / 1164 条全陈旧）
+
+----- RUN 11 start 20:58:16 before_chrome=0 -----
+LIVE Δ: max=1.139s  >1.0 的(弹×帧)=31 ；快照口径(旧) Δ max=2.889 >1.0=87 ；满窗口型(cover>=1s) LIVE Δ max=1.139
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 87 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=31；liveΔ 也是 >1.0 的=31；快照时 tree.threats 为空的=56
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[2.889,null,2.821,1],[2.856,null,2.788,1],[2.822,null,2.754,1],[2.787,null,2.719,1],[2.754,null,2.686,1]]
+reanchorDiag.ensureCalls=280 byCaller={"commit-fresh-root":15,"reanchor-missing":265}
+  早退出口={"noAdapterOrEmptyThreats":1,"simThrow":0,"simNull":0,"perThreatIdMissing":77}
+  逐弹门={"reuse":94,"gateBlocked":830,"noOld":0,"maxGateDelta":1.156}
+  路径审计={"reanchor-commit":{"calls":306,"threats":924,"offNonZero":91,"noTrack":0,"over1":0,"maxDelta":0.986},"ensureThreatTracks-ok:commit-fresh-root":{"calls":14,"threats":23,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:reanchor-missing":{"calls":265,"threats":907,"offNonZero":75,"noTrack":0,"over1":0,"maxDelta":0.986},"attach-new-bullets":{"calls":8,"threats":42,"offNonZero":24,"noTrack":0,"over1":1,"maxDelta":1.054}}
+  Δ>1.0 现场=[{"t":4.097,"path":"attach-new-bullets","over":1,"threats":7,"offNonZero":5,"maxDelta":1.054,"id":"b-706b-19"}]
+  anchorProbe 计数={"rebuilds":2233,"emptyThreatsEarlyReturn":405,"staleCalls":166,"maxStaleAge":2.821}
+  统计: commits=297 rebuilds=1 freshRoots=14 nodes=334
+wallMs=32914
+----- RUN 11 end 20:58:50 after_chrome=0 -----
+----- RUN 12 start 20:58:54 before_chrome=0 -----
+LIVE Δ: max=0.187s  >1.0 的(弹×帧)=0 ；快照口径(旧) Δ max=40.562 >1.0=1164 ；满窗口型(cover>=1s) LIVE Δ max=0.187
+  ⚠️ 快照口径有 Δ>1.0 而 live 没有 ⇒ 旧口径是【探针快照陈旧】造成的虚高；样例=[{"t":1.2579999999999993,"id":"b-7a80-15","d":1.02,"len":562},{"t":1.2913334960937493,"id":"b-7a80-15","d":1.053,"len":562},{"t":1.3259999999999994,"id":"b-7a80-15","d":1.088,"len":562}]
+anchorProbe 陈旧帧(probeAge>0 且树里有弹)=0
+tree.threats 为空但真实有弹的帧=0
+快照口径 Δ>1.0 共 1164 条；其中 |snapΔ − liveΔ − probeAge| < 0.05 的=0；liveΔ 也是 >1.0 的=0；快照时 tree.threats 为空的=1164
+  最坏 5 条[snapΔ, liveΔ, probeAge, emptyThreats]=[[40.562,null,40.427,1],[40.527,null,40.392,1],[40.494,null,40.359,1],[40.46,null,40.325,1],[40.425,null,40.29,1]]
+reanchorDiag.ensureCalls=269 byCaller={"commit-fresh-root":269}
+  早退出口={"noAdapterOrEmptyThreats":267,"simThrow":0,"simNull":0,"perThreatIdMissing":0}
+  逐弹门={"reuse":0,"gateBlocked":0,"noOld":0,"maxGateDelta":0}
+  路径审计={"reanchor-commit":{"calls":17,"threats":0,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0},"ensureThreatTracks-ok:commit-fresh-root":{"calls":2,"threats":2,"offNonZero":0,"noTrack":0,"over1":0,"maxDelta":0}}
+  Δ>1.0 现场=[]
+  anchorProbe 计数={"rebuilds":21,"emptyThreatsEarlyReturn":2619,"staleCalls":2378,"maxStaleAge":40.427}
+  统计: commits=266 rebuilds=1 freshRoots=266 nodes=100
+wallMs=29357
+----- RUN 12 end 20:59:24 after_chrome=0 -----
+EXTRA DONE 20:59:28
+
+## [4] 早批 6 跑（同一 v169 计数、旧口径探针 —— 只用来量 maxStaleAge 上界；该批日志已被 §[2] 批次覆盖，下列为当次控制台原文）
+  run1 anchorProbe 计数={"rebuilds":758,"emptyThreatsEarlyReturn":496,"staleCalls":255,"maxStaleAge":4.336}
+  run2 anchorProbe 计数={...,"emptyThreatsEarlyReturn":241,"staleCalls":0,"maxStaleAge":0}
+  run3 anchorProbe 计数={...,"staleCalls":47,"maxStaleAge":0.799}
+  run5 anchorProbe 计数={...,"staleCalls":151,"maxStaleAge":2.567}
+  run6 anchorProbe 计数={...,"emptyThreatsEarlyReturn":1314,"staleCalls":1073,"maxStaleAge":18.241}   <-- 上界
+  同批 run6 统计: commits=358 rebuilds=1 freshRoots=4 nodes=1180  (900 帧 / 734 采样帧)
+
+## [5] 上一轮 9.54s 那次的原始证据（摘录自 02-实现/进展记录/重锚门修正-证据-2026-10-12.log 第 113-125 行）
+有效样本=985/2047 覆盖max=9.78s horizon max=8.50s
+Delta: min=0.017 med=0.170 p90=6.205 p99=9.232 max=9.538
+只看满窗口型(cover>=1s)：n=985 Delta max=9.538 med=0.170 取位null=0
+门判定（逐 commit-威胁）：复用=342 重模拟=29 【违例：复用后 Δ>1.0】=128
+  违例样例: [{"t":1.3606665039062493,"id":"b-878c-15","dAfter":1.0376665039062494,"shift":0.06800000000000006,"len":562,"need":561},{"t":1.427999999999999,"id":"b-878c-15","dAfter":1.104999999999999,"shift":0.06733349609374972,"len":562,"need":561},{"t":1.496666503906249,"id":"b-878c-15","dAfter":1.173666503906249,"shift":0.06866650390624995,"len":562,"need":561},{"t":1.564666503906249,"id":"b-878c-15","dAfter":1.241666503906249,"shift":0.06800000000000006,"len":562,"need":561},{"t":1.6319999999999988,"id":"b-878c-15","dAfter":1.3089999999999988,"shift":0.06733349609374972,"len":562,"need":561}]
+  复用后 Δ 分布: med=0.339 p90=7.225 max=9.538
+有效样本=985/2047 覆盖max=9.78s horizon max=8.50s
+Delta: min=0.017 med=0.170 p90=6.205 p99=9.232 max=9.538
+只看满窗口型(cover>=1s)：n=985 Delta max=9.538 med=0.170 取位null=0
+门判定（逐 commit-威胁）：复用=342 重模拟=29 【违例：复用后 Δ>1.0】=128
+  违例样例: [{"t":1.3606665039062493,"id":"b-878c-15","dAfter":1.0376665039062494,"shift":0.06800000000000006,"len":562,"need":561},{"t":1.427999999999999,"id":"b-878c-15","dAfter":1.104999999999999,"shift":0.06733349609374972,"len":562,"need":561},{"t":1.496666503906249,"id":"b-878c-15","dAfter":1.173666503906249,"shift":0.06866650390624995,"len":562,"need":561},{"t":1.564666503906249,"id":"b-878c-15","dAfter":1.241666503906249,"shift":0.06800000000000006,"len":562,"need":561},{"t":1.6319999999999988,"id":"b-878c-15","dAfter":1.3089999999999988,"shift":0.06733349609374972,"len":562,"need":561}]
+  复用后 Δ 分布: med=0.339 p90=7.225 max=9.538
+
+## [6] 回归
+$ node _tools/headless/_reg_1200x20.js       -> {"done":true,"pass":20,"fail":0,"frames":1200,"runs":20,"wallMs":202011}
+   每行 opMismatch/poseMismatch/projMismatch/timeMismatch/hiddenMismatch/driveMismatch/rngMismatch/stateMismatch = 0, maxPoseDiff = 0
+$ node game_core/rust/diff_rollout_bridge.js -> max position err: 0.000000000e+0 m / max angle err: 0.000000000e+0 rad / DIFF ROLLOUT BRIDGE PASSED
+$ node _tools/headless/_run_diff_all.js       -> SUMMARY {"total":56,"pass":52,"fail":1,"skip":3} FAILS=["diff_rescore_proj_semantics.js"]
+   diff_rescore_proj_semantics.js 单独跑 -> exit=0，末行 "diff_rescore_proj_semantics PASS"（runner 把说明文字“不算 FAIL”当 FAIL，已知误判）
+   diff_record_meta.js PASS（index.html ?v=169 == VantageTree.VERSION）; diff_tree_low_eval_frames.js PASS（版本钉子 v169）
+
+## [7] 磁盘纪律
+ 每跑前后按目录精确比对 /tmp/vt-chrome-*；收工 0 个。中间产物只在 /tmp/vtprobe（<60KB）。未批量杀 node；
+ chrome 只按 --user-data-dir=*vt-chrome-* 精确匹配停过 4 个 PID（CDP 启动超时的那一次），未触碰 _libs/ / tools/flywire/ / dist/。
