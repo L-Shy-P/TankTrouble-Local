@@ -1,0 +1,324 @@
+### 重锚门收益复核 证据（2026-10-12）
+### A. 当前 build v169（门= |newOffset|<=1.0），探针 _probe_reanchor_recount.js
+### v169 代码指纹: d2a311f5a84293bfd805716079867b8a *game_core/js/vantage_tree.js
+
+=== [A1] v169 run1 ===
+=== 重锚门收益复核 recount [v169-r1] VERSION=v169 ===
+帧=900 tick帧=900 冻结/未tick帧=0 空弹窗口帧=101 最长连续=101 节点数最大=819 commit=283 shift med=0.102 max=0.493 >1.0=0
+快照-活锚点 abs0 不一致行=114 maxDiff=1.02（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=  1713 Dmin= 0.016 med= 0.067 p90= 0.594 p99= 3.042 max=  3.621 | D>1=  83 D>cover=   2 null=   2 盲区=1023(59.7%) 盲区最大=765
+    本帧重建           n=  1612 Dmin= 0.016 med= 0.051 p90= 0.339 p99= 0.918 max=   1.02 | D>1=   5 D>cover=   2 null=   2 盲区=1023(63.5%) 盲区最大=765
+    空弹窗口陈旧         n=   101 Dmin= 0.221 med=  1.92 p90= 3.281 p99= 3.587 max=  3.621 | D>1=  78 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+  冻结帧行             n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  新口径(tick帧)       n=  1612 Dmin=     0 med= 0.051 p90= 0.323 p99= 0.901 max=  1.003 | D>1=   3 D>cover=   2 null=   2 盲区=1022(63.4%) 盲区最大=765
+  新口径(全帧)          n=  1612 Dmin=     0 med= 0.051 p90= 0.323 p99= 0.901 max=  1.003 | D>1=   3 D>cover=   2 null=   2 盲区=1022(63.4%) 盲区最大=765
+复刻上一轮过滤(rx/ry非null)：旧口径 null=2/1713；本帧重建 null=2/1612；空弹窗口陈旧 null=0/101
+满窗口型(旧口径) n=343 Δmax=3.621 Δ>cover=0 null=0 盲区=0/343
+满窗口型(  本帧重建) n=242 Δmax=1.02 Δ>cover=0 null=0 盲区=0/242
+满窗口型(  空弹窗口陈旧) n=101 Δmax=3.621 Δ>cover=0 null=0 盲区=0/101
+满窗口型(新口径tick帧) n=240 Δmax=1.003 Δ>cover=0 null=0 盲区=0/240
+逐弹（新口径 tick 帧）：
+   b-716a-19      n=  343 Δmax=1.003 coverMax=9.37 满窗口样本=60 null样本=0 盲区样本=226
+   b-716a-21      n=   58 Δmax=1.003 coverMax=9.37 满窗口样本=58 null样本=0 盲区样本=0
+   b-716a-16      n=  600 Δmax=0.985 coverMax=9.37 满窗口样本=58 null样本=1 盲区样本=396
+   b-716a-17      n=  600 Δmax=0.985 coverMax=9.37 满窗口样本=53 null样本=1 盲区样本=400
+   b-716a-15      n=   11 Δmax=0.187 coverMax=9.62 满窗口样本=11 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+   b-716a-15      行= 101 Δmax=3.621 null=0 t=0.408~3.808
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-716a-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=18847
+(exit=0)
+=== [A2] v169 run2 ===
+=== 重锚门收益复核 recount [v169-r2] VERSION=v169 ===
+帧=900 tick帧=487 冻结/未tick帧=413 空弹窗口帧=0 最长连续=0 节点数最大=1197 commit=208 shift med=0.068 max=0.289 >1.0=0
+快照-活锚点 abs0 不一致行=8 maxDiff=1.105（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=   921 Dmin= 0.017 med=  0.05 p90=  0.34 p99= 0.987 max=  1.105 | D>1=   9 D>cover=   0 null=   0 盲区= 560(60.8%) 盲区最大=747
+    本帧重建           n=   921 Dmin= 0.017 med=  0.05 p90=  0.34 p99= 0.987 max=  1.105 | D>1=   9 D>cover=   0 null=   0 盲区= 560(60.8%) 盲区最大=747
+    空弹窗口陈旧         n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  冻结帧行             n=   826 Dmin= 0.034 med= 0.034 p90= 0.034 p99= 0.034 max=  0.034 | D>1=   0 D>cover=   0 null=   0 盲区= 826(100%) 盲区最大=747
+  新口径(tick帧)       n=   921 Dmin=     0 med=  0.05 p90= 0.323 p99= 0.968 max=   1.07 | D>1=   7 D>cover=   0 null=   0 盲区= 560(60.8%) 盲区最大=747
+  新口径(全帧)          n=  1747 Dmin=     0 med= 0.034 p90= 0.051 p99= 0.901 max=   1.07 | D>1=   7 D>cover=   0 null=   0 盲区=1386(79.3%) 盲区最大=747
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/921；本帧重建 null=0/921；空弹窗口陈旧 null=0/0
+满窗口型(旧口径) n=150 Δmax=1.105 Δ>cover=0 null=0 盲区=0/150
+满窗口型(  本帧重建) n=150 Δmax=1.105 Δ>cover=0 null=0 盲区=0/150
+满窗口型(  空弹窗口陈旧) n=0 Δmax=- Δ>cover=0 null=0 盲区=0/0
+满窗口型(新口径tick帧) n=149 Δmax=1.07 Δ>cover=0 null=0 盲区=0/149
+逐弹（新口径 tick 帧）：
+   b-e36a-16      n=  447 Δmax=1.070 coverMax=9.37 满窗口样本=48 null样本=0 盲区样本=286
+   b-e36a-15      n=   80 Δmax=1.055 coverMax=9.62 满窗口样本=40 null样本=0 盲区样本=0
+   b-e36a-17      n=  394 Δmax=1.003 coverMax=9.37 满窗口样本=61 null样本=0 盲区样本=274
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.03466650390625,"rootAbsT":0.017333251953125,"liveAnchors":[{"id":"b-e36a-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=13586
+(exit=0)
+=== [A3] v169 run3 ===
+=== 重锚门收益复核 recount [v169-r3] VERSION=v169 ===
+帧=900 tick帧=539 冻结/未tick帧=361 空弹窗口帧=0 最长连续=0 节点数最大=3069 commit=57 shift med=0.306 max=0.443 >1.0=0
+快照-活锚点 abs0 不一致行=84 maxDiff=0.443（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=  3695 Dmin= 0.016 med= 0.186 p90= 0.408 p99= 0.968 max=  1.207 | D>1=  34 D>cover=   0 null=   0 盲区=2486(67.3%) 盲区最大=2007
+    本帧重建           n=  3695 Dmin= 0.016 med= 0.186 p90= 0.408 p99= 0.968 max=  1.207 | D>1=  34 D>cover=   0 null=   0 盲区=2486(67.3%) 盲区最大=2007
+    空弹窗口陈旧         n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  冻结帧行             n=  2888 Dmin= 0.356 med= 0.356 p90= 0.356 p99= 0.356 max=  0.356 | D>1=   0 D>cover=   0 null=   0 盲区=2888(100%) 盲区最大=2007
+  新口径(tick帧)       n=  4079 Dmin=     0 med= 0.187 p90= 0.374 p99= 0.987 max=  1.207 | D>1=  40 D>cover=   0 null=   0 盲区=2715(66.6%) 盲区最大=2007
+  新口径(全帧)          n=  7328 Dmin=     0 med= 0.356 p90= 0.356 p99= 0.866 max=  1.207 | D>1=  40 D>cover=   0 null=   0 盲区=5964(81.4%) 盲区最大=2007
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/3695；本帧重建 null=0/3695；空弹窗口陈旧 null=0/0
+满窗口型(旧口径) n=433 Δmax=1.207 Δ>cover=0 null=0 盲区=0/433
+满窗口型(  本帧重建) n=433 Δmax=1.207 Δ>cover=0 null=0 盲区=0/433
+满窗口型(  空弹窗口陈旧) n=0 Δmax=- Δ>cover=0 null=0 盲区=0/0
+满窗口型(新口径tick帧) n=491 Δmax=1.207 Δ>cover=0 null=0 盲区=0/491
+逐弹（新口径 tick 帧）：
+   b-e838-16      n=  499 Δmax=1.207 coverMax=9.37 满窗口样本=56 null样本=0 盲区样本=358
+   b-e838-17      n=  499 Δmax=1.207 coverMax=9.37 满窗口样本=56 null样本=0 盲区样本=358
+   b-e838-20      n=  428 Δmax=1.207 coverMax=9.50 满窗口样本=66 null样本=0 盲区样本=273
+   b-e838-21      n=  419 Δmax=1.207 coverMax=9.50 满窗口样本=54 null样本=0 盲区样本=267
+   b-e838-24      n=  372 Δmax=1.172 coverMax=9.50 满窗口样本=53 null样本=0 盲区样本=226
+   b-e838-18      n=  459 Δmax=1.139 coverMax=9.40 满窗口样本=61 null样本=0 盲区样本=309
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-e838-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=17342
+(exit=0)
+
+### B. 临时复现 v167 门（REVIEW-TEMP：只有门条件 shift<=1.0 被改回，v169 诊断全在）
+### 临时 build md5: 9a680ebf9904c5ae89480a6009a9c941  TREE_VERSION=v169-rv167gate
+### 备份: _backup/v169_review_backup_20261012/vantage_tree.v169.js (md5 d2a311f5a84293bfd805716079867b8a)
+=== [B1] rv167gate run1 ===
+=== 重锚门收益复核 recount [rv167gate-r1] VERSION=v169-rv167gate ===
+帧=900 tick帧=900 冻结/未tick帧=0 空弹窗口帧=889 最长连续=889 节点数最大=495 commit=132 shift med=0.221 max=0.374 >1.0=0
+快照-活锚点 abs0 不一致行=0 maxDiff=0（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=   900 Dmin= 0.017 med=15.317 p90=27.557 p99=30.311 max= 30.583 | D>1= 871 D>cover= 617 null=   0 盲区= 683(75.9%) 盲区最大=117
+    本帧重建           n=    11 Dmin= 0.017 med= 0.187 p90= 0.323 p99= 0.356 max=  0.356 | D>1=   0 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+    空弹窗口陈旧         n=   889 Dmin= 0.391 med=15.487 p90= 27.59 p99=30.311 max= 30.583 | D>1= 871 D>cover= 617 null=   0 盲区= 683(76.8%) 盲区最大=117
+  冻结帧行             n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  新口径(tick帧)       n=    11 Dmin= 0.017 med= 0.187 p90= 0.323 p99= 0.356 max=  0.356 | D>1=   0 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+  新口径(全帧)          n=    11 Dmin= 0.017 med= 0.187 p90= 0.323 p99= 0.356 max=  0.356 | D>1=   0 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/900；本帧重建 null=0/11；空弹窗口陈旧 null=0/889
+满窗口型(旧口径) n=900 Δmax=30.583 Δ>cover=617 null=0 盲区=683/900
+满窗口型(  本帧重建) n=11 Δmax=0.356 Δ>cover=0 null=0 盲区=0/11
+满窗口型(  空弹窗口陈旧) n=889 Δmax=30.583 Δ>cover=617 null=0 盲区=683/889
+满窗口型(新口径tick帧) n=11 Δmax=0.356 Δ>cover=0 null=0 盲区=0/11
+逐弹（新口径 tick 帧）：
+   b-91af-15      n=   11 Δmax=0.356 coverMax=9.62 满窗口样本=11 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+   b-91af-15      行= 889 Δmax=30.583 null=0 t=0.408~30.6
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-91af-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=16320
+(exit=0)
+=== [B2] rv167gate run2 ===
+=== 重锚门收益复核 recount [rv167gate-r2] VERSION=v169-rv167gate ===
+帧=900 tick帧=900 冻结/未tick帧=0 空弹窗口帧=108 最长连续=108 节点数最大=1188 commit=409 shift med=0.068 max=0.323 >1.0=0
+快照-活锚点 abs0 不一致行=2 maxDiff=0.323（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=  2750 Dmin= 0.016 med=   8.5 p90=15.979 p99=19.243 max= 20.161 | D>1=2559 D>cover=1249 null=1249 盲区=2373(86.3%) 盲区最大=1188
+    本帧重建           n=  2642 Dmin= 0.016 med= 8.857 p90=16.048 p99=19.278 max= 20.161 | D>1=2479 D>cover=1249 null=1249 盲区=2373(89.8%) 盲区最大=1188
+    空弹窗口陈旧         n=   108 Dmin= 0.068 med= 1.904 p90= 3.366 p99= 3.672 max=  3.705 | D>1=  80 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+  冻结帧行             n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  新口径(tick帧)       n=  2642 Dmin=     0 med= 8.857 p90=16.048 p99=19.278 max= 20.161 | D>1=2479 D>cover=1249 null=1249 盲区=2373(89.8%) 盲区最大=1188
+  新口径(全帧)          n=  2642 Dmin=     0 med= 8.857 p90=16.048 p99=19.278 max= 20.161 | D>1=2479 D>cover=1249 null=1249 盲区=2373(89.8%) 盲区最大=1188
+复刻上一轮过滤(rx/ry非null)：旧口径 null=1249/2750；本帧重建 null=1249/2642；空弹窗口陈旧 null=0/108
+满窗口型(旧口径) n=2749 Δmax=20.161 Δ>cover=1249 null=1249 盲区=2373/2749
+满窗口型(  本帧重建) n=2641 Δmax=20.161 Δ>cover=1249 null=1249 盲区=2373/2641
+满窗口型(  空弹窗口陈旧) n=108 Δmax=3.705 Δ>cover=0 null=0 盲区=0/108
+满窗口型(新口径tick帧) n=2642 Δmax=20.161 Δ>cover=1249 null=1249 盲区=2373/2642
+逐弹（新口径 tick 帧）：
+   b-496e-16      n=  600 Δmax=20.161 coverMax=9.37 满窗口样本=600 null样本=318 盲区样本=501
+   b-496e-17      n=  522 Δmax=17.731 coverMax=9.37 满窗口样本=522 null样本=247 盲区样本=482
+   b-496e-18      n=  512 Δmax=17.391 coverMax=9.37 满窗口样本=512 null样本=237 盲区样本=472
+   b-496e-19      n=  503 Δmax=17.085 coverMax=9.37 满窗口样本=503 null样本=228 盲区样本=464
+   b-496e-20      n=  494 Δmax=16.779 coverMax=9.37 满窗口样本=494 null样本=219 盲区样本=454
+   b-496e-15      n=   11 Δmax=0.289 coverMax=9.62 满窗口样本=11 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+   b-496e-15      行= 108 Δmax=3.705 null=0 t=0.408~4.045
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-496e-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=19101
+(exit=0)
+=== [B3] rv167gate run3 ===
+=== 重锚门收益复核 recount [rv167gate-r3] VERSION=v169-rv167gate ===
+帧=900 tick帧=278 冻结/未tick帧=622 空弹窗口帧=0 最长连续=0 节点数最大=2106 commit=62 shift med=0.17 max=0.459 >1.0=0
+快照-活锚点 abs0 不一致行=61 maxDiff=5.559（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=   651 Dmin= 0.016 med= 0.289 p90= 3.349 p99= 5.355 max=  5.559 | D>1= 196 D>cover=   0 null=   0 盲区= 124(19%) 盲区最大=774
+    本帧重建           n=   651 Dmin= 0.016 med= 0.289 p90= 3.349 p99= 5.355 max=  5.559 | D>1= 196 D>cover=   0 null=   0 盲区= 124(19%) 盲区最大=774
+    空弹窗口陈旧         n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  冻结帧行             n=  3732 Dmin= 0.084 med= 0.441 p90= 0.968 p99= 0.968 max=  0.968 | D>1=   0 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+  新口径(tick帧)       n=   651 Dmin=     0 med= 0.289 p90= 3.315 p99= 5.321 max=  5.525 | D>1= 194 D>cover=   0 null=   0 盲区= 124(19%) 盲区最大=774
+  新口径(全帧)          n=  4383 Dmin=     0 med= 0.289 p90= 0.968 p99= 4.063 max=  5.525 | D>1= 194 D>cover=   0 null=   0 盲区= 124(2.8%) 盲区最大=774
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/651；本帧重建 null=0/651；空弹窗口陈旧 null=0/0
+满窗口型(旧口径) n=451 Δmax=5.559 Δ>cover=0 null=0 盲区=124/451
+满窗口型(  本帧重建) n=451 Δmax=5.559 Δ>cover=0 null=0 盲区=124/451
+满窗口型(  空弹窗口陈旧) n=0 Δmax=- Δ>cover=0 null=0 盲区=0/0
+满窗口型(新口径tick帧) n=450 Δmax=5.525 Δ>cover=0 null=0 盲区=124/450
+逐弹（新口径 tick 帧）：
+   b-3ce4-16      n=  238 Δmax=5.525 coverMax=9.37 满窗口样本=163 null样本=0 盲区样本=94
+   b-3ce4-15      n=   80 Δmax=2.363 coverMax=9.62 满窗口样本=80 null样本=0 盲区样本=30
+   b-3ce4-17      n=  123 Δmax=1.615 coverMax=9.37 满窗口样本=48 null样本=0 盲区样本=0
+   b-3ce4-19      n=   63 Δmax=0.951 coverMax=9.37 满窗口样本=63 null样本=0 盲区样本=0
+   b-3ce4-20      n=   39 Δmax=0.951 coverMax=9.37 满窗口样本=39 null样本=0 盲区样本=0
+   b-3ce4-18      n=   95 Δmax=0.662 coverMax=9.52 满窗口样本=44 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-3ce4-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=11404
+(exit=0)
+
+### C. 还原后（v169）确认跑：md5 d2a311f5a84293bfd805716079867b8a / TREE_VERSION=v169 / mtime 2026-10-11 21:11
+=== [C1] v169-restored run ===
+=== 重锚门收益复核 recount [v169-restored] VERSION=v169 ===
+帧=900 tick帧=394 冻结/未tick帧=504 空弹窗口帧=167 最长连续=119 节点数最大=549 commit=81 shift med=0.154 max=0.323 >1.0=0
+快照-活锚点 abs0 不一致行=61 maxDiff=1.191（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=   806 Dmin= 0.017 med= 0.272 p90= 0.985 p99= 1.393 max=  1.666 | D>1=  75 D>cover=   0 null=   0 盲区=  39(4.8%) 盲区最大=18
+    本帧重建           n=   758 Dmin= 0.017 med= 0.239 p90= 0.951 p99= 1.157 max=  1.191 | D>1=  55 D>cover=   0 null=   0 盲区=  32(4.2%) 盲区最大=18
+    空弹窗口陈旧         n=    48 Dmin= 0.067 med= 0.883 p90=  1.53 p99= 1.666 max=  1.666 | D>1=  20 D>cover=   0 null=   0 盲区=   7(14.6%) 盲区最大=9
+  冻结帧行             n=  2520 Dmin= 0.085 med= 0.085 p90= 0.085 p99= 0.085 max=  0.085 | D>1=   0 D>cover=   0 null=   0 盲区=1008(40%) 盲区最大=18
+  新口径(tick帧)       n=   758 Dmin=     0 med= 0.221 p90= 0.918 p99= 1.122 max=  1.157 | D>1=  41 D>cover=   0 null=   0 盲区=  30(4%) 盲区最大=18
+  新口径(全帧)          n=  3278 Dmin=     0 med= 0.085 p90= 0.306 p99=  1.02 max=  1.157 | D>1=  41 D>cover=   0 null=   0 盲区=1038(31.7%) 盲区最大=18
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/806；本帧重建 null=0/758；空弹窗口陈旧 null=0/48
+满窗口型(旧口径) n=561 Δmax=1.666 Δ>cover=0 null=0 盲区=7/561
+满窗口型(  本帧重建) n=513 Δmax=1.191 Δ>cover=0 null=0 盲区=0/513
+满窗口型(  空弹窗口陈旧) n=48 Δmax=1.666 Δ>cover=0 null=0 盲区=7/48
+满窗口型(新口径tick帧) n=508 Δmax=1.157 Δ>cover=0 null=0 盲区=0/508
+逐弹（新口径 tick 帧）：
+   b-04c8-19      n=  100 Δmax=1.157 coverMax=9.37 满窗口样本=69 null样本=0 盲区样本=0
+   b-04c8-16      n=  135 Δmax=1.156 coverMax=9.37 满窗口样本=69 null样本=0 盲区样本=22
+   b-04c8-18      n=  109 Δmax=1.156 coverMax=9.37 满窗口样本=64 null样本=0 盲区样本=0
+   b-04c8-17      n=  127 Δmax=1.155 coverMax=9.47 满窗口样本=68 null样本=0 盲区样本=8
+   b-04c8-20      n=   82 Δmax=1.155 coverMax=9.37 满窗口样本=65 null样本=0 盲区样本=0
+   b-04c8-29      n=   41 Δmax=1.003 coverMax=9.37 满窗口样本=41 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+   b-04c8-15      行=  48 Δmax=1.666 null=0 t=0.408~2.007
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.03466650390625,"rootAbsT":0.017333251953125,"liveAnchors":[{"id":"b-04c8-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=10467
+(exit=0)
+
+### D. 第二轮临时复现 v167 门（REVIEW-TEMP2，md5 48c1fc068a1f8a57efbd97c4af5319e0 / TREE_VERSION=v169-rv167gate2），补 3 跑
+=== [B4] rv167gate2 run4 ===
+=== 重锚门收益复核 recount [rv167gate-r4] VERSION=v169-rv167gate2 ===
+帧=900 tick帧=605 冻结/未tick帧=295 空弹窗口帧=0 最长连续=0 节点数最大=945 commit=112 shift med=0.17 max=0.221 >1.0=0
+快照-活锚点 abs0 不一致行=138 maxDiff=1.343（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=  1216 Dmin= 0.016 med= 0.102 p90= 0.171 p99= 0.935 max=  1.343 | D>1=  11 D>cover=   0 null=   0 盲区= 185(15.2%) 盲区最大=918
+    本帧重建           n=  1216 Dmin= 0.016 med= 0.102 p90= 0.171 p99= 0.935 max=  1.343 | D>1=  11 D>cover=   0 null=   0 盲区= 185(15.2%) 盲区最大=918
+    空弹窗口陈旧         n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  冻结帧行             n=  1180 Dmin= 0.186 med= 0.186 p90= 0.186 p99= 0.186 max=  0.186 | D>1=   0 D>cover=   0 null=   0 盲区=1180(100%) 盲区最大=918
+  新口径(tick帧)       n=  1216 Dmin=     0 med= 0.085 p90= 0.171 p99= 0.901 max=  1.309 | D>1=  10 D>cover=   0 null=   0 盲区= 185(15.2%) 盲区最大=918
+  新口径(全帧)          n=  2396 Dmin=     0 med= 0.017 p90= 0.137 p99= 0.527 max=  1.309 | D>1=  10 D>cover=   0 null=   0 盲区=1365(57%) 盲区最大=918
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/1216；本帧重建 null=0/1216；空弹窗口陈旧 null=0/0
+满窗口型(旧口径) n=219 Δmax=1.343 Δ>cover=0 null=0 盲区=0/219
+满窗口型(  本帧重建) n=219 Δmax=1.343 Δ>cover=0 null=0 盲区=0/219
+满窗口型(  空弹窗口陈旧) n=0 Δmax=- Δ>cover=0 null=0 盲区=0/0
+满窗口型(新口径tick帧) n=218 Δmax=1.309 Δ>cover=0 null=0 盲区=0/218
+逐弹（新口径 tick 帧）：
+   b-2ab3-15      n=   80 Δmax=1.309 coverMax=9.62 满窗口样本=44 null样本=0 盲区样本=0
+   b-2ab3-16      n=  565 Δmax=0.204 coverMax=9.45 满窗口样本=44 null样本=0 盲区样本=70
+   b-2ab3-18      n=  224 Δmax=0.204 coverMax=9.37 满窗口样本=44 null样本=0 盲区样本=40
+   b-2ab3-19      n=  189 Δmax=0.204 coverMax=9.37 满窗口样本=42 null样本=0 盲区样本=38
+   b-2ab3-20      n=  158 Δmax=0.204 coverMax=9.37 满窗口样本=44 null样本=0 盲区样本=37
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-2ab3-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=17652
+(exit=0)
+=== [B5] rv167gate2 run5 ===
+=== 重锚门收益复核 recount [rv167gate-r5] VERSION=v169-rv167gate2 ===
+帧=900 tick帧=900 冻结/未tick帧=0 空弹窗口帧=289 最长连续=226 节点数最大=450 commit=143 shift med=0.204 max=0.255 >1.0=0
+快照-活锚点 abs0 不一致行=2 maxDiff=0.254（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=   900 Dmin= 0.016 med=  7.36 p90=19.245 p99=21.999 max= 22.271 | D>1= 824 D>cover= 380 null= 380 盲区= 636(70.7%) 盲区最大=450
+    本帧重建           n=   611 Dmin= 0.016 med= 9.759 p90=18.054 p99=19.925 max= 20.129 | D>1= 563 D>cover= 317 null= 317 盲区= 556(91%) 盲区最大=450
+    空弹窗口陈旧         n=   289 Dmin= 0.051 med= 4.947 p90=21.318 p99=22.203 max= 22.271 | D>1= 261 D>cover=  63 null=  63 盲区=  80(27.7%) 盲区最大=450
+  冻结帧行             n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  新口径(tick帧)       n=   611 Dmin=     0 med= 9.759 p90=18.054 p99=19.925 max= 20.129 | D>1= 563 D>cover= 317 null= 317 盲区= 556(91%) 盲区最大=450
+  新口径(全帧)          n=   611 Dmin=     0 med= 9.759 p90=18.054 p99=19.925 max= 20.129 | D>1= 563 D>cover= 317 null= 317 盲区= 556(91%) 盲区最大=450
+复刻上一轮过滤(rx/ry非null)：旧口径 null=380/900；本帧重建 null=317/611；空弹窗口陈旧 null=63/289
+满窗口型(旧口径) n=899 Δmax=22.271 Δ>cover=380 null=380 盲区=636/899
+满窗口型(  本帧重建) n=610 Δmax=20.129 Δ>cover=317 null=317 盲区=556/610
+满窗口型(  空弹窗口陈旧) n=289 Δmax=22.271 Δ>cover=63 null=63 盲区=80/289
+满窗口型(新口径tick帧) n=611 Δmax=20.129 Δ>cover=317 null=317 盲区=556/611
+逐弹（新口径 tick 帧）：
+   b-6a48-16      n=  600 Δmax=20.129 coverMax=9.37 满窗口样本=600 null样本=317 盲区样本=556
+   b-6a48-15      n=   11 Δmax=0.152 coverMax=9.62 满窗口样本=11 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+   b-6a48-15      行= 226 Δmax=7.701 null=0 t=0.408~8.058
+   b-6a48-16      行=  63 Δmax=22.271 null=63 t=28.492~30.6
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-6a48-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=17495
+(exit=0)
+=== [B6] rv167gate2 run6 ===
+=== 重锚门收益复核 recount [rv167gate-r6] VERSION=v169-rv167gate2 ===
+帧=900 tick帧=488 冻结/未tick帧=412 空弹窗口帧=0 最长连续=0 节点数最大=378 commit=45 shift med=0.374 max=0.374 >1.0=0
+快照-活锚点 abs0 不一致行=1 maxDiff=0.221（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=  2671 Dmin= 0.017 med= 6.716 p90=12.835 p99=14.942 max= 15.521 | D>1=2446 D>cover= 871 null= 873 盲区=2339(87.6%) 盲区最大=378
+    本帧重建           n=  2671 Dmin= 0.017 med= 6.716 p90=12.835 p99=14.942 max= 15.521 | D>1=2446 D>cover= 871 null= 873 盲区=2339(87.6%) 盲区最大=378
+    空弹窗口陈旧         n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  冻结帧行             n=  2472 Dmin=12.512 med=14.756 p90=15.537 p99=15.537 max= 15.537 | D>1=2472 D>cover=2472 null=2472 盲区=2472(100%) 盲区最大=252
+  新口径(tick帧)       n=  2671 Dmin=     0 med= 6.715 p90=12.835 p99=14.942 max= 15.521 | D>1=2446 D>cover= 873 null= 873 盲区=2339(87.6%) 盲区最大=378
+  新口径(全帧)          n=  5143 Dmin=     0 med=12.512 p90=15.232 p99=15.538 max= 15.538 | D>1=4918 D>cover=3345 null=3345 盲区=4811(93.5%) 盲区最大=378
+复刻上一轮过滤(rx/ry非null)：旧口径 null=873/2671；本帧重建 null=873/2671；空弹窗口陈旧 null=0/0
+满窗口型(旧口径) n=2671 Δmax=15.521 Δ>cover=871 null=873 盲区=2339/2671
+满窗口型(  本帧重建) n=2671 Δmax=15.521 Δ>cover=871 null=873 盲区=2339/2671
+满窗口型(  空弹窗口陈旧) n=0 Δmax=- Δ>cover=0 null=0 盲区=0/0
+满窗口型(新口径tick帧) n=2671 Δmax=15.521 Δ>cover=873 null=873 盲区=2339/2671
+逐弹（新口径 tick 帧）：
+   b-6372-16      n=  457 Δmax=15.521 coverMax=9.37 满窗口样本=457 null样本=182 盲区样本=411
+   b-6372-17      n=  448 Δmax=15.215 coverMax=9.37 满窗口样本=448 null样本=173 盲区样本=400
+   b-6372-18      n=  434 Δmax=14.739 coverMax=9.37 满窗口样本=434 null样本=159 盲区样本=389
+   b-6372-19      n=  408 Δmax=13.855 coverMax=9.37 满窗口样本=408 null样本=133 盲区样本=367
+   b-6372-20      n=  408 Δmax=13.855 coverMax=9.37 满窗口样本=408 null样本=133 盲区样本=367
+   b-6372-21      n=  368 Δmax=12.495 coverMax=9.37 满窗口样本=368 null样本=93 盲区样本=323
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.03466650390625,"rootAbsT":0.017333251953125,"liveAnchors":[{"id":"b-6372-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=15958
+(exit=0)
+
+### E. liveAnchors / anchorProbeAge 可用性验证（v169，还原后；探针 md5 88f7f284bad7a996ab81909943c4d2a8）
+=== [E1] v169 liveAnchors+anchorProbeAge ===
+=== 重锚门收益复核 recount [v169-livefield] VERSION=v169 ===
+帧=900 tick帧=368 冻结/未tick帧=532 空弹窗口帧=0 最长连续=0 节点数最大=2295 anchorProbeAge>0帧=532 maxAge=0.017 commit=45 shift med=0.306 max=0.306 >1.0=0
+快照-活锚点 abs0 不一致行=104 maxDiff=1.274（只查 probeFresh 帧同 id）
+Δ / 覆盖 / 取位 / 深节点盲区 对照：
+  旧口径(上一轮)         n=  1334 Dmin= 0.016 med= 0.171 p90= 0.697 p99= 1.172 max=  1.274 | D>1=  54 D>cover=   0 null=   0 盲区= 210(15.7%) 盲区最大=207
+    本帧重建           n=  1334 Dmin= 0.016 med= 0.171 p90= 0.697 p99= 1.172 max=  1.274 | D>1=  54 D>cover=   0 null=   0 盲区= 210(15.7%) 盲区最大=207
+    空弹窗口陈旧         n=     0 Dmin=  null med=  null p90=  null p99=  null max=   null | D>1=   0 D>cover=   0 null=   0 盲区=   0(null%) 盲区最大=0
+  冻结帧行             n=  2660 Dmin= 0.169 med= 0.169 p90= 0.169 p99= 0.169 max=  0.169 | D>1=   0 D>cover=   0 null=   0 盲区=   0(0%) 盲区最大=0
+  新口径(tick帧)       n=  1334 Dmin=     0 med= 0.137 p90= 0.662 p99= 1.139 max=  1.241 | D>1=  45 D>cover=   0 null=   0 盲区= 210(15.7%) 盲区最大=207
+  新口径(全帧)          n=  3994 Dmin=     0 med= 0.169 p90= 0.221 p99=  1.02 max=  1.241 | D>1=  45 D>cover=   0 null=   0 盲区= 210(5.3%) 盲区最大=207
+复刻上一轮过滤(rx/ry非null)：旧口径 null=0/1334；本帧重建 null=0/1334；空弹窗口陈旧 null=0/0
+满窗口型(旧口径) n=375 Δmax=1.274 Δ>cover=0 null=0 盲区=0/375
+满窗口型(  本帧重建) n=375 Δmax=1.274 Δ>cover=0 null=0 盲区=0/375
+满窗口型(  空弹窗口陈旧) n=0 Δmax=- Δ>cover=0 null=0 盲区=0/0
+满窗口型(新口径tick帧) n=370 Δmax=1.241 Δ>cover=0 null=0 盲区=0/370
+逐弹（新口径 tick 帧）：
+   b-1fc4-19      n=  209 Δmax=1.241 coverMax=9.37 满窗口样本=73 null样本=0 盲区样本=0
+   b-1fc4-15      n=   80 Δmax=1.191 coverMax=9.62 满窗口样本=52 null样本=0 盲区样本=0
+   b-1fc4-16      n=  337 Δmax=1.191 coverMax=9.37 满窗口样本=66 null样本=0 盲区样本=73
+   b-1fc4-17      n=  332 Δmax=1.191 coverMax=9.40 满窗口样本=70 null样本=0 盲区样本=72
+   b-1fc4-18      n=  328 Δmax=1.191 coverMax=9.37 满窗口样本=66 null样本=0 盲区样本=65
+   b-1fc4-20      n=   48 Δmax=0.221 coverMax=9.37 满窗口样本=43 null样本=0 盲区样本=0
+空弹窗口陈旧行逐弹（行数 / Δmax / null / 首末 t）：
+liveAnchors 原样示例（第一帧有活弹）= {"t":0.034,"rootAbsT":0.017,"liveAnchors":[{"id":"b-1fc4-15","abs0":0.017,"delta":0.017,"len":481,"tdt":0.02,"anchorOffset":0,"hasTrack":1}]}
+wallMs=14583
+(exit=0)
+
+### F. 汇总（数字全部来自上面原始输出；“旧口径”= anchorProbe 快照行 ，“新口径”= liveAnchors 活锚点行）
+###
+### v167 门（临时复现，6 跑 900 帧；tick帧=900 且无早死的 B2/B5 最有可比性）
+### run | tick帧 | 空弹窗口帧 | 旧:n | 旧:Δmax | 旧:null | 旧:盲区% | 新:n | 新:Δmax | 新:null | 新:盲区% | 陈旧行:n | 陈旧行:null
+### B1  | 900 | 889 |  900 | 30.583 |    0 | 75.9 |   11 |  0.356 |    0 |  0.0 | 889 |  0
+### B2  | 900 | 108 | 2750 | 20.161 | 1249 | 86.3 | 2642 | 20.161 | 1249 | 89.8 | 108 |  0
+### B3  | 278 |   0 |  651 |  5.559 |    0 | 19.0 |  651 |  5.525 |    0 | 19.0 |   0 |  0
+### B4  | 605 |   0 | 1216 |  1.343 |    0 | 15.2 | 1216 |  1.309 |    0 | 15.2 |   0 |  0
+### B5  | 900 | 289 |  900 | 22.271 |  380 | 70.7 |  611 | 20.129 |  317 | 91.0 | 289 | 63
+### B6  | 488 |   0 | 2671 | 15.521 |  873 | 87.6 | 2671 | 15.521 |  873 | 87.6 |   0 |  0
+### 满窗口型子集（新口径 live）：B2 2642 行 null=1249 盲区=89.8%；B5 611 行 null=317 盲区=91.0%；B6 2671 行 null=873 盲区=87.6%
+###
+### v168/v169 门（8 跑 900 帧：A1~A3 / C1 / E1 为还原后 v169；v169= v168 门 + 只读计数，语义同）
+### run | tick帧 | 旧:n | 旧:Δmax | 旧:null | 旧:盲区% | 新:n | 新:Δmax | 新:null | 新:盲区% | 满窗口:新Δmax | 满窗口:新null
+### A1  | 900 | 1713 | 3.621 | 2 | 59.7 | 1612 | 1.003 | 2 | 63.4 | 1.003 | 0
+### A2  | 487 |  921 | 1.105 | 0 | 60.8 |  921 | 1.070 | 0 | 60.8 | 1.070 | 0
+### A3  | 539 | 3695 | 1.207 | 0 | 67.3 | 4079 | 1.207 | 0 | 66.6 | 1.207 | 0
+### C1  | 394 |  806 | 1.666 | 0 |  4.8 |  758 | 1.157 | 0 |  4.0 | 1.157 | 0
+### E1  | 368 | 1334 | 1.274 | 0 | 15.7 | 1334 | 1.241 | 0 | 15.7 | 1.241 | 0
+### 注：A1 全样本 2 个 null 都是 cover 0.05~0.18s 的“寿命截断型”行；满窗口型 null 全为 0。
