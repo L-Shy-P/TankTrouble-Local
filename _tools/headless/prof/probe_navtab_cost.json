@@ -1,0 +1,105 @@
+{
+ "fps": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-12T04:49:15.585Z",
+   "bytes": 211508,
+   "md5": "b804db133a6a284aa4d76d85cfb3e83e"
+  },
+  {
+   "file": "game_core/js/vantage_rust_bridge.js",
+   "mtime": "2026-10-12T04:49:15.553Z",
+   "bytes": 101802,
+   "md5": "0fc14b6c941bcf74fbb387b911d7277d"
+  },
+  {
+   "file": "game_core/js/wasm/vantage_core.wasm",
+   "mtime": "2026-10-12T04:57:27.915Z",
+   "bytes": 218936,
+   "md5": "80c5471b09384840e10d3320759be8db"
+  }
+ ],
+ "real": {
+  "w": 7,
+  "h": 5,
+  "pairs": 862,
+  "computed": 862,
+  "skipped": 0,
+  "runsMs": [
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "bytes": 1225
+ },
+ "scaled": [
+  {
+   "w": 10,
+   "h": 6,
+   "tiles": 60,
+   "pairs": 3422,
+   "computed": 3422,
+   "skipped": 0,
+   "ms": 0,
+   "bytes": 3600,
+   "ok": true,
+   "err": null
+  },
+  {
+   "w": 16,
+   "h": 10,
+   "tiles": 160,
+   "pairs": 20582,
+   "computed": 20582,
+   "skipped": 0,
+   "ms": 0,
+   "bytes": 25600,
+   "ok": true,
+   "err": null
+  },
+  {
+   "w": 20,
+   "h": 12,
+   "tiles": 240,
+   "pairs": 56844,
+   "computed": 56844,
+   "skipped": 0,
+   "ms": 0,
+   "bytes": 57600,
+   "ok": true,
+   "err": null
+  }
+ ],
+ "xfer": {
+  "abiVersion": 12,
+  "realAck": {
+   "ok": true
+  },
+  "realMs": {
+   "bestMs": 0,
+   "allMs": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "bigAck": {
+   "ok": true
+  },
+  "bigMs": {
+   "bestMs": 0,
+   "allMs": [
+    0,
+    0,
+    0
+   ]
+  },
+  "realBytes": 1225,
+  "bigBytes": 360000,
+  "hasMazeIdOf": "function"
+ }
+}

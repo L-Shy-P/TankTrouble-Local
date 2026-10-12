@@ -1,0 +1,20 @@
+落盘复核: 文件 1203 行（frame 1200/1200 条）; 文件哈希=2049181470 meta=2049181470 页面=2049181470 → 一条不丢
+录制: prof/detfix/hsnoise_KEEP_20_rec.jsonl
+  header: v=3 page=index.html 玩家=["tank_a","tank_b"]
+  初始位姿=[{"id":"tank_a","alive":true,"x":65,"y":15,"rot":5.123666330724925,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0},{"id":"tank_b","alive":true,"x":5,"y":5,"rot":2.7266080934148063,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0}]
+  地图=7x4 主题=1  回合设置={"COUNTDOWN_DURATION":0.5,"COUNTDOWN_START_VALUE":3,"BETWEEN_ROUNDS_DURATION":1,"CELEBRATION_DURATION":7,"MAX_DELTA_TIME":0.1,"MAZE_TILE_SIZE":10,"THEMES":{"STANDARD":0,"HALLOWEEN":1,"CHRISTMAS":2,"COUNT":3,"RANDOM":4}}
+  帧数=1200  随机序列=27615  录制时 RNG 溢出=0
+
+---- 回放 #1 → prof/detfix/hsnoise_KEEP_20_rec.replay1.jsonl
+  initPose = [{"id":"tank_a","x":65,"y":15,"rot":5.123666330724925},{"id":"tank_b","x":5,"y":5,"rot":2.7266080934148063}]
+  drive    = {"on":false,"f":1200,"total":1200,"applied":1279,"skipped":0,"errs":0,"missing":{},"loaded":1200}
+  rng      = {"mode":"play","len":27615,"idx":0,"overflow":0,"calls":27615,"siteCount":144,"siteOverflow":0,"firstRec":null,"firstPlay":{"key":3040316008,"head":["Error","    at siteKey (<anonymous>:270:18)","    at Math.random (<anonymous>:295:19)","    at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:1746"]}}
+  导出      = frames=1200 分片=25 页面fnv=2431484250 落盘一致=true wallMs=4073
+  复核      = 一条不丢 (文件 1202 行)
+
+================ 对拍结果 ================
+
+【验收】回放#1 vs 原始录制: PASS 逐帧完全相同
+  opName(含fire)不一致=0 坦克位姿不一致=0 (最大差 0) 子弹位姿不一致=0 回合状态不一致=0 随机数消费不一致=0 决定性隐藏不一致=0 观测性不一致(仅信息)=0 实际输入不一致=0 时间不一致=0 (最大差 0ms)
+
+结论: PASS

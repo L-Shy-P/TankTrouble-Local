@@ -1,0 +1,89 @@
+open() 用时 2843 ms; bootstrap= {"gameId":"gc-41ca-0","humanIds":["tank_a"],"aiIds":["6148530"],"vantageIds":[],"started":true}
+初始探针: {
+ "state": "counting down",
+ "states": {
+  "BETWEEN_ROUNDS": "between rounds",
+  "COUNTING_DOWN": "counting down",
+  "IN_ROUND": "in round",
+  "ENDED": "ended"
+ },
+ "tankKeys": [
+  "back",
+  "fireDown",
+  "forward",
+  "left",
+  "locked",
+  "playerId",
+  "right",
+  "rotation",
+  "x",
+  "y"
+ ],
+ "gmGlobal": true,
+ "tankSample": {
+  "id": "6148530",
+  "x": 55,
+  "y": 15,
+  "rot": 1.379817014597338,
+  "fwd": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fire": false
+ },
+ "rng": {
+  "mode": "off",
+  "len": 0,
+  "idx": 0,
+  "overflow": 0
+ }
+}
+【倒计时内 teleport】返回值 = "ok"
+  tank_a before = {"x":5,"y":5,"rot":4.262327171154489}
+  tank_a after  = {"x":5,"y":5,"rot":4.262327171154489}
+状态时间线: 1帧→state=counting down | 90帧→state=in round
+从 open() 返回到 IN_ROUND 用了 90 帧
+【倒计时内直调 setTankState】返回 = {"gcState":"in round"}
+【IN_ROUND 后 teleport】返回值 = "ok"
+  tank_a 读回 = {"x":55,"y":25,"rot":1}
+  期望 x=55 y=25 rot=1.0
+帧末探针: {
+ "state": "in round",
+ "states": {
+  "BETWEEN_ROUNDS": "between rounds",
+  "COUNTING_DOWN": "counting down",
+  "IN_ROUND": "in round",
+  "ENDED": "ended"
+ },
+ "tankKeys": [
+  "back",
+  "fireDown",
+  "forward",
+  "left",
+  "locked",
+  "playerId",
+  "right",
+  "rotation",
+  "x",
+  "y"
+ ],
+ "gmGlobal": true,
+ "tankSample": {
+  "id": "6148530",
+  "x": 55,
+  "y": 15,
+  "rot": 1.379817014597338,
+  "fwd": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fire": false
+ },
+ "rng": {
+  "mode": "off",
+  "len": 0,
+  "idx": 0,
+  "overflow": 0
+ }
+}
+页面 console 里与 tank state 有关的行: ["[log] [W][Sun Oct 11 2026 14:55:30 GMT+0800 (中国标准时间)][GameController][unknown:0]: Player with id tank_a attempted to set tank state with game in state counting down"]

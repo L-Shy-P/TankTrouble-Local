@@ -1,0 +1,14 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+=== _lfd_ top trace (rows=_lfd_rows_06971cc0.json which=0) ===
+scene sc=1 op=后 i=2 pose={"x":16.010098774451762,"y":25.688855396583676,"rot":2.227815989798218}
+bullets=[{"id":"b0","w":"LASER","r":0.05,"sp":176.63,"d":10.44,"off":1.8,"x":13.16,"y":15.64,"vx":76.35,"vy":159.28},{"id":"b1","w":"BULLET","r":0.25,"sp":17.79,"d":6.18,"off":-0.93,"x":19.14,"y":20.36,"vx":-11.19,"vy":13.82},{"id":"b2","w":"BULLET","r":0.25,"sp":18.6,"d":7.33,"off":-0.79,"x":22.91,"y":28.15,"vx":-16.75,"vy":-8.1}]
+jsDF=53 rustDF=3 jsSweepHit=3 sweepFallback=false geoFallback=false
+contacts(op=2) n=3
+  k=3 cat=sweep/laser-sweep
+  k=53 cat=geometry/polyGap-scan
+  k=53 cat=4 bullet=(7.84,20.86) r=0.25 gap=-0.25 polyGap=-0.15
+frame table k=3..55:
+  k=  3  S(sweep)  C:sweep/laser-sweep  R(rustFinal)
+  k= 53  C:geometry/polyGap-scan  C:4  J(jsFinal)

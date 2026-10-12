@@ -1,0 +1,76 @@
+===== [realContact] start 2026-10-11 23:57:46 =====
+----- md5 BEFORE [realContact] -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+63fe087444041c87e7b813eee12a8f2c  game_core/js/vantage_rust_bridge.js
+d7264e6f070229e3328fe3bd53015145  game_core/js/vantage_scoring.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+db5da0d13f8f11bc60b33d6a65c22f96  game_core/rust/vantage_core/src/rollout.rs
+[6.6s] 开局: {"gameId":"gc-d627-0","humanIds":["tank_a"],"aiIds":["6148530"],"vantageIds":["vantage_1"],"started":true}
+[6.6s] 审计器: {"dt":0.02,"rustOk":true,"tanks":["vantage_1","tank_a"],"tree":"v173"}
+[15.8s] frames=600 vt.steps=755 audits=108
+[19.3s] frames=1200 vt.steps=1355 audits=121
+[22.2s] frames=1800 vt.steps=1955 audits=121
+[23.2s] ===== 审计汇总 =====
+{
+ "batches": 121,
+ "ops": 1089,
+ "jsOnly": 0,
+ "rustOnly": 0,
+ "bothDead": 1089,
+ "bothAlive": 0,
+ "rustFallback": 0,
+ "jsFail": 0,
+ "geoFallback": 0,
+ "rustBestJsDead": 121,
+ "rustBestSamples": 121,
+ "batchesWithRustAlive": 0,
+ "rustAliveExistJsDead": 0,
+ "byVictim": {
+  "vantage_1": {
+   "batches": 121,
+   "ops": 1089,
+   "jsOnly": 0,
+   "rustOnly": 0,
+   "rustBestJsDead": 121
+  }
+ },
+ "dfDiff": null,
+ "treeStats": {
+  "expands": 754,
+  "extends": 0,
+  "commits": 167,
+  "rebuilds": 1,
+  "freshRoots": 1,
+  "alignFails": 0,
+  "retreats": 0,
+  "growMs": 0,
+  "growSkips": 0,
+  "nodeCountFixes": 0,
+  "rustScoredBatches": 753,
+  "rustScoredFallbacks": 0,
+  "commitSliceRustBatches": 1,
+  "commitSliceJsBatches": 0,
+  "commitSliceRustFails": 0,
+  "jsConfirmCount": 167,
+  "jsConfirmEarlier": 0,
+  "jsConfirmLater": 0,
+  "jsConfirmCleared": 0,
+  "deepSelects": 0,
+  "retreatReroutes": 0,
+  "refineSplits": 0,
+  "growStalls": {
+   "grow-warmup-cap": 1080
+  },
+  "filteredStaleSkip": 275
+ }
+}
+[23.2s] 报告 -> _tools/headless/_ev_prof/jr_real_contact.json (9.4 KB)
+----- md5 AFTER  [realContact] rc=0 elapsed=25s -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+63fe087444041c87e7b813eee12a8f2c  game_core/js/vantage_rust_bridge.js
+d7264e6f070229e3328fe3bd53015145  game_core/js/vantage_scoring.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+db5da0d13f8f11bc60b33d6a65c22f96  game_core/rust/vantage_core/src/rollout.rs
+===== [realContact] end 2026-10-11 23:58:12 =====

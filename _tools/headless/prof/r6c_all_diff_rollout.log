@@ -1,0 +1,29 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+diff_rollout.js error: Error: cargo run failed (101)
+stdout:
+
+stderr:
+error: linking with `link.exe` failed: exit code: 1
+  |
+  = note: "link.exe" "/DEF:C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\game_core\\rust\\vantage_core\\target\\debug\\deps\\rustc372Le4\\lib.def" "/NOLOGO" "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\game_core\\rust\\vantage_core\\target\\debug\\deps\\rustc372Le4\\symbols.o" "<126 object files omitted>" "<sysroot>\\lib\\rustlib\\x86_64-pc-windows-msvc\\lib/{libstd-*,libpanic_unwind-*,libcfg_if-*,libwindows_link-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libunwind-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "kernel32.lib" "kernel32.lib" "kernel32.lib" "ntdll.lib" "userenv.lib" "ws2_32.lib" "dbghelp.lib" "/defaultlib:msvcrt" "/NXCOMPAT" "/OUT:C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\game_core\\rust\\vantage_core\\target\\debug\\deps\\vantage_core.dll" "/OPT:REF,NOICF" "/DLL" "/IMPLIB:C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\game_core\\rust\\vantage_core\\target\\debug\\deps\\vantage_core.dll.lib" "/DEBUG" "/PDBALTPATH:%_PDB%" "/NATVIS:<sysroot>\\lib\\rustlib\\etc\\intrinsic.natvis" "/NATVIS:<sysroot>\\lib\\rustlib\\etc\\liballoc.natvis" "/NATVIS:<sysroot>\\lib\\rustlib\\etc\\libcore.natvis" "/NATVIS:<sysroot>\\lib\\rustlib\\etc\\libstd.natvis"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: link: missing operand after '@C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\game_core\\rust\\vantage_core\\target\\debug\\deps\\rustc372Le4\\linker-arguments'
+          Try 'link --help' for more information.
+          
+
+note: `link.exe` returned an unexpected error
+
+note: in the Visual Studio installer, ensure the "C++ build tools" workload is selected
+
+error: could not compile `vantage_core` (lib) due to 1 previous error
+
+    at runRustScenes (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\game_core\rust\diff_rollout.js:290:11)
+    at main (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\game_core\rust\diff_rollout.js:523:23)
+    at Object.<anonymous> (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\game_core\rust\diff_rollout.js:587:3)
+    at Module._compile (node:internal/modules/cjs/loader:1830:14)
+    at Object..js (node:internal/modules/cjs/loader:1961:10)
+    at Module.load (node:internal/modules/cjs/loader:1553:32)
+    at Module._load (node:internal/modules/cjs/loader:1355:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47

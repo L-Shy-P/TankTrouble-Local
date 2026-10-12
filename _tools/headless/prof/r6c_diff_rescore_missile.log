@@ -1,0 +1,22 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+=== 1-2④ rescore 制导弹差分（ABI v12，容差 1e-9） ===
+--- 契约（修前必 FAIL） ---
+  PASS  wasm ABI >= 12   abi=12
+  PASS  VantageSandbox.missileSteerVelocity 存在
+  PASS  VantageSandbox.getMazeNavTables 存在
+  PASS  D1 断言：导弹不进 track 白名单
+--- 场景 ---
+  PASS  guided_head_on   JS=true/67 Rust=true/67 scoreDiff=0.000e+0
+  PASS  guided_lateral   JS=true/66 Rust=true/66 scoreDiff=0.000e+0
+  PASS  gate_closed_miss   JS=false/-1 Rust=false/-1 scoreDiff=0.000e+0
+  PASS  reversal_positive   JS=true/52 Rust=true/52 scoreDiff=0.000e+0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=m-1 追踪导弹目标=别人(tank_c) → D2 本段摘掉（audit droppedTargetOther） 累计: 近似摆=0 无威胁条目=0 跳过=0
+  PASS  target_other_dropped   JS=false/-1 (D2 丢弃) scoreDiff=-
+--- B2：打乱 node 调用顺序 + 每 node 一条轨道 ---
+  PASS  打乱 node 调用顺序结果不变   {"ab":[{"dead":true,"fd":66,"total":2556.0971442832306},{"dead":false,"fd":-1,"total":2960.881320326803}],"ba":[{"dead":false,"fd":-1,"total":2960.881320326803},{"dead":true,"fd":66,"total":2556.0971442832306}],"eq":true,"tracksDiffer":true,"tracksOrderFree":true}
+  PASS  不同 node 的制导弹道确实不同
+  PASS  两次调用的轨道快照一致（顺序无关）
+
+DIFF RESCORE MISSILE PASSED

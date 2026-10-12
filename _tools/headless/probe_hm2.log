@@ -1,0 +1,55 @@
+=== 版本指纹 ===
+  game_core/index.html  2026-10-11T14:44:50.635Z  cc0d354c7bd630005994104ba4582af3  34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  2026-06-13T17:38:28.228Z  7ecd83bb84f80beac5e1df8f4fe85f48  84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  2026-06-13T17:38:28.247Z  97cadb8a67a443a9eb2f51ebc7d12916  58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  2026-06-13T17:38:28.229Z  1c7bcaba8381d40aa591f5abacb8d96e  55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  2026-06-13T12:22:43.984Z  a2bf42171d586f54e5e5fac5779424e4  24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  2026-06-13T17:38:28.240Z  5183078f57653d2189c8517dd227a01b  51385
+  game_core/js/vantage_tree.js  2026-10-11T14:44:50.633Z  b02609ad48a06617155e7c5d0792e4dd  484237
+  game_core/js/vantage_sandbox.js  2026-10-11T14:51:24.281Z  06971cc0e7fa180e36ccd041c264b243  171358
+  game_core/js/vantage_rust_bridge.js  2026-10-11T14:44:50.637Z  63fe087444041c87e7b813eee12a8f2c  93829
+  game_core/js/wasm/vantage_core.wasm  2026-10-11T14:51:48.191Z  fd132f4b23509abb648b5807dd866fb5  207506
+  _tools/headless/match.js  2026-10-11T09:25:41.483Z  43a8ec65203f7f9c9654932ce17f6f63  28377
+  _tools/headless/clock.js  2026-10-11T09:21:03.391Z  664cd0cfb7eb12cf0c7cfd0dacf41e43  23201
+
+=== open: {"frames":120,"inRound":"in round","log":["0帧→counting down"]} ===
+  helper: installed
+  迷宫 9x5 可达 33
+  最长直道: {"n":9,"start":{"x":8,"y":2,"used":true},"dir":{"dx":-1,"dy":0,"rot":-1.5707963267948966,"name":"-x"}}
+  直道格=[{"x":8,"y":2},{"x":7,"y":2},{"x":6,"y":2},{"x":5,"y":2},{"x":4,"y":2},{"x":3,"y":2},{"x":2,"y":2},{"x":1,"y":2},{"x":0,"y":2}] 起点位姿={"x":85,"y":25,"rot":-1.5707963267948966} 终点={"x":5,"y":25} 停车格={"x":0,"y":0,"used":true}
+
+=== A) 桩事实 ===
+  常量: {"HM_ACT":2,"HM_MAX_LIFE":10,"HM_ACC":40,"HM_RADIUS":0.2,"HM_SPEED":18,"HM_OFFSET":2.5,"TILE":10}
+  spawnCrate(CRATE_HOMING_MISSILE) → {"n":1,"one":{"id":"c-b0c8-12","type":3,"x":85,"y":15}}
+  真 crate 拾取后: {"weaponId":"hmw-b0c8-13","weaponType":3,"fields":{"_launched":false,"_activationTime":0},"isDefault":false,"movementLocked":false,"done":false}
+  直接工厂: {"type":3,"fields":{"_launched":false,"_activationTime":0}}
+  ⟹ 等价: {"typeEq":true,"fieldsEq":true}
+
+=== B) 主飞行 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火后导弹数=1（tank_a @{"x":85,"y":25,"rot":-1.5707963267948966} 朝 -x）
+  ta≈2.15 时: {"ta":2.1669999999999967,"id":"hm-b0c8-16","tgt":"tank_a","dto":true,"nb":0,"x":43.99596000000034,"y":25.0122,"vx":-11.32,"vy":-0.040000000000001146}
+  导弹@{"x":43.99596000000034,"y":25.0122,"vx":-11.32,"vy":-0.040000000000001146} tile={"x":4,"y":2} → 侧面格={"x":4,"y":3}
+  已把 tank_b 挪到侧面（迷宫距离 1 → aim=tank-exact → 满转向）
+  采样帧=202  首帧={"id":"hm-b0c8-16","o":"tank_a","x":82.194,"y":25,"vx":-18,"vy":0,"sp":18,"ta":0.017,"la":10,"dto":false,"nb":0,"tgt":null,"initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[8,2],"dist":0},{"tank":"tank_b","tile":[0,2],"dist":12},{"tank":"tank_c","tile":[0,0],"dist":14}],"tgtMy":"tank_a","sd":0,"aimKind":"tank-exact","aim":{"x":85,"y":25},"rel":{"x":2.806,"y":0},"predGate":false,"pred":{"x":-18,"y":0,"renorm":false,"gate":"pre"}}
+  |v| 范围=[0.64, 18]  ≠18 的帧数=53
+  首次转向: {"f":290,"ta":2.017,"deg":-2.2483331423509267,"collided":false,"from":{"vx":-18,"vy":0},"to":{"vx":-17.32,"vy":0.68}}
+  非碰撞帧：激活前最大转角=0.0000°  激活后最大转角=93.3665°（理论 atan(40*dt/18)=2.1211°）
+  ★ 逐帧精确复刻对拍: 119/201 完全一致
+  对拍失败样例: [{"f":290,"ta":2.017,"pred":{"x":-17.3333,"y":0.6667,"renorm":false,"gate":"act"},"actual":{"vx":-17.32,"vy":0.68},"aimKind":"next-tile","predGate":true,"tgt":null,"d":[0.013300000000000978,0.01330000000000009]},{"f":291,"ta":2.033,"pred":{"x":-16.6533,"y":1.3467,"renorm":false,"gate":"act"},"actual":{"vx":-16.68,"vy":0.04},"aimKind":"next-tile","predGate":true,"tgt":"tank_a","d":[0.02669999999999817,1.3067]},{"f":292,"ta":2.05,"pred":{"x":-16.0133,"y":-0.6267,"renorm":false,"gate":"act"},"actual":{"vx":-16,"vy":-0.64},"aimKind":"next-tile","predGate":true,"tgt":"tank_a","d":[0.013300000000000978,0.013299999999999979]},{"f":293,"ta":2.067,"pred":{"x":-15.3333,"y":-1.3067,"renorm":false,"gate":"act"},"actual":{"vx":-15.32,"vy":-1.32},"aimKind":"next-tile","predGate":true,"tgt":"tank_a","d":[0.013299999999999201,0.01330000000000009]}]
+  目标时间线: [{"f":170,"ta":0.017,"from":null,"to":null,"myTgt":"tank_a","sd":0},{"f":290,"ta":2.017,"from":null,"to":"tank_a","myTgt":"tank_a","sd":4}]
+  TARGET_CHANGED: [{"f":290,"t":4849.999999999999,"kind":"targetChanged","projectileId":"hm-b0c8-16","targetId":"tank_a"}]
+  撞墙帧: []
+  末帧: {"id":"hm-b0c8-16","o":"tank_a","x":54.5881,"y":25.006,"vx":17.9607,"vy":1.1882,"sp":18,"ta":3.367,"la":10,"dto":true,"nb":0,"tgt":"tank_a","initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[8,2],"dist":3},{"tank":"tank_b","tile":[4,3],"dist":4},{"tank":"tank_c","tile":[0,0],"dist":11}],"tgtMy":"tank_a","sd":3,"aimKind":"next-tile","path0":{"x":6,"y":2,"length":1},"aim":{"x":65,"y":25},"rel":{"x":10.4119,"y":-0.006},"predGate":true,"pred":{"x":17.9929,"y":0.5038,"renorm":true,"gate":"act"}}
+
+=== C) 寿命终点 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火后导弹数=2
+  导弹消失（约第 510 帧）
+  末态: {"ta":8.483000000000036,"id":"hm-b0c8-18","tgt":"tank_a","dto":true,"nb":0,"x":7.21639569483024,"y":26.46236250515549,"vx":-17.945340334488392,"vy":-1.4016990687675912}  挪坦克次数=3
+
+=== vtStats ===
+  {"t":14816.666666666486,"steps":889,"pending":3,"errors":[],"errorCount":0,"epoch":1791731269855,"timersPending":9,"timerFires":876,"timerDropped":0,"timerT":14466.666666666499,"frozen":false,"released":true,"releaseSteps":21}
+  pageErrors: []
+
+[done] 用时 19.5s

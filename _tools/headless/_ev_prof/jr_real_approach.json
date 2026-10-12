@@ -1,0 +1,1062 @@
+{
+ "fingerprints": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "bytes": 173348,
+   "mtime": "2026-10-11T15:53:53.290Z",
+   "md5": "e4530739bf05916ea1563f36663a7d8c"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "bytes": 478199,
+   "mtime": "2026-10-11T15:51:21.830Z",
+   "md5": "3e3136e17baf648a1acefdb7216ca54c"
+  },
+  {
+   "file": "game_core/js/vantage_scoring.js",
+   "bytes": 118808,
+   "mtime": "2026-10-11T14:13:45.716Z",
+   "md5": "d7264e6f070229e3328fe3bd53015145"
+  },
+  {
+   "file": "game_core/js/vantage_rust_bridge.js",
+   "bytes": 93829,
+   "mtime": "2026-10-11T14:44:50.637Z",
+   "md5": "63fe087444041c87e7b813eee12a8f2c"
+  },
+  {
+   "file": "game_core/js/wasm/vantage_core.wasm",
+   "bytes": 207506,
+   "mtime": "2026-10-11T14:51:48.191Z",
+   "md5": "fd132f4b23509abb648b5807dd866fb5"
+  },
+  {
+   "file": "game_core/rust/vantage_core/src/rollout.rs",
+   "bytes": 64767,
+   "mtime": "2026-10-11T14:51:32.538Z",
+   "md5": "db5da0d13f8f11bc60b33d6a65c22f96"
+  },
+  {
+   "file": "game_core/rust/vantage_core/src/rescore.rs",
+   "bytes": 77449,
+   "mtime": "2026-10-11T14:39:17.452Z",
+   "md5": "e876b9c6643339c4270223f39294dfe4"
+  },
+  {
+   "file": "game_core/index.html",
+   "bytes": 34042,
+   "mtime": "2026-10-11T15:37:30.679Z",
+   "md5": "2e0313b4f11f5c79db3f323e3e932ab6"
+  },
+  {
+   "file": "_tools/headless/clock.js",
+   "bytes": 23201,
+   "mtime": "2026-10-11T09:21:03.391Z",
+   "md5": "664cd0cfb7eb12cf0c7cfd0dacf41e43"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "bytes": 28377,
+   "mtime": "2026-10-11T09:25:41.483Z",
+   "md5": "43a8ec65203f7f9c9654932ce17f6f63"
+  }
+ ],
+ "files": [
+  "game_core/js/vantage_sandbox.js",
+  "game_core/js/vantage_tree.js",
+  "game_core/js/vantage_scoring.js",
+  "game_core/js/vantage_rust_bridge.js",
+  "game_core/js/wasm/vantage_core.wasm",
+  "game_core/rust/vantage_core/src/rollout.rs",
+  "game_core/rust/vantage_core/src/rescore.rs",
+  "game_core/index.html",
+  "_tools/headless/clock.js",
+  "_tools/headless/match.js"
+ ],
+ "frames": 2600,
+ "every": 5,
+ "mode": "enriched",
+ "mind": 3,
+ "maxd": 12,
+ "steps": [],
+ "prep": {
+  "dt": 0.02,
+  "rustOk": true,
+  "tanks": [
+   "vantage_1",
+   "tank_a"
+  ],
+  "tree": "v173"
+ },
+ "auditFrames": 2600,
+ "roundEndish": 0,
+ "ctrlFails": 285,
+ "enrichErrs": {
+  "too close 2.8": 1,
+  "too close 2.21": 1,
+  "too close 2.53": 1,
+  "too close 2.46": 1,
+  "too close 1.54": 1,
+  "too close 1.29": 1,
+  "too close 2.33": 2,
+  "too close 1.67": 1,
+  "too close 2.78": 1,
+  "no bullet": 91,
+  "too close 2.97": 1,
+  "too close 1.79": 1,
+  "too close 2.94": 1,
+  "too close 1.91": 1,
+  "too close 2.99": 1,
+  "too close 2.09": 1,
+  "too close 1.9": 1,
+  "too close 2.49": 1,
+  "too close 2.32": 1,
+  "too close 2.47": 1,
+  "too close 2.9": 1,
+  "too close 2.75": 1,
+  "too close 2.39": 1,
+  "too close 2.13": 1,
+  "too close 1.28": 1,
+  "too close 2.68": 1,
+  "too close 1.51": 1,
+  "too close 1.56": 1,
+  "too close 1.52": 1,
+  "too close 1.13": 1,
+  "too close 2.31": 1
+ },
+ "audits": 398,
+ "audit": {
+  "batches": 398,
+  "ops": 3582,
+  "rustUsed": 398,
+  "rustFallback": 0,
+  "jsFail": 0,
+  "jsOnly": 16,
+  "rustOnly": 6,
+  "bothDead": 1559,
+  "bothAlive": 2001,
+  "geoFallback": 3,
+  "batchesWithJsOnly": 8,
+  "batchesWithRustOnly": 3,
+  "dfDiff": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   4,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   -1,
+   -1,
+   -1,
+   1,
+   -1,
+   1,
+   -1,
+   -1,
+   1,
+   2,
+   1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -1,
+   -5,
+   -1,
+   4,
+   4,
+   4,
+   2,
+   2,
+   -1,
+   18,
+   -1,
+   16,
+   20,
+   -1,
+   2,
+   2,
+   1,
+   2,
+   2,
+   2,
+   2,
+   1,
+   2,
+   2,
+   -2,
+   2,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "rustBestJsDead": 73,
+  "rustBestSamples": 398,
+  "rustAliveExistJsDead": 8,
+  "byBucket": {
+   "approach": {
+    "batches": 398,
+    "ops": 3582,
+    "jsOnly": 16,
+    "rustOnly": 6,
+    "bothDead": 1559,
+    "bothAlive": 2001,
+    "dfDiff": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     4,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     1,
+     -1,
+     -1,
+     1,
+     2,
+     1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -5,
+     -1,
+     4,
+     4,
+     4,
+     2,
+     2,
+     -1,
+     18,
+     -1,
+     16,
+     20,
+     -1,
+     2,
+     2,
+     1,
+     2,
+     2,
+     2,
+     2,
+     1,
+     2,
+     2,
+     -2,
+     2,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "initDistMin": 1.1116326548132454,
+    "initDistMax": 16.885707396284747,
+    "df0JsOnly": 0,
+    "lastFrameJsOnly": 2,
+    "jsOnlyOtherDf": [
+     71,
+     38,
+     38,
+     12,
+     12,
+     24,
+     23,
+     24,
+     24,
+     23,
+     23,
+     3,
+     3,
+     27
+    ]
+   }
+  },
+  "batchesWithRustAlive": 326,
+  "byVictim": {
+   "vantage_1": {
+    "batches": 398,
+    "ops": 3582,
+    "jsOnly": 16,
+    "rustOnly": 6,
+    "rustBestJsDead": 73
+   }
+  },
+  "examples": [
+   {
+    "victim": "vantage_1",
+    "op": "前左",
+    "jsOnly": 1,
+    "rustOnly": 0,
+    "jsDF": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     75,
+     -1,
+     -1,
+     -1
+    ],
+    "rustDF": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    "pose": {
+     "x": 40,
+     "y": 40,
+     "rot": 0.09
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 6
+     },
+     "near8": 1
+    },
+    "geo": true,
+    "overlapNoContact": 1
+   },
+   {
+    "victim": "vantage_1",
+    "op": "前右",
+    "jsOnly": 1,
+    "rustOnly": 0,
+    "jsDF": [
+     44,
+     -1,
+     22,
+     -1,
+     47,
+     -1,
+     71,
+     -1,
+     -1
+    ],
+    "rustDF": [
+     44,
+     -1,
+     22,
+     -1,
+     47,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    "pose": {
+     "x": 30,
+     "y": 20,
+     "rot": 0.82
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 5
+     },
+     "near8": 0
+    },
+    "geo": false,
+    "overlapNoContact": 4
+   },
+   {
+    "victim": "vantage_1",
+    "op": -1,
+    "jsOnly": 0,
+    "rustOnly": 2,
+    "jsDF": [
+     -1,
+     6,
+     -1,
+     -1,
+     -1,
+     6,
+     6,
+     -1,
+     -1
+    ],
+    "rustDF": [
+     -1,
+     6,
+     10,
+     -1,
+     -1,
+     6,
+     6,
+     10,
+     -1
+    ],
+    "pose": {
+     "x": 70,
+     "y": 20,
+     "rot": -2.03
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 1
+     },
+     "near8": 1
+    },
+    "geo": false,
+    "overlapNoContact": 3
+   },
+   {
+    "victim": "vantage_1",
+    "op": "左",
+    "jsOnly": 2,
+    "rustOnly": 0,
+    "jsDF": [
+     22,
+     11,
+     23,
+     38,
+     21,
+     -1,
+     11,
+     38,
+     23
+    ],
+    "rustDF": [
+     23,
+     11,
+     23,
+     -1,
+     21,
+     -1,
+     11,
+     -1,
+     23
+    ],
+    "pose": {
+     "x": 80,
+     "y": 20,
+     "rot": -2.17
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 1
+     },
+     "near8": 0
+    },
+    "geo": false,
+    "overlapNoContact": 8
+   },
+   {
+    "victim": "vantage_1",
+    "op": "后",
+    "jsOnly": 2,
+    "rustOnly": 0,
+    "jsDF": [
+     -1,
+     -1,
+     12,
+     -1,
+     -1,
+     -1,
+     -1,
+     12,
+     12
+    ],
+    "rustDF": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     13
+    ],
+    "pose": {
+     "x": 80,
+     "y": 20,
+     "rot": 0.58
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 1
+     },
+     "near8": 1
+    },
+    "geo": false,
+    "overlapNoContact": 3
+   },
+   {
+    "victim": "vantage_1",
+    "op": "后",
+    "jsOnly": 6,
+    "rustOnly": 0,
+    "jsDF": [
+     24,
+     24,
+     23,
+     24,
+     24,
+     24,
+     24,
+     23,
+     23
+    ],
+    "rustDF": [
+     -1,
+     24,
+     -1,
+     -1,
+     -1,
+     24,
+     24,
+     -1,
+     -1
+    ],
+    "pose": {
+     "x": 30,
+     "y": 20,
+     "rot": 2.83
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 2
+     },
+     "near8": 0
+    },
+    "geo": false,
+    "overlapNoContact": 9
+   },
+   {
+    "victim": "vantage_1",
+    "op": "后",
+    "jsOnly": 2,
+    "rustOnly": 0,
+    "jsDF": [
+     -1,
+     -1,
+     3,
+     -1,
+     -1,
+     3,
+     -1,
+     -1,
+     -1
+    ],
+    "rustDF": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    "pose": {
+     "x": 0,
+     "y": 20,
+     "rot": -2.07
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 6
+     },
+     "near8": 1
+    },
+    "geo": false,
+    "overlapNoContact": 2
+   },
+   {
+    "victim": "vantage_1",
+    "op": "前右",
+    "jsOnly": 1,
+    "rustOnly": 0,
+    "jsDF": [
+     -1,
+     -1,
+     11,
+     23,
+     -1,
+     16,
+     27,
+     15,
+     13
+    ],
+    "rustDF": [
+     -1,
+     -1,
+     11,
+     23,
+     -1,
+     16,
+     -1,
+     15,
+     13
+    ],
+    "pose": {
+     "x": 10,
+     "y": 30,
+     "rot": 2.96
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 6
+     },
+     "near8": 2
+    },
+    "geo": false,
+    "overlapNoContact": 8
+   },
+   {
+    "victim": "vantage_1",
+    "op": "前左",
+    "jsOnly": 1,
+    "rustOnly": 0,
+    "jsDF": [
+     -1,
+     -1,
+     -1,
+     74,
+     -1,
+     75,
+     -1,
+     -1,
+     -1
+    ],
+    "rustDF": [
+     -1,
+     -1,
+     -1,
+     74,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    "pose": {
+     "x": 60,
+     "y": 10,
+     "rot": 1.57
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 4
+     },
+     "near8": 0
+    },
+    "geo": true,
+    "overlapNoContact": 2
+   },
+   {
+    "victim": "vantage_1",
+    "op": -1,
+    "jsOnly": 0,
+    "rustOnly": 2,
+    "jsDF": [
+     -1,
+     15,
+     29,
+     -1,
+     -1,
+     16,
+     -1,
+     -1,
+     29
+    ],
+    "rustDF": [
+     -1,
+     15,
+     29,
+     -1,
+     -1,
+     16,
+     19,
+     29,
+     29
+    ],
+    "pose": {
+     "x": 50,
+     "y": 10,
+     "rot": 0.95
+    },
+    "bullets": {
+     "types": {
+      "ty-1_r0.25": 2
+     },
+     "near8": 1
+    },
+    "geo": false,
+    "overlapNoContact": 4
+   }
+  ],
+  "bulletTypes": {
+   "ty-1_r0.25": 1631,
+   "ty0_r0": 9
+  },
+  "errs": [],
+  "jsOnlyOtherDf": [
+   71,
+   38,
+   38,
+   12,
+   12,
+   24,
+   23,
+   24,
+   24,
+   23,
+   23,
+   3,
+   3,
+   27
+  ],
+  "rustOnlyDfList": [
+   10,
+   10,
+   19,
+   29,
+   43,
+   29
+  ]
+ },
+ "tree": {
+  "stats": {
+   "expands": 1783,
+   "extends": 0,
+   "commits": 144,
+   "rebuilds": 1,
+   "freshRoots": 1,
+   "alignFails": 1,
+   "retreats": 0,
+   "growMs": 0,
+   "growSkips": 0,
+   "nodeCountFixes": 6,
+   "rustScoredBatches": 1781,
+   "rustScoredFallbacks": 0,
+   "commitSliceRustBatches": 2,
+   "commitSliceJsBatches": 0,
+   "commitSliceRustFails": 0,
+   "jsConfirmCount": 155,
+   "jsConfirmEarlier": 2,
+   "jsConfirmLater": 0,
+   "jsConfirmCleared": 0,
+   "deepSelects": 0,
+   "retreatReroutes": 0,
+   "refineSplits": 0,
+   "growStalls": {},
+   "filteredStaleSkip": 1771,
+   "pruneLostNodes": 927,
+   "pruneCompensations": 3,
+   "growCompensations": 3,
+   "growBoostStacks": 0,
+   "growBoostLayers": 9,
+   "growBoostTicks": 9
+  },
+  "confirms": [
+   {
+    "code": "js-death-confirm",
+    "detail": "n8200 fd -1→-1 authority=fused",
+    "t": 24.849999999999373
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n8326 fd -1→-1 authority=fused",
+    "t": 25.09999999999936
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n8452 fd -1→-1 authority=fused",
+    "t": 25.349999999999344
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n8578 fd -1→-1 authority=fused",
+    "t": 25.59999999999933
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n8704 fd -1→-1 authority=fused",
+    "t": 25.849999999999316
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n8830 fd -1→-1 authority=fused",
+    "t": 26.0999999999993
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n8956 fd -1→-1 authority=fused",
+    "t": 26.349999999999287
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9082 fd -1→-1 authority=fused",
+    "t": 26.599999999999273
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9208 fd -1→-1 authority=fused",
+    "t": 26.84999999999926
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9334 fd -1→-1 authority=fused",
+    "t": 27.099999999999245
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9460 fd -1→-1 authority=fused",
+    "t": 27.34999999999923
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9586 fd -1→-1 authority=fused",
+    "t": 27.599999999999216
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9712 fd -1→-1 authority=fused",
+    "t": 27.849999999999202
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9838 fd -1→-1 authority=fused",
+    "t": 28.099999999999188
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n9964 fd -1→-1 authority=fused",
+    "t": 28.349999999999174
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10090 fd -1→-1 authority=fused",
+    "t": 28.59999999999916
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10216 fd -1→-1 authority=fused",
+    "t": 28.849999999999145
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10342 fd -1→-1 authority=fused",
+    "t": 29.09999999999913
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10468 fd -1→-1 authority=fused",
+    "t": 29.349999999999117
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10594 fd -1→-1 authority=fused",
+    "t": 29.599999999999103
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10720 fd -1→-1 authority=fused",
+    "t": 29.84999999999909
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10846 fd -1→-1 authority=fused",
+    "t": 30.099999999999074
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n10972 fd -1→-1 authority=fused",
+    "t": 30.34999999999906
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n11098 fd -1→-1 authority=fused",
+    "t": 30.599999999999046
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n11224 fd -1→-1 authority=fused",
+    "t": 30.84999999999903
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n11350 fd -1→-1 authority=fused",
+    "t": 31.099999999999017
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n11476 fd -1→-1 authority=fused",
+    "t": 31.349999999999003
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n11602 fd -1→-1 authority=fused",
+    "t": 31.59999999999899
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n11728 fd -1→-1 authority=fused",
+    "t": 31.849999999998975
+   }
+  ],
+  "confirmTotal": 29,
+  "diagKeys": [
+   "bulletDesyncs",
+   "missingBullets",
+   "lastTankError",
+   "maxTankError",
+   "lastBulletError",
+   "lastCheckAt",
+   "projectileCount",
+   "sig",
+   "lastWorldDt",
+   "worldDtMin",
+   "worldDtMax",
+   "alignChecks",
+   "structureHistory",
+   "growHistory",
+   "bulletTracks",
+   "lastEffTMin",
+   "lastEffDt",
+   "lastCommitInfo",
+   "shapeHistory",
+   "lastProjectileSight",
+   "projectileSightLog",
+   "lastBulletErrorId",
+   "anchorProbe",
+   "anchorProbeAt",
+   "_probePrev",
+   "trackCount",
+   "trackFrames",
+   "deathAudit"
+  ]
+ },
+ "vtStats": {
+  "t": 48899.99999999861,
+  "steps": 2934,
+  "pending": 3,
+  "errors": [],
+  "errorCount": 0,
+  "epoch": 1791734168958,
+  "timersPending": 7,
+  "timerFires": 1411,
+  "timerDropped": 0,
+  "timerT": 48349.99999999869,
+  "frozen": false,
+  "released": true,
+  "releaseSteps": 33
+ },
+ "pageErrors": [],
+ "dfDiffSummary": {
+  "n": 98,
+  "min": -5,
+  "p50": 1,
+  "p90": 2,
+  "max": 20,
+  "avg": 1.22
+ }
+}

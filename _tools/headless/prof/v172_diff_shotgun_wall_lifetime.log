@@ -1,0 +1,31 @@
+== ① 霰弹撞墙减命：静态依据 ==
+  ✓ 真 bundle 里 Shotgun.hitMaze/hitShield 确实是 timeAlive=max(timeAlive, MAX-AFTER)
+  ✓ Constants：SHOTGUN_MAX_LIFETIME=2.0 / SHOTGUN_LIFETIME_AFTER_MAZE_HIT=0.7
+  ✓ 霰弹的 lifetime 就是 SHOTGUN_MAX_LIFETIME（⇒ JS 原式可化简为 min(lifeLeft,AFTER)）
+  ✓ JS：函数定义 + track/融合两处调用（共 ≥3 次出现）
+  ✓ JS 公式 = lifeTotal − max(lifeTotal−lifeLeft, MAX−AFTER)（逐字对齐原版）
+  ✓ JS：track 与融合两条路径**都**在命中帧调用钳制
+  ✓ JS：两个 Rust ABI 入口（simulateRustBatch / simulateTankBatchScored）都透传 isShotgun
+  ✓ Rust：SHOTGUN_LIFETIME_AFTER_MAZE_HIT_SEC = 0.7
+  ✓ Rust：同一公式的化简式 min(lifeLeft, 0.7)（霰弹 lifeTotal≡MAX，代数等价）
+  ✓ Rust：接触帧才钳（不是无条件钳 —— 无条件钳 = 霰弹永远活不过 0.7s，方向反了）
+  ✓ JS bridge：弹种码 2=霰弹（旧 JS 只发 0/1，向后兼容）
+  ✓ Rust ABI：按码**精确**判定（不能写 `!= 0`，否则 2 会被当成破片）
+== ① 霰弹撞墙减命：数值对拍（JS 融合 vs wasm Rust，容差 1e-9）==
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ wasm ABI = v11（实际 11）
+  ✓ 霰弹撞墙后被钳到 ≤0.7s ⇒ 59 帧外的坦克**活**（JS=false Rust=false）
+  ✓ JS↔Rust 逐帧一致：maxPos=0（≤1e-9）
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ 同几何的**普通弹**在第 60 帧打死坦克（JS/Rust 同帧）⇒ 存活差异来自霰弹标记
+  ✓ JS↔Rust 逐帧一致：maxPos=0
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ 把 SHOTGUN_LIFETIME_AFTER_MAZE_HIT 改成 2.0（钳制退化）后 JS 也在第 60 帧被打死 ⇒ 上面的"活"确实来自这条钳制
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ 出生即压墙（深穿透）的霰弹同样被钳（JS/Rust 都活）
+  ✓ JS↔Rust 逐帧一致：maxPos=0
+diff_shotgun_wall_lifetime PASS（① 霰弹撞墙减命：JS track/融合 + Rust + ABI v11 弹种码，三处同改且逐帧一致）

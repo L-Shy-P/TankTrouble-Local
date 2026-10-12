@@ -1,0 +1,100 @@
+{
+  "ok": true,
+  "openMs": 2154,
+  "simulatedFrames": 300,
+  "simMs": 257,
+  "framesPerSec": 1167,
+  "bootstrap": {
+    "gameId": "gc-4b9a-0",
+    "humanIds": [
+      "tank_a"
+    ],
+    "aiIds": [
+      "6148530"
+    ],
+    "vantageIds": [],
+    "started": true
+  },
+  "stateLog": [
+    "1帧→Game"
+  ],
+  "before": {
+    "stage": "Game",
+    "scores": [
+      {
+        "playerId": "tank_a",
+        "type": 0,
+        "value": 0
+      },
+      {
+        "playerId": "tank_a",
+        "type": 1,
+        "value": 0
+      },
+      {
+        "playerId": "6148530",
+        "type": 0,
+        "value": 0
+      },
+      {
+        "playerId": "6148530",
+        "type": 1,
+        "value": 0
+      }
+    ],
+    "tanks": [
+      "6148530@(5,5)",
+      "tank_a@(55,25)"
+    ],
+    "projs": 0,
+    "weapons": [
+      "6148530:0/5",
+      "tank_a:0/5"
+    ]
+  },
+  "after": {
+    "stage": "Game",
+    "scores": [
+      {
+        "playerId": "tank_a",
+        "type": 0,
+        "value": 0
+      },
+      {
+        "playerId": "tank_a",
+        "type": 1,
+        "value": 0
+      },
+      {
+        "playerId": "6148530",
+        "type": 0,
+        "value": 0
+      },
+      {
+        "playerId": "6148530",
+        "type": 1,
+        "value": 0
+      }
+    ],
+    "tanks": [
+      "tank_a@(55,25)"
+    ],
+    "projs": 4,
+    "weapons": [
+      "tank_a:0/5"
+    ]
+  },
+  "virtualT": 7366.6666666667115,
+  "vtStats": {
+    "t": 7366.6666666667115,
+    "steps": 442,
+    "pending": 3,
+    "errors": [],
+    "errorCount": 0,
+    "epoch": 1791707991821,
+    "timersPending": 10,
+    "timerFires": 491,
+    "timerDropped": 0
+  },
+  "pageErrors": []
+}

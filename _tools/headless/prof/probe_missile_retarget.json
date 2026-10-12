@@ -1,0 +1,36 @@
+{
+ "fingerprints": [
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "mtime": "2026-10-11T15:30:12.771Z",
+   "md5": "3e3136e17baf648a1acefdb7216ca54c"
+  },
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-11T15:29:22.148Z",
+   "md5": "5e978e00781d039d414301ae0844aef1"
+  },
+  {
+   "file": "game_core/index.html",
+   "mtime": "2026-10-11T15:30:12.772Z",
+   "md5": "481fecb26df301cb5cfbb0b42cf2eb0b"
+  }
+ ],
+ "A": {
+  "events": 0
+ },
+ "B": {
+  "events": 1,
+  "sample": [
+   {
+    "t": 16.516999999999847,
+    "type": "threat",
+    "info": "导弹换目标-刷新"
+   }
+  ]
+ },
+ "C": {
+  "events": 0
+ },
+ "verdict": "PASS（对照不触发 / 换目标触发）"
+}

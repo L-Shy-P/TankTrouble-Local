@@ -1,0 +1,25 @@
+{
+ "sandboxMd5": "f182b48fbae644c7ef9aba98da397bc0",
+ "n": 600,
+ "seed": 20261011,
+ "frames": 75,
+ "bothDead": 3679,
+ "diverged": 0,
+ "diff": {
+  "min": null,
+  "p50": null,
+  "p90": null,
+  "max": null
+ },
+ "conv": {
+  "rustEqSweep": 0,
+  "jsEqSweep": 0,
+  "sweepLtJs": 0,
+  "sweepGtJs": 0,
+  "sweepMissing": 0,
+  "sweepNotEqual": 0
+ },
+ "nonLaserDiv": [],
+ "top": [],
+ "rows": []
+}

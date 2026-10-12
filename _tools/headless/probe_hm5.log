@@ -1,0 +1,58 @@
+=== 版本指纹 ===
+  game_core/index.html  2026-10-11T14:44:50.635Z  cc0d354c7bd630005994104ba4582af3  34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  2026-06-13T17:38:28.228Z  7ecd83bb84f80beac5e1df8f4fe85f48  84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  2026-06-13T17:38:28.247Z  97cadb8a67a443a9eb2f51ebc7d12916  58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  2026-06-13T17:38:28.229Z  1c7bcaba8381d40aa591f5abacb8d96e  55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  2026-06-13T12:22:43.984Z  a2bf42171d586f54e5e5fac5779424e4  24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  2026-06-13T17:38:28.240Z  5183078f57653d2189c8517dd227a01b  51385
+  game_core/js/vantage_tree.js  2026-10-11T14:44:50.633Z  b02609ad48a06617155e7c5d0792e4dd  484237
+  game_core/js/vantage_sandbox.js  2026-10-11T14:51:24.281Z  06971cc0e7fa180e36ccd041c264b243  171358
+  game_core/js/vantage_rust_bridge.js  2026-10-11T14:44:50.637Z  63fe087444041c87e7b813eee12a8f2c  93829
+  game_core/js/wasm/vantage_core.wasm  2026-10-11T14:51:48.191Z  fd132f4b23509abb648b5807dd866fb5  207506
+  _tools/headless/match.js  2026-10-11T09:25:41.483Z  43a8ec65203f7f9c9654932ce17f6f63  28377
+  _tools/headless/clock.js  2026-10-11T09:21:03.391Z  664cd0cfb7eb12cf0c7cfd0dacf41e43  23201
+
+=== open: {"frames":120,"inRound":"in round","log":["0帧→counting down"]} ===
+  helper: installed
+  迷宫 9x6 可达 39
+  最长直道: {"n":9,"start":{"x":8,"y":1,"used":true},"dir":{"dx":-1,"dy":0,"rot":-1.5707963267948966,"name":"-x"}}
+  直道格=[{"x":8,"y":1},{"x":7,"y":1},{"x":6,"y":1},{"x":5,"y":1},{"x":4,"y":1},{"x":3,"y":1},{"x":2,"y":1},{"x":1,"y":1},{"x":0,"y":1}] 起点位姿={"x":85,"y":15,"rot":-1.5707963267948966} 终点={"x":5,"y":15} 停车格={"x":0,"y":3,"used":false}
+
+=== A) 桩事实 ===
+  常量: {"HM_ACT":2,"HM_MAX_LIFE":10,"HM_ACC":40,"HM_RADIUS":0.2,"HM_SPEED":18,"HM_OFFSET":2.5,"TILE":10}
+  spawnCrate(CRATE_HOMING_MISSILE) → {"n":1,"one":{"id":"c-861e-12","type":3,"x":55,"y":5}}
+  真 crate 拾取后: {"weaponId":"hmw-861e-13","weaponType":3,"fields":{"_launched":false,"_activationTime":0},"isDefault":false,"movementLocked":false,"done":false}
+  直接工厂: {"type":3,"fields":{"_launched":false,"_activationTime":0}}
+  ⟹ 等价: {"typeEq":true,"fieldsEq":true}
+
+=== B) 主飞行 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火后导弹数=1（tank_a @{"x":85,"y":15,"rot":-1.5707963267948966} 朝 -x）
+  已把 tank_a 挪到停车格 {"x":0,"y":3,"used":false}
+  ta≈2.15 时: {"ta":2.1669999999999967,"id":"hm-861e-16","tgt":"tank_b","dto":true,"nb":1,"x":77.20403999999965,"y":15.01356,"vx":11.32,"vy":0.039999999999998925}
+  导弹@{"x":77.20403999999965,"y":15.01356,"vx":11.32,"vy":0.039999999999998925} tile={"x":7,"y":1} → 侧面格={"x":7,"y":2}
+  已把 tank_b 挪到侧面（迷宫距离 1 → aim=tank-exact → 满转向）
+  采样帧=0  首帧=undefined
+  X B 失败: TypeError: Cannot read properties of undefined (reading 'min')
+    at C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_homing_facts.js:426:31
+
+=== F) pre-activation owner kill ===
+  [F] fired=2 missile={"ta":3.5999999999999917,"id":"hm-861e-16","tgt":"tank_a","dto":true,"nb":1,"x":63.22970338949527,"y":16.460585499031637,"vx":-10.025422754728297,"vy":0.16174127751006684}
+  [F] owner moved to lane tile {"x":4,"y":1} = (45,15); missile tile={"x":6,"y":1}
+  [F] past activation, stop; missile={"ta":3.6169999999999916,"id":"hm-861e-16","tgt":"tank_a","dto":true,"nb":1,"x":63.05927120266489,"y":16.46333510074931,"vx":-9.345422754728297,"vy":0.8417412775100669}
+  [F] dead=false minDistToOwner=18.118 passedThrough=false
+  [F] events: []
+
+=== C) 寿命终点 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":true,\"_activationTime\":1.7500000000000009}"}
+  开火后导弹数=2
+  导弹消失（约第 308 帧）
+  [C] events(non-targetChanged): [{"f":624,"t":10416.666666666646,"kind":"tank killed","victim":"tank_b","killer":"tank_a"},{"f":624,"t":10416.666666666646,"kind":"projectile destroyed","data":"hm-861e-18"},{"f":624,"t":10416.666666666646,"kind":"tank deadly collision","id":"hm-861e-18","ty":3,"ta":3.89999999999999},{"f":713,"t":11899.999999999925,"kind":"tank killed","victim":"tank_a","killer":"tank_a"},{"f":713,"t":11899.999999999925,"kind":"projectile destroyed","data":"hm-861e-16"},{"f":713,"t":11899.999999999925,"kind":"tank deadly collision","id":"hm-861e-16","ty":3,"ta":8.917000000000026}]
+  [C] targetChanged count: 3
+  末态: {"ta":8.900000000000027,"id":"hm-861e-16","tgt":"tank_a","dto":true,"nb":1,"x":7.0362654967133205,"y":15.073266354389279,"vx":-17.963823708753083,"vy":1.1406304225473922}  挪坦克次数=17
+
+=== vtStats ===
+  {"t":11899.999999999925,"steps":714,"pending":3,"errors":[],"errorCount":0,"epoch":1791731652219,"timersPending":9,"timerFires":750,"timerDropped":0,"timerT":11499.99999999994,"frozen":false,"released":true,"releaseSteps":24}
+  pageErrors: []
+
+[done] 用时 18.3s

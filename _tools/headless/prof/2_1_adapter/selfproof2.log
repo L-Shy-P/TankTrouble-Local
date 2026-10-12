@@ -1,0 +1,377 @@
+=== A 组：真实对局初始态 ===
+{
+ "getTank": {
+  "x": 5,
+  "y": 35,
+  "rot": 0.2799950427985649,
+  "fwd": false,
+  "fire": false,
+  "locked": false
+ },
+ "getTanks": {
+  "n": 2,
+  "ids": [
+   "tank_a",
+   "tank_b"
+  ]
+ },
+ "getTankState": {
+  "x": 55,
+  "y": 5,
+  "rot": 2.206061006375116,
+  "forward": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fireDown": false,
+  "locked": false,
+  "speed": 0,
+  "rotationSpeed": 0,
+  "ammo": {
+   "weaponId": "bw-2e26-7",
+   "type": -1,
+   "numBullets": 5,
+   "bulletsFired": 0,
+   "numMines": null,
+   "triggerPulled": false,
+   "remainingByDifference": 5
+  },
+  "shield": null
+ },
+ "getProjectiles": [],
+ "lifeLeft_check": [],
+ "getCollectibles": {
+  "n": 0,
+  "sample": null
+ },
+ "getTraps": {
+  "n": 0,
+  "sample": null
+ },
+ "getZones": {
+  "n": 0,
+  "sample": null
+ },
+ "getUpgradeByPlayerIdAndType": null,
+ "getWeaponStates": {
+  "playerId": "tank_a",
+  "active": {
+   "id": "bw-2e26-7",
+   "type": -1,
+   "fields": {
+    "_numBullets": 5,
+    "_triggerPulled": false,
+    "_bulletsFired": 0,
+    "_timeAlive": 1.9999999999999971
+   }
+  },
+  "defaultType": -1,
+  "queued": []
+ },
+ "getTeam": 0,
+ "getScores": [
+  {
+   "playerId": "tank_a",
+   "type": 0,
+   "value": 0
+  },
+  {
+   "playerId": "tank_a",
+   "type": 1,
+   "value": 0
+  },
+  {
+   "playerId": "tank_b",
+   "type": 0,
+   "value": 0
+  },
+  {
+   "playerId": "tank_b",
+   "type": 1,
+   "value": 0
+  }
+ ],
+ "getScoreByPlayerIdAndType": {
+  "playerId": "tank_a",
+  "type": 0,
+  "value": 0
+ },
+ "getCounters": [],
+ "getState": "in round",
+ "getMatchConfig": {
+  "symmetric": false,
+  "storm": false,
+  "crateTypes": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "maxActivePlayerCount": 8,
+  "mode": 1,
+  "premium": false,
+  "ranked": false
+ },
+ "getRoundState_false": {
+  "tankStates": 2,
+  "projectileStates": 0,
+  "collectibleStates": 0,
+  "trapStates": 0,
+  "weaponStates": 2,
+  "upgradeStates": 0,
+  "counterStates": 0,
+  "zoneStates": 0,
+  "isExpanded": true
+ },
+ "getRoundState_true": {
+  "tankStates": 2,
+  "projectileStates": 0,
+  "collectibleStates": 0,
+  "trapStates": 0,
+  "weaponStates": 2,
+  "upgradeStates": 0,
+  "counterStates": 0,
+  "zoneStates": 0,
+  "isExpanded": true
+ }
+}
+=== 场景搭建（全部用游戏自己的 API）===
+{"steps":[{"name":"input.forward=true","ok":true,"v":{"tank_forward":true}},{"name":"input.fire=true(同帧读)","ok":true,"v":{"tank_fireDown":true,"locked_getter":{"forward":false,"fireDown":false,"speed":0,"rotationSpeed":0,"raw_forward":false,"raw_fireDown":true}}},{"name":"pullTrigger -> 真子弹","ok":true,"v":{"projectiles":2,"bulletsFired":2}},{"name":"spawnCrate(MINE=4)","ok":true,"v":{"x":15,"y":5}},{"name":"trap(Mine)","ok":true,"v":{"x":15,"y":15}},{"name":"zone(SpawnZone)","ok":true,"v":"no free position"},{"name":"counter(TimerCountdown)","ok":true,"v":{"start":60}},{"name":"upgrade(Shield)","ok":true,"v":{"lifetime":6}}]}
+=== B 组：造出真实对象后 ===
+{
+ "getTank": {
+  "x": 5,
+  "y": 35,
+  "rot": 0.2799950427985649,
+  "fwd": false,
+  "fire": false,
+  "locked": false
+ },
+ "getTanks": {
+  "n": 2,
+  "ids": [
+   "tank_a",
+   "tank_b"
+  ]
+ },
+ "getTankState": {
+  "x": 55,
+  "y": 5,
+  "rot": 2.206061006375116,
+  "forward": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fireDown": false,
+  "locked": false,
+  "speed": 0,
+  "rotationSpeed": 0,
+  "ammo": {
+   "weaponId": "bw-2e26-7",
+   "type": -1,
+   "numBullets": 5,
+   "bulletsFired": 2,
+   "numMines": null,
+   "triggerPulled": false,
+   "remainingByDifference": 3
+  },
+  "shield": {
+   "upgradeId": "probe_shield_1",
+   "type": 2,
+   "lifetime": 5.8329999999999975,
+   "weakened": false
+  }
+ },
+ "getProjectiles": [
+  {
+   "id": "b-2e26-9",
+   "type": -1,
+   "x": 59.26813984735199,
+   "y": 8.26720853135681,
+   "vx": -14.488463993400705,
+   "vy": 10.681030433058943,
+   "lifeLeft": 9.833
+  },
+  {
+   "id": "b-2e26-10",
+   "type": -1,
+   "x": 59.26813984735199,
+   "y": 8.26720853135681,
+   "vx": -14.488463993400705,
+   "vy": 10.681030433058943,
+   "lifeLeft": 9.833
+  }
+ ],
+ "lifeLeft_check": [
+  {
+   "id": "b-2e26-9",
+   "lifeTotal": 10,
+   "timeAlive": 0.167,
+   "expect": 9.833,
+   "got": 9.833,
+   "match": true
+  },
+  {
+   "id": "b-2e26-10",
+   "lifeTotal": 10,
+   "timeAlive": 0.167,
+   "expect": 9.833,
+   "got": 9.833,
+   "match": true
+  }
+ ],
+ "getCollectibles": {
+  "n": 1,
+  "sample": {
+   "id": "c-2e26-11",
+   "type": 4,
+   "x": 15,
+   "y": 5,
+   "rot": 5.918
+  }
+ },
+ "getTraps": {
+  "n": 1,
+  "sample": {
+   "id": "probe_mine_1",
+   "type": 4,
+   "x": 15,
+   "y": 15,
+   "activated": false,
+   "tripped": false,
+   "detonated": false,
+   "detonationTime": 0,
+   "timeAlive": 0.167
+  }
+ },
+ "getZones": {
+  "n": 0,
+  "sample": null
+ },
+ "getUpgradeByPlayerIdAndType": {
+  "id": "probe_shield_1",
+  "type": 2,
+  "lifetime": 5.8329999999999975,
+  "weakened": false
+ },
+ "getWeaponStates": {
+  "playerId": "tank_a",
+  "active": {
+   "id": "bw-2e26-7",
+   "type": -1,
+   "fields": {
+    "_numBullets": 5,
+    "_triggerPulled": false,
+    "_bulletsFired": 2,
+    "_timeAlive": 2.1669999999999967
+   }
+  },
+  "defaultType": -1,
+  "queued": []
+ },
+ "getTeam": 0,
+ "getScores": [
+  {
+   "playerId": "tank_a",
+   "type": 0,
+   "value": 0
+  },
+  {
+   "playerId": "tank_a",
+   "type": 1,
+   "value": 0
+  },
+  {
+   "playerId": "tank_b",
+   "type": 0,
+   "value": 0
+  },
+  {
+   "playerId": "tank_b",
+   "type": 1,
+   "value": 0
+  }
+ ],
+ "getScoreByPlayerIdAndType": {
+  "playerId": "tank_a",
+  "type": 0,
+  "value": 0
+ },
+ "getCounters": [
+  {
+   "id": "probe_counter_1",
+   "type": 0,
+   "currentTime": 59.832999999999984,
+   "startTime": 60
+  }
+ ],
+ "getState": "in round",
+ "getMatchConfig": {
+  "symmetric": false,
+  "storm": false,
+  "crateTypes": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "maxActivePlayerCount": 8,
+  "mode": 1,
+  "premium": false,
+  "ranked": false
+ },
+ "getRoundState_false": {
+  "tankStates": 2,
+  "projectileStates": 2,
+  "collectibleStates": 1,
+  "trapStates": 1,
+  "weaponStates": 2,
+  "upgradeStates": 1,
+  "counterStates": 1,
+  "zoneStates": 0,
+  "isExpanded": true
+ },
+ "getRoundState_true": {
+  "tankStates": 2,
+  "projectileStates": 2,
+  "collectibleStates": 1,
+  "trapStates": 1,
+  "weaponStates": 2,
+  "upgradeStates": 1,
+  "counterStates": 1,
+  "zoneStates": 0,
+  "isExpanded": true
+ }
+}
+=== locked 陷阱（真实 Tank，同一帧内）===
+{"after":{"forward":false,"fireDown":false,"speed":0,"rotationSpeed":0,"raw_forward":false,"raw_fireDown":true}}
+=== 自证判定（B 组每个新成员都必须是真数据）===
+PASS  getTank -> 对手坦克对象                       {"x":5,"y":35,"rot":0.2799950427985649,"fwd":false,"fire":false,"locked":false}
+PASS  getTanks -> 2 辆                         {"n":2,"ids":["tank_a","tank_b"]}
+PASS  getTankState.x/y/rot 仍在                 keys=x,y,rot,forward,back,left,right,fireDown,locked,speed,rotationSpeed,ammo,shield
+PASS  getTankState.ammo 有值                    {"weaponId":"bw-2e26-7","type":-1,"numBullets":5,"bulletsFired":2,"numMines":null,"triggerPulled":false,"remainingByDifference":3}
+PASS  getTankState.shield 有值(B组已造盾)           {"upgradeId":"probe_shield_1","type":2,"lifetime":5.8329999999999975,"weakened":false}
+PASS  getProjectiles.lifeLeft 有值              n=2
+PASS  lifeLeft == lifetime-timeAlive          {"id":"b-2e26-9","lifeTotal":10,"timeAlive":0.167,"expect":9.833,"got":9.833,"match":true}
+PASS  getCollectibles -> 道具                   {"n":1,"sample":{"id":"c-2e26-11","type":4,"x":15,"y":5,"rot":5.918}}
+PASS  getTraps -> 地雷                          {"n":1,"sample":{"id":"probe_mine_1","type":4,"x":15,"y":15,"activated":false,"tripped":false,"detonated":false,"detonationTime":0,"timeAlive":0.167}}
+FAIL  getZones -> 区域                          {"n":0,"sample":null}
+PASS  getUpgradeByPlayerIdAndType -> 护盾       {"id":"probe_shield_1","type":2,"lifetime":5.8329999999999975,"weakened":false}
+PASS  getWeaponStates -> 活武器                  {"playerId":"tank_a","active":{"id":"bw-2e26-7","type":-1,"fields":{"_numBullets":5,"_triggerPulled":false,"_bulletsFired":2,"_timeAlive":2.1669999999999967}},"defaultType":-1,"queued":[]}
+PASS  getTeam -> 恒 0（NO_TEAM）                 value=0
+PASS  getScores -> 每人 2 条                     n=4
+PASS  getScoreByPlayerIdAndType -> 有值         {"playerId":"tank_a","type":0,"value":0}
+PASS  getCounters -> 计时器                      [{"id":"probe_counter_1","type":0,"currentTime":59.832999999999984,"startTime":60}]
+PASS  getState -> 字符串                         in round
+PASS  getMatchConfig.crateTypes 有值            {"symmetric":false,"storm":false,"crateTypes":[0,1,2,3,4,5,6],"maxActivePlayerCount":8,"mode":1,"premium":false,"ranked":false}
+FAIL  getRoundState(true) 有 trap/zone/counter 段  {"tankStates":2,"projectileStates":2,"collectibleStates":1,"trapStates":1,"weaponStates":2,"upgradeStates":1,"counterStates":1,"zoneStates":0,"isExpanded":true}
+PASS  按键可读（fireDown getter=true）              {"forward":false,"fireDown":false,"speed":0,"rotationSpeed":0,"raw_forward":false,"raw_fireDown":true}
+PASS  locked 吞按键（getter=false 而 raw=true）     {"forward":false,"fireDown":false,"speed":0,"rotationSpeed":0,"raw_forward":false,"raw_fireDown":true}
+PASS  x/y/rot 三字段未变语义（A 组就有）                  {"x":55,"y":5,"rot":2.206061006375116,"forward":false,"back":false,"left":false,"right":false,"fireDown":false,"locked":false,"speed":0,"rotationSpeed":0,"ammo"
+SUMMARY {"pass":20,"fail":2,"fails":["getZones -> 区域","getRoundState(true) 有 trap/zone/counter 段"]}

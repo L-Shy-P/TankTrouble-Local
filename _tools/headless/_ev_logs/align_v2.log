@@ -1,0 +1,44 @@
+[v2] version=v173 gameDir=(real) hook="ok" ad={"ok":true,"hook":true,"err":null}
+  [v2] f=0 t=0.02 th=0 nLive=0 proj=0
+  [v2] f=300 t=5.02 th=0 nLive=0 proj=0
+  [v2] f=600 t=10.02 th=0 nLive=0 proj=0
+  [v2] f=900 t=15.02 th=0 nLive=0 proj=0
+  [v2] f=1200 t=20.02 th=0 nLive=0 proj=0
+  [v2] f=1500 t=25.02 th=0 nLive=0 proj=0
+[v2] ===== 汇总 =====
+{
+ "version": "v173",
+ "framesSampled": 1800,
+ "sampleQuality": {
+  "noProjectileFrames": 1800,
+  "maxNoProjectileStreak": 1800,
+  "ctrlMode": "drive",
+  "fire": 0,
+  "ai": 0,
+  "vant": 3,
+  "maxTreeTimeSec": 30,
+  "liveFrames": 1800,
+  "frozenFrames": 0,
+  "roundsSeen": 1
+ },
+ "delta": {
+  "n": 0,
+  "min": null,
+  "p50": null,
+  "p90": null,
+  "p99": null,
+  "max": -1000000000,
+  "over1": 0,
+  "maxFullWindow": -1000000000,
+  "snapMax": -1000000000,
+  "snapOver1": 0,
+  "staleAgeFrames": 0
+ },
+ "pxNullFrames_any": 0,
+ "pxNullFrames_liveProj": 0,
+ "deaths": [],
+ "falseRed": 0,
+ "md5Stable": true
+}
+rows -> C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_ev_logs\align_v2_rows.json
+[v2] done in 13.4s

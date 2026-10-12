@@ -1,0 +1,26 @@
+=== 1-2③ 激光扫掠 反例探针（新建；不改产品代码） ===
+
+[静态契约]  修后必须 PASS；现在预期 FAIL
+  PASS  JS: needsSweep 被读取（不再只是元数据）  [要求：profile 的 needsSweep 进入 slot/kind 并在判死处使用]
+  PASS  JS 融合: 有“线段 × sensor 多边形”测试  [要求：与 fusedCircleSensorPolyGap 并列的 segment 版本]
+  PASS  JS 融合: 有 sweep 回溯补判结果（sweepHit/geoHit 同款）  [要求：rollout 后回溯补判，不能中途停车（v153）]
+  PASS  JS: LASER 档案 bounces 不再是 0（真激光撞墙镜面反弹）  [上一份实测：laser 撞墙 |v| 不变、镜面反射、0.8s 寿命才消失]
+  PASS  JS track: LASER 不再是硬白名单外  [要求：kind 表/白名单包含 LASER，并带 trackable/sweepable 能力位]
+  PASS  Rust rollout: BulletInput 带 sweep/laser 标志  [要求：从 ABI 弹种码译码，不许只看半径]
+  PASS  Rust rescore: 威胁输入带 sweep/laser 标志  [要求：rescore 的 threat 也要能区分激光]
+  PASS  ABI: vt_version >= 11  [当前=12]
+  PASS  bridge: 弹种码含 LASER(=3)（不是只看 radius）  [要求：bullet kind 数组扩到 3=LASER，rescore 新参数传 kind]
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+
+[几何 oracle + JS 融合沙箱]  golden 来自真游戏（报告 §三）
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=l-golden 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+  name              gameKill  chord   g05     oracle  fusedDead fusedFD  proxMin  修复后期望  现在
+  full_edge        true      3       -0.02   true    true      0        -0.02    true/0       PASS
+  miss_almostfull  true      2.2226  0.0723  true    true      0        0.08     true/0       PASS
+  miss_oblique     true      1.4497  0.5168  true    true      0        0.52     true/0       PASS
+  miss_corner      true      0.8827  0.7084  true    true      0        0.71     true/0       PASS
+  miss_turret      true      1.3442  0.3214  true    true      0        0.32     true/0       PASS
+
+[结论]
+  5/5 golden scene 通过；静态契约 9/9 通过。
+  ✅ 全部 PASS：扫掠已生效。

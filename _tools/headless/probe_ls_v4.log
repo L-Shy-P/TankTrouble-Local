@@ -1,0 +1,15 @@
+[probe] kinds=["turret","corner","edge"] args=["--trials=turret,corner,edge","--maxopen=8"]
+=== 版本指纹 ===
+  game_core/index.html  mtime=2026-10-11T07:41:10.815Z  md5=b70ec966b8671ebfe5df853b59c8d38e  bytes=34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  mtime=2026-06-13T17:38:28.228Z  md5=7ecd83bb84f80beac5e1df8f4fe85f48  bytes=84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  mtime=2026-06-13T17:38:28.247Z  md5=97cadb8a67a443a9eb2f51ebc7d12916  bytes=58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  mtime=2026-06-13T17:38:28.229Z  md5=1c7bcaba8381d40aa591f5abacb8d96e  bytes=55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  mtime=2026-06-13T12:22:43.984Z  md5=a2bf42171d586f54e5e5fac5779424e4  bytes=24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  mtime=2026-06-13T17:38:28.240Z  md5=5183078f57653d2189c8517dd227a01b  bytes=51385
+  game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js  mtime=2026-06-13T12:22:28.277Z  md5=7bb079c4eaf88c8e4267c52f918e0fdf  bytes=231059
+  game_core/js/vantage_sandbox.js  mtime=2026-10-11T07:41:10.816Z  md5=6cf2ad3ce50fc4466a025d43381d43df  bytes=146817
+  game_core/js/vantage_tree.js  mtime=2026-10-11T07:42:41.944Z  md5=ab09788384e8eb61dea38ee977e5b3e2  bytes=469378
+  _tools/headless/match.js  mtime=2026-10-11T07:10:46.003Z  md5=48ce51b85915b464050809ecd9077f44  bytes=23274
+  _tools/headless/clock.js  mtime=2026-10-08T04:47:38.219Z  md5=9308f8102fc61273e65819a1a87f9322  bytes=7845
+
+=== 开对局（turret 第 1 次尝试） ===

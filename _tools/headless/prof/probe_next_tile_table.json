@@ -1,0 +1,35 @@
+{
+ "fps": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-11T15:53:53.290Z",
+   "md5": "e4530739bf05916ea1563f36663a7d8c"
+  },
+  {
+   "file": "game_core/js/418577fd210ad079ea3d1e5e04050fe0.js",
+   "mtime": "2026-06-13T17:38:28.228Z",
+   "md5": "7ecd83bb84f80beac5e1df8f4fe85f48"
+  }
+ ],
+ "built": {
+  "ok": true,
+  "w": 7,
+  "h": 4,
+  "pairs": 650,
+  "computed": 650,
+  "skipped": 0,
+  "ms": 0,
+  "err": null
+ },
+ "check": {
+  "n": 28,
+  "nz": 650,
+  "eq": 650,
+  "neq": [],
+  "walkOk": 650,
+  "walkBad": [],
+  "sentinelOk": 134,
+  "sentinelBad": 0
+ },
+ "verdict": "PASS（表 == 游戏API；行走法全部到达；哨兵全对）"
+}

@@ -1,0 +1,108 @@
+=== 版本指纹 ===
+  game_core/index.html  mtime=2026-10-11T07:41:10.815Z  md5=b70ec966b8671ebfe5df853b59c8d38e  bytes=34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  mtime=2026-06-13T17:38:28.228Z  md5=7ecd83bb84f80beac5e1df8f4fe85f48  bytes=84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  mtime=2026-06-13T17:38:28.247Z  md5=97cadb8a67a443a9eb2f51ebc7d12916  bytes=58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  mtime=2026-06-13T17:38:28.229Z  md5=1c7bcaba8381d40aa591f5abacb8d96e  bytes=55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  mtime=2026-06-13T12:22:43.984Z  md5=a2bf42171d586f54e5e5fac5779424e4  bytes=24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  mtime=2026-06-13T17:38:28.240Z  md5=5183078f57653d2189c8517dd227a01b  bytes=51385
+  game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js  mtime=2026-06-13T12:22:28.277Z  md5=7bb079c4eaf88c8e4267c52f918e0fdf  bytes=231059
+  game_core/js/vantage_sandbox.js  mtime=2026-10-11T07:41:10.816Z  md5=6cf2ad3ce50fc4466a025d43381d43df  bytes=146817
+  game_core/js/vantage_tree.js  mtime=2026-10-11T07:42:41.944Z  md5=ab09788384e8eb61dea38ee977e5b3e2  bytes=469378
+  _tools/headless/match.js  mtime=2026-10-11T07:10:46.003Z  md5=48ce51b85915b464050809ecd9077f44  bytes=23274
+  _tools/headless/clock.js  mtime=2026-10-08T04:47:38.219Z  md5=9308f8102fc61273e65819a1a87f9322  bytes=7845
+
+=== 开对局（turret 第 1 次尝试） ===
+  open 用时 2.2s，waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]}
+
+============ 实验 turret (第 1 次) ============
+  [守卫 turret/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  迷宫 8x4 可达 29
+  tank_b 夹具多边形: [[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  可用发射位 86 个（空程≥24m）；最长空程=60m
+  tank_a @(5,15) rot=1.5708；方向=(1,0) 空程=60m
+  开火后场上弹: []
+  [step 0] 激光已不存在（frame=0）
+  [发射位 #0] 没有可用摆位，换下一个发射位
+  X 实验失败: Error: 页面异常: TypeError: Cannot read properties of undefined (reading 'unshift')
+    at object.setWeaponState (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:13854)
+    at object.setWeaponState (http://127.0.0.1:8000/js/82e43ebfcdffdaf490dbe79c9c119d29.js:2:804)
+    at <anonymous>:4:28
+    at <anonymous>:7:9
+    at CDP.evaluate (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\cdp.js:124:19)
+    at async runTrial (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_sweep.js:397:21)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_sweep.js:559:17
+
+=== 开对局（turret 第 2 次尝试） ===
+  open 用时 2.1s，waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]}
+
+============ 实验 turret (第 2 次) ============
+  [守卫 turret/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  迷宫 6x4 可达 17
+  tank_b 夹具多边形: [[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  可用发射位 22 个（空程≥24m）；最长空程=44m
+  tank_a @(45,5) rot=-1.5708；方向=(-1,0) 空程=44m
+  开火后场上弹: [{"id":"l-501e-10","ty":0,"x":36.379999999999995,"y":5,"vx":-180,"vy":-1.1021821192326179e-14,"sp":180,"rad":0,"la":0.8,"ta":0.034}]
+  [step 0] f=147 激光(36.38,5)→(33.38,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 1] f=148 激光(33.5,5)→(30.5,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 2] f=149 激光(30.44,5)→(27.44,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 3] f=150 激光(27.38,5)→(24.38,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 4] f=151 激光(24.5,5)→(21.5,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 5] f=152 激光(21.44,5)→(18.44,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 6] f=153 激光(18.38,5)→(15.38,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [step 7] f=154 激光(15.5,5)→(12.5,5) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=false 弹道净空=true
+  [发射位 #0] 没有可用摆位，换下一个发射位
+  X 实验失败: Error: 页面异常: TypeError: Cannot read properties of undefined (reading 'getX')
+    at <anonymous>:1:79
+    at <anonymous>:1:121
+    at CDP.evaluate (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\cdp.js:124:19)
+    at async runTrial (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_sweep.js:417:18)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_sweep.js:559:17
+
+=== 开对局（turret 第 3 次尝试） ===
+  open 用时 2.2s，waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]}
+
+============ 实验 turret (第 3 次) ============
+  [守卫 turret/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  迷宫 6x5 可达 28
+  tank_b 夹具多边形: [[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  可用发射位 104 个（空程≥24m）；最长空程=60m
+  tank_a @(15,45) rot=0.7854；方向=(0.7071,-0.7071) 空程=60m
+  开火后场上弹: [{"id":"l-4383-10","ty":0,"x":18.09943624531306,"y":41.900563754686935,"vx":-127.27922061357857,"vy":127.27922061357856,"sp":180.00000000000003,"rad":0,"la":0.8,"ta":0.034}]
+  [step 0] f=147 激光(18.0994,41.9006)→(15.9781,44.0219) |v|=180 采样净空 r=0.05:[0.45,0.45] r=0.25:[0.25,0.25] 线段∩车体=true 摆位可用=true 弹道净空=true
+  ★ 施工：tank_b → (15.271,41.1935) rot=2.3562
+  沙箱: 预筛半径=3.4887 dt=0.016666666666666666s checkDeath(两采样点)=false checkDeath(车心)=true 融合dead=false fd=-1
+  融合审计: contacts=[] dfs=[-1] dead=[false]
+  融合审计 polyGap: [{"k":"0|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"1|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"2|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"3|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"4|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"5|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"6|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"7|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0},{"k":"8|l-4383-10","polyGap":0.45,"aabbGap":0.3,"kk":0}]
+  融合审计 摆弹: [{"id":"l-4383-10","active":true,"src":"real","x":18.1,"y":41.9,"vx":-127.28,"vy":127.28}]
+  游戏: tank_b="DEAD/REMOVED" 激光=null gcState=in round
+  游戏事件(击杀 1, 致命碰撞 1): [{"k":"round","evt":"tank killed","f":147,"victim":"tank_b","killer":"tank_a"}] [{"k":"round","evt":"tank deadly collision","f":147,"pid":"l-4383-10","pty":0,"pOwner":"tank_a","px":18.0994,"py":41.9006,"vx":-127.2792,"vy":127.2792,"nb":1,"ta":0.034,"tankA":"tank_b"}]
+
+---- turret 结论: 游戏判死 / 沙箱没死 ----
+
+=== 开对局（edge 第 1 次尝试） ===
+  open 用时 2.4s，waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]}
+
+============ 实验 edge (第 1 次) ============
+  [守卫 edge/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  迷宫 8x5 可达 33
+  tank_b 夹具多边形: [[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  可用发射位 70 个（空程≥24m）；最长空程=60m
+  tank_a @(5,5) rot=1.5708；方向=(1,0) 空程=60m
+  开火后场上弹: [{"id":"l-55a9-10","ty":0,"x":13.620000000000001,"y":5,"vx":180,"vy":-1.1021821192326179e-14,"sp":180,"rad":0,"la":0.8,"ta":0.034}]
+  [step 0] f=150 激光(13.62,5)→(16.62,5) |v|=180 采样净空 r=0.05:[-0.05,-0.05] r=0.25:[-0.25,-0.25] 线段∩车体=true 摆位可用=true 弹道净空=true
+  ★ 施工：tank_b → (15.12,5) rot=0
+  沙箱: 预筛半径=3.4887 dt=0.016666666666666666s checkDeath(两采样点)=true checkDeath(车心)=true 融合dead=true fd=0
+  融合审计: contacts=[{"k":0,"op":0,"pid":"l-55a9-10","category":"geometry","polyGapAtContact":-0.05,"source":"polyGap-scan"},{"k":0,"op":0,"pid":"l-55a9-10","category":4,"bullet":{"x":16.62,"y":5,"r":0.05},"sensor":{"minX":13.62,"maxX":16.62,"minY":3,"maxY":7},"gapAtContact":-0.05,"polyGapAtContact":-0.05}] dfs=[0] dead=[true]
+  融合审计 polyGap: [{"k":"0|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"1|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"2|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"3|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"4|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"5|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"6|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"7|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3},{"k":"8|l-55a9-10","polyGap":-0.19,"aabbGap":-0.05,"kk":3}]
+  融合审计 摆弹: [{"id":"l-55a9-10","active":true,"src":"real","x":13.62,"y":5,"vx":180,"vy":0}]
+  游戏: tank_b="DEAD/REMOVED" 激光=null gcState=in round
+  游戏事件(击杀 1, 致命碰撞 1): [{"k":"round","evt":"tank killed","f":150,"victim":"tank_b","killer":"tank_a"}] [{"k":"round","evt":"tank deadly collision","f":150,"pid":"l-55a9-10","pty":0,"pOwner":"tank_a","px":13.62,"py":5,"vx":180,"vy":0,"nb":0,"ta":0.034,"tankA":"tank_b"}]
+
+---- edge 结论: 游戏判死 / 沙箱判死 ----
+
+=== 事件流汇总（本局） ===
+  {"weapon created":1,"weapon fired":1,"projectile created":1,"tank killed":1,"projectile destroyed":1,"tank deadly collision":1}
+  vtStats: {"t":2516.666666666666,"steps":151,"pending":3,"errors":[],"errorCount":0}
+  pageErrors: []
+
+[done] 用时 10.6s  → prof/probe_ls_report.json

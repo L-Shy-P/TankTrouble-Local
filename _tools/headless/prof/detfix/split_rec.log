@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "file": "prof/detfix/split_check.jsonl",
+  "frames": 200,
+  "chunks": 5,
+  "hash": 134416158,
+  "pageHash": 134416158,
+  "drive": {
+    "on": false,
+    "f": 200,
+    "total": 200,
+    "applied": 156,
+    "skipped": 244,
+    "errs": 0,
+    "missing": {
+      "tank_a": 134,
+      "tank_b": 110
+    },
+    "loaded": 200
+  },
+  "rngLen": 5461,
+  "rngOverflow": 0,
+  "wallMs": 2964,
+  "vt": {
+    "t": 10366.666666666648,
+    "steps": 622
+  }
+}

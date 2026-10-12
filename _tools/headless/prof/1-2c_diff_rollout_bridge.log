@@ -1,0 +1,13 @@
+[Vantage Sandbox] 模块已加载（v57：S3 寿命口径换算到轨迹锚点（+ nowTGlobal）+ S7 节点起点在过去时不再拿"现在"的弹位/寿命（回推+有符号 qAge）+ v56：v165 寿命扣减基准修正（qAge=从现在到节点起点，与轨迹索引 qLife 分开；rescore 路径改用 lifetimeSecOf 哨兵） + Rust ABI v9 破片语义（bullet_is_shrapnel 透传 + Shrapnel.hitMaze/done/不归一化逐字对齐） + v164 弹种档案（半径退化护栏/按弹种反弹次数/approx 分支补落弹种标记/破片不归一化保初速） + v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）
+[VantageRustBridge] loaded (v12: ABI v10 弹种码 0=普通/1=破片/2=霰弹 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+scene            : bridge head-on bullet, call 1
+  ops compared   : 9
+  samples per op : 76
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0 rad at 
+scene            : bridge head-on bullet, call 2 (warm)
+  ops compared   : 9
+  samples per op : 76
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0 rad at 
+DIFF ROLLOUT BRIDGE PASSED

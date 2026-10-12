@@ -1,0 +1,8 @@
+落盘复核: 文件 1203 行（frame 1200/1200 条）; 文件哈希=182401922 meta=182401922 页面=182401922 → 一条不丢
+录制: prof/_loop_last_ok_rec.jsonl
+  header: v=3 page=index.html 玩家=["tank_a","tank_b"]
+  初始位姿=[{"id":"tank_a","alive":true,"x":5,"y":25,"rot":0.14204844929920823,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0},{"id":"tank_b","alive":true,"x":65,"y":5,"rot":6.107546297484847,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0}]
+  地图=7x4 主题=0  回合设置={"COUNTDOWN_DURATION":0.5,"COUNTDOWN_START_VALUE":3,"BETWEEN_ROUNDS_DURATION":1,"CELEBRATION_DURATION":7,"MAX_DELTA_TIME":0.1,"MAZE_TILE_SIZE":10,"THEMES":{"STANDARD":0,"HALLOWEEN":1,"CHRISTMAS":2,"COUNT":3,"RANDOM":4}}
+  帧数=1200  随机序列=17746  录制时 RNG 溢出=0
+
+---- 回放 #1 → prof/_loop_last_ok_rec.replay1.jsonl

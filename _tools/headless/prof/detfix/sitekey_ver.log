@@ -1,0 +1,23 @@
+落盘复核: 文件 103 行（frame 100/100 条）; 文件哈希=3028508824 meta=3028508824 页面=3028508824 → 一条不丢
+录制: prof/detfix/sitekey_rec.jsonl
+  header: v=1 page=index.html 玩家=["tank_a","tank_b"]
+  初始位姿=[{"id":"tank_a","alive":true,"x":25,"y":5,"rot":4.862874662313812,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0},{"id":"tank_b","alive":true,"x":65,"y":25,"rot":1.4066382377629245,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0}]
+  地图=8x4 主题=0  回合设置={"COUNTDOWN_DURATION":0.5,"COUNTDOWN_START_VALUE":3,"BETWEEN_ROUNDS_DURATION":1,"CELEBRATION_DURATION":7,"MAX_DELTA_TIME":0.1,"MAZE_TILE_SIZE":10,"THEMES":{"STANDARD":0,"HALLOWEEN":1,"CHRISTMAS":2,"COUNT":3,"RANDOM":4}}
+  帧数=100  随机序列=0  录制时 RNG 溢出=0
+
+---- 回放 #1 → prof/detfix/sitekey_rec.replay1.jsonl
+  initPose = [{"id":"tank_a","x":5,"y":5,"rot":0},{"id":"tank_b","x":55,"y":5,"rot":0}]
+  drive    = {"on":false,"f":100,"total":100,"applied":32,"skipped":168,"errs":0,"missing":{"tank_a":92,"tank_b":76},"loaded":100}
+  rng      = {"mode":"play","len":0,"idx":0,"overflow":4901,"calls":4901,"siteCount":91,"siteOverflow":4901,"firstRec":null,"firstPlay":{"key":2719086893,"head":["Error","    at siteKey (<anonymous>:269:18)","    at Math.random (<anonymous>:287:19)","    at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:1746"]}}
+  导出      = frames=100 分片=3 页面fnv=1795971439 落盘一致=true wallMs=3175
+  复核      = 一条不丢 (文件 102 行)
+  ⚠️ RNG 序列用尽 overflow=4901
+  ⚠️ 调用点分流序列用尽 siteOverflow=4901
+
+================ 对拍结果 ================
+
+【验收】回放#1 vs 原始录制: FAIL
+  opName(含fire)不一致=170 坦克位姿不一致=200 (最大差 20.042649186407683) 子弹位姿不一致=95 回合状态不一致=0 随机数消费不一致=100 隐藏状态不一致=100 时间不一致=0 (最大差 0ms)
+  例子: 帧0 tank_a: 位姿 A=(24.73191443374257,4.959349641275469,4.862874662313812) B=(5,4.7288499999999996,0) ; 帧0 tank_b: 位姿 A=(64.78532535095319,25.03556058290621,1.4066382377629245) B=(55,5.2176,0) ; 帧0: 随机数消费计数 A=4617 B=4367 ; 帧0: 隐藏状态 A={"rc":"rc-ecb7-6","th":0,"wpn":[["tank_a",-1,5,0,2.017],["tank_b",-1,5,0,2.017]],"col":0,"rnd":[0.47840527654625475,0.5746325843501836,0.80869554518722,1367649],"q":{"q": B={"rc":"rc-0000-6","th":0,"wpn":[["tank_a",-1,5,0,2.017],["tank_b",-1,5,0,2.017]],"col":0,"rnd":[0.9786385812330991,0.17972522927448153,0.29570675920695066,186161],"q":{"q ; 帧1 tank_a: 位姿 A=(24.479598606676753,4.9210904801229685,4.862874662313812) B=(5,4.473649999999999,0)
+
+结论: FAIL

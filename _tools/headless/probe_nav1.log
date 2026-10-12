@@ -1,0 +1,13 @@
+=== 指纹 ===
+  game_core/js/vantage_sandbox.js  2026-10-12T04:49:15.585Z  b804db133a6a284aa4d76d85cfb3e83e  211508
+  game_core/js/vantage_rust_bridge.js  2026-10-12T04:49:15.553Z  0fc14b6c941bcf74fbb387b911d7277d  101802
+  game_core/js/wasm/vantage_core.wasm  2026-10-12T04:57:27.915Z  80c5471b09384840e10d3320759be8db  218936
+  open ok
+  (a) 真实迷宫: {"w":7,"h":5,"pairs":862,"computed":862,"skipped":0,"runsMs":[0,0,0,0,0],"bytes":1225}
+  (a2) 放大迷宫（游戏自己的 Maze.createRandom）:
+     {"w":10,"h":6,"tiles":60,"pairs":3422,"computed":3422,"skipped":0,"ms":0,"bytes":3600,"ok":true,"err":null}
+     {"w":16,"h":10,"tiles":160,"pairs":20582,"computed":20582,"skipped":0,"ms":0,"bytes":25600,"ok":true,"err":null}
+     {"w":20,"h":12,"tiles":240,"pairs":56844,"computed":56844,"skipped":0,"ms":0,"bytes":57600,"ok":true,"err":null}
+  (b) vt_set_maze 传输: {"abiVersion":12,"realAck":{"ok":true},"realMs":{"bestMs":0,"allMs":[0,0,0,0,0]},"bigAck":{"ok":true},"bigMs":{"bestMs":0,"allMs":[0,0,0]},"realBytes":1225,"bigBytes":360000,"hasMazeIdOf":"function"}
+  pageErrors: []
+[done]

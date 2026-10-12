@@ -1,0 +1,217 @@
+{
+ "frames": 20000,
+ "noTree": 0,
+ "err": null,
+ "frozenFrames": 0,
+ "liveFrames": 20000,
+ "liveThreatFrames": 3785,
+ "liveNoTrackThreatFrames": 0,
+ "占比_活树威胁帧": 0,
+ "liveFramesWithNoTrack": 0,
+ "liveFramesAllNoTrack": 0,
+ "liveKindHist": {},
+ "liveTypeHistAll": {
+  "t-1": 3784,
+  "tnull": 1
+ },
+ "liveTypeHistNoTrack": {},
+ "liveEvents": [],
+ "byId": {},
+ "byIdTop": [],
+ "tFrozenFrames": 0,
+ "goneFrozenT": 0,
+ "goneAdvancedT": 1,
+ "goneEvents": [
+  {
+   "f": 979,
+   "t": 16.643000000000047,
+   "tFrozen": false,
+   "id": "b-2004-20",
+   "lastType": -1,
+   "nTh": 5,
+   "nNT": 0,
+   "roundId": "rc-2004-8"
+  }
+ ],
+ "goneFrameCount": 1,
+ "goneFrameList": [
+  979
+ ],
+ "sumThreat": 3785,
+ "sumNoTrack": 0,
+ "占比_威胁帧": 0,
+ "framesWithThreat": 1207,
+ "framesWithNoTrack": 0,
+ "占比_有威胁的帧": 0,
+ "framesAllNoTrack": 0,
+ "framesZeroThreat": 18793,
+ "framesGoneThreat": 1,
+ "idMismatch": 0,
+ "mismatchKinds": {},
+ "kindHist": {},
+ "typeHistAll": {
+  "t-1": 3784,
+  "tnull": 1
+ },
+ "typeHistNoTrack": {},
+ "typeHistGone": {
+  "tnull": 1
+ },
+ "projTypeHist": {
+  "t-1": {
+   "1": 306,
+   "2": 282,
+   "3": 38,
+   "4": 105,
+   "5": 476
+  }
+ },
+ "trackSourceHist": {
+  "box2d": 3785
+ },
+ "diagTrackCount": {
+  "1": 19119,
+  "2": 300,
+  "3": 156,
+  "4": 222,
+  "5": 121,
+  "undef": 82
+ },
+ "projTypesSeen": {
+  "t-1": 3784
+ },
+ "threatTypesSeen": {
+  "t-1": 3784,
+  "tnull": 1
+ },
+ "collectibleTypesSeen": {
+  "c3": 19708,
+  "c0": 38333
+ },
+ "weaponTypesSeen": {
+  "w-1": 40978
+ },
+ "weaponOfTank": {
+  "6148530": -1,
+  "tank_a": -1,
+  "vantage_1": -1
+ },
+ "rawTrackAgree": 344,
+ "rawTrackDisagree": 3441,
+ "rawTrackUnknown": 0,
+ "histNoTrackPerFrame": {
+  "0": 20000
+ },
+ "streakMax": 0,
+ "threatPerFrame": {
+  "p50": 0,
+  "p95": 1,
+  "max": 5,
+  "mean": 0.19
+ },
+ "noTrackPerFrame": {
+  "p50": 0,
+  "p95": 0,
+  "max": 0
+ },
+ "tRange": [
+  0.017,
+  339.9996667479823
+ ],
+ "byRound": {
+  "rc-2004-8": {
+   "frames": 20000,
+   "threatFrames": 3785,
+   "noTrackThreatFrames": 0,
+   "framesWithNoTrack": 0,
+   "maxProj": 5,
+   "占比": 0
+  }
+ },
+ "roundOrder": [
+  "rc-2004-8"
+ ],
+ "eventCount": 0,
+ "events": [],
+ "sampleTail": [
+  [
+   19998,
+   0,
+   0,
+   "rc-2004-8",
+   0
+  ],
+  [
+   19999,
+   0,
+   0,
+   "rc-2004-8",
+   0
+  ],
+  [
+   20000,
+   0,
+   0,
+   "rc-2004-8",
+   0
+  ]
+ ],
+ "env": {
+  "hasVT": true,
+  "hasScoring": true,
+  "modes": "CURRENT=-1,CLASSIC=0,BOOT_CAMP=1,DEATHMATCH=2,TEAM_CLASSIC=3,TEAM_DEATHMATCH=4,CAPTURE_THE_FLAG=5,COUNT=3",
+  "bootCrates": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "weaponTypes": {
+   "BULLET": -1,
+   "LASER": 0,
+   "DOUBLE_BARREL": 1,
+   "SHOTGUN": 2,
+   "HOMING_MISSILE": 3,
+   "MINE": 4,
+   "GATLING_GUN": 5
+  },
+  "collectibleTypes": {
+   "CRATE_LASER": 0,
+   "CRATE_DOUBLE_BARREL": 1,
+   "CRATE_SHOTGUN": 2,
+   "CRATE_HOMING_MISSILE": 3,
+   "CRATE_MINE": 4,
+   "CRATE_GATLING_GUN": 5,
+   "WEAPON_CRATE_COUNT": 6,
+   "CRATE_SHIELD": 6,
+   "CRATE_AIMER": 7,
+   "CRATE_SPEED_BOOST": 8,
+   "UPGRADE_CRATE_COUNT": 9,
+   "CRATE_COUNT": 9,
+   "GOLD": 9,
+   "DIAMOND": 10,
+   "FLAG": 11,
+   "COLLECTIBLE_TO_UPGRADE_OFFSET": -4
+  }
+ },
+ "armLog": [],
+ "framesRequested": 20000,
+ "aiCount": 2,
+ "bootstrap": {
+  "gameId": "gc-2004-0",
+  "humanIds": [
+   "tank_a"
+  ],
+  "aiIds": [
+   "6148530"
+  ],
+  "vantageIds": [
+   "vantage_1"
+  ],
+  "started": true
+ },
+ "pageErrors": []
+}

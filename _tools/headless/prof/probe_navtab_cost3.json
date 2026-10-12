@@ -1,0 +1,61 @@
+{
+ "fps": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-12T04:49:15.585Z",
+   "bytes": 211508,
+   "md5": "b804db133a6a284aa4d76d85cfb3e83e"
+  },
+  {
+   "file": "game_core/js/vantage_rust_bridge.js",
+   "mtime": "2026-10-12T04:49:15.553Z",
+   "bytes": 101802,
+   "md5": "0fc14b6c941bcf74fbb387b911d7277d"
+  },
+  {
+   "file": "game_core/js/wasm/vantage_core.wasm",
+   "mtime": "2026-10-12T04:57:27.915Z",
+   "bytes": 218936,
+   "md5": "80c5471b09384840e10d3320759be8db"
+  }
+ ],
+ "clock": {
+  "perfDelta": 0,
+  "dateDelta": 0,
+  "perfFrac": true,
+  "dateFrac": true,
+  "newDateFrac": false,
+  "vtT": 2383.333333333334,
+  "hasVtStep": "function",
+  "perf0": 2383.333333333334,
+  "date0": 1791803149326.3333,
+  "sink": 70000000
+ },
+ "clockNodeMs": 8.6783,
+ "realCold": 4.9967,
+ "realWarm": [
+  3.6,
+  3.3,
+  2.9,
+  3.1,
+  3
+ ],
+ "s16x10": {
+  "first": 292.1,
+  "warm": [
+   310.3,
+   415.1,
+   783.6
+  ],
+  "pairs": 13110
+ },
+ "s20x12": {
+  "first": 2812.3,
+  "warm": [
+   2387.1,
+   1356.3,
+   1517.4
+  ],
+  "pairs": 48606
+ }
+}

@@ -1,0 +1,1053 @@
+===== [vm600] start 2026-10-11 23:53:51 =====
+----- md5 BEFORE [vm600] -----
+5e978e00781d039d414301ae0844aef1  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+63fe087444041c87e7b813eee12a8f2c  game_core/js/vantage_rust_bridge.js
+d7264e6f070229e3328fe3bd53015145  game_core/js/vantage_scoring.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+db5da0d13f8f11bc60b33d6a65c22f96  game_core/rust/vantage_core/src/rollout.rs
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+{
+ "seed": 20261011,
+ "scenesRequested": 600,
+ "framesPerOp": 75,
+ "opsPerBatch": 9,
+ "frameDt": 0.016666666666666666,
+ "rustPhysEnabled": true,
+ "rustFrameDtCompatible": true,
+ "batchesCompared": 600,
+ "rustBatchesUsed": 600,
+ "rustFallbackBatches": 0,
+ "jsFail": 0,
+ "candidateOps": 5400,
+ "jsOnlyDead": 2,
+ "rustOnlyDead": 0,
+ "bothDead": 3776,
+ "bothAlive": 1622,
+ "jsOnlyDead_pct_allOps": 0.037,
+ "rustOnlyDead_pct_allOps": 0,
+ "scenesWithMismatch": 134,
+ "scenesWithMismatch_pct": 22.33,
+ "deathFrameDiff_jsMinusRust": {
+  "n": 1049,
+  "min": 1,
+  "p50": 1,
+  "p90": 1,
+  "max": 50,
+  "avg": 1.76
+ },
+ "geoFallbackBatches": 3,
+ "overlapNoContactBatches": 551,
+ "geoFallbackExamples": [
+  {
+   "sc": 58,
+   "dfs": [
+    18,
+    8,
+    75,
+    19,
+    20,
+    13,
+    10,
+    28,
+    -1
+   ],
+   "contacts": 15,
+   "overlapNoContact": [
+    {
+     "op": 0,
+     "pid": "b1",
+     "polyGap": -0.19,
+     "aabbGap": -0.2,
+     "k": 18,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 11.36,
+      "y": 4.77,
+      "r": 0.25
+     },
+     "sensor": {
+      "minX": 11.41,
+      "maxX": 15.52,
+      "minY": 4.65,
+      "maxY": 7.8
+     }
+    },
+    {
+     "op": 1,
+     "pid": "b1",
+     "polyGap": -0.88,
+     "aabbGap": -0.25,
+     "k": 12,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 9.67,
+      "y": 5.56,
+      "r": 0.25
+     },
+     "sensor": {
+      "minX": 9.02,
+      "maxX": 13.13,
+      "minY": 4.74,
+      "maxY": 7.89
+     }
+    },
+    {
+     "op": 2,
+     "pid": "b1",
+     "polyGap": -0.08,
+     "aabbGap": -0.23,
+     "k": 75,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 27.39,
+      "y": 4.03,
+      "r": 0.25
+     },
+     "sensor": {
+      "minX": 27.4,
+      "maxX": 31.51,
+      "minY": 4.05,
+      "maxY": 7.2
+     }
+    }
+   ]
+  },
+  {
+   "sc": 267,
+   "dfs": [
+    18,
+    -1,
+    -1,
+    15,
+    15,
+    36,
+    75,
+    71,
+    37
+   ],
+   "contacts": 13,
+   "overlapNoContact": [
+    {
+     "op": 0,
+     "pid": "b0",
+     "polyGap": -1.56,
+     "aabbGap": -0.25,
+     "k": 23,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 8.69,
+      "y": 7.87,
+      "r": 0.25
+     },
+     "sensor": {
+      "minX": 5.98,
+      "maxX": 10.02,
+      "minY": 6.25,
+      "maxY": 9.3
+     }
+    },
+    {
+     "op": 3,
+     "pid": "b0",
+     "polyGap": -1.11,
+     "aabbGap": -0.25,
+     "k": 26,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 8.82,
+      "y": 7.02,
+      "r": 0.25
+     },
+     "sensor": {
+      "minX": 6.09,
+      "maxX": 9.91,
+      "minY": 5.49,
+      "maxY": 10.06
+     }
+    },
+    {
+     "op": 4,
+     "pid": "b0",
+     "polyGap": -1.33,
+     "aabbGap": -0.25,
+     "k": 21,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 8.61,
+      "y": 8.44,
+      "r": 0.25
+     },
+     "sensor": {
+      "minX": 6.05,
+      "maxX": 9.95,
+      "minY": 5.46,
+      "maxY": 10.08
+     }
+    }
+   ]
+  },
+  {
+   "sc": 574,
+   "dfs": [
+    4,
+    -1,
+    4,
+    4,
+    4,
+    45,
+    13,
+    4,
+    4
+   ],
+   "contacts": 22,
+   "overlapNoContact": [
+    {
+     "op": 0,
+     "pid": "b1",
+     "polyGap": -1.42,
+     "aabbGap": -0.1,
+     "k": 24,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 12.04,
+      "y": 14.57,
+      "r": 0.1
+     },
+     "sensor": {
+      "minX": 9.93,
+      "maxX": 14.24,
+      "minY": 12.51,
+      "maxY": 17.36
+     }
+    },
+    {
+     "op": 2,
+     "pid": "b1",
+     "polyGap": -1.57,
+     "aabbGap": -0.1,
+     "k": 25,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 12.41,
+      "y": 14.22,
+      "r": 0.1
+     },
+     "sensor": {
+      "minX": 10.34,
+      "maxX": 14.65,
+      "minY": 11.53,
+      "maxY": 16.37
+     }
+    },
+    {
+     "op": 3,
+     "pid": "b1",
+     "polyGap": -1.57,
+     "aabbGap": -0.1,
+     "k": 24,
+     "sensorCount": 2,
+     "bullet": {
+      "x": 12.04,
+      "y": 14.57,
+      "r": 0.1
+     },
+     "sensor": {
+      "minX": 10.55,
+      "maxX": 13.62,
+      "minY": 12.9,
+      "maxY": 16.96
+     }
+    }
+   ]
+  }
+ ],
+ "opNameMismatch": {
+  "D:静止": 122,
+  "D:前": 109,
+  "D:后": 116,
+  "D:左": 123,
+  "D:右": 119,
+  "D:前左": 112,
+  "D:前右": 113,
+  "D:后左": 117,
+  "D:后右": 118,
+  "后": 1,
+  "前右": 1
+ },
+ "byWeapon": {
+  "BULLET+BULLET+LASER": {
+   "死亡帧不同": 48
+  },
+  "LASER+BULLET+BULLET": {
+   "死亡帧不同": 46
+  },
+  "GATLING_GUN+LASER": {
+   "死亡帧不同": 9
+  },
+  "LASER+BULLET+LASER": {
+   "死亡帧不同": 9
+  },
+  "BULLET+LASER+BULLET": {
+   "死亡帧不同": 25
+  },
+  "LASER+GATLING_GUN": {
+   "死亡帧不同": 24
+  },
+  "LASER": {
+   "死亡帧不同": 230
+  },
+  "GATLING_GUN+LASER+SHOTGUN": {
+   "死亡帧不同": 9
+  },
+  "LASER+HOMING_MISSILE": {
+   "死亡帧不同": 15
+  },
+  "BULLET+LASER": {
+   "死亡帧不同": 113
+  },
+  "BULLET+LASER+GATLING_GUN": {
+   "死亡帧不同": 27
+  },
+  "HOMING_MISSILE+LASER+MINE_SHRAPNEL": {
+   "死亡帧不同": 9
+  },
+  "BULLET+BULLET": {
+   "JS多判死": 1
+  },
+  "DOUBLE_BARREL+LASER+LASER": {
+   "死亡帧不同": 9
+  },
+  "HOMING_MISSILE+SHOTGUN+LASER": {
+   "死亡帧不同": 9
+  },
+  "LASER+BULLET": {
+   "死亡帧不同": 53
+  },
+  "GATLING_GUN+BULLET+LASER": {
+   "死亡帧不同": 15
+  },
+  "SHOTGUN+SHOTGUN+LASER": {
+   "死亡帧不同": 9
+  },
+  "HOMING_MISSILE+LASER": {
+   "死亡帧不同": 2
+  },
+  "GATLING_GUN+LASER+LASER": {
+   "死亡帧不同": 9
+  },
+  "LASER+BULLET+HOMING_MISSILE": {
+   "死亡帧不同": 25
+  },
+  "BULLET+LASER+LASER": {
+   "死亡帧不同": 18
+  },
+  "LASER+LASER+DOUBLE_BARREL": {
+   "死亡帧不同": 17
+  },
+  "LASER+BULLET+GATLING_GUN": {
+   "死亡帧不同": 9
+  },
+  "LASER+SHOTGUN": {
+   "死亡帧不同": 18
+  },
+  "DOUBLE_BARREL+LASER+GATLING_GUN": {
+   "死亡帧不同": 20
+  },
+  "LASER+DOUBLE_BARREL+HOMING_MISSILE": {
+   "死亡帧不同": 9
+  },
+  "SHOTGUN+LASER": {
+   "死亡帧不同": 9
+  },
+  "DOUBLE_BARREL+BULLET+DOUBLE_BARREL": {
+   "JS多判死": 1
+  },
+  "DOUBLE_BARREL+LASER+HOMING_MISSILE": {
+   "死亡帧不同": 6
+  },
+  "LASER+LASER": {
+   "死亡帧不同": 18
+  },
+  "DOUBLE_BARREL+LASER": {
+   "死亡帧不同": 21
+  },
+  "LASER+DOUBLE_BARREL+BULLET": {
+   "死亡帧不同": 9
+  },
+  "LASER+MINE_SHRAPNEL": {
+   "死亡帧不同": 8
+  },
+  "MINE_SHRAPNEL+LASER+SHOTGUN": {
+   "死亡帧不同": 9
+  },
+  "BULLET+DOUBLE_BARREL+LASER": {
+   "死亡帧不同": 5
+  },
+  "LASER+LASER+GATLING_GUN": {
+   "死亡帧不同": 7
+  },
+  "LASER+LASER+BULLET": {
+   "死亡帧不同": 9
+  },
+  "SHOTGUN+LASER+BULLET": {
+   "死亡帧不同": 8
+  },
+  "LASER+SHOTGUN+BULLET": {
+   "死亡帧不同": 9
+  },
+  "LASER+DOUBLE_BARREL": {
+   "死亡帧不同": 26
+  },
+  "SHOTGUN+LASER+LASER": {
+   "死亡帧不同": 9
+  },
+  "MINE_SHRAPNEL+LASER": {
+   "死亡帧不同": 18
+  },
+  "MINE_SHRAPNEL+LASER+DOUBLE_BARREL": {
+   "死亡帧不同": 8
+  },
+  "BULLET+LASER+DOUBLE_BARREL": {
+   "死亡帧不同": 8
+  },
+  "HOMING_MISSILE+LASER+BULLET": {
+   "死亡帧不同": 7
+  },
+  "LASER+LASER+SHOTGUN": {
+   "死亡帧不同": 9
+  },
+  "GATLING_GUN+LASER+BULLET": {
+   "死亡帧不同": 9
+  },
+  "LASER+HOMING_MISSILE+GATLING_GUN": {
+   "死亡帧不同": 9
+  },
+  "SHOTGUN+BULLET+LASER": {
+   "死亡帧不同": 9
+  },
+  "LASER+DOUBLE_BARREL+DOUBLE_BARREL": {
+   "死亡帧不同": 9
+  },
+  "BULLET+LASER+HOMING_MISSILE": {
+   "死亡帧不同": 9
+  },
+  "BULLET+MINE_SHRAPNEL+LASER": {
+   "死亡帧不同": 6
+  },
+  "LASER+DOUBLE_BARREL+LASER": {
+   "死亡帧不同": 9
+  }
+ },
+ "warnings": [
+  "[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0",
+  "[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0",
+  "[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0",
+  "[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0",
+  "[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0"
+ ],
+ "warnCount": 45,
+ "examples": [
+  {
+   "sc": 0,
+   "op": "静止",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "前",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "后",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "左",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "右",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "前左",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "前右",
+   "jsDead": true,
+   "jsDF": 3,
+   "rustDead": true,
+   "rustDF": 2,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "后左",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 0,
+   "op": "后右",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 31.92,
+    "y": 25.6,
+    "rot": 0.4
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.255425476608796,
+     "d": 13.011548331007361,
+     "off": -0.7023314088582993
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.826512658968568,
+     "d": 8.963847316801548,
+     "off": 2.9472648384980857
+    },
+    {
+     "id": "b2",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 181.0058231041767,
+     "d": 12.42591062374413,
+     "off": 0.19308867026120424
+    }
+   ]
+  },
+  {
+   "sc": 1,
+   "op": "静止",
+   "jsDead": true,
+   "jsDF": 15,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 16.01,
+    "y": 25.69,
+    "rot": 2.23
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 176.63399912975729,
+     "d": 10.441228434443474,
+     "off": 1.8012871309183538
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.78534685303457,
+     "d": 6.17784340120852,
+     "off": -0.9317172830924392
+    },
+    {
+     "id": "b2",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.603162594605237,
+     "d": 7.325862061232328,
+     "off": -0.7947200587950647
+    }
+   ]
+  },
+  {
+   "sc": 1,
+   "op": "前",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 16.01,
+    "y": 25.69,
+    "rot": 2.23
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 176.63399912975729,
+     "d": 10.441228434443474,
+     "off": 1.8012871309183538
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.78534685303457,
+     "d": 6.17784340120852,
+     "off": -0.9317172830924392
+    },
+    {
+     "id": "b2",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.603162594605237,
+     "d": 7.325862061232328,
+     "off": -0.7947200587950647
+    }
+   ]
+  },
+  {
+   "sc": 1,
+   "op": "后",
+   "jsDead": true,
+   "jsDF": 53,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 16.01,
+    "y": 25.69,
+    "rot": 2.23
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 176.63399912975729,
+     "d": 10.441228434443474,
+     "off": 1.8012871309183538
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.78534685303457,
+     "d": 6.17784340120852,
+     "off": -0.9317172830924392
+    },
+    {
+     "id": "b2",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.603162594605237,
+     "d": 7.325862061232328,
+     "off": -0.7947200587950647
+    }
+   ]
+  },
+  {
+   "sc": 1,
+   "op": "左",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 16.01,
+    "y": 25.69,
+    "rot": 2.23
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 176.63399912975729,
+     "d": 10.441228434443474,
+     "off": 1.8012871309183538
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.78534685303457,
+     "d": 6.17784340120852,
+     "off": -0.9317172830924392
+    },
+    {
+     "id": "b2",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.603162594605237,
+     "d": 7.325862061232328,
+     "off": -0.7947200587950647
+    }
+   ]
+  },
+  {
+   "sc": 1,
+   "op": "前左",
+   "jsDead": true,
+   "jsDF": 4,
+   "rustDead": true,
+   "rustDF": 3,
+   "pose": {
+    "x": 16.01,
+    "y": 25.69,
+    "rot": 2.23
+   },
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "LASER",
+     "r": 0.05,
+     "sp": 176.63399912975729,
+     "d": 10.441228434443474,
+     "off": 1.8012871309183538
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.78534685303457,
+     "d": 6.17784340120852,
+     "off": -0.9317172830924392
+    },
+    {
+     "id": "b2",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.603162594605237,
+     "d": 7.325862061232328,
+     "off": -0.7947200587950647
+    }
+   ]
+  }
+ ],
+ "msPerScene": 92.9
+}
+----- md5 AFTER  [vm600] rc=0 elapsed=57s -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+63fe087444041c87e7b813eee12a8f2c  game_core/js/vantage_rust_bridge.js
+d7264e6f070229e3328fe3bd53015145  game_core/js/vantage_scoring.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+db5da0d13f8f11bc60b33d6a65c22f96  game_core/rust/vantage_core/src/rollout.rs
+===== [vm600] end 2026-10-11 23:54:49 =====

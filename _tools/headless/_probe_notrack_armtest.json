@@ -1,0 +1,808 @@
+{
+ "frames": 1200,
+ "noTree": 0,
+ "err": null,
+ "sumThreat": 3178,
+ "sumNoTrack": 178,
+ "占比_威胁帧": 0.05601,
+ "framesWithThreat": 903,
+ "framesWithNoTrack": 178,
+ "占比_有威胁的帧": 0.197121,
+ "framesAllNoTrack": 178,
+ "framesZeroThreat": 297,
+ "framesGoneThreat": 177,
+ "idMismatch": 0,
+ "mismatchKinds": {},
+ "kindHist": {
+  "type0|normalPath|live|trackLen0:srcpath": 1,
+  "typenull|normalPath|gone|trackLen0:srcpath": 177
+ },
+ "typeHistAll": {
+  "t-1": 3000,
+  "t0": 1,
+  "tnull": 177
+ },
+ "typeHistNoTrack": {
+  "t0": 1,
+  "tnull": 177
+ },
+ "typeHistGone": {
+  "tnull": 177
+ },
+ "projTypeHist": {
+  "t-1": {
+   "1": 54,
+   "2": 71,
+   "3": 71,
+   "4": 54,
+   "5": 475
+  },
+  "t0": {
+   "1": 1
+  }
+ },
+ "trackSourceHist": {
+  "box2d": 3000,
+  "path": 178
+ },
+ "diagTrackCount": {
+  "0": 178,
+  "undef": 1022
+ },
+ "projTypesSeen": {
+  "t-1": 3000,
+  "t0": 1
+ },
+ "threatTypesSeen": {
+  "t-1": 3000,
+  "t0": 1,
+  "tnull": 177
+ },
+ "collectibleTypesSeen": {
+  "c6": 796,
+  "c4": 559,
+  "c2": 211
+ },
+ "weaponTypesSeen": {},
+ "weaponOfTank": {},
+ "rawTrackAgree": 409,
+ "rawTrackDisagree": 2769,
+ "rawTrackUnknown": 0,
+ "histNoTrackPerFrame": {
+  "0": 1022,
+  "1": 178
+ },
+ "streakMax": 178,
+ "threatPerFrame": {
+  "p50": 3,
+  "p95": 5,
+  "max": 5,
+  "mean": 2.65
+ },
+ "noTrackPerFrame": {
+  "p50": 0,
+  "p95": 1,
+  "max": 1
+ },
+ "tRange": [
+  0.017,
+  17.408000000000076
+ ],
+ "byRound": {
+  "rc-1155-8": {
+   "frames": 1200,
+   "threatFrames": 3178,
+   "noTrackThreatFrames": 178,
+   "framesWithNoTrack": 178,
+   "maxProj": 5,
+   "占比": 0.05601
+  }
+ },
+ "roundOrder": [
+  "rc-1155-8"
+ ],
+ "eventCount": 178,
+ "events": [
+  {
+   "f": 1023,
+   "t": 17.391000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 1,
+   "kinds": {
+    "type0|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t0": 1
+   },
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1024,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1025,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1026,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1027,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1028,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1029,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1030,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1031,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1032,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1033,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1034,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1035,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1036,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1037,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1038,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1039,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1040,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1041,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1042,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1043,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1044,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1045,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1046,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1047,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1048,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1049,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1050,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1051,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1052,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1053,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1054,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1055,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1056,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1057,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1058,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1059,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1060,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1061,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  },
+  {
+   "f": 1062,
+   "t": 17.408000000000076,
+   "nTh": 1,
+   "nNT": 1,
+   "nGone": 1,
+   "projN": 0,
+   "kinds": {
+    "typenull|normalPath|gone|trackLen0:srcpath": 1
+   },
+   "projKinds": {},
+   "roundId": "rc-1155-8",
+   "trackCount": 0,
+   "diagProjCount": 1
+  }
+ ],
+ "sampleTail": [
+  [
+   1198,
+   1,
+   1,
+   "rc-1155-8",
+   0
+  ],
+  [
+   1199,
+   1,
+   1,
+   "rc-1155-8",
+   0
+  ],
+  [
+   1200,
+   1,
+   1,
+   "rc-1155-8",
+   0
+  ]
+ ],
+ "env": {
+  "hasVT": true,
+  "hasScoring": true,
+  "modes": "CURRENT=-1,CLASSIC=0,BOOT_CAMP=1,DEATHMATCH=2,TEAM_CLASSIC=3,TEAM_DEATHMATCH=4,CAPTURE_THE_FLAG=5,COUNT=3",
+  "bootCrates": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "weaponTypes": {
+   "BULLET": -1,
+   "LASER": 0,
+   "DOUBLE_BARREL": 1,
+   "SHOTGUN": 2,
+   "HOMING_MISSILE": 3,
+   "MINE": 4,
+   "GATLING_GUN": 5
+  },
+  "collectibleTypes": {
+   "CRATE_LASER": 0,
+   "CRATE_DOUBLE_BARREL": 1,
+   "CRATE_SHOTGUN": 2,
+   "CRATE_HOMING_MISSILE": 3,
+   "CRATE_MINE": 4,
+   "CRATE_GATLING_GUN": 5,
+   "WEAPON_CRATE_COUNT": 6,
+   "CRATE_SHIELD": 6,
+   "CRATE_AIMER": 7,
+   "CRATE_SPEED_BOOST": 8,
+   "UPGRADE_CRATE_COUNT": 9,
+   "CRATE_COUNT": 9,
+   "GOLD": 9,
+   "DIAMOND": 10,
+   "FLAG": 11,
+   "COLLECTIBLE_TO_UPGRADE_OFFSET": -4
+  }
+ },
+ "armLog": [
+  {
+   "type": 0,
+   "reachableLen": 55,
+   "cellSample": {
+    "x": 7,
+    "y": 4,
+    "used": true
+   },
+   "unit": "tile",
+   "pos": {
+    "x": 75,
+    "y": 45
+   },
+   "ok": true,
+   "teleport": "teleported",
+   "frame": 600
+  }
+ ],
+ "framesRequested": 1200,
+ "aiCount": 1,
+ "bootstrap": {
+  "gameId": "gc-1155-0",
+  "humanIds": [
+   "tank_a"
+  ],
+  "aiIds": [
+   "6148530"
+  ],
+  "vantageIds": [
+   "vantage_1"
+  ],
+  "started": true
+ },
+ "pageErrors": []
+}

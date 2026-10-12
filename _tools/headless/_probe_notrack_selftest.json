@@ -1,0 +1,1984 @@
+{
+ "frames": 897,
+ "noTree": 3,
+ "err": null,
+ "frozenFrames": 0,
+ "liveFrames": 897,
+ "liveThreatFrames": 416,
+ "liveNoTrackThreatFrames": 307,
+ "占比_活树威胁帧": 0.737981,
+ "liveFramesWithNoTrack": 307,
+ "liveFramesAllNoTrack": 239,
+ "liveKindHist": {
+  "type3|normalPath|live|trackLen0:srcpath": 248,
+  "typenull|normalPath|gone|trackLen0:srcpath": 59
+ },
+ "liveTypeHistAll": {
+  "t-1": 107,
+  "tnull": 61,
+  "t3": 248
+ },
+ "liveTypeHistNoTrack": {
+  "t3": 248,
+  "tnull": 59
+ },
+ "liveEvents": [
+  {
+   "f": 500,
+   "t": 0.40800000000000014,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 501,
+   "t": 0.42466674804687515,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 502,
+   "t": 0.44200000000000017,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 503,
+   "t": 0.4590000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 504,
+   "t": 0.4756667480468752,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 505,
+   "t": 0.4930000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 506,
+   "t": 0.5100000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 507,
+   "t": 0.5266667480468752,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 508,
+   "t": 0.5440000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 509,
+   "t": 0.5610000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 510,
+   "t": 0.5776667480468751,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 511,
+   "t": 0.5950000000000001,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 512,
+   "t": 0.6120000000000001,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 513,
+   "t": 0.6286667480468751,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 514,
+   "t": 0.646,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 515,
+   "t": 0.663,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 516,
+   "t": 0.679666748046875,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 517,
+   "t": 0.697,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 518,
+   "t": 0.714,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 519,
+   "t": 0.7306667480468749,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 520,
+   "t": 0.7479999999999999,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 521,
+   "t": 0.7649999999999999,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 522,
+   "t": 0.7816667480468749,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 523,
+   "t": 0.7989999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 524,
+   "t": 0.8159999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 525,
+   "t": 0.8326667480468748,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 526,
+   "t": 0.8499999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 527,
+   "t": 0.8669999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 528,
+   "t": 0.8836667480468747,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 529,
+   "t": 0.9009999999999997,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 530,
+   "t": 0.9179999999999997,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 531,
+   "t": 0.9346667480468747,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 532,
+   "t": 0.9519999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 533,
+   "t": 0.9689999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 534,
+   "t": 0.9856667480468746,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 535,
+   "t": 1.0029999999999997,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 536,
+   "t": 1.0199999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 537,
+   "t": 1.0366667480468745,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 538,
+   "t": 1.0539999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 539,
+   "t": 1.0709999999999995,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 540,
+   "t": 1.0876667480468745,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 541,
+   "t": 1.1049999999999995,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 542,
+   "t": 1.1219999999999994,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 543,
+   "t": 1.1386667480468744,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 544,
+   "t": 1.1559999999999995,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 545,
+   "t": 1.1729999999999994,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 546,
+   "t": 1.1896667480468743,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 547,
+   "t": 1.2069999999999994,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 548,
+   "t": 1.2239999999999993,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 549,
+   "t": 1.2406667480468743,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 550,
+   "t": 1.2579999999999993,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 551,
+   "t": 1.2749999999999992,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 552,
+   "t": 1.2916667480468742,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 553,
+   "t": 1.3089999999999993,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 554,
+   "t": 1.3259999999999992,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 555,
+   "t": 1.3426667480468741,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 556,
+   "t": 1.3599999999999992,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 557,
+   "t": 1.3769999999999991,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 558,
+   "t": 1.393666748046874,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  },
+  {
+   "f": 559,
+   "t": 1.4109999999999991,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "frozen": false,
+   "roundId": "rc-6c91-11"
+  }
+ ],
+ "sumThreat": 416,
+ "sumNoTrack": 307,
+ "占比_威胁帧": 0.737981,
+ "framesWithThreat": 348,
+ "framesWithNoTrack": 307,
+ "占比_有威胁的帧": 0.882184,
+ "framesAllNoTrack": 239,
+ "framesZeroThreat": 549,
+ "framesGoneThreat": 61,
+ "idMismatch": 0,
+ "mismatchKinds": {},
+ "kindHist": {
+  "type3|normalPath|live|trackLen0:srcpath": 248,
+  "typenull|normalPath|gone|trackLen0:srcpath": 59
+ },
+ "typeHistAll": {
+  "t-1": 107,
+  "tnull": 61,
+  "t3": 248
+ },
+ "typeHistNoTrack": {
+  "t3": 248,
+  "tnull": 59
+ },
+ "typeHistGone": {
+  "tnull": 61
+ },
+ "projTypeHist": {
+  "t-1": {
+   "1": 107
+  },
+  "t3": {
+   "1": 248
+  }
+ },
+ "trackSourceHist": {
+  "box2d": 109,
+  "path": 307
+ },
+ "diagTrackCount": {
+  "0": 303,
+  "1": 27,
+  "undef": 567
+ },
+ "projTypesSeen": {
+  "t-1": 107,
+  "t3": 248
+ },
+ "threatTypesSeen": {
+  "t-1": 107,
+  "tnull": 61,
+  "t3": 248
+ },
+ "collectibleTypesSeen": {
+  "c6": 172
+ },
+ "weaponTypesSeen": {
+  "w-1": 1128,
+  "w3": 68
+ },
+ "weaponOfTank": {
+  "tank_a": -1,
+  "vantage_1": -1
+ },
+ "rawTrackAgree": 315,
+ "rawTrackDisagree": 101,
+ "rawTrackUnknown": 0,
+ "histNoTrackPerFrame": {
+  "0": 590,
+  "1": 307
+ },
+ "streakMax": 307,
+ "threatPerFrame": {
+  "p50": 0,
+  "p95": 2,
+  "max": 2,
+  "mean": 0.46
+ },
+ "noTrackPerFrame": {
+  "p50": 0,
+  "p95": 1,
+  "max": 1
+ },
+ "tRange": [
+  0.016666748046875,
+  5.082666748046866
+ ],
+ "byRound": {
+  "rc-6c91-6": {
+   "frames": 357,
+   "threatFrames": 18,
+   "noTrackThreatFrames": 0,
+   "framesWithNoTrack": 0,
+   "maxProj": 1,
+   "占比": 0
+  },
+  "rc-6c91-11": {
+   "frames": 449,
+   "threatFrames": 398,
+   "noTrackThreatFrames": 307,
+   "framesWithNoTrack": 307,
+   "maxProj": 2,
+   "占比": 0.77136
+  },
+  "rc-6c91-19": {
+   "frames": 91,
+   "threatFrames": 0,
+   "noTrackThreatFrames": 0,
+   "framesWithNoTrack": 0,
+   "maxProj": 0,
+   "占比": null
+  }
+ },
+ "roundOrder": [
+  "rc-6c91-6",
+  "rc-6c91-11",
+  "rc-6c91-19"
+ ],
+ "eventCount": 307,
+ "events": [
+  {
+   "f": 500,
+   "t": 0.40800000000000014,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 1,
+   "diagProjCount": 2
+  },
+  {
+   "f": 501,
+   "t": 0.42466674804687515,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 1,
+   "diagProjCount": 2
+  },
+  {
+   "f": 502,
+   "t": 0.44200000000000017,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 1,
+   "diagProjCount": 2
+  },
+  {
+   "f": 503,
+   "t": 0.4590000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 1,
+   "diagProjCount": 2
+  },
+  {
+   "f": 504,
+   "t": 0.4756667480468752,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 505,
+   "t": 0.4930000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 506,
+   "t": 0.5100000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 507,
+   "t": 0.5266667480468752,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 508,
+   "t": 0.5440000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 509,
+   "t": 0.5610000000000002,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 510,
+   "t": 0.5776667480468751,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 511,
+   "t": 0.5950000000000001,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 512,
+   "t": 0.6120000000000001,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 513,
+   "t": 0.6286667480468751,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 514,
+   "t": 0.646,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 515,
+   "t": 0.663,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 516,
+   "t": 0.679666748046875,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 517,
+   "t": 0.697,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 518,
+   "t": 0.714,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 519,
+   "t": 0.7306667480468749,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 520,
+   "t": 0.7479999999999999,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 521,
+   "t": 0.7649999999999999,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 522,
+   "t": 0.7816667480468749,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 523,
+   "t": 0.7989999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 524,
+   "t": 0.8159999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 525,
+   "t": 0.8326667480468748,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 526,
+   "t": 0.8499999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 527,
+   "t": 0.8669999999999998,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 528,
+   "t": 0.8836667480468747,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 529,
+   "t": 0.9009999999999997,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 530,
+   "t": 0.9179999999999997,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 531,
+   "t": 0.9346667480468747,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 532,
+   "t": 0.9519999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 533,
+   "t": 0.9689999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 534,
+   "t": 0.9856667480468746,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 535,
+   "t": 1.0029999999999997,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 536,
+   "t": 1.0199999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 537,
+   "t": 1.0366667480468745,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 538,
+   "t": 1.0539999999999996,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  },
+  {
+   "f": 539,
+   "t": 1.0709999999999995,
+   "nTh": 2,
+   "nNT": 1,
+   "nGone": 0,
+   "projN": 2,
+   "frozen": false,
+   "kinds": {
+    "type3|normalPath|live|trackLen0:srcpath": 1
+   },
+   "projKinds": {
+    "t-1": 1,
+    "t3": 1
+   },
+   "roundId": "rc-6c91-11",
+   "trackCount": 0,
+   "diagProjCount": 2
+  }
+ ],
+ "sampleTail": [
+  [
+   895,
+   0,
+   0,
+   "rc-6c91-19",
+   0
+  ],
+  [
+   896,
+   0,
+   0,
+   "rc-6c91-19",
+   0
+  ],
+  [
+   897,
+   0,
+   0,
+   "rc-6c91-19",
+   0
+  ]
+ ],
+ "env": {
+  "hasVT": true,
+  "hasScoring": true,
+  "modes": "CURRENT=-1,CLASSIC=0,BOOT_CAMP=1,DEATHMATCH=2,TEAM_CLASSIC=3,TEAM_DEATHMATCH=4,CAPTURE_THE_FLAG=5,COUNT=3",
+  "bootCrates": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "weaponTypes": {
+   "BULLET": -1,
+   "LASER": 0,
+   "DOUBLE_BARREL": 1,
+   "SHOTGUN": 2,
+   "HOMING_MISSILE": 3,
+   "MINE": 4,
+   "GATLING_GUN": 5
+  },
+  "collectibleTypes": {
+   "CRATE_LASER": 0,
+   "CRATE_DOUBLE_BARREL": 1,
+   "CRATE_SHOTGUN": 2,
+   "CRATE_HOMING_MISSILE": 3,
+   "CRATE_MINE": 4,
+   "CRATE_GATLING_GUN": 5,
+   "WEAPON_CRATE_COUNT": 6,
+   "CRATE_SHIELD": 6,
+   "CRATE_AIMER": 7,
+   "CRATE_SPEED_BOOST": 8,
+   "UPGRADE_CRATE_COUNT": 9,
+   "CRATE_COUNT": 9,
+   "GOLD": 9,
+   "DIAMOND": 10,
+   "FLAG": 11,
+   "COLLECTIBLE_TO_UPGRADE_OFFSET": -4
+  }
+ },
+ "armLog": [
+  {
+   "type": 0,
+   "err": "no tank_a",
+   "frame": 200,
+   "slot": "tank_a"
+  },
+  {
+   "type": 3,
+   "pos": {
+    "x": 15,
+    "y": 15,
+    "rotation": 0
+   },
+   "before": -1,
+   "ok": true,
+   "frame": 400,
+   "slot": "tank_a"
+  },
+  {
+   "type": 2,
+   "err": "no tank_a",
+   "frame": 600,
+   "slot": "tank_a"
+  },
+  {
+   "type": 4,
+   "pos": {
+    "x": 45,
+    "y": 5,
+    "rotation": 0
+   },
+   "before": -1,
+   "ok": true,
+   "frame": 800,
+   "slot": "tank_a"
+  }
+ ],
+ "framesRequested": 900,
+ "aiCount": 0,
+ "bootstrap": {
+  "gameId": "gc-6c91-0",
+  "humanIds": [
+   "tank_a"
+  ],
+  "aiIds": [],
+  "vantageIds": [
+   "vantage_1"
+  ],
+  "started": true
+ },
+ "pageErrors": []
+}

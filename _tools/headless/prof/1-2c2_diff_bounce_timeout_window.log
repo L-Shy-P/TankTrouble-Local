@@ -1,0 +1,37 @@
+== ② 反弹去抖上限：静态依据 ==
+  ✓ 真 bundle：Projectile.update 用 new Date().getTime() 剪枝 ⇒ 单位是**毫秒**
+  ✓ 真 bundle：剪枝是「找到第一条窗口内记录才 splice(0,i) 并 break」= **粘性**剪枝
+  ✓ 真 bundle：done() 第三支 = bounces.length >= timeoutBounceCount
+  ✓ HomingMissile.update 里复制了同一段剪枝循环（≥2 处出现）
+  ✓ Constants：WINDOW=35 / COUNT=5
+  ✓ JS：pruneBounceStamps 逐字照抄粘性剪枝
+  ✓ JS：窗口常量读游戏 Constants 并毫秒→秒
+  ✓ JS：track 与融合两条路径都做了「剪枝 + ≥5」（≥3 次出现含定义/两处调用）
+  ✓ JS：破片不 push、不吃 ②（Shrapnel.hitMaze 完全覆盖不调 super）
+  ✓ JS：注释里明确写了「不是总共弹 5 次」这条禁令
+  ✓ Rust：窗口 35ms→0.035s / 次数 5
+  ✓ Rust：prune_bounce_stamps 与 JS 同口径（drain(0..i) = splice(0,i)）
+  ✓ Rust：逐弹 update 里先剪枝、再判 ≥5（顺序同原版）
+  ✓ Rust：同一帧每个 touching 接触各 push 一条时间戳
+  ✓ Rust：破片不吃 ②（Shrapnel.hitMaze 不调 super ⇒ 永不 push）
+== ② 反弹去抖上限：数值对拍（JS 融合 vs wasm Rust，容差 1e-9）==
+[Vantage Sandbox] 模块已加载（v57：S3 寿命口径换算到轨迹锚点（+ nowTGlobal）+ S7 节点起点在过去时不再拿"现在"的弹位/寿命（回推+有符号 qAge）+ v56：v165 寿命扣减基准修正（qAge=从现在到节点起点，与轨迹索引 qLife 分开；rescore 路径改用 lifetimeSecOf 哨兵） + Rust ABI v9 破片语义（bullet_is_shrapnel 透传 + Shrapnel.hitMaze/done/不归一化逐字对齐） + v164 弹种档案（半径退化护栏/按弹种反弹次数/approx 分支补落弹种标记/破片不归一化保初速） + v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）
+[VantageRustBridge] loaded (v12: ABI v10 弹种码 0=普通/1=破片/2=霰弹 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ wasm ABI = v11（实际 11）
+  ✓ 弹被夹在内角（2 次接触/帧）第 3 帧销毁 ⇒ 59 帧外的坦克**活**（JS/Rust 一致）
+  ✓ JS track 链同上：轨迹只到第 2 帧就断供（≤8 帧）
+  ✓ JS↔Rust 逐帧一致：maxPos=0（≤1e-9）
+[Vantage Sandbox] 模块已加载（v57：S3 寿命口径换算到轨迹锚点（+ nowTGlobal）+ S7 节点起点在过去时不再拿"现在"的弹位/寿命（回推+有符号 qAge）+ v56：v165 寿命扣减基准修正（qAge=从现在到节点起点，与轨迹索引 qLife 分开；rescore 路径改用 lifetimeSecOf 哨兵） + Rust ABI v9 破片语义（bullet_is_shrapnel 透传 + Shrapnel.hitMaze/done/不归一化逐字对齐） + v164 弹种档案（半径退化护栏/按弹种反弹次数/approx 分支补落弹种标记/破片不归一化保初速） + v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）
+[VantageRustBridge] loaded (v12: ABI v10 弹种码 0=普通/1=破片/2=霰弹 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ 把 COUNT 改成 99 后 JS 在第 24 帧被打死 ⇒ (A) 的"活"确实来自 ≥5 规则
+[Vantage Sandbox] 模块已加载（v57：S3 寿命口径换算到轨迹锚点（+ nowTGlobal）+ S7 节点起点在过去时不再拿"现在"的弹位/寿命（回推+有符号 qAge）+ v56：v165 寿命扣减基准修正（qAge=从现在到节点起点，与轨迹索引 qLife 分开；rescore 路径改用 lifetimeSecOf 哨兵） + Rust ABI v9 破片语义（bullet_is_shrapnel 透传 + Shrapnel.hitMaze/done/不归一化逐字对齐） + v164 弹种档案（半径退化护栏/按弹种反弹次数/approx 分支补落弹种标记/破片不归一化保初速） + v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）
+[VantageRustBridge] loaded (v12: ABI v10 弹种码 0=普通/1=破片/2=霰弹 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  ✓ 贴墙滑行 60 帧后仍打死坦克（第 60 帧）⇒ 1 次/帧**不累积**（不是"总接触数"）
+  ✓ JS track 链：轨迹活满 76 帧（≥ 死亡帧），弹没有被误杀
+  ✓ JS↔Rust 逐帧一致：maxPos=0
+[Vantage Sandbox] 模块已加载（v57：S3 寿命口径换算到轨迹锚点（+ nowTGlobal）+ S7 节点起点在过去时不再拿"现在"的弹位/寿命（回推+有符号 qAge）+ v56：v165 寿命扣减基准修正（qAge=从现在到节点起点，与轨迹索引 qLife 分开；rescore 路径改用 lifetimeSecOf 哨兵） + Rust ABI v9 破片语义（bullet_is_shrapnel 透传 + Shrapnel.hitMaze/done/不归一化逐字对齐） + v164 弹种档案（半径退化护栏/按弹种反弹次数/approx 分支补落弹种标记/破片不归一化保初速） + v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）
+[VantageRustBridge] loaded (v12: ABI v10 弹种码 0=普通/1=破片/2=霰弹 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+  · 信息：dt=0.02 时内角场景 JS dead=true（第 20 帧）、track 帧数=76 —— 35ms≈1.75 帧 < 2 帧，累积不够
+  ✓ 任何帧长下 JS↔Rust 都必须逐帧一致：dt=0.02 maxPos=0
+  · 存量对照：实测长走廊 600 帧 21 次撞墙时 bounces.length 最大=1 ⇒ 本条规则永不触发。
+diff_bounce_timeout_window PASS（② 35ms 内 ≥5 去抖上限：JS track/融合 + Rust 三处同改；无「总共 5 次」实现）

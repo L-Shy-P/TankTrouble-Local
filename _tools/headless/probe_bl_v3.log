@@ -1,0 +1,864 @@
+=== 版本指纹 ===
+  game_core/index.html  mtime=2026-10-11T07:41:10.815Z  md5=b70ec966b8671ebfe5df853b59c8d38e  bytes=34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  mtime=2026-06-13T17:38:28.228Z  md5=7ecd83bb84f80beac5e1df8f4fe85f48  bytes=84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  mtime=2026-06-13T17:38:28.247Z  md5=97cadb8a67a443a9eb2f51ebc7d12916  bytes=58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  mtime=2026-06-13T17:38:28.229Z  md5=1c7bcaba8381d40aa591f5abacb8d96e  bytes=55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  mtime=2026-06-13T12:22:43.984Z  md5=a2bf42171d586f54e5e5fac5779424e4  bytes=24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  mtime=2026-06-13T17:38:28.240Z  md5=5183078f57653d2189c8517dd227a01b  bytes=51385
+  game_core/js/vantage_tree.js  mtime=2026-10-11T07:42:41.944Z  md5=ab09788384e8eb61dea38ee977e5b3e2  bytes=469378
+  game_core/js/vantage_sandbox.js  mtime=2026-10-11T07:41:10.816Z  md5=6cf2ad3ce50fc4466a025d43381d43df  bytes=146817
+  _tools/headless/match.js  mtime=2026-10-11T07:10:46.003Z  md5=48ce51b85915b464050809ecd9077f44  bytes=23274
+  _tools/headless/clock.js  mtime=2026-10-08T04:47:38.219Z  md5=9308f8102fc61273e65819a1a87f9322  bytes=7845
+
+=== 开对局（第 1 次尝试；空场：tank_a + tank_b，无 AI） ===
+  open 用时 2.5s，waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]}
+  采样器: installed {"round":true,"game":false}
+  迷宫 8x5，可达 21 格
+  水平走廊(两侧封死)={"x0":4,"y0":2,"len":1,"horiz":true}  垂直走廊={"x0":5,"y0":1,"len":1,"horiz":false}  激光跑道={"rot":1.5707963267948966,"dir":"+x","tank":{"x":45,"y":25},"wallInner":{"x":69.6,"y":25},"dist":22.1,"tile":[4,2]}
+  RNG 录制状态（复现同一张图用）: {"mode":"record","len":4669,"idx":0,"overflow":0}
+  实验用走廊中心=(45,25)  远停车位格=(0,0)
+  实验用走廊中心=(45,25)  远停车位格=(0,0)
+  [守卫 实验①前] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"roundId":"rc-0d0e-6","projs":0,"mz":true}
+
+=== 实验①：普通弹贴走廊侧墙反复反弹（走廊 {"x0":4,"y0":2,"len":1,"horiz":true}）===
+  tank_a 就位 @(45,25) rot=0（rot=0.0000，正对侧墙）
+  开火后场上弹数=1；tank_a 已挪到 (5,5)
+  帧数=601，弹存在帧=600，最大 bounces.length=1，bounces 变更次数=21
+  bounces 变化点（前 14）：
+    f157 t=2633.33ms ta=0.117s nb=1 ages=[-0.33] vy=18
+    f186 t=3116.67ms ta=0.6s nb=1 ages=[-0.67] vy=-18
+    f215 t=3600ms ta=1.084s nb=1 ages=[0] vy=18
+    f244 t=4083.33ms ta=1.567s nb=1 ages=[-0.33] vy=-18
+    f273 t=4566.67ms ta=2.05s nb=1 ages=[-0.67] vy=18
+    f302 t=5050ms ta=2.534s nb=1 ages=[0] vy=-18
+    f331 t=5533.33ms ta=3.017s nb=1 ages=[-0.33] vy=18
+    f360 t=6016.67ms ta=3.5s nb=1 ages=[-0.67] vy=-18
+    f389 t=6500ms ta=3.984s nb=1 ages=[0] vy=18
+    f418 t=6983.33ms ta=4.467s nb=1 ages=[-0.33] vy=-18
+    f447 t=7466.67ms ta=4.95s nb=1 ages=[-0.67] vy=18
+    f476 t=7950ms ta=5.434s nb=1 ages=[0] vy=-18
+    f505 t=8433.33ms ta=5.917s nb=1 ages=[-0.33] vy=18
+    f534 t=8916.67ms ta=6.4s nb=1 ages=[-0.67] vy=-18
+  最后一帧: f750 ta=10s lifetime=10 nb=1 stopped=false ages=[-216.67] 位置=(45,24.8) v=(0,18)
+  该弹的全部事件（21 条；含撞墙点/法线/解算后速度/pre-prune nb）:
+    f157 projectile maze collision nb=1 ta=0.1s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f186 projectile maze collision nb=2 ta=0.584s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f215 projectile maze collision nb=2 ta=1.067s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f244 projectile maze collision nb=2 ta=1.55s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f273 projectile maze collision nb=2 ta=2.034s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f302 projectile maze collision nb=2 ta=2.517s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f331 projectile maze collision nb=2 ta=3s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f360 projectile maze collision nb=2 ta=3.484s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f389 projectile maze collision nb=2 ta=3.967s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f418 projectile maze collision nb=2 ta=4.45s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f447 projectile maze collision nb=2 ta=4.934s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f476 projectile maze collision nb=2 ta=5.417s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f505 projectile maze collision nb=2 ta=5.9s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f534 projectile maze collision nb=2 ta=6.384s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f563 projectile maze collision nb=2 ta=6.867s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f592 projectile maze collision nb=2 ta=7.35s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f621 projectile maze collision nb=2 ta=7.834s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f650 projectile maze collision nb=2 ta=8.317s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f679 projectile maze collision nb=2 ta=8.8s point=(45,20.4025) normal=(0,1) v=(0,18)
+    f708 projectile maze collision nb=2 ta=9.284s point=(45,29.5975) normal=(0,-1) v=(0,-18)
+    f737 projectile maze collision nb=2 ta=9.767s point=(45,20.4025) normal=(0,1) v=(0,18)
+
+=== 实验③：炮口顶死墙发射（tank_b，弹可能生成在墙里）===
+  [守卫 exp3-before] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"roundId":"rc-0d0e-6","projs":0,"mz":true}
+  怼墙停点: {"x":45,"y":23.107499999999998}（格中心 y=25，上方墙内表面 y=20.4）
+  X 实验③失败: Error: setControl: 受控坦克 tank_b 不在场上 —— 这样写下去输入会静默失效
+    at Match.setControl (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:328:13)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_bounce_laser.js:463:7
+  [守卫 实验②前] {"gc":"in round","inRound":"in round","tanks":["tank_a"],"roundId":"rc-0d0e-6","projs":0,"mz":true}
+  !! [守卫 实验②前] 回合不在进行中或坦克不全 —— 尝试 waitForRound 重等
+  [守卫 实验②前 重等后] {"gc":"in round","inRound":"in round","tanks":["tank_a"],"roundId":"rc-0d0e-6","projs":0,"mz":true}
+
+=== 实验②：激光撞墙（走廊 {"rot":1.5707963267948966,"dir":"+x","tank":{"x":45,"y":25},"wallInner":{"x":69.6,"y":25},"dist":22.1,"tile":[4,2]}，朝 ++x）===
+  给武器: {"setType":0,"activeType":0,"activeFields":"{\"_fired\":false,\"_timeSinceFire\":0}","defaultType":-1}
+  tank_a @(45,25) rot=1.5708；尽头墙内表面 +x={"x":69.6,"y":25}；近端墙内表面 +x=
+  开火后场上弹数=1；tank_a 已挪走
+    [ev] f786 t=13116.666666666548 kind=round evt=projectile maze collision victim= nb(pre-prune)=1 ta=0.117s point=(69.5956,25) normal=(-1,0) v=(-180,0)
+    [ev] f809 t=13499.999999999867 kind=round evt=projectile maze collision victim= nb(pre-prune)=2 ta=0.5s point=(0.4044,25) normal=(1,0) v=(180,0)
+  帧数=49，弹存在帧=48，方向翻转 2 次
+  逐帧（全部）：
+    f779 t=13000 x=50.56 y=25 v=(180,0) |v|=180 ta=0.017s nb=0 dto=0 ages=[]
+    f780 t=13016.67 x=53.44 y=25 v=(180,0) |v|=180 ta=0.033s nb=0 dto=0 ages=[]
+    f781 t=13033.33 x=56.5 y=25 v=(180,0) |v|=180 ta=0.05s nb=0 dto=0 ages=[]
+    f782 t=13050 x=59.56 y=25 v=(180,0) |v|=180 ta=0.067s nb=0 dto=0 ages=[]
+    f783 t=13066.67 x=62.44 y=25 v=(180,0) |v|=180 ta=0.083s nb=0 dto=0 ages=[]
+    f784 t=13083.33 x=65.5 y=25 v=(180,0) |v|=180 ta=0.1s nb=0 dto=0 ages=[]
+    f785 t=13100 x=68.56 y=25 v=(180,0) |v|=180 ta=0.117s nb=0 dto=0 ages=[]
+    f786 t=13116.67 x=67.7525 y=25 v=(-180,0) |v|=180 ta=0.133s nb=1 dto=1 ages=[-0.67]
+    f787 t=13133.33 x=64.6925 y=25 v=(-180,0) |v|=180 ta=0.15s nb=1 dto=1 ages=[-17.33]
+    f788 t=13150 x=61.6325 y=25 v=(-180,0) |v|=180 ta=0.167s nb=1 dto=1 ages=[-34]
+    f789 t=13166.67 x=58.7525 y=25 v=(-180,0) |v|=180 ta=0.183s nb=1 dto=1 ages=[-50.67]
+    f790 t=13183.33 x=55.6925 y=25 v=(-180,0) |v|=180 ta=0.2s nb=1 dto=1 ages=[-67.33]
+    f791 t=13200 x=52.6325 y=25 v=(-180,0) |v|=180 ta=0.217s nb=1 dto=1 ages=[-84]
+    f792 t=13216.67 x=49.7525 y=25 v=(-180,0) |v|=180 ta=0.233s nb=1 dto=1 ages=[-100.67]
+    f793 t=13233.33 x=46.6925 y=25 v=(-180,0) |v|=180 ta=0.25s nb=1 dto=1 ages=[-117.33]
+    f794 t=13250 x=43.6325 y=25 v=(-180,0) |v|=180 ta=0.267s nb=1 dto=1 ages=[-134]
+    f795 t=13266.67 x=40.7525 y=25 v=(-180,0) |v|=180 ta=0.283s nb=1 dto=1 ages=[-150.67]
+    f796 t=13283.33 x=37.6925 y=25 v=(-180,0) |v|=180 ta=0.3s nb=1 dto=1 ages=[-167.33]
+    f797 t=13300 x=34.6325 y=25 v=(-180,0) |v|=180 ta=0.317s nb=1 dto=1 ages=[-184]
+    f798 t=13316.67 x=31.7525 y=25 v=(-180,0) |v|=180 ta=0.333s nb=1 dto=1 ages=[-200.67]
+    f799 t=13333.33 x=28.6925 y=25 v=(-180,0) |v|=180 ta=0.35s nb=1 dto=1 ages=[-217.33]
+    f800 t=13350 x=25.6325 y=25 v=(-180,0) |v|=180 ta=0.367s nb=1 dto=1 ages=[-234]
+    f801 t=13366.67 x=22.7525 y=25 v=(-180,0) |v|=180 ta=0.383s nb=1 dto=1 ages=[-250.67]
+    f802 t=13383.33 x=19.6925 y=25 v=(-180,0) |v|=180 ta=0.4s nb=1 dto=1 ages=[-267.33]
+    f803 t=13400 x=16.6325 y=25 v=(-180,0) |v|=180 ta=0.417s nb=1 dto=1 ages=[-284]
+    f804 t=13416.67 x=13.7525 y=25 v=(-180,0) |v|=180 ta=0.433s nb=1 dto=1 ages=[-300.67]
+    f805 t=13433.33 x=10.6925 y=25 v=(-180,0) |v|=180 ta=0.45s nb=1 dto=1 ages=[-317.33]
+    f806 t=13450 x=7.6325 y=25 v=(-180,0) |v|=180 ta=0.467s nb=1 dto=1 ages=[-334]
+    f807 t=13466.67 x=4.7525 y=25 v=(-180,0) |v|=180 ta=0.483s nb=1 dto=1 ages=[-350.67]
+    f808 t=13483.33 x=1.6925 y=25 v=(-180,0) |v|=180 ta=0.5s nb=1 dto=1 ages=[-367.33]
+    f809 t=13500 x=2.175 y=25 v=(180,0) |v|=180 ta=0.517s nb=1 dto=1 ages=[0]
+    f810 t=13516.67 x=5.055 y=25 v=(180,0) |v|=180 ta=0.533s nb=1 dto=1 ages=[-16.67]
+    f811 t=13533.33 x=8.115 y=25 v=(180,0) |v|=180 ta=0.55s nb=1 dto=1 ages=[-33.33]
+    f812 t=13550 x=11.175 y=25 v=(180,0) |v|=180 ta=0.567s nb=1 dto=1 ages=[-50]
+    f813 t=13566.67 x=14.055 y=25 v=(180,0) |v|=180 ta=0.583s nb=1 dto=1 ages=[-66.67]
+    f814 t=13583.33 x=17.115 y=25 v=(180,0) |v|=180 ta=0.6s nb=1 dto=1 ages=[-83.33]
+    f815 t=13600 x=20.175 y=25 v=(180,0) |v|=180 ta=0.617s nb=1 dto=1 ages=[-100]
+    f816 t=13616.67 x=23.055 y=25 v=(180,0) |v|=180 ta=0.633s nb=1 dto=1 ages=[-116.67]
+    f817 t=13633.33 x=26.115 y=25 v=(180,0) |v|=180 ta=0.65s nb=1 dto=1 ages=[-133.33]
+    f818 t=13650 x=29.175 y=25 v=(180,0) |v|=180 ta=0.667s nb=1 dto=1 ages=[-150]
+    f819 t=13666.67 x=32.055 y=25 v=(180,0) |v|=180 ta=0.683s nb=1 dto=1 ages=[-166.67]
+    f820 t=13683.33 x=35.115 y=25 v=(180,0) |v|=180 ta=0.7s nb=1 dto=1 ages=[-183.33]
+    f821 t=13700 x=38.175 y=25 v=(180,0) |v|=180 ta=0.717s nb=1 dto=1 ages=[-200]
+    f822 t=13716.67 x=41.055 y=25 v=(180,0) |v|=180 ta=0.733s nb=1 dto=1 ages=[-216.67]
+    f823 t=13733.33 x=44.115 y=25 v=(180,0) |v|=180 ta=0.75s nb=1 dto=1 ages=[-233.33]
+    f824 t=13750 x=47.175 y=25 v=(180,0) |v|=180 ta=0.767s nb=1 dto=1 ages=[-250]
+    f825 t=13766.67 x=50.055 y=25 v=(180,0) |v|=180 ta=0.783s nb=1 dto=1 ages=[-266.67]
+    f826 t=13783.33 x=53.115 y=25 v=(180,0) |v|=180 ta=0.8s nb=1 dto=1 ages=[-283.33]
+    f827 t=13800  -- 无激光弹（已消失） --
+  撞墙事件（共 0）:
+  [守卫 实验④A_face前] {"gc":"in round","inRound":"in round","tanks":["tank_a"],"roundId":"rc-0d0e-6","projs":0,"mz":true}
+  !! [守卫 实验④A_face前] 回合不在进行中或坦克不全 —— 尝试 waitForRound 重等
+  [守卫 实验④A_face前 重等后] {"gc":"in round","inRound":"in round","tanks":["tank_a"],"roundId":"rc-0d0e-6","projs":0,"mz":true}
+
+=== 实验④(合成) A_face：把弹种在 (70,25) — +x 是墙 → 种子在墙面正中 ===
+  种下: {"id":"probe_seed_A_face","x":70,"y":25,"vx":0.001,"vy":0.001,"tw":35,"tc":5,"la":10,"ta":0}
+  逐帧:
+    f828 exists=1 pos=(70.5802,25) ta=0.016s nb=1 ages=[-0.67] 本帧接触=1 事件内nbMax=1 stopped=false
+    f829 exists=1 pos=(70.6425,25) ta=0.033s nb=2 ages=[-17.33,-0.33] 本帧接触=1 事件内nbMax=2 stopped=false
+    f830 exists=1 pos=(70.648,25) ta=0.05s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=3 stopped=false
+    f831 exists=1 pos=(70.6484,25.0001) ta=0.066s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f832 exists=1 pos=(70.6488,25.0001) ta=0.083s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f833 exists=1 pos=(70.649,25.0001) ta=0.1s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f834 exists=1 pos=(70.6492,25.0001) ta=0.116s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f835 exists=1 pos=(70.6494,25.0001) ta=0.133s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f836 exists=1 pos=(70.6495,25.0001) ta=0.15s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f837 exists=1 pos=(70.6496,25.0002) ta=0.166s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f838 exists=1 pos=(70.6497,25.0002) ta=0.183s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f839 exists=1 pos=(70.6498,25.0002) ta=0.2s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f840 exists=1 pos=(70.6498,25.0002) ta=0.216s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f841 exists=1 pos=(70.6499,25.0002) ta=0.233s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f842 exists=1 pos=(70.6499,25.0002) ta=0.25s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f843 exists=1 pos=(70.65,25.0003) ta=0.266s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f844 exists=1 pos=(70.65,25.0003) ta=0.283s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f845 exists=1 pos=(70.65,25.0003) ta=0.3s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f846 exists=1 pos=(70.65,25.0003) ta=0.316s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f847 exists=1 pos=(70.65,25.0003) ta=0.333s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f848 exists=1 pos=(70.65,25.0003) ta=0.35s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f849 exists=1 pos=(70.6501,25.0004) ta=0.366s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f850 exists=1 pos=(70.6501,25.0004) ta=0.383s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f851 exists=1 pos=(70.6501,25.0004) ta=0.4s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f852 exists=1 pos=(70.6501,25.0004) ta=0.416s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f853 exists=1 pos=(70.6501,25.0004) ta=0.433s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f854 exists=1 pos=(70.6501,25.0004) ta=0.45s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f855 exists=1 pos=(70.6502,25.0005) ta=0.466s nb=3 ages=[-33.67,-16.67,-0.67] 本帧接触=1 事件内nbMax=4 stopped=false
+    f856 exists=1 pos=(70.6502,25.0005) ta=0.483s nb=3 ages=[-33.33,-17.33,-0.33] 本帧接触=1 事件内nbMax=4 stopped=false
+    f857 exists=1 pos=(70.6502,25.0005) ta=0.5s nb=3 ages=[-34,-17,0] 本帧接触=1 事件内nbMax=4 stopped=false
+    f858 exists=1 pos=(70.6502,25.0005) ta=0.516s nb=2 ages=[-33.67,-16.67] 本帧接触=0 事件内nbMax=0 stopped=false
+    f859 exists=1 pos=(70.6502,25.0005) ta=0.533s nb=1 ages=[-33.33] 本帧接触=0 事件内nbMax=0 stopped=false
+    f860 exists=1 pos=(70.6502,25.0005) ta=0.55s nb=1 ages=[-50] 本帧接触=0 事件内nbMax=0 stopped=false
+    f861 exists=1 pos=(70.6502,25.0005) ta=0.566s nb=1 ages=[-66.67] 本帧接触=0 事件内nbMax=0 stopped=false
+    f862 exists=1 pos=(70.6502,25.0005) ta=0.583s nb=1 ages=[-83.33] 本帧接触=0 事件内nbMax=0 stopped=false
+    f863 exists=1 pos=(70.6502,25.0005) ta=0.6s nb=1 ages=[-100] 本帧接触=0 事件内nbMax=0 stopped=false
+    f864 exists=1 pos=(70.6502,25.0005) ta=0.616s nb=1 ages=[-116.67] 本帧接触=0 事件内nbMax=0 stopped=false
+    f865 exists=1 pos=(70.6502,25.0005) ta=0.633s nb=1 ages=[-133.33] 本帧接触=0 事件内nbMax=0 stopped=false
+    f866 exists=1 pos=(70.6502,25.0005) ta=0.65s nb=1 ages=[-150] 本帧接触=0 事件内nbMax=0 stopped=false
+    f867 exists=1 pos=(70.6502,25.0005) ta=0.666s nb=1 ages=[-166.67] 本帧接触=0 事件内nbMax=0 stopped=false
+  该弹的撞墙事件（共 30）:
+    f828 nb=1 ta=0 point=(70.0775,25) normal=(1,0) v=(0.001,0.001)
+    f829 nb=2 ta=0.016 point=(70.3676,25) normal=(1,0) v=(0.001,0.001)
+    f830 nb=3 ta=0.033 point=(70.3988,25) normal=(1,0) v=(0.001,0.001)
+    f831 nb=4 ta=0.05 point=(70.4015,25) normal=(1,0) v=(0.001,0.001)
+    f832 nb=4 ta=0.066 point=(70.4017,25.0001) normal=(1,0) v=(0.001,0.001)
+    f833 nb=4 ta=0.083 point=(70.4019,25.0001) normal=(1,0) v=(0.001,0.001)
+    f834 nb=4 ta=0.1 point=(70.402,25.0001) normal=(1,0) v=(0.001,0.001)
+    f835 nb=4 ta=0.116 point=(70.4021,25.0001) normal=(1,0) v=(0.001,0.001)
+    f836 nb=4 ta=0.133 point=(70.4022,25.0001) normal=(1,0) v=(0.001,0.001)
+    f837 nb=4 ta=0.15 point=(70.4023,25.0001) normal=(1,0) v=(0.001,0.001)
+    f838 nb=4 ta=0.166 point=(70.4023,25.0002) normal=(1,0) v=(0.001,0.001)
+    f839 nb=4 ta=0.183 point=(70.4024,25.0002) normal=(1,0) v=(0.001,0.001)
+    f840 nb=4 ta=0.2 point=(70.4024,25.0002) normal=(1,0) v=(0.001,0.001)
+    f841 nb=4 ta=0.216 point=(70.4024,25.0002) normal=(1,0) v=(0.001,0.001)
+    f842 nb=4 ta=0.233 point=(70.4024,25.0002) normal=(1,0) v=(0.001,0.001)
+    f843 nb=4 ta=0.25 point=(70.4025,25.0002) normal=(1,0) v=(0.001,0.001)
+    f844 nb=4 ta=0.266 point=(70.4025,25.0003) normal=(1,0) v=(0.001,0.001)
+    f845 nb=4 ta=0.283 point=(70.4025,25.0003) normal=(1,0) v=(0.001,0.001)
+    f846 nb=4 ta=0.3 point=(70.4025,25.0003) normal=(1,0) v=(0.001,0.001)
+    f847 nb=4 ta=0.316 point=(70.4025,25.0003) normal=(1,0) v=(0.001,0.001)
+    f848 nb=4 ta=0.333 point=(70.4025,25.0003) normal=(1,0) v=(0.001,0.001)
+    f849 nb=4 ta=0.35 point=(70.4025,25.0003) normal=(1,0) v=(0.001,0.001)
+    f850 nb=4 ta=0.366 point=(70.4025,25.0004) normal=(1,0) v=(0.001,0.001)
+    f851 nb=4 ta=0.383 point=(70.4025,25.0004) normal=(1,0) v=(0.001,0.001)
+  [守卫 实验④B_corner前] {"gc":"in round","inRound":"in round","tanks":["tank_a"],"roundId":"rc-0d0e-6","projs":1,"mz":true}
+  !! [守卫 实验④B_corner前] 回合不在进行中或坦克不全 —— 尝试 waitForRound 重等
+  [守卫 实验④B_corner前 重等后] {"gc":"in round","inRound":"in round","tanks":["tank_a"],"roundId":"rc-0d0e-6","projs":1,"mz":true}
+
+=== 实验④(合成) B_corner：把弹种在 (50,10) — 左侧+上方都是墙 → 种子在两面墙的内角交点 ===
+  种下: {"id":"probe_seed_B_corner","x":50,"y":10,"vx":0.001,"vy":0.001,"tw":35,"tc":5,"la":10,"ta":0}
+  逐帧:
+    f868 exists=1 pos=(50.0194,9.9806) ta=0.017s nb=2 ages=[-0.33,-0.33] 本帧接触=2 事件内nbMax=2 stopped=false
+    f869 exists=1 pos=(50.0197,9.9804) ta=0.034s nb=4 ages=[-17,-17,0,0] 本帧接触=2 事件内nbMax=4 stopped=false
+    f870 exists=1 pos=(50.0197,9.9804) ta=0.05s nb=6 ages=[-33.67,-33.67,-16.67,-16.67,-0.67,-0.67] 本帧接触=2 事件内nbMax=6 stopped=false
+    f871 exists=0 (弹已消失=done() 触发)
+  该弹的撞墙事件（共 6）:
+    f868 nb=1 ta=0 point=(50.0866,9.9134) normal=(-0.7071,0.7071) v=(0.001,0.001)
+    f868 nb=2 ta=0 point=(49.9134,10.0866) normal=(0.7071,-0.7071) v=(0.001,0.001)
+    f869 nb=3 ta=0.017 point=(50.0963,9.9037) normal=(-0.7071,0.7071) v=(0.001,0.001)
+    f869 nb=4 ta=0.017 point=(49.9231,10.0769) normal=(0.7071,-0.7071) v=(0.001,0.001)
+    f870 nb=5 ta=0.034 point=(50.0965,9.9036) normal=(-0.7071,0.7071) v=(0.001,0.001)
+    f870 nb=6 ta=0.034 point=(49.9232,10.0768) normal=(0.7071,-0.7071) v=(0.001,0.001)
+=== 事件流汇总 ===
+  {"round:weapon fired":3,"round:projectile created":5,"round:tank tank collision":600,"round:projectile maze collision":60,"round:collectible created":2,"round:projectile timeout":3,"round:tank maze collision":8,"round:tank killed":1,"round:projectile destroyed":1,"round:tank deadly collision":1,"round:weapon created":1,"round:weapon destroyed":1}
+  撞墙/撞盾事件按弹分组：
+    b-0d0e-9 (ty=-1): n=21 frames=[157,186,215,244,273,302,331,360,389,418,447,476,505,534,563,592,621,650,679,708,737] 帧间隔=[29,29,29,29,29,29,29,29,29,29,29,29,29,29,29,29,29,29,29,29]
+    b-0d0e-12 (ty=-1): n=1 frames=[772] 帧间隔=[]
+    l-0d0e-14 (ty=0): n=2 frames=[786,809] 帧间隔=[23]
+    probe_seed_A_face (ty=-1): n=30 frames=[828,829,830,831,832,833,834,835,836,837,838,839,840,841,842,843,844,845,846,847,848,849,850,851,852,853] 帧间隔=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    probe_seed_B_corner (ty=-1): n=6 frames=[868,868,869,869,870,870] 帧间隔=[0,1,0,1,0]
+  非撞墙事件明细：
+    {"f":151,"t":2516.666666666666,"k":"round","evt":"weapon fired","playerId":"tank_a","objId":"bw-0d0e-7"}
+    {"f":151,"t":2516.666666666666,"k":"round","evt":"projectile created","playerId":"tank_a","objId":"b-0d0e-9"}
+    {"f":152,"t":2549.999999999999,"k":"round","evt":"tank tank collision"}
+    {"f":153,"t":2566.6666666666656,"k":"round","evt":"tank tank collision"}
+    {"f":154,"t":2583.333333333332,"k":"round","evt":"tank tank collision"}
+    {"f":155,"t":2599.9999999999986,"k":"round","evt":"tank tank collision"}
+    {"f":156,"t":2616.666666666665,"k":"round","evt":"tank tank collision"}
+    {"f":157,"t":2633.3333333333317,"k":"round","evt":"tank tank collision"}
+    {"f":158,"t":2649.999999999998,"k":"round","evt":"tank tank collision"}
+    {"f":159,"t":2666.6666666666647,"k":"round","evt":"tank tank collision"}
+    {"f":160,"t":2683.333333333331,"k":"round","evt":"tank tank collision"}
+    {"f":161,"t":2699.9999999999977,"k":"round","evt":"tank tank collision"}
+    {"f":162,"t":2716.6666666666642,"k":"round","evt":"tank tank collision"}
+    {"f":163,"t":2733.3333333333308,"k":"round","evt":"tank tank collision"}
+    {"f":164,"t":2749.9999999999973,"k":"round","evt":"tank tank collision"}
+    {"f":165,"t":2766.666666666664,"k":"round","evt":"tank tank collision"}
+    {"f":166,"t":2783.3333333333303,"k":"round","evt":"tank tank collision"}
+    {"f":167,"t":2799.999999999997,"k":"round","evt":"tank tank collision"}
+    {"f":168,"t":2816.6666666666633,"k":"round","evt":"tank tank collision"}
+    {"f":169,"t":2833.33333333333,"k":"round","evt":"tank tank collision"}
+    {"f":170,"t":2849.9999999999964,"k":"round","evt":"tank tank collision"}
+    {"f":171,"t":2866.666666666663,"k":"round","evt":"tank tank collision"}
+    {"f":172,"t":2883.3333333333294,"k":"round","evt":"tank tank collision"}
+    {"f":173,"t":2899.999999999996,"k":"round","evt":"tank tank collision"}
+    {"f":174,"t":2916.6666666666624,"k":"round","evt":"tank tank collision"}
+    {"f":175,"t":2933.333333333329,"k":"round","evt":"tank tank collision"}
+    {"f":176,"t":2949.9999999999955,"k":"round","evt":"tank tank collision"}
+    {"f":177,"t":2966.666666666662,"k":"round","evt":"tank tank collision"}
+    {"f":178,"t":2983.3333333333285,"k":"round","evt":"tank tank collision"}
+    {"f":179,"t":2999.999999999995,"k":"round","evt":"tank tank collision"}
+    {"f":180,"t":3016.6666666666615,"k":"round","evt":"tank tank collision"}
+    {"f":181,"t":3033.333333333328,"k":"round","evt":"tank tank collision"}
+    {"f":182,"t":3049.9999999999945,"k":"round","evt":"tank tank collision"}
+    {"f":183,"t":3066.666666666661,"k":"round","evt":"tank tank collision"}
+    {"f":184,"t":3083.3333333333276,"k":"round","evt":"tank tank collision"}
+    {"f":185,"t":3099.999999999994,"k":"round","evt":"tank tank collision"}
+    {"f":186,"t":3116.6666666666606,"k":"round","evt":"tank tank collision"}
+    {"f":187,"t":3133.333333333327,"k":"round","evt":"tank tank collision"}
+    {"f":188,"t":3149.9999999999936,"k":"round","evt":"tank tank collision"}
+    {"f":189,"t":3166.66666666666,"k":"round","evt":"tank tank collision"}
+    {"f":190,"t":3183.3333333333267,"k":"round","evt":"tank tank collision"}
+    {"f":191,"t":3199.999999999993,"k":"round","evt":"tank tank collision"}
+    {"f":192,"t":3216.6666666666597,"k":"round","evt":"tank tank collision"}
+    {"f":193,"t":3233.333333333326,"k":"round","evt":"tank tank collision"}
+    {"f":194,"t":3249.9999999999927,"k":"round","evt":"tank tank collision"}
+    {"f":195,"t":3266.6666666666592,"k":"round","evt":"tank tank collision"}
+    {"f":196,"t":3283.3333333333258,"k":"round","evt":"tank tank collision"}
+    {"f":197,"t":3299.9999999999923,"k":"round","evt":"tank tank collision"}
+    {"f":198,"t":3316.666666666659,"k":"round","evt":"tank tank collision"}
+    {"f":199,"t":3333.3333333333253,"k":"round","evt":"tank tank collision"}
+    {"f":200,"t":3349.999999999992,"k":"round","evt":"tank tank collision"}
+    {"f":201,"t":3366.6666666666583,"k":"round","evt":"tank tank collision"}
+    {"f":202,"t":3383.333333333325,"k":"round","evt":"tank tank collision"}
+    {"f":203,"t":3399.9999999999914,"k":"round","evt":"tank tank collision"}
+    {"f":204,"t":3416.666666666658,"k":"round","evt":"tank tank collision"}
+    {"f":205,"t":3433.3333333333244,"k":"round","evt":"tank tank collision"}
+    {"f":206,"t":3449.999999999991,"k":"round","evt":"tank tank collision"}
+    {"f":207,"t":3466.6666666666574,"k":"round","evt":"tank tank collision"}
+    {"f":208,"t":3483.333333333324,"k":"round","evt":"tank tank collision"}
+    {"f":209,"t":3499.9999999999905,"k":"round","evt":"tank tank collision"}
+    {"f":210,"t":3516.666666666657,"k":"round","evt":"tank tank collision"}
+    {"f":211,"t":3533.3333333333235,"k":"round","evt":"tank tank collision"}
+    {"f":212,"t":3549.99999999999,"k":"round","evt":"tank tank collision"}
+    {"f":213,"t":3566.6666666666565,"k":"round","evt":"tank tank collision"}
+    {"f":214,"t":3583.333333333323,"k":"round","evt":"tank tank collision"}
+    {"f":215,"t":3599.9999999999895,"k":"round","evt":"tank tank collision"}
+    {"f":216,"t":3616.666666666656,"k":"round","evt":"tank tank collision"}
+    {"f":217,"t":3633.3333333333226,"k":"round","evt":"tank tank collision"}
+    {"f":218,"t":3649.999999999989,"k":"round","evt":"tank tank collision"}
+    {"f":219,"t":3666.6666666666556,"k":"round","evt":"tank tank collision"}
+    {"f":220,"t":3683.333333333322,"k":"round","evt":"tank tank collision"}
+    {"f":221,"t":3699.9999999999886,"k":"round","evt":"tank tank collision"}
+    {"f":222,"t":3716.666666666655,"k":"round","evt":"tank tank collision"}
+    {"f":223,"t":3733.3333333333217,"k":"round","evt":"tank tank collision"}
+    {"f":224,"t":3749.999999999988,"k":"round","evt":"tank tank collision"}
+    {"f":225,"t":3766.6666666666547,"k":"round","evt":"tank tank collision"}
+    {"f":226,"t":3783.333333333321,"k":"round","evt":"tank tank collision"}
+    {"f":227,"t":3799.9999999999877,"k":"round","evt":"tank tank collision"}
+    {"f":228,"t":3816.6666666666542,"k":"round","evt":"tank tank collision"}
+    {"f":229,"t":3833.3333333333208,"k":"round","evt":"tank tank collision"}
+    {"f":230,"t":3849.9999999999873,"k":"round","evt":"tank tank collision"}
+    {"f":231,"t":3866.666666666654,"k":"round","evt":"tank tank collision"}
+    {"f":232,"t":3883.3333333333203,"k":"round","evt":"tank tank collision"}
+    {"f":233,"t":3899.999999999987,"k":"round","evt":"tank tank collision"}
+    {"f":234,"t":3916.6666666666533,"k":"round","evt":"tank tank collision"}
+    {"f":235,"t":3933.33333333332,"k":"round","evt":"tank tank collision"}
+    {"f":236,"t":3949.9999999999864,"k":"round","evt":"tank tank collision"}
+    {"f":237,"t":3966.666666666653,"k":"round","evt":"tank tank collision"}
+    {"f":238,"t":3983.3333333333194,"k":"round","evt":"tank tank collision"}
+    {"f":239,"t":3999.999999999986,"k":"round","evt":"tank tank collision"}
+    {"f":240,"t":4016.6666666666524,"k":"round","evt":"tank tank collision"}
+    {"f":241,"t":4033.333333333319,"k":"round","evt":"tank tank collision"}
+    {"f":242,"t":4049.9999999999854,"k":"round","evt":"tank tank collision"}
+    {"f":243,"t":4066.666666666652,"k":"round","evt":"tank tank collision"}
+    {"f":244,"t":4083.3333333333185,"k":"round","evt":"tank tank collision"}
+    {"f":245,"t":4099.999999999985,"k":"round","evt":"tank tank collision"}
+    {"f":246,"t":4116.666666666652,"k":"round","evt":"tank tank collision"}
+    {"f":247,"t":4133.333333333319,"k":"round","evt":"tank tank collision"}
+    {"f":248,"t":4149.999999999986,"k":"round","evt":"tank tank collision"}
+    {"f":249,"t":4166.666666666653,"k":"round","evt":"tank tank collision"}
+    {"f":250,"t":4183.33333333332,"k":"round","evt":"tank tank collision"}
+    {"f":251,"t":4199.999999999987,"k":"round","evt":"tank tank collision"}
+    {"f":252,"t":4216.666666666654,"k":"round","evt":"tank tank collision"}
+    {"f":253,"t":4233.333333333321,"k":"round","evt":"tank tank collision"}
+    {"f":254,"t":4249.999999999988,"k":"round","evt":"tank tank collision"}
+    {"f":255,"t":4266.666666666655,"k":"round","evt":"tank tank collision"}
+    {"f":256,"t":4283.333333333322,"k":"round","evt":"tank tank collision"}
+    {"f":257,"t":4299.999999999989,"k":"round","evt":"tank tank collision"}
+    {"f":258,"t":4316.666666666656,"k":"round","evt":"tank tank collision"}
+    {"f":259,"t":4333.333333333323,"k":"round","evt":"tank tank collision"}
+    {"f":260,"t":4349.99999999999,"k":"round","evt":"tank tank collision"}
+    {"f":261,"t":4366.666666666657,"k":"round","evt":"tank tank collision"}
+    {"f":262,"t":4383.333333333324,"k":"round","evt":"tank tank collision"}
+    {"f":263,"t":4399.999999999991,"k":"round","evt":"tank tank collision"}
+    {"f":264,"t":4416.666666666658,"k":"round","evt":"tank tank collision"}
+    {"f":265,"t":4433.333333333325,"k":"round","evt":"tank tank collision"}
+    {"f":266,"t":4449.999999999992,"k":"round","evt":"tank tank collision"}
+    {"f":267,"t":4466.666666666659,"k":"round","evt":"tank tank collision"}
+    {"f":268,"t":4483.333333333326,"k":"round","evt":"tank tank collision"}
+    {"f":269,"t":4499.999999999993,"k":"round","evt":"tank tank collision"}
+    {"f":270,"t":4516.66666666666,"k":"round","evt":"tank tank collision"}
+    {"f":271,"t":4533.333333333327,"k":"round","evt":"tank tank collision"}
+    {"f":272,"t":4549.999999999994,"k":"round","evt":"tank tank collision"}
+    {"f":273,"t":4566.666666666661,"k":"round","evt":"tank tank collision"}
+    {"f":274,"t":4583.333333333328,"k":"round","evt":"tank tank collision"}
+    {"f":275,"t":4599.9999999999945,"k":"round","evt":"tank tank collision"}
+    {"f":276,"t":4616.6666666666615,"k":"round","evt":"tank tank collision"}
+    {"f":277,"t":4633.3333333333285,"k":"round","evt":"tank tank collision"}
+    {"f":278,"t":4649.999999999995,"k":"round","evt":"tank tank collision"}
+    {"f":279,"t":4666.666666666662,"k":"round","evt":"tank tank collision"}
+    {"f":280,"t":4683.333333333329,"k":"round","evt":"tank tank collision"}
+    {"f":281,"t":4699.999999999996,"k":"round","evt":"tank tank collision"}
+    {"f":282,"t":4716.666666666663,"k":"round","evt":"tank tank collision"}
+    {"f":283,"t":4733.33333333333,"k":"round","evt":"tank tank collision"}
+    {"f":284,"t":4749.999999999997,"k":"round","evt":"tank tank collision"}
+    {"f":285,"t":4766.666666666664,"k":"round","evt":"tank tank collision"}
+    {"f":286,"t":4783.333333333331,"k":"round","evt":"tank tank collision"}
+    {"f":287,"t":4799.999999999998,"k":"round","evt":"tank tank collision"}
+    {"f":288,"t":4816.666666666665,"k":"round","evt":"tank tank collision"}
+    {"f":289,"t":4833.333333333332,"k":"round","evt":"tank tank collision"}
+    {"f":290,"t":4849.999999999999,"k":"round","evt":"tank tank collision"}
+    {"f":291,"t":4866.666666666666,"k":"round","evt":"tank tank collision"}
+    {"f":292,"t":4883.333333333333,"k":"round","evt":"tank tank collision"}
+    {"f":293,"t":4900,"k":"round","evt":"tank tank collision"}
+    {"f":294,"t":4916.666666666667,"k":"round","evt":"tank tank collision"}
+    {"f":295,"t":4933.333333333334,"k":"round","evt":"tank tank collision"}
+    {"f":296,"t":4950.000000000001,"k":"round","evt":"tank tank collision"}
+    {"f":297,"t":4966.666666666668,"k":"round","evt":"tank tank collision"}
+    {"f":298,"t":4983.333333333335,"k":"round","evt":"tank tank collision"}
+    {"f":299,"t":5000.000000000002,"k":"round","evt":"tank tank collision"}
+    {"f":300,"t":5016.666666666669,"k":"round","evt":"tank tank collision"}
+    {"f":301,"t":5033.333333333336,"k":"round","evt":"tank tank collision"}
+    {"f":302,"t":5050.000000000003,"k":"round","evt":"tank tank collision"}
+    {"f":303,"t":5066.66666666667,"k":"round","evt":"tank tank collision"}
+    {"f":304,"t":5083.333333333337,"k":"round","evt":"tank tank collision"}
+    {"f":305,"t":5100.000000000004,"k":"round","evt":"tank tank collision"}
+    {"f":306,"t":5116.666666666671,"k":"round","evt":"tank tank collision"}
+    {"f":307,"t":5133.333333333338,"k":"round","evt":"tank tank collision"}
+    {"f":308,"t":5150.000000000005,"k":"round","evt":"tank tank collision"}
+    {"f":309,"t":5166.6666666666715,"k":"round","evt":"tank tank collision"}
+    {"f":310,"t":5183.3333333333385,"k":"round","evt":"tank tank collision"}
+    {"f":311,"t":5200.0000000000055,"k":"round","evt":"tank tank collision"}
+    {"f":312,"t":5216.666666666672,"k":"round","evt":"tank tank collision"}
+    {"f":313,"t":5233.333333333339,"k":"round","evt":"tank tank collision"}
+    {"f":314,"t":5250.000000000006,"k":"round","evt":"tank tank collision"}
+    {"f":315,"t":5266.666666666673,"k":"round","evt":"tank tank collision"}
+    {"f":316,"t":5283.33333333334,"k":"round","evt":"tank tank collision"}
+    {"f":317,"t":5300.000000000007,"k":"round","evt":"tank tank collision"}
+    {"f":318,"t":5316.666666666674,"k":"round","evt":"tank tank collision"}
+    {"f":319,"t":5333.333333333341,"k":"round","evt":"tank tank collision"}
+    {"f":320,"t":5350.000000000008,"k":"round","evt":"tank tank collision"}
+    {"f":321,"t":5366.666666666675,"k":"round","evt":"tank tank collision"}
+    {"f":322,"t":5383.333333333342,"k":"round","evt":"tank tank collision"}
+    {"f":323,"t":5400.000000000009,"k":"round","evt":"tank tank collision"}
+    {"f":324,"t":5416.666666666676,"k":"round","evt":"tank tank collision"}
+    {"f":325,"t":5433.333333333343,"k":"round","evt":"tank tank collision"}
+    {"f":326,"t":5450.00000000001,"k":"round","evt":"tank tank collision"}
+    {"f":327,"t":5466.666666666677,"k":"round","evt":"tank tank collision"}
+    {"f":328,"t":5483.333333333344,"k":"round","evt":"tank tank collision"}
+    {"f":329,"t":5500.000000000011,"k":"round","evt":"tank tank collision"}
+    {"f":330,"t":5516.666666666678,"k":"round","evt":"collectible created","objId":"c-0d0e-10"}
+    {"f":330,"t":5516.666666666678,"k":"round","evt":"tank tank collision"}
+    {"f":331,"t":5533.333333333345,"k":"round","evt":"tank tank collision"}
+    {"f":332,"t":5550.000000000012,"k":"round","evt":"tank tank collision"}
+    {"f":333,"t":5566.666666666679,"k":"round","evt":"tank tank collision"}
+    {"f":334,"t":5583.333333333346,"k":"round","evt":"tank tank collision"}
+    {"f":335,"t":5600.000000000013,"k":"round","evt":"tank tank collision"}
+    {"f":336,"t":5616.66666666668,"k":"round","evt":"tank tank collision"}
+    {"f":337,"t":5633.333333333347,"k":"round","evt":"tank tank collision"}
+    {"f":338,"t":5650.000000000014,"k":"round","evt":"tank tank collision"}
+    {"f":339,"t":5666.666666666681,"k":"round","evt":"tank tank collision"}
+    {"f":340,"t":5683.333333333348,"k":"round","evt":"tank tank collision"}
+    {"f":341,"t":5700.000000000015,"k":"round","evt":"tank tank collision"}
+    {"f":342,"t":5716.6666666666815,"k":"round","evt":"tank tank collision"}
+    {"f":343,"t":5733.3333333333485,"k":"round","evt":"tank tank collision"}
+    {"f":344,"t":5750.0000000000155,"k":"round","evt":"tank tank collision"}
+    {"f":345,"t":5766.666666666682,"k":"round","evt":"tank tank collision"}
+    {"f":346,"t":5783.333333333349,"k":"round","evt":"tank tank collision"}
+    {"f":347,"t":5800.000000000016,"k":"round","evt":"tank tank collision"}
+    {"f":348,"t":5816.666666666683,"k":"round","evt":"tank tank collision"}
+    {"f":349,"t":5833.33333333335,"k":"round","evt":"tank tank collision"}
+    {"f":350,"t":5850.000000000017,"k":"round","evt":"tank tank collision"}
+    {"f":351,"t":5866.666666666684,"k":"round","evt":"tank tank collision"}
+    {"f":352,"t":5883.333333333351,"k":"round","evt":"tank tank collision"}
+    {"f":353,"t":5900.000000000018,"k":"round","evt":"tank tank collision"}
+    {"f":354,"t":5916.666666666685,"k":"round","evt":"tank tank collision"}
+    {"f":355,"t":5933.333333333352,"k":"round","evt":"tank tank collision"}
+    {"f":356,"t":5950.000000000019,"k":"round","evt":"tank tank collision"}
+    {"f":357,"t":5966.666666666686,"k":"round","evt":"tank tank collision"}
+    {"f":358,"t":5983.333333333353,"k":"round","evt":"tank tank collision"}
+    {"f":359,"t":6000.00000000002,"k":"round","evt":"tank tank collision"}
+    {"f":360,"t":6016.666666666687,"k":"round","evt":"tank tank collision"}
+    {"f":361,"t":6033.333333333354,"k":"round","evt":"tank tank collision"}
+    {"f":362,"t":6050.000000000021,"k":"round","evt":"tank tank collision"}
+    {"f":363,"t":6066.666666666688,"k":"round","evt":"tank tank collision"}
+    {"f":364,"t":6083.333333333355,"k":"round","evt":"tank tank collision"}
+    {"f":365,"t":6100.000000000022,"k":"round","evt":"tank tank collision"}
+    {"f":366,"t":6116.666666666689,"k":"round","evt":"tank tank collision"}
+    {"f":367,"t":6133.333333333356,"k":"round","evt":"tank tank collision"}
+    {"f":368,"t":6150.000000000023,"k":"round","evt":"tank tank collision"}
+    {"f":369,"t":6166.66666666669,"k":"round","evt":"tank tank collision"}
+    {"f":370,"t":6183.333333333357,"k":"round","evt":"tank tank collision"}
+    {"f":371,"t":6200.000000000024,"k":"round","evt":"tank tank collision"}
+    {"f":372,"t":6216.666666666691,"k":"round","evt":"tank tank collision"}
+    {"f":373,"t":6233.333333333358,"k":"round","evt":"tank tank collision"}
+    {"f":374,"t":6250.000000000025,"k":"round","evt":"tank tank collision"}
+    {"f":375,"t":6266.6666666666915,"k":"round","evt":"tank tank collision"}
+    {"f":376,"t":6283.3333333333585,"k":"round","evt":"tank tank collision"}
+    {"f":377,"t":6300.0000000000255,"k":"round","evt":"tank tank collision"}
+    {"f":378,"t":6316.666666666692,"k":"round","evt":"tank tank collision"}
+    {"f":379,"t":6333.333333333359,"k":"round","evt":"tank tank collision"}
+    {"f":380,"t":6350.000000000026,"k":"round","evt":"tank tank collision"}
+    {"f":381,"t":6366.666666666693,"k":"round","evt":"tank tank collision"}
+    {"f":382,"t":6383.33333333336,"k":"round","evt":"tank tank collision"}
+    {"f":383,"t":6400.000000000027,"k":"round","evt":"tank tank collision"}
+    {"f":384,"t":6416.666666666694,"k":"round","evt":"tank tank collision"}
+    {"f":385,"t":6433.333333333361,"k":"round","evt":"tank tank collision"}
+    {"f":386,"t":6450.000000000028,"k":"round","evt":"tank tank collision"}
+    {"f":387,"t":6466.666666666695,"k":"round","evt":"tank tank collision"}
+    {"f":388,"t":6483.333333333362,"k":"round","evt":"tank tank collision"}
+    {"f":389,"t":6500.000000000029,"k":"round","evt":"tank tank collision"}
+    {"f":390,"t":6516.666666666696,"k":"round","evt":"tank tank collision"}
+    {"f":391,"t":6533.333333333363,"k":"round","evt":"tank tank collision"}
+    {"f":392,"t":6550.00000000003,"k":"round","evt":"tank tank collision"}
+    {"f":393,"t":6566.666666666697,"k":"round","evt":"tank tank collision"}
+    {"f":394,"t":6583.333333333364,"k":"round","evt":"tank tank collision"}
+    {"f":395,"t":6600.000000000031,"k":"round","evt":"tank tank collision"}
+    {"f":396,"t":6616.666666666698,"k":"round","evt":"tank tank collision"}
+    {"f":397,"t":6633.333333333365,"k":"round","evt":"tank tank collision"}
+    {"f":398,"t":6650.000000000032,"k":"round","evt":"tank tank collision"}
+    {"f":399,"t":6666.666666666699,"k":"round","evt":"tank tank collision"}
+    {"f":400,"t":6683.333333333366,"k":"round","evt":"tank tank collision"}
+    {"f":401,"t":6700.000000000033,"k":"round","evt":"tank tank collision"}
+    {"f":402,"t":6716.6666666667,"k":"round","evt":"tank tank collision"}
+    {"f":403,"t":6733.333333333367,"k":"round","evt":"tank tank collision"}
+    {"f":404,"t":6750.000000000034,"k":"round","evt":"tank tank collision"}
+    {"f":405,"t":6766.666666666701,"k":"round","evt":"tank tank collision"}
+    {"f":406,"t":6783.333333333368,"k":"round","evt":"tank tank collision"}
+    {"f":407,"t":6800.000000000035,"k":"round","evt":"tank tank collision"}
+    {"f":408,"t":6816.6666666667015,"k":"round","evt":"tank tank collision"}
+    {"f":409,"t":6833.3333333333685,"k":"round","evt":"tank tank collision"}
+    {"f":410,"t":6850.0000000000355,"k":"round","evt":"tank tank collision"}
+    {"f":411,"t":6866.666666666702,"k":"round","evt":"tank tank collision"}
+    {"f":412,"t":6883.333333333369,"k":"round","evt":"tank tank collision"}
+    {"f":413,"t":6900.000000000036,"k":"round","evt":"tank tank collision"}
+    {"f":414,"t":6916.666666666703,"k":"round","evt":"tank tank collision"}
+    {"f":415,"t":6933.33333333337,"k":"round","evt":"tank tank collision"}
+    {"f":416,"t":6950.000000000037,"k":"round","evt":"tank tank collision"}
+    {"f":417,"t":6966.666666666704,"k":"round","evt":"tank tank collision"}
+    {"f":418,"t":6983.333333333371,"k":"round","evt":"tank tank collision"}
+    {"f":419,"t":7000.000000000038,"k":"round","evt":"tank tank collision"}
+    {"f":420,"t":7016.666666666705,"k":"round","evt":"tank tank collision"}
+    {"f":421,"t":7033.333333333372,"k":"round","evt":"tank tank collision"}
+    {"f":422,"t":7050.000000000039,"k":"round","evt":"tank tank collision"}
+    {"f":423,"t":7066.666666666706,"k":"round","evt":"tank tank collision"}
+    {"f":424,"t":7083.333333333373,"k":"round","evt":"tank tank collision"}
+    {"f":425,"t":7100.00000000004,"k":"round","evt":"tank tank collision"}
+    {"f":426,"t":7116.666666666707,"k":"round","evt":"tank tank collision"}
+    {"f":427,"t":7133.333333333374,"k":"round","evt":"tank tank collision"}
+    {"f":428,"t":7150.000000000041,"k":"round","evt":"tank tank collision"}
+    {"f":429,"t":7166.666666666708,"k":"round","evt":"tank tank collision"}
+    {"f":430,"t":7183.333333333375,"k":"round","evt":"tank tank collision"}
+    {"f":431,"t":7200.000000000042,"k":"round","evt":"tank tank collision"}
+    {"f":432,"t":7216.666666666709,"k":"round","evt":"tank tank collision"}
+    {"f":433,"t":7233.333333333376,"k":"round","evt":"tank tank collision"}
+    {"f":434,"t":7250.000000000043,"k":"round","evt":"tank tank collision"}
+    {"f":435,"t":7266.66666666671,"k":"round","evt":"tank tank collision"}
+    {"f":436,"t":7283.333333333377,"k":"round","evt":"tank tank collision"}
+    {"f":437,"t":7300.000000000044,"k":"round","evt":"tank tank collision"}
+    {"f":438,"t":7316.666666666711,"k":"round","evt":"tank tank collision"}
+    {"f":439,"t":7333.333333333378,"k":"round","evt":"tank tank collision"}
+    {"f":440,"t":7350.000000000045,"k":"round","evt":"tank tank collision"}
+    {"f":441,"t":7366.6666666667115,"k":"round","evt":"tank tank collision"}
+    {"f":442,"t":7383.3333333333785,"k":"round","evt":"tank tank collision"}
+    {"f":443,"t":7400.0000000000455,"k":"round","evt":"tank tank collision"}
+    {"f":444,"t":7416.666666666712,"k":"round","evt":"tank tank collision"}
+    {"f":445,"t":7433.333333333379,"k":"round","evt":"tank tank collision"}
+    {"f":446,"t":7450.000000000046,"k":"round","evt":"tank tank collision"}
+    {"f":447,"t":7466.666666666713,"k":"round","evt":"tank tank collision"}
+    {"f":448,"t":7483.33333333338,"k":"round","evt":"tank tank collision"}
+    {"f":449,"t":7500.000000000047,"k":"round","evt":"tank tank collision"}
+    {"f":450,"t":7516.666666666714,"k":"round","evt":"tank tank collision"}
+    {"f":451,"t":7533.333333333381,"k":"round","evt":"tank tank collision"}
+    {"f":452,"t":7550.000000000048,"k":"round","evt":"tank tank collision"}
+    {"f":453,"t":7566.666666666715,"k":"round","evt":"tank tank collision"}
+    {"f":454,"t":7583.333333333382,"k":"round","evt":"tank tank collision"}
+    {"f":455,"t":7600.000000000049,"k":"round","evt":"tank tank collision"}
+    {"f":456,"t":7616.666666666716,"k":"round","evt":"tank tank collision"}
+    {"f":457,"t":7633.333333333383,"k":"round","evt":"tank tank collision"}
+    {"f":458,"t":7650.00000000005,"k":"round","evt":"tank tank collision"}
+    {"f":459,"t":7666.666666666717,"k":"round","evt":"tank tank collision"}
+    {"f":460,"t":7683.333333333384,"k":"round","evt":"tank tank collision"}
+    {"f":461,"t":7700.000000000051,"k":"round","evt":"tank tank collision"}
+    {"f":462,"t":7716.666666666718,"k":"round","evt":"tank tank collision"}
+    {"f":463,"t":7733.333333333385,"k":"round","evt":"tank tank collision"}
+    {"f":464,"t":7750.000000000052,"k":"round","evt":"tank tank collision"}
+    {"f":465,"t":7766.666666666719,"k":"round","evt":"tank tank collision"}
+    {"f":466,"t":7783.333333333386,"k":"round","evt":"tank tank collision"}
+    {"f":467,"t":7800.000000000053,"k":"round","evt":"tank tank collision"}
+    {"f":468,"t":7816.66666666672,"k":"round","evt":"tank tank collision"}
+    {"f":469,"t":7833.333333333387,"k":"round","evt":"tank tank collision"}
+    {"f":470,"t":7850.000000000054,"k":"round","evt":"tank tank collision"}
+    {"f":471,"t":7866.666666666721,"k":"round","evt":"tank tank collision"}
+    {"f":472,"t":7883.333333333388,"k":"round","evt":"tank tank collision"}
+    {"f":473,"t":7900.000000000055,"k":"round","evt":"tank tank collision"}
+    {"f":474,"t":7916.6666666667215,"k":"round","evt":"tank tank collision"}
+    {"f":475,"t":7933.3333333333885,"k":"round","evt":"tank tank collision"}
+    {"f":476,"t":7950.0000000000555,"k":"round","evt":"tank tank collision"}
+    {"f":477,"t":7966.666666666722,"k":"round","evt":"tank tank collision"}
+    {"f":478,"t":7983.333333333389,"k":"round","evt":"tank tank collision"}
+    {"f":479,"t":8000.000000000056,"k":"round","evt":"tank tank collision"}
+    {"f":480,"t":8016.666666666723,"k":"round","evt":"tank tank collision"}
+    {"f":481,"t":8033.33333333339,"k":"round","evt":"tank tank collision"}
+    {"f":482,"t":8050.000000000057,"k":"round","evt":"tank tank collision"}
+    {"f":483,"t":8066.666666666724,"k":"round","evt":"tank tank collision"}
+    {"f":484,"t":8083.333333333391,"k":"round","evt":"tank tank collision"}
+    {"f":485,"t":8100.000000000058,"k":"round","evt":"tank tank collision"}
+    {"f":486,"t":8116.666666666725,"k":"round","evt":"tank tank collision"}
+    {"f":487,"t":8133.333333333392,"k":"round","evt":"tank tank collision"}
+    {"f":488,"t":8150.000000000059,"k":"round","evt":"tank tank collision"}
+    {"f":489,"t":8166.666666666726,"k":"round","evt":"tank tank collision"}
+    {"f":490,"t":8183.333333333393,"k":"round","evt":"tank tank collision"}
+    {"f":491,"t":8200.00000000006,"k":"round","evt":"tank tank collision"}
+    {"f":492,"t":8216.666666666726,"k":"round","evt":"tank tank collision"}
+    {"f":493,"t":8233.333333333392,"k":"round","evt":"tank tank collision"}
+    {"f":494,"t":8250.000000000058,"k":"round","evt":"tank tank collision"}
+    {"f":495,"t":8266.666666666724,"k":"round","evt":"tank tank collision"}
+    {"f":496,"t":8283.33333333339,"k":"round","evt":"tank tank collision"}
+    {"f":497,"t":8300.000000000056,"k":"round","evt":"tank tank collision"}
+    {"f":498,"t":8316.666666666722,"k":"round","evt":"tank tank collision"}
+    {"f":499,"t":8333.333333333389,"k":"round","evt":"tank tank collision"}
+    {"f":500,"t":8350.000000000055,"k":"round","evt":"tank tank collision"}
+    {"f":501,"t":8366.66666666672,"k":"round","evt":"tank tank collision"}
+    {"f":502,"t":8383.333333333387,"k":"round","evt":"tank tank collision"}
+    {"f":503,"t":8400.000000000053,"k":"round","evt":"tank tank collision"}
+    {"f":504,"t":8416.666666666719,"k":"round","evt":"tank tank collision"}
+    {"f":505,"t":8433.333333333385,"k":"round","evt":"tank tank collision"}
+    {"f":506,"t":8450.000000000051,"k":"round","evt":"tank tank collision"}
+    {"f":507,"t":8466.666666666717,"k":"round","evt":"tank tank collision"}
+    {"f":508,"t":8483.333333333383,"k":"round","evt":"tank tank collision"}
+    {"f":509,"t":8500.00000000005,"k":"round","evt":"tank tank collision"}
+    {"f":510,"t":8516.666666666715,"k":"round","evt":"tank tank collision"}
+    {"f":511,"t":8533.333333333381,"k":"round","evt":"tank tank collision"}
+    {"f":512,"t":8550.000000000047,"k":"round","evt":"tank tank collision"}
+    {"f":513,"t":8566.666666666713,"k":"round","evt":"tank tank collision"}
+    {"f":514,"t":8583.33333333338,"k":"round","evt":"tank tank collision"}
+    {"f":515,"t":8600.000000000045,"k":"round","evt":"tank tank collision"}
+    {"f":516,"t":8616.666666666712,"k":"round","evt":"tank tank collision"}
+    {"f":517,"t":8633.333333333378,"k":"round","evt":"tank tank collision"}
+    {"f":518,"t":8650.000000000044,"k":"round","evt":"tank tank collision"}
+    {"f":519,"t":8666.66666666671,"k":"round","evt":"tank tank collision"}
+    {"f":520,"t":8683.333333333376,"k":"round","evt":"tank tank collision"}
+    {"f":521,"t":8700.000000000042,"k":"round","evt":"tank tank collision"}
+    {"f":522,"t":8716.666666666708,"k":"round","evt":"tank tank collision"}
+    {"f":523,"t":8733.333333333374,"k":"round","evt":"tank tank collision"}
+    {"f":524,"t":8750.00000000004,"k":"round","evt":"tank tank collision"}
+    {"f":525,"t":8766.666666666706,"k":"round","evt":"tank tank collision"}
+    {"f":526,"t":8783.333333333372,"k":"round","evt":"tank tank collision"}
+    {"f":527,"t":8800.000000000038,"k":"round","evt":"tank tank collision"}
+    {"f":528,"t":8816.666666666704,"k":"round","evt":"tank tank collision"}
+    {"f":529,"t":8833.33333333337,"k":"round","evt":"tank tank collision"}
+    {"f":530,"t":8850.000000000036,"k":"round","evt":"tank tank collision"}
+    {"f":531,"t":8866.666666666702,"k":"round","evt":"tank tank collision"}
+    {"f":532,"t":8883.333333333369,"k":"round","evt":"tank tank collision"}
+    {"f":533,"t":8900.000000000035,"k":"round","evt":"tank tank collision"}
+    {"f":534,"t":8916.6666666667,"k":"round","evt":"tank tank collision"}
+    {"f":535,"t":8933.333333333367,"k":"round","evt":"tank tank collision"}
+    {"f":536,"t":8950.000000000033,"k":"round","evt":"tank tank collision"}
+    {"f":537,"t":8966.666666666699,"k":"round","evt":"tank tank collision"}
+    {"f":538,"t":8983.333333333365,"k":"round","evt":"tank tank collision"}
+    {"f":539,"t":9000.000000000031,"k":"round","evt":"tank tank collision"}
+    {"f":540,"t":9016.666666666697,"k":"round","evt":"tank tank collision"}
+    {"f":541,"t":9033.333333333363,"k":"round","evt":"tank tank collision"}
+    {"f":542,"t":9050.00000000003,"k":"round","evt":"tank tank collision"}
+    {"f":543,"t":9066.666666666695,"k":"round","evt":"tank tank collision"}
+    {"f":544,"t":9083.333333333361,"k":"round","evt":"tank tank collision"}
+    {"f":545,"t":9100.000000000027,"k":"round","evt":"tank tank collision"}
+    {"f":546,"t":9116.666666666693,"k":"round","evt":"tank tank collision"}
+    {"f":547,"t":9133.33333333336,"k":"round","evt":"tank tank collision"}
+    {"f":548,"t":9150.000000000025,"k":"round","evt":"tank tank collision"}
+    {"f":549,"t":9166.666666666692,"k":"round","evt":"tank tank collision"}
+    {"f":550,"t":9183.333333333358,"k":"round","evt":"tank tank collision"}
+    {"f":551,"t":9200.000000000024,"k":"round","evt":"tank tank collision"}
+    {"f":552,"t":9216.66666666669,"k":"round","evt":"tank tank collision"}
+    {"f":553,"t":9233.333333333356,"k":"round","evt":"tank tank collision"}
+    {"f":554,"t":9250.000000000022,"k":"round","evt":"tank tank collision"}
+    {"f":555,"t":9266.666666666688,"k":"round","evt":"tank tank collision"}
+    {"f":556,"t":9283.333333333354,"k":"round","evt":"tank tank collision"}
+    {"f":557,"t":9300.00000000002,"k":"round","evt":"tank tank collision"}
+    {"f":558,"t":9316.666666666686,"k":"round","evt":"tank tank collision"}
+    {"f":559,"t":9333.333333333352,"k":"round","evt":"tank tank collision"}
+    {"f":560,"t":9350.000000000018,"k":"round","evt":"tank tank collision"}
+    {"f":561,"t":9366.666666666684,"k":"round","evt":"tank tank collision"}
+    {"f":562,"t":9383.33333333335,"k":"round","evt":"tank tank collision"}
+    {"f":563,"t":9400.000000000016,"k":"round","evt":"tank tank collision"}
+    {"f":564,"t":9416.666666666682,"k":"round","evt":"tank tank collision"}
+    {"f":565,"t":9433.333333333348,"k":"round","evt":"tank tank collision"}
+    {"f":566,"t":9450.000000000015,"k":"round","evt":"tank tank collision"}
+    {"f":567,"t":9466.66666666668,"k":"round","evt":"tank tank collision"}
+    {"f":568,"t":9483.333333333347,"k":"round","evt":"tank tank collision"}
+    {"f":569,"t":9500.000000000013,"k":"round","evt":"tank tank collision"}
+    {"f":570,"t":9516.666666666679,"k":"round","evt":"tank tank collision"}
+    {"f":571,"t":9533.333333333345,"k":"round","evt":"tank tank collision"}
+    {"f":572,"t":9550.000000000011,"k":"round","evt":"tank tank collision"}
+    {"f":573,"t":9566.666666666677,"k":"round","evt":"tank tank collision"}
+    {"f":574,"t":9583.333333333343,"k":"round","evt":"tank tank collision"}
+    {"f":575,"t":9600.00000000001,"k":"round","evt":"tank tank collision"}
+    {"f":576,"t":9616.666666666675,"k":"round","evt":"tank tank collision"}
+    {"f":577,"t":9633.333333333341,"k":"round","evt":"tank tank collision"}
+    {"f":578,"t":9650.000000000007,"k":"round","evt":"tank tank collision"}
+    {"f":579,"t":9666.666666666673,"k":"round","evt":"tank tank collision"}
+    {"f":580,"t":9683.33333333334,"k":"round","evt":"tank tank collision"}
+    {"f":581,"t":9700.000000000005,"k":"round","evt":"tank tank collision"}
+    {"f":582,"t":9716.666666666672,"k":"round","evt":"tank tank collision"}
+    {"f":583,"t":9733.333333333338,"k":"round","evt":"tank tank collision"}
+    {"f":584,"t":9750.000000000004,"k":"round","evt":"tank tank collision"}
+    {"f":585,"t":9766.66666666667,"k":"round","evt":"tank tank collision"}
+    {"f":586,"t":9783.333333333336,"k":"round","evt":"tank tank collision"}
+    {"f":587,"t":9800.000000000002,"k":"round","evt":"tank tank collision"}
+    {"f":588,"t":9816.666666666668,"k":"round","evt":"tank tank collision"}
+    {"f":589,"t":9833.333333333334,"k":"round","evt":"tank tank collision"}
+    {"f":590,"t":9850,"k":"round","evt":"tank tank collision"}
+    {"f":591,"t":9866.666666666666,"k":"round","evt":"tank tank collision"}
+    {"f":592,"t":9883.333333333332,"k":"round","evt":"tank tank collision"}
+    {"f":593,"t":9899.999999999998,"k":"round","evt":"tank tank collision"}
+    {"f":594,"t":9916.666666666664,"k":"round","evt":"tank tank collision"}
+    {"f":595,"t":9933.33333333333,"k":"round","evt":"tank tank collision"}
+    {"f":596,"t":9949.999999999996,"k":"round","evt":"tank tank collision"}
+    {"f":597,"t":9966.666666666662,"k":"round","evt":"tank tank collision"}
+    {"f":598,"t":9983.333333333328,"k":"round","evt":"tank tank collision"}
+    {"f":599,"t":9999.999999999995,"k":"round","evt":"tank tank collision"}
+    {"f":600,"t":10016.66666666666,"k":"round","evt":"tank tank collision"}
+    {"f":601,"t":10033.333333333327,"k":"round","evt":"tank tank collision"}
+    {"f":602,"t":10049.999999999993,"k":"round","evt":"tank tank collision"}
+    {"f":603,"t":10066.666666666659,"k":"round","evt":"tank tank collision"}
+    {"f":604,"t":10083.333333333325,"k":"round","evt":"tank tank collision"}
+    {"f":605,"t":10099.99999999999,"k":"round","evt":"tank tank collision"}
+    {"f":606,"t":10116.666666666657,"k":"round","evt":"tank tank collision"}
+    {"f":607,"t":10133.333333333323,"k":"round","evt":"tank tank collision"}
+    {"f":608,"t":10149.999999999989,"k":"round","evt":"tank tank collision"}
+    {"f":609,"t":10166.666666666655,"k":"round","evt":"tank tank collision"}
+    {"f":610,"t":10183.333333333321,"k":"round","evt":"tank tank collision"}
+    {"f":611,"t":10199.999999999987,"k":"round","evt":"tank tank collision"}
+    {"f":612,"t":10216.666666666653,"k":"round","evt":"tank tank collision"}
+    {"f":613,"t":10233.33333333332,"k":"round","evt":"tank tank collision"}
+    {"f":614,"t":10249.999999999985,"k":"round","evt":"tank tank collision"}
+    {"f":615,"t":10266.666666666652,"k":"round","evt":"tank tank collision"}
+    {"f":616,"t":10283.333333333318,"k":"round","evt":"tank tank collision"}
+    {"f":617,"t":10299.999999999984,"k":"round","evt":"tank tank collision"}
+    {"f":618,"t":10316.66666666665,"k":"round","evt":"tank tank collision"}
+    {"f":619,"t":10333.333333333316,"k":"round","evt":"tank tank collision"}
+    {"f":620,"t":10349.999999999982,"k":"round","evt":"tank tank collision"}
+    {"f":621,"t":10366.666666666648,"k":"round","evt":"tank tank collision"}
+    {"f":622,"t":10383.333333333314,"k":"round","evt":"tank tank collision"}
+    {"f":623,"t":10399.99999999998,"k":"round","evt":"tank tank collision"}
+    {"f":624,"t":10416.666666666646,"k":"round","evt":"tank tank collision"}
+    {"f":625,"t":10433.333333333312,"k":"round","evt":"tank tank collision"}
+    {"f":626,"t":10449.999999999978,"k":"round","evt":"tank tank collision"}
+    {"f":627,"t":10466.666666666644,"k":"round","evt":"tank tank collision"}
+    {"f":628,"t":10483.33333333331,"k":"round","evt":"tank tank collision"}
+    {"f":629,"t":10499.999999999976,"k":"round","evt":"tank tank collision"}
+    {"f":630,"t":10516.666666666642,"k":"round","evt":"tank tank collision"}
+    {"f":631,"t":10533.333333333308,"k":"round","evt":"tank tank collision"}
+    {"f":632,"t":10549.999999999975,"k":"round","evt":"tank tank collision"}
+    {"f":633,"t":10566.66666666664,"k":"round","evt":"tank tank collision"}
+    {"f":634,"t":10583.333333333307,"k":"round","evt":"tank tank collision"}
+    {"f":635,"t":10599.999999999973,"k":"round","evt":"tank tank collision"}
+    {"f":636,"t":10616.666666666639,"k":"round","evt":"tank tank collision"}
+    {"f":637,"t":10633.333333333305,"k":"round","evt":"tank tank collision"}
+    {"f":638,"t":10649.99999999997,"k":"round","evt":"tank tank collision"}
+    {"f":639,"t":10666.666666666637,"k":"round","evt":"tank tank collision"}
+    {"f":640,"t":10683.333333333303,"k":"round","evt":"tank tank collision"}
+    {"f":641,"t":10699.999999999969,"k":"round","evt":"tank tank collision"}
+    {"f":642,"t":10716.666666666635,"k":"round","evt":"collectible created","objId":"c-0d0e-11"}
+    {"f":642,"t":10716.666666666635,"k":"round","evt":"tank tank collision"}
+    {"f":643,"t":10733.333333333301,"k":"round","evt":"tank tank collision"}
+    {"f":644,"t":10749.999999999967,"k":"round","evt":"tank tank collision"}
+    {"f":645,"t":10766.666666666633,"k":"round","evt":"tank tank collision"}
+    {"f":646,"t":10783.3333333333,"k":"round","evt":"tank tank collision"}
+    {"f":647,"t":10799.999999999965,"k":"round","evt":"tank tank collision"}
+    {"f":648,"t":10816.666666666631,"k":"round","evt":"tank tank collision"}
+    {"f":649,"t":10833.333333333298,"k":"round","evt":"tank tank collision"}
+    {"f":650,"t":10849.999999999964,"k":"round","evt":"tank tank collision"}
+    {"f":651,"t":10866.66666666663,"k":"round","evt":"tank tank collision"}
+    {"f":652,"t":10883.333333333296,"k":"round","evt":"tank tank collision"}
+    {"f":653,"t":10899.999999999962,"k":"round","evt":"tank tank collision"}
+    {"f":654,"t":10916.666666666628,"k":"round","evt":"tank tank collision"}
+    {"f":655,"t":10933.333333333294,"k":"round","evt":"tank tank collision"}
+    {"f":656,"t":10949.99999999996,"k":"round","evt":"tank tank collision"}
+    {"f":657,"t":10966.666666666626,"k":"round","evt":"tank tank collision"}
+    {"f":658,"t":10983.333333333292,"k":"round","evt":"tank tank collision"}
+    {"f":659,"t":10999.999999999958,"k":"round","evt":"tank tank collision"}
+    {"f":660,"t":11016.666666666624,"k":"round","evt":"tank tank collision"}
+    {"f":661,"t":11033.33333333329,"k":"round","evt":"tank tank collision"}
+    {"f":662,"t":11049.999999999956,"k":"round","evt":"tank tank collision"}
+    {"f":663,"t":11066.666666666622,"k":"round","evt":"tank tank collision"}
+    {"f":664,"t":11083.333333333288,"k":"round","evt":"tank tank collision"}
+    {"f":665,"t":11099.999999999955,"k":"round","evt":"tank tank collision"}
+    {"f":666,"t":11116.66666666662,"k":"round","evt":"tank tank collision"}
+    {"f":667,"t":11133.333333333287,"k":"round","evt":"tank tank collision"}
+    {"f":668,"t":11149.999999999953,"k":"round","evt":"tank tank collision"}
+    {"f":669,"t":11166.666666666619,"k":"round","evt":"tank tank collision"}
+    {"f":670,"t":11183.333333333285,"k":"round","evt":"tank tank collision"}
+    {"f":671,"t":11199.99999999995,"k":"round","evt":"tank tank collision"}
+    {"f":672,"t":11216.666666666617,"k":"round","evt":"tank tank collision"}
+    {"f":673,"t":11233.333333333283,"k":"round","evt":"tank tank collision"}
+    {"f":674,"t":11249.999999999949,"k":"round","evt":"tank tank collision"}
+    {"f":675,"t":11266.666666666615,"k":"round","evt":"tank tank collision"}
+    {"f":676,"t":11283.333333333281,"k":"round","evt":"tank tank collision"}
+    {"f":677,"t":11299.999999999947,"k":"round","evt":"tank tank collision"}
+    {"f":678,"t":11316.666666666613,"k":"round","evt":"tank tank collision"}
+    {"f":679,"t":11333.33333333328,"k":"round","evt":"tank tank collision"}
+    {"f":680,"t":11349.999999999945,"k":"round","evt":"tank tank collision"}
+    {"f":681,"t":11366.666666666611,"k":"round","evt":"tank tank collision"}
+    {"f":682,"t":11383.333333333278,"k":"round","evt":"tank tank collision"}
+    {"f":683,"t":11399.999999999944,"k":"round","evt":"tank tank collision"}
+    {"f":684,"t":11416.66666666661,"k":"round","evt":"tank tank collision"}
+    {"f":685,"t":11433.333333333276,"k":"round","evt":"tank tank collision"}
+    {"f":686,"t":11449.999999999942,"k":"round","evt":"tank tank collision"}
+    {"f":687,"t":11466.666666666608,"k":"round","evt":"tank tank collision"}
+    {"f":688,"t":11483.333333333274,"k":"round","evt":"tank tank collision"}
+    {"f":689,"t":11499.99999999994,"k":"round","evt":"tank tank collision"}
+    {"f":690,"t":11516.666666666606,"k":"round","evt":"tank tank collision"}
+    {"f":691,"t":11533.333333333272,"k":"round","evt":"tank tank collision"}
+    {"f":692,"t":11549.999999999938,"k":"round","evt":"tank tank collision"}
+    {"f":693,"t":11566.666666666604,"k":"round","evt":"tank tank collision"}
+    {"f":694,"t":11583.33333333327,"k":"round","evt":"tank tank collision"}
+    {"f":695,"t":11599.999999999936,"k":"round","evt":"tank tank collision"}
+    {"f":696,"t":11616.666666666602,"k":"round","evt":"tank tank collision"}
+    {"f":697,"t":11633.333333333268,"k":"round","evt":"tank tank collision"}
+    {"f":698,"t":11649.999999999935,"k":"round","evt":"tank tank collision"}
+    {"f":699,"t":11666.6666666666,"k":"round","evt":"tank tank collision"}
+    {"f":700,"t":11683.333333333267,"k":"round","evt":"tank tank collision"}
+    {"f":701,"t":11699.999999999933,"k":"round","evt":"tank tank collision"}
+    {"f":702,"t":11716.666666666599,"k":"round","evt":"tank tank collision"}
+    {"f":703,"t":11733.333333333265,"k":"round","evt":"tank tank collision"}
+    {"f":704,"t":11749.99999999993,"k":"round","evt":"tank tank collision"}
+    {"f":705,"t":11766.666666666597,"k":"round","evt":"tank tank collision"}
+    {"f":706,"t":11783.333333333263,"k":"round","evt":"tank tank collision"}
+    {"f":707,"t":11799.999999999929,"k":"round","evt":"tank tank collision"}
+    {"f":708,"t":11816.666666666595,"k":"round","evt":"tank tank collision"}
+    {"f":709,"t":11833.333333333261,"k":"round","evt":"tank tank collision"}
+    {"f":710,"t":11849.999999999927,"k":"round","evt":"tank tank collision"}
+    {"f":711,"t":11866.666666666593,"k":"round","evt":"tank tank collision"}
+    {"f":712,"t":11883.33333333326,"k":"round","evt":"tank tank collision"}
+    {"f":713,"t":11899.999999999925,"k":"round","evt":"tank tank collision"}
+    {"f":714,"t":11916.666666666591,"k":"round","evt":"tank tank collision"}
+    {"f":715,"t":11933.333333333258,"k":"round","evt":"tank tank collision"}
+    {"f":716,"t":11949.999999999924,"k":"round","evt":"tank tank collision"}
+    {"f":717,"t":11966.66666666659,"k":"round","evt":"tank tank collision"}
+    {"f":718,"t":11983.333333333256,"k":"round","evt":"tank tank collision"}
+    {"f":719,"t":11999.999999999922,"k":"round","evt":"tank tank collision"}
+    {"f":720,"t":12016.666666666588,"k":"round","evt":"tank tank collision"}
+    {"f":721,"t":12033.333333333254,"k":"round","evt":"tank tank collision"}
+    {"f":722,"t":12049.99999999992,"k":"round","evt":"tank tank collision"}
+    {"f":723,"t":12066.666666666586,"k":"round","evt":"tank tank collision"}
+    {"f":724,"t":12083.333333333252,"k":"round","evt":"tank tank collision"}
+    {"f":725,"t":12099.999999999918,"k":"round","evt":"tank tank collision"}
+    {"f":726,"t":12116.666666666584,"k":"round","evt":"tank tank collision"}
+    {"f":727,"t":12133.33333333325,"k":"round","evt":"tank tank collision"}
+    {"f":728,"t":12149.999999999916,"k":"round","evt":"tank tank collision"}
+    {"f":729,"t":12166.666666666582,"k":"round","evt":"tank tank collision"}
+    {"f":730,"t":12183.333333333248,"k":"round","evt":"tank tank collision"}
+    {"f":731,"t":12199.999999999915,"k":"round","evt":"tank tank collision"}
+    {"f":732,"t":12216.66666666658,"k":"round","evt":"tank tank collision"}
+    {"f":733,"t":12233.333333333247,"k":"round","evt":"tank tank collision"}
+    {"f":734,"t":12249.999999999913,"k":"round","evt":"tank tank collision"}
+    {"f":735,"t":12266.666666666579,"k":"round","evt":"tank tank collision"}
+    {"f":736,"t":12283.333333333245,"k":"round","evt":"tank tank collision"}
+    {"f":737,"t":12299.99999999991,"k":"round","evt":"tank tank collision"}
+    {"f":738,"t":12316.666666666577,"k":"round","evt":"tank tank collision"}
+    {"f":739,"t":12333.333333333243,"k":"round","evt":"tank tank collision"}
+    {"f":740,"t":12349.999999999909,"k":"round","evt":"tank tank collision"}
+    {"f":741,"t":12366.666666666575,"k":"round","evt":"tank tank collision"}
+    {"f":742,"t":12383.333333333241,"k":"round","evt":"tank tank collision"}
+    {"f":743,"t":12399.999999999907,"k":"round","evt":"tank tank collision"}
+    {"f":744,"t":12416.666666666573,"k":"round","evt":"tank tank collision"}
+    {"f":745,"t":12433.33333333324,"k":"round","evt":"tank tank collision"}
+    {"f":746,"t":12449.999999999905,"k":"round","evt":"tank tank collision"}
+    {"f":747,"t":12466.666666666571,"k":"round","evt":"tank tank collision"}
+    {"f":748,"t":12483.333333333238,"k":"round","evt":"tank tank collision"}
+    {"f":749,"t":12499.999999999904,"k":"round","evt":"tank tank collision"}
+    {"f":750,"t":12516.66666666657,"k":"round","evt":"tank tank collision"}
+    {"f":751,"t":12533.333333333236,"k":"round","evt":"projectile timeout","data":"b-0d0e-9"}
+    {"f":751,"t":12533.333333333236,"k":"round","evt":"tank tank collision"}
+    {"f":765,"t":12766.66666666656,"k":"round","evt":"tank maze collision"}
+    {"f":766,"t":12783.333333333227,"k":"round","evt":"tank maze collision"}
+    {"f":767,"t":12799.999999999893,"k":"round","evt":"tank maze collision"}
+    {"f":768,"t":12816.666666666559,"k":"round","evt":"tank maze collision"}
+    {"f":769,"t":12833.333333333225,"k":"round","evt":"tank maze collision"}
+    {"f":770,"t":12849.99999999989,"k":"round","evt":"tank maze collision"}
+    {"f":771,"t":12866.666666666557,"k":"round","evt":"tank maze collision"}
+    {"f":772,"t":12866.666666666557,"k":"round","evt":"weapon fired","playerId":"tank_b","objId":"bw-0d0e-8"}
+    {"f":772,"t":12866.666666666557,"k":"round","evt":"projectile created","playerId":"tank_b","objId":"b-0d0e-12"}
+    {"f":772,"t":12883.333333333223,"k":"round","evt":"tank killed","victim":"tank_b","killer":"tank_b"}
+    {"f":772,"t":12883.333333333223,"k":"round","evt":"projectile destroyed","data":"b-0d0e-12"}
+    {"f":772,"t":12883.333333333223,"k":"round","evt":"tank deadly collision","id":"b-0d0e-12","ty":-1,"owner":"tank_b","cx":45,"cy":20.63,"nx":0,"ny":-1,"vx":0,"vy":18,"nb":1,"ta":0,"la":10,"tw":35,"tc":5}
+    {"f":772,"t":12883.333333333223,"k":"round","evt":"tank maze collision"}
+    {"f":773,"t":12883.333333333223,"k":"round","evt":"weapon created","playerId":"tank_a","objId":"lw-0d0e-13"}
+    {"f":779,"t":12983.33333333322,"k":"round","evt":"weapon fired","playerId":"tank_a","objId":"lw-0d0e-13"}
+    {"f":779,"t":12983.33333333322,"k":"round","evt":"projectile created","playerId":"tank_a","objId":"l-0d0e-14"}
+    {"f":827,"t":13799.999999999856,"k":"round","evt":"projectile timeout","data":"l-0d0e-14"}
+    {"f":827,"t":13799.999999999856,"k":"round","evt":"weapon destroyed","playerId":"tank_a"}
+    {"f":828,"t":13799.999999999856,"k":"round","evt":"projectile created","playerId":"tank_a","objId":"probe_seed_A_face"}
+    {"f":868,"t":14466.666666666499,"k":"round","evt":"projectile created","playerId":"tank_a","objId":"probe_seed_B_corner"}
+    {"f":871,"t":14533.333333333163,"k":"round","evt":"projectile timeout","data":"probe_seed_B_corner"}
+
+=== 页面错误/vtStats ===
+  {"t":14533.333333333163,"steps":872,"pending":3,"errors":[],"errorCount":0}
+  pageErrors: []
+
+[done] 用时 4.2s

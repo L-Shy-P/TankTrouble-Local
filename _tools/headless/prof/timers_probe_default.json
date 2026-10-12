@@ -1,0 +1,1293 @@
+{
+  "frames": 700,
+  "slowMs": 0,
+  "wallMs": 3512,
+  "rec": {
+    "frames": 700,
+    "fnv": 2813869542,
+    "pageFnv": 2813869542,
+    "rngLen": 15656,
+    "overflow": 0,
+    "drive": {
+      "on": false,
+      "f": 700,
+      "total": 700,
+      "applied": 715,
+      "skipped": 685,
+      "errs": 0,
+      "missing": {
+        "tank_b": 328,
+        "tank_a": 357
+      },
+      "loaded": 700
+    }
+  },
+  "vtStats": {
+    "t": 14083.33333333318,
+    "steps": 845,
+    "pending": 3,
+    "errors": [],
+    "errorCount": 0
+  },
+  "timerSummary": {
+    "totalSched": 115,
+    "totalFires": 138,
+    "rngCount": 15656,
+    "rngInTimer": 2,
+    "byDelay": {
+      "timeout:50": {
+        "n": 69,
+        "fires": 67,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:200": {
+        "n": 7,
+        "fires": 6,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "interval:500": {
+        "n": 1,
+        "fires": 4,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:30000": {
+        "n": 2,
+        "fires": 0,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:0": {
+        "n": 16,
+        "fires": 16,
+        "rngUsed": 2,
+        "rngVals": [
+          0.7665556353679042,
+          0.9565105542730964
+        ]
+      },
+      "timeout:300": {
+        "n": 8,
+        "fires": 3,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "interval:60000": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:2000": {
+        "n": 1,
+        "fires": 1,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "interval:50": {
+        "n": 1,
+        "fires": 37,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:5000": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:500": {
+        "n": 1,
+        "fires": 1,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:1500": {
+        "n": 1,
+        "fires": 1,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:10000": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:600": {
+        "n": 2,
+        "fires": 2,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:240000.125": {
+        "n": 2,
+        "fires": 0,
+        "rngUsed": 0,
+        "rngVals": []
+      },
+      "timeout:800": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0,
+        "rngVals": []
+      }
+    },
+    "rngFireCount": 2,
+    "rngFiresSample": [
+      {
+        "i": 60,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 24,
+        "fireSteps": 25,
+        "fireT": 416.6666666666668,
+        "fireReal": 1791703280823.6667,
+        "rngBefore": 4191,
+        "rngVals": [
+          0.7665556353679042
+        ],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 1
+      },
+      {
+        "i": 62,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 24,
+        "fireSteps": 25,
+        "fireT": 416.6666666666668,
+        "fireReal": 1791703280823.6667,
+        "rngBefore": 4192,
+        "rngVals": [
+          0.9565105542730964
+        ],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 1
+      }
+    ],
+    "firesSample": [
+      {
+        "i": 5,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 6,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 7,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 12,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 0,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 1,
+        "kind": "timeout",
+        "delay": 200,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 2,
+        "kind": "timeout",
+        "delay": 200,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 17,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 18,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 9,
+        "kind": "timeout",
+        "delay": 300,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703280407,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 21,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 1,
+        "fireT": 16.666666666666668,
+        "fireReal": 1791703280423.6667,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 22,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 1,
+        "fireT": 16.666666666666668,
+        "fireReal": 1791703280423.6667,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703280440.3333,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 3,
+        "kind": "interval",
+        "delay": 500,
+        "schedSteps": 0,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703280440.3333,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 23,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 1,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703280440.3333,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 24,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 1,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703280440.3333,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 3,
+        "fireT": 50,
+        "fireReal": 1791703280457,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 25,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 2,
+        "fireSteps": 4,
+        "fireT": 66.66666666666667,
+        "fireReal": 1791703280473.6667,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 26,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 2,
+        "fireSteps": 4,
+        "fireT": 66.66666666666667,
+        "fireReal": 1791703280473.6667,
+        "rngBefore": 10,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 6,
+        "fireT": 100.00000000000001,
+        "fireReal": 1791703280507,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 27,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 4,
+        "fireSteps": 6,
+        "fireT": 100.00000000000001,
+        "fireReal": 1791703280507,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 28,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 4,
+        "fireSteps": 6,
+        "fireT": 100.00000000000001,
+        "fireReal": 1791703280507,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 6,
+        "fireT": 100.00000000000001,
+        "fireReal": 1791703280507,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 15,
+        "kind": "timeout",
+        "delay": 500,
+        "schedSteps": 0,
+        "fireSteps": 6,
+        "fireT": 100.00000000000001,
+        "fireReal": 1791703280507,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 19,
+        "kind": "timeout",
+        "delay": 300,
+        "schedSteps": 0,
+        "fireSteps": 7,
+        "fireT": 116.66666666666669,
+        "fireReal": 1791703280523.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 29,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 6,
+        "fireSteps": 7,
+        "fireT": 116.66666666666669,
+        "fireReal": 1791703280523.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 30,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 6,
+        "fireSteps": 7,
+        "fireT": 116.66666666666669,
+        "fireReal": 1791703280523.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 8,
+        "fireT": 133.33333333333334,
+        "fireReal": 1791703280540.3333,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 10,
+        "fireT": 166.66666666666666,
+        "fireReal": 1791703280573.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 31,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 7,
+        "fireSteps": 10,
+        "fireT": 166.66666666666666,
+        "fireReal": 1791703280573.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 32,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 7,
+        "fireSteps": 10,
+        "fireT": 166.66666666666666,
+        "fireReal": 1791703280573.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 13,
+        "fireT": 216.66666666666663,
+        "fireReal": 1791703280623.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 33,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 10,
+        "fireSteps": 13,
+        "fireT": 216.66666666666663,
+        "fireReal": 1791703280623.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 34,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 10,
+        "fireSteps": 13,
+        "fireT": 216.66666666666663,
+        "fireReal": 1791703280623.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 16,
+        "fireT": 266.66666666666663,
+        "fireReal": 1791703280673.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 35,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 13,
+        "fireSteps": 16,
+        "fireT": 266.66666666666663,
+        "fireReal": 1791703280673.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      },
+      {
+        "i": 36,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 13,
+        "fireSteps": 16,
+        "fireT": 266.66666666666663,
+        "fireReal": 1791703280673.6667,
+        "rngBefore": 430,
+        "rngVals": [],
+        "stack": "    at <anonymous>:481:49",
+        "rngUsed": 0
+      }
+    ],
+    "phaserRnd": {
+      "s0": 0.7592889000661671,
+      "s1": 0.42649877606891096,
+      "s2": 0.9385164983104914,
+      "c": 1931906
+    },
+    "vtSteps": 845,
+    "vtT": 14083.33333333318,
+    "rngState": {
+      "mode": "record",
+      "len": 15656,
+      "idx": 0,
+      "overflow": 0
+    },
+    "recStats": {
+      "on": false,
+      "f": 700,
+      "n": 700,
+      "err": null,
+      "fnv": 2813869542
+    },
+    "recInit": {
+      "v": 1,
+      "page": "index.html",
+      "bootstrap": {
+        "humanIds": [
+          "tank_a",
+          "tank_b"
+        ],
+        "aiCount": 0,
+        "vantCount": 0
+      },
+      "driven": [
+        "tank_a",
+        "tank_b"
+      ],
+      "vt": {
+        "t": 2416.666666666667,
+        "steps": 145
+      },
+      "constsNote": "vt.t 是绝对虚拟时间；帧记录里的 t 是相对录制起点的差值",
+      "rng": {
+        "mode": "record",
+        "len": 4433,
+        "idx": 0,
+        "overflow": 0
+      },
+      "gcState": "in round",
+      "mode": "client local",
+      "gameMode": 1,
+      "roundId": "rc-52ba-6",
+      "players": [
+        "tank_a",
+        "tank_b"
+      ],
+      "flags": {
+        "ranked": false,
+        "symmetric": false,
+        "storm": false,
+        "premium": false
+      },
+      "consts": {
+        "COUNTDOWN_DURATION": 0.5,
+        "COUNTDOWN_START_VALUE": 3,
+        "BETWEEN_ROUNDS_DURATION": 1,
+        "CELEBRATION_DURATION": 7,
+        "MAX_DELTA_TIME": 0.1,
+        "MAZE_TILE_SIZE": 10,
+        "THEMES": {
+          "STANDARD": 0,
+          "HALLOWEEN": 1,
+          "CHRISTMAS": 2,
+          "COUNT": 3,
+          "RANDOM": 4
+        }
+      },
+      "maze": {
+        "width": 6,
+        "height": 5,
+        "tileSize": 10,
+        "theme": 0,
+        "tiles": [
+          [
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              1
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              0,
+              1,
+              1
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              1
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        ],
+        "tankPositions": [
+          {
+            "x": 55,
+            "y": 25,
+            "rotation": 4.802834961440658,
+            "playerId": "tank_a"
+          },
+          {
+            "x": 15,
+            "y": 35,
+            "rotation": 5.820544212307405,
+            "playerId": "tank_b"
+          }
+        ]
+      },
+      "tanks": [
+        {
+          "id": "tank_a",
+          "alive": true,
+          "x": 55,
+          "y": 25,
+          "rot": 4.802834961440658,
+          "fwd": false,
+          "back": false,
+          "left": false,
+          "right": false,
+          "fire": false,
+          "op": 0,
+          "opName": "静止",
+          "action": 0
+        },
+        {
+          "id": "tank_b",
+          "alive": true,
+          "x": 15,
+          "y": 35,
+          "rot": 5.820544212307405,
+          "fwd": false,
+          "back": false,
+          "left": false,
+          "right": false,
+          "fire": false,
+          "op": 0,
+          "opName": "静止",
+          "action": 0
+        }
+      ]
+    }
+  },
+  "pageMeta": {
+    "k": "meta",
+    "frames": 700,
+    "pageFrames": 700,
+    "fnv": 2813869542,
+    "pageFnv": 2813869542,
+    "recErr": null,
+    "drive": {
+      "on": false,
+      "f": 700,
+      "total": 700,
+      "applied": 715,
+      "skipped": 685,
+      "errs": 0,
+      "missing": {
+        "tank_b": 328,
+        "tank_a": 357
+      },
+      "loaded": 700
+    },
+    "rngLen": 15656,
+    "rngOverflow": 0,
+    "rngAtStart": {
+      "mode": "record",
+      "len": 4433,
+      "idx": 0,
+      "overflow": 0
+    },
+    "wallMs": 3496,
+    "vt": {
+      "t": 14083.33333333318,
+      "steps": 845
+    }
+  },
+  "headerInit": {
+    "v": 1,
+    "page": "index.html",
+    "bootstrap": {
+      "humanIds": [
+        "tank_a",
+        "tank_b"
+      ],
+      "aiCount": 0,
+      "vantCount": 0
+    },
+    "driven": [
+      "tank_a",
+      "tank_b"
+    ],
+    "vt": {
+      "t": 2416.666666666667,
+      "steps": 145
+    },
+    "constsNote": "vt.t 是绝对虚拟时间；帧记录里的 t 是相对录制起点的差值",
+    "rng": {
+      "mode": "record",
+      "len": 4433,
+      "idx": 0,
+      "overflow": 0
+    },
+    "gcState": "in round",
+    "mode": "client local",
+    "gameMode": 1,
+    "roundId": "rc-52ba-6",
+    "players": [
+      "tank_a",
+      "tank_b"
+    ],
+    "flags": {
+      "ranked": false,
+      "symmetric": false,
+      "storm": false,
+      "premium": false
+    },
+    "consts": {
+      "COUNTDOWN_DURATION": 0.5,
+      "COUNTDOWN_START_VALUE": 3,
+      "BETWEEN_ROUNDS_DURATION": 1,
+      "CELEBRATION_DURATION": 7,
+      "MAX_DELTA_TIME": 0.1,
+      "MAZE_TILE_SIZE": 10,
+      "THEMES": {
+        "STANDARD": 0,
+        "HALLOWEEN": 1,
+        "CHRISTMAS": 2,
+        "COUNT": 3,
+        "RANDOM": 4
+      }
+    },
+    "maze": {
+      "width": 6,
+      "height": 5,
+      "tileSize": 10,
+      "theme": 0,
+      "tiles": [
+        [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ],
+        [
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      ],
+      "tankPositions": [
+        {
+          "x": 55,
+          "y": 25,
+          "rotation": 4.802834961440658,
+          "playerId": "tank_a"
+        },
+        {
+          "x": 15,
+          "y": 35,
+          "rotation": 5.820544212307405,
+          "playerId": "tank_b"
+        }
+      ]
+    },
+    "tanks": [
+      {
+        "id": "tank_a",
+        "alive": true,
+        "x": 55,
+        "y": 25,
+        "rot": 4.802834961440658,
+        "fwd": false,
+        "back": false,
+        "left": false,
+        "right": false,
+        "fire": false,
+        "op": 0,
+        "opName": "静止",
+        "action": 0
+      },
+      {
+        "id": "tank_b",
+        "alive": true,
+        "x": 15,
+        "y": 35,
+        "rot": 5.820544212307405,
+        "fwd": false,
+        "back": false,
+        "left": false,
+        "right": false,
+        "fire": false,
+        "op": 0,
+        "opName": "静止",
+        "action": 0
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+迷宫 7x5 可达 27 格
+
+=== 实验：格(6,4) 朝 +x 顶墙 ===
+  怼墙位移=10.00 停点=(55,45) rot=4.08162
+  f0: alive=true tank=(55,45) 弹=0 
+  f1: alive=true tank=(55,45) 弹=0 
+  f2: alive=true tank=(55,45) 弹=0 
+  f3: alive=true tank=(55,45) 弹=0 
+  f4: alive=true tank=(55,45) 弹=0 
+  f5: alive=true tank=(55,45) 弹=0 
+  f6: alive=true tank=(55,45) 弹=0 
+  f7: alive=true tank=(55,45) 弹=0 
+  f8: alive=true tank=(55,45) 弹=0 
+  f9: alive=true tank=(55,45) 弹=0 
+  f10: alive=true tank=(55,45) 弹=0 
+  f11: alive=true tank=(55,45) 弹=0 
+  f12: alive=true tank=(55,45) 弹=0 
+  f13: alive=true tank=(55,45) 弹=0 
+  f14: alive=true tank=(55,45) 弹=0 
+  f15: alive=true tank=(55,45) 弹=0 
+  f16: alive=true tank=(55,45) 弹=0 
+  ❌ 60 帧内未死亡
+
+=== 实验：格(5,2) 朝 -x 顶墙 ===
+  怼墙位移=20.00 停点=(55,45) rot=4.08162
+  f0: alive=true tank=(55,45) 弹=1 (52.75,46.64)
+  f1: alive=true tank=(55,45) 弹=1 (52.5,46.82)
+  f2: alive=true tank=(55,45) 弹=1 (52.25,47.01)
+  f3: alive=true tank=(55,45) 弹=1 (52.02,47.18)
+  f4: alive=true tank=(55,45) 弹=1 (51.77,47.36)
+  f5: alive=true tank=(55,45) 弹=1 (51.53,47.54)
+  f6: alive=true tank=(55,45) 弹=1 (51.29,47.71)
+  f7: alive=true tank=(55,45) 弹=1 (51.05,47.89)
+  f8: alive=true tank=(55,45) 弹=1 (50.8,48.07)
+  f9: alive=true tank=(55,45) 弹=1 (50.57,48.24)
+  f10: alive=true tank=(55,45) 弹=1 (50.32,48.42)
+  f11: alive=true tank=(55,45) 弹=1 (50.07,48.6)
+  f12: alive=true tank=(55,45) 弹=1 (49.84,48.77)
+  f13: alive=true tank=(55,45) 弹=1 (49.59,48.95)
+  f14: alive=true tank=(55,45) 弹=1 (49.35,49.13)
+  f15: alive=true tank=(55,45) 弹=1 (49.11,49.3)
+  f16: alive=true tank=(55,45) 弹=1 (48.87,49.22)
+  ❌ 60 帧内未死亡
+
+=== 实验：格(5,4) 朝 +y 顶墙 ===
+  怼墙位移=1.89 停点=(55,46.892) rot=3.14159
+  f0: alive=false tank=(null,null) 弹=1 (32.4,37.19)
+  ✅ 致死：开火后第 0 帧死 （= 0 帧自杀！）
+
+=== 总结论 ===
+顶墙发射【能】致死，死亡帧 = 0 ⟹ 0 帧自杀存在，检测值得做
+pageErrors: []

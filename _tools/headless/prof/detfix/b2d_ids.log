@@ -1,0 +1,219 @@
+{
+ "bodyCount": 32,
+ "bodies": [
+  {
+   "n": 0,
+   "type": 2,
+   "flags": 34,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 3.0122673318089097,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 1,
+     "mask": 119,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    },
+    {
+     "n": 1,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 1,
+     "mask": 127,
+     "group": 0,
+     "density": 1,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 1,
+   "type": 2,
+   "flags": 34,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 3.790144484990759,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 1,
+     "mask": 119,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    },
+    {
+     "n": 1,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 1,
+     "mask": 127,
+     "group": 0,
+     "density": 1,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "type": 0,
+   "flags": 38,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 0,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 2,
+     "mask": 13,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "type": 0,
+   "flags": 38,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 0,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 2,
+     "mask": 13,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "type": 0,
+   "flags": 38,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 0,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 2,
+     "mask": 13,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "type": 0,
+   "flags": 38,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 0,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 2,
+     "mask": 13,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "type": 0,
+   "flags": 38,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 0,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 2,
+     "mask": 13,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "type": 0,
+   "flags": 38,
+   "sleepTime": 0,
+   "hasSweep": true,
+   "sweepA0": 0,
+   "userDataType": "object",
+   "userDataKeys": null,
+   "userDataStr": "null",
+   "fixtures": [
+    {
+     "n": 0,
+     "type": 1,
+     "radius": 0.005,
+     "vcount": 4,
+     "category": 2,
+     "mask": 13,
+     "group": 0,
+     "density": 0,
+     "isSensor": false
+    }
+   ]
+  }
+ ]
+}

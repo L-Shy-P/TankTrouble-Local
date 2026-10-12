@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "out": "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\detfix\\world_report_400.json",
+  "recSigFrames": 463,
+  "repSigFrames": 463,
+  "firstDiff": {
+    "steps": 509,
+    "field": "bodyCount"
+  },
+  "perFieldFirstDiff": {
+    "bodyCount": 509,
+    "contactCount": 509,
+    "bodies": 509
+  },
+  "allowSleep": true,
+  "errs": [
+    null,
+    null
+  ]
+}

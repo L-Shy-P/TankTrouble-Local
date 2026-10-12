@@ -1,0 +1,19 @@
+{
+ "k": "header",
+ "v": 1,
+ "treeVersion": "v170",
+ "treeMd5": "23e7d265c3366746ec4865ce813eff31",
+ "sandboxMd5": "a08ac52cf7ac1ba9665da10e801b750d",
+ "vant": 2,
+ "ai": 1,
+ "frames": 600,
+ "rngLen": 17187,
+ "rngOverflow": 0,
+ "aiControl": {
+  "tree": true,
+  "enabled": true,
+  "ver": "v170"
+ },
+ "date": "2026-10-11T13:56:37.969Z",
+ "wallMs": 9644
+}

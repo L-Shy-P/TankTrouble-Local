@@ -1,0 +1,12 @@
+  game_core/js/vantage_sandbox.js  2026-10-12T04:49:15.585Z  b804db133a6a284aa4d76d85cfb3e83e
+  game_core/js/vantage_rust_bridge.js  2026-10-12T04:49:15.553Z  0fc14b6c941bcf74fbb387b911d7277d
+  game_core/js/wasm/vantage_core.wasm  2026-10-12T04:57:27.915Z  80c5471b09384840e10d3320759be8db
+  open ok
+  (0) 页内时钟: {"perfDelta":0,"dateDelta":0,"perfFrac":true,"dateFrac":true,"newDateFrac":false,"vtT":2383.333333333334,"hasVtStep":"function","perf0":2383.333333333334,"date0":1791803149326.3333,"sink":70000000}
+  (0b) 同一个循环、Node 墙钟: 8.68 ms
+  (1) 真实迷宫 第1次(冷): 5.0 ms  {"w":6,"h":4,"pairs":504,"inPageMs":0}
+  (1b) 真实迷宫 热5次: [3.6,3.3,2.9,3.1,3]
+  (2) ${sz[0]}x${sz[1]}: 第1次=292.1 ms {"w":16,"h":10,"pairs":13110}  热3次=[310.3,415.1,783.6]
+  (2) ${sz[0]}x${sz[1]}: 第1次=2812.3 ms {"w":20,"h":12,"pairs":48606}  热3次=[2387.1,1356.3,1517.4]
+  pageErrors: []
+[done]

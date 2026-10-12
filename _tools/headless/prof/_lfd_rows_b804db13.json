@@ -1,0 +1,122 @@
+{
+ "sandboxMd5": "b804db133a6a284aa4d76d85cfb3e83e",
+ "n": 600,
+ "seed": 20261011,
+ "frames": 75,
+ "bothDead": 3679,
+ "diverged": 0,
+ "diff": {
+  "min": null,
+  "p50": null,
+  "p90": null,
+  "max": null
+ },
+ "conv": {
+  "rustEqSweep": 0,
+  "jsEqSweep": 0,
+  "sweepLtJs": 0,
+  "sweepGtJs": 0,
+  "sweepMissing": 0,
+  "sweepNotEqual": 0
+ },
+ "nonLaserDiv": [],
+ "top": [],
+ "rows": [],
+ "classification": {
+  "jsOnly": 2,
+  "rustOnly": 0,
+  "bothAlive": 1719,
+  "bothDead": 3679,
+  "bothDeadSame": 3679,
+  "posDiff": 0,
+  "negDiff": 0,
+  "geoEventOps": 3638,
+  "jsOnlyGeoAtJdf": 2,
+  "rustOnlyWithGeo": 0,
+  "negDiffGeoAtJdf": 0
+ },
+ "jsOnlyRows": [
+  {
+   "sc": 58,
+   "op": "后",
+   "i": 2,
+   "jdf": 75,
+   "geoAtJdf": true,
+   "geoEvents": [
+    {
+     "k": 75,
+     "op": 2,
+     "pid": "b1",
+     "category": "geometry",
+     "polyGapAtContact": -0.08,
+     "source": "polyGap-scan"
+    }
+   ],
+   "sweepHit": -1,
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 17.83584557035938,
+     "d": 10.526802893728018,
+     "off": -2.0983691825531423
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.627961996151132,
+     "d": 7.227025097236037,
+     "off": 2.323423605412245
+    }
+   ]
+  },
+  {
+   "sc": 267,
+   "op": "前右",
+   "i": 6,
+   "jdf": 75,
+   "geoAtJdf": true,
+   "geoEvents": [
+    {
+     "k": 75,
+     "op": 6,
+     "pid": "b1",
+     "category": "geometry",
+     "polyGapAtContact": -0.13,
+     "source": "polyGap-scan"
+    }
+   ],
+   "sweepHit": -1,
+   "bullets": [
+    {
+     "id": "b0",
+     "w": "DOUBLE_BARREL",
+     "r": 0.25,
+     "sp": 17.20229523112066,
+     "d": 6.624550649896264,
+     "off": -0.7055118279531598
+    },
+    {
+     "id": "b1",
+     "w": "BULLET",
+     "r": 0.25,
+     "sp": 18.5413800557144,
+     "d": 10.540584217756987,
+     "off": -0.5240136799402535
+    },
+    {
+     "id": "b2",
+     "w": "DOUBLE_BARREL",
+     "r": 0.25,
+     "sp": 18.082873304514212,
+     "d": 9.996017834171653,
+     "off": -0.3165517970919609
+    }
+   ]
+  }
+ ],
+ "rustOnlyRows": [],
+ "negRows": []
+}

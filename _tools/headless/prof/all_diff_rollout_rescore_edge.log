@@ -1,0 +1,14 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=? 半径退化(0) 弹种=BULLET → 回退半径 0.25 累计: 近似摆=0 无威胁条目=0 跳过=0
+scene            : bridge laser point-radius 180 m/s
+  max position err: 0.000000000e+0 at 
+  max angle err   : 0.000000000e+0
+scene            : bridge 120 simultaneous bullets
+  max position err: 0.000000000e+0 at 
+  max angle err   : 0.000000000e+0
+scene            : bridge laser rescore (radius 0)
+  max per-frame err: 0.000000000e+0
+  max total err    : 0.000000000e+0
+DIFF ROLLOUT/RESCORE EDGE PASSED

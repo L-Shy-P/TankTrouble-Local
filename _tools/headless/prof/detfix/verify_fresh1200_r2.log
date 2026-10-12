@@ -1,0 +1,30 @@
+落盘复核: 文件 1203 行（frame 1200/1200 条）; 文件哈希=1784953126 meta=1784953126 页面=1784953126 → 一条不丢
+录制: prof/_loop_rec_record_0.jsonl
+  header: v=1 page=index.html 玩家=["tank_a","tank_b"]
+  初始位姿=[{"id":"tank_a","alive":true,"x":65,"y":15,"rot":3.502314021626526,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0},{"id":"tank_b","alive":true,"x":35,"y":35,"rot":0.49526160572423944,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0}]
+  地图=8x4 主题=0  回合设置={"COUNTDOWN_DURATION":0.5,"COUNTDOWN_START_VALUE":3,"BETWEEN_ROUNDS_DURATION":1,"CELEBRATION_DURATION":7,"MAX_DELTA_TIME":0.1,"MAZE_TILE_SIZE":10,"THEMES":{"STANDARD":0,"HALLOWEEN":1,"CHRISTMAS":2,"COUNT":3,"RANDOM":4}}
+  帧数=1200  随机序列=18218  录制时 RNG 溢出=0
+
+---- 回放 #1 → prof/_loop_rec_record_0.replay1.jsonl
+  initPose = [{"id":"tank_a","x":65,"y":15,"rot":3.502314021626526},{"id":"tank_b","x":35,"y":35,"rot":0.49526160572423944}]
+  drive    = {"on":false,"f":1200,"total":1200,"applied":832,"skipped":286,"errs":0,"missing":{"tank_a":104,"tank_b":182},"loaded":1200}
+  rng      = {"mode":"play","len":18218,"idx":7995,"overflow":0}
+  导出      = frames=1200 分片=25 页面fnv=2330841651 落盘一致=true wallMs=3095
+  复核      = 一条不丢 (文件 1202 行)
+
+---- 回放 #2 → prof/_loop_rec_record_0.replay2.jsonl
+  initPose = [{"id":"tank_a","x":65,"y":15,"rot":3.502314021626526},{"id":"tank_b","x":35,"y":35,"rot":0.49526160572423944}]
+  drive    = {"on":false,"f":1200,"total":1200,"applied":832,"skipped":286,"errs":0,"missing":{"tank_a":104,"tank_b":182},"loaded":1200}
+  rng      = {"mode":"play","len":18218,"idx":7995,"overflow":0}
+  导出      = frames=1200 分片=25 页面fnv=2330841651 落盘一致=true wallMs=2883
+  复核      = 一条不丢 (文件 1202 行)
+
+================ 对拍结果 ================
+【验收】两遍回放: PASS 逐帧完全相同
+  帧数=1200/1200 opName(含fire)不一致=0 坦克位姿不一致=0 (最大差 0) 子弹位姿不一致=0 回合状态不一致=0 随机数消费不一致=0 时间不一致=0 (最大差 0ms)
+
+【信息】回放#1 vs 原始录制: 有差异
+  opName(含fire)不一致=838 坦克位姿不一致=1577 (最大差 50) 子弹位姿不一致=492 回合状态不一致=405 随机数消费不一致=1192 时间不一致=0 (最大差 0ms)
+  例子: 帧8: 随机数消费计数 A=4596 B=4606 ; 帧9: 随机数消费计数 A=4599 B=4609 ; 帧10: 随机数消费计数 A=4602 B=4612 ; 帧11: 随机数消费计数 A=4605 B=4615 ; 帧12: 随机数消费计数 A=4617 B=4618
+
+结论: PASS

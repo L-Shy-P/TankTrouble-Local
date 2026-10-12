@@ -1,0 +1,427 @@
+{
+ "fingerprints": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "bytes": 173348,
+   "mtime": "2026-10-11T15:53:53.290Z",
+   "md5": "e4530739bf05916ea1563f36663a7d8c"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "bytes": 478199,
+   "mtime": "2026-10-11T15:51:21.830Z",
+   "md5": "3e3136e17baf648a1acefdb7216ca54c"
+  },
+  {
+   "file": "game_core/js/vantage_scoring.js",
+   "bytes": 118808,
+   "mtime": "2026-10-11T14:13:45.716Z",
+   "md5": "d7264e6f070229e3328fe3bd53015145"
+  },
+  {
+   "file": "game_core/js/vantage_rust_bridge.js",
+   "bytes": 93829,
+   "mtime": "2026-10-11T14:44:50.637Z",
+   "md5": "63fe087444041c87e7b813eee12a8f2c"
+  },
+  {
+   "file": "game_core/js/wasm/vantage_core.wasm",
+   "bytes": 207506,
+   "mtime": "2026-10-11T14:51:48.191Z",
+   "md5": "fd132f4b23509abb648b5807dd866fb5"
+  },
+  {
+   "file": "game_core/rust/vantage_core/src/rollout.rs",
+   "bytes": 64767,
+   "mtime": "2026-10-11T14:51:32.538Z",
+   "md5": "db5da0d13f8f11bc60b33d6a65c22f96"
+  },
+  {
+   "file": "game_core/rust/vantage_core/src/rescore.rs",
+   "bytes": 77449,
+   "mtime": "2026-10-11T14:39:17.452Z",
+   "md5": "e876b9c6643339c4270223f39294dfe4"
+  },
+  {
+   "file": "game_core/index.html",
+   "bytes": 34042,
+   "mtime": "2026-10-11T15:37:30.679Z",
+   "md5": "2e0313b4f11f5c79db3f323e3e932ab6"
+  },
+  {
+   "file": "_tools/headless/clock.js",
+   "bytes": 23201,
+   "mtime": "2026-10-11T09:21:03.391Z",
+   "md5": "664cd0cfb7eb12cf0c7cfd0dacf41e43"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "bytes": 28377,
+   "mtime": "2026-10-11T09:25:41.483Z",
+   "md5": "43a8ec65203f7f9c9654932ce17f6f63"
+  }
+ ],
+ "files": [
+  "game_core/js/vantage_sandbox.js",
+  "game_core/js/vantage_tree.js",
+  "game_core/js/vantage_scoring.js",
+  "game_core/js/vantage_rust_bridge.js",
+  "game_core/js/wasm/vantage_core.wasm",
+  "game_core/rust/vantage_core/src/rollout.rs",
+  "game_core/rust/vantage_core/src/rescore.rs",
+  "game_core/index.html",
+  "_tools/headless/clock.js",
+  "_tools/headless/match.js"
+ ],
+ "frames": 2000,
+ "every": 5,
+ "mode": "enriched",
+ "mind": 3,
+ "maxd": 12,
+ "steps": [],
+ "prep": {
+  "dt": 0.02,
+  "rustOk": true,
+  "tanks": [
+   "vantage_1",
+   "tank_a"
+  ],
+  "tree": "v173"
+ },
+ "auditFrames": 2000,
+ "roundEndish": 0,
+ "ctrlFails": 398,
+ "enrichErrs": {
+  "no bullet": 279
+ },
+ "audits": 121,
+ "audit": {
+  "batches": 121,
+  "ops": 1089,
+  "rustUsed": 121,
+  "rustFallback": 0,
+  "jsFail": 0,
+  "jsOnly": 0,
+  "rustOnly": 0,
+  "bothDead": 1089,
+  "bothAlive": 0,
+  "geoFallback": 0,
+  "batchesWithJsOnly": 0,
+  "batchesWithRustOnly": 0,
+  "dfDiff": [],
+  "rustBestJsDead": 121,
+  "rustBestSamples": 121,
+  "rustAliveExistJsDead": 0,
+  "byBucket": {
+   "contact": {
+    "batches": 121,
+    "ops": 1089,
+    "jsOnly": 0,
+    "rustOnly": 0,
+    "bothDead": 1089,
+    "bothAlive": 0,
+    "dfDiff": [],
+    "initDistMin": 0,
+    "initDistMax": 0,
+    "df0JsOnly": 0,
+    "lastFrameJsOnly": 0
+   }
+  },
+  "batchesWithRustAlive": 0,
+  "byVictim": {
+   "vantage_1": {
+    "batches": 121,
+    "ops": 1089,
+    "jsOnly": 0,
+    "rustOnly": 0,
+    "rustBestJsDead": 121
+   }
+  },
+  "examples": [],
+  "bulletTypes": {
+   "ty-1_r0.25": 121
+  },
+  "errs": [],
+  "jsOnlyOtherDf": [],
+  "rustOnlyDfList": []
+ },
+ "tree": {
+  "stats": {
+   "expands": 754,
+   "extends": 0,
+   "commits": 167,
+   "rebuilds": 1,
+   "freshRoots": 1,
+   "alignFails": 0,
+   "retreats": 0,
+   "growMs": 0,
+   "growSkips": 0,
+   "nodeCountFixes": 0,
+   "rustScoredBatches": 753,
+   "rustScoredFallbacks": 0,
+   "commitSliceRustBatches": 1,
+   "commitSliceJsBatches": 0,
+   "commitSliceRustFails": 0,
+   "jsConfirmCount": 167,
+   "jsConfirmEarlier": 0,
+   "jsConfirmLater": 0,
+   "jsConfirmCleared": 0,
+   "deepSelects": 0,
+   "retreatReroutes": 0,
+   "refineSplits": 0,
+   "growStalls": {
+    "grow-warmup-cap": 1080
+   },
+   "filteredStaleSkip": 275
+  },
+  "confirms": [
+   {
+    "code": "js-death-confirm",
+    "detail": "n5743 fd -1→-1 authority=fused",
+    "t": 25.41699999999934
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5752 fd -1→-1 authority=fused",
+    "t": 25.61699999999933
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5761 fd -1→-1 authority=fused",
+    "t": 25.816999999999318
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5770 fd -1→-1 authority=fused",
+    "t": 26.016999999999307
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5779 fd -1→-1 authority=fused",
+    "t": 26.216999999999295
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5842 fd -1→-1 authority=fused",
+    "t": 26.416999999999284
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5896 fd -1→-1 authority=fused",
+    "t": 26.616999999999273
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5905 fd -1→-1 authority=fused",
+    "t": 26.81699999999926
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5914 fd -1→-1 authority=fused",
+    "t": 27.01699999999925
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5923 fd -1→-1 authority=fused",
+    "t": 27.21699999999924
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5932 fd -1→-1 authority=fused",
+    "t": 27.416999999999227
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5941 fd -1→-1 authority=fused",
+    "t": 27.616999999999216
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5950 fd -1→-1 authority=fused",
+    "t": 27.816999999999204
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5959 fd -1→-1 authority=fused",
+    "t": 28.016999999999193
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5968 fd -1→-1 authority=fused",
+    "t": 28.21699999999918
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5977 fd -1→-1 authority=fused",
+    "t": 28.41699999999917
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5986 fd -1→-1 authority=fused",
+    "t": 28.61699999999916
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n5995 fd -1→-1 authority=fused",
+    "t": 28.816999999999148
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6004 fd -1→-1 authority=fused",
+    "t": 29.016999999999136
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6013 fd -1→-1 authority=fused",
+    "t": 29.216999999999125
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6022 fd -1→-1 authority=fused",
+    "t": 29.416999999999113
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6031 fd -1→-1 authority=fused",
+    "t": 29.616999999999102
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6040 fd -1→-1 authority=fused",
+    "t": 29.81699999999909
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6049 fd -1→-1 authority=fused",
+    "t": 30.01699999999908
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6058 fd -1→-1 authority=fused",
+    "t": 30.216999999999068
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6067 fd -1→-1 authority=fused",
+    "t": 30.416999999999057
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6076 fd -1→-1 authority=fused",
+    "t": 30.616999999999045
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6085 fd -1→-1 authority=fused",
+    "t": 30.816999999999034
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6094 fd -1→-1 authority=fused",
+    "t": 31.016999999999022
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6103 fd -1→-1 authority=fused",
+    "t": 31.21699999999901
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6112 fd -1→-1 authority=fused",
+    "t": 31.416999999999
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6121 fd -1→-1 authority=fused",
+    "t": 31.61699999999899
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6130 fd -1→-1 authority=fused",
+    "t": 31.816999999998977
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6139 fd -1→-1 authority=fused",
+    "t": 32.016999999998966
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6148 fd -1→-1 authority=fused",
+    "t": 32.21699999999898
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6157 fd -1→-1 authority=fused",
+    "t": 32.416999999999
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6166 fd -1→-1 authority=fused",
+    "t": 32.61699999999902
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6175 fd -1→-1 authority=fused",
+    "t": 32.816999999999034
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6184 fd -1→-1 authority=fused",
+    "t": 33.01699999999905
+   },
+   {
+    "code": "js-death-confirm",
+    "detail": "n6283 fd -1→-1 authority=fused",
+    "t": 33.21699999999907
+   }
+  ],
+  "confirmTotal": 72,
+  "diagKeys": [
+   "bulletDesyncs",
+   "missingBullets",
+   "lastTankError",
+   "maxTankError",
+   "lastBulletError",
+   "lastCheckAt",
+   "projectileCount",
+   "sig",
+   "lastWorldDt",
+   "worldDtMin",
+   "worldDtMax",
+   "alignChecks",
+   "structureHistory",
+   "growHistory",
+   "bulletTracks",
+   "trackCount",
+   "trackFrames",
+   "lastEffTMin",
+   "lastEffDt",
+   "lastCommitInfo",
+   "shapeHistory",
+   "lastProjectileSight",
+   "projectileSightLog",
+   "lastBulletErrorId",
+   "anchorProbe",
+   "anchorProbeAt",
+   "_probePrev"
+  ]
+ },
+ "vtStats": {
+  "t": 35916.666666667166,
+  "steps": 2155,
+  "pending": 3,
+  "errors": [],
+  "errorCount": 0,
+  "epoch": 1791734268446,
+  "timersPending": 7,
+  "timerFires": 1098,
+  "timerDropped": 0,
+  "timerT": 35366.666666667246,
+  "frozen": false,
+  "released": true,
+  "releaseSteps": 33
+ },
+ "pageErrors": [],
+ "dfDiffSummary": null
+}

@@ -1,0 +1,32 @@
+A0 seq 两次调用相同? false
+   a=3,0,2,0,3,1,2,2,2,2,2,2,1,0,1
+   b=3,0,1,0,1,0,2,0,3,0,2,1
+A1 shield fixture={"ut":2,"cat":32,"mask":101,"st":0,"r":4.3,"center":[0,0],"v":null}
+A2 oblique flip@79 in=[18,0,18] out=[-7.108,-16.537,18] predicted=[-5.993,-16.973] err=1.197 |p-C|=4.789 minDist=4.559
+A2 frames=221 shooterAliveEnd=true targetAliveEnd=true
+A2 逐帧: ["f76(90.594,15 v18,0)","f77(90.9,15 v18,0)","f78(91.188,15 v18,0)","f79(91.09,14.734 v-7.108,-16.537)","f80(90.969,14.453 v-7.108,-16.537)","f81(90.855,14.188 v-7.108,-16.537)","f82(90.735,13.907 v-7.108,-16.537)"]
+B0 firstSide=2 victimCell={"x":0,"y":2} pos={"id":"tank_b","x":5,"y":25,"rot":0} box=[[3.5,23],[6.5,23],[6.5,27],[3.5,27]]
+B1 注入后立即: corners={"stormStartRight":110,"stormEndRight":110.4,"stormStartBottom":50,"stormEndBottom":50.4,"stormStartLeft":-0.4,"stormEndLeft":0,"stormStartTop":-0.4,"stormEndTop":0} AABB=[[-0.4,-0.4,110.4,0],[-0.4,-0.4,0,50.4],[-0.4,50,110.4,50.4],[110,-0.4,110.4,50.4]] tilesN=2 tiles=["0,1","0,2"]
+B2 死亡帧 f=405 sR=110 eL=3.532000000000022 tilesN=2
+B2 死前帧 f=404 sR=110 eL=3.500000000000022 tilesN=2
+   f0 t=9.984 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f25 t=9.567 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f50 t=9.15 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f75 t=8.734 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f100 t=8.317 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f125 t=7.9 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f150 t=7.484 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f175 t=7.067 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f200 t=6.65 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f225 t=6.234 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f250 t=5.817 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f275 t=5.4 side=-1 RBLT=0000 sR=110 eL=0 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f300 t=4.984 side=2 RBLT=0010 sR=110 eL=0.031999999999999806 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f325 t=4.567 side=2 RBLT=0010 sR=110 eL=0.8660000000000123 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f350 t=4.15 side=2 RBLT=0010 sR=110 eL=1.7000000000000237 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f375 t=3.734 side=2 RBLT=0010 sR=110 eL=2.5320000000000253 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+   f400 t=3.317 side=2 RBLT=0010 sR=110 eL=3.3660000000000223 aabbTop=[-0.4,-0.4,110.4,0] tilesN=2 tankX=5
+B3 deathFrame=405 = 6.75s 后；首次边界移动帧=300 = 5.00s
+B3 注入序列=2,0,0,0,1,3,3,0,3,2,2,0,2,1 (len 14)
+
+[done] 14.5s

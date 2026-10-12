@@ -1,0 +1,33 @@
+[open] 2208ms bootstrap={"gameId":"gc-0ad4-0","humanIds":["tank_a","tank_b","tank_c"],"aiIds":[],"vantageIds":[],"started":true}
+
+--- A 页内全局类可见性: {"Constants":"object","B2DUtils":"object","IdGenerator":"object","TankState":"object","ProjectileState":"object","ZoneState":"object","CollectibleState":"object","TrapState":"object","UpgradeState":"object","WeaponState":"object","Mine":"object","Shrapnel":"object","StormZone":"object","ShieldUpgrade":"object","Collectible":"object","Pickup":"object","Tank":"object","Zone":"object"}
+  tileBounds={"minX":0,"minY":0,"maxX":10,"maxY":5} TILE=10 WALL=0.8 seqLen=16 seq[0..]=3,2,2,1,0,2,3,0,1,3
+  lane=1,0 2,0 3,0 4,0 5,0 world y=5
+  A1 拾取后 tank_b 升级=[{"id":"su-0ad4-13","type":2,"fields":{"_lifetime":5.983,"_weakened":false}}]
+  A1 拾取后夹具=[{"ut":2,"cat":32,"mask":101,"st":0,"r":4.3,"n":null,"v":null},{"ut":"turret","cat":1,"mask":119,"st":1,"r":0.005,"n":4,"v":[[45.35,3.7],[44.65,3.7],[44.65,2.3],[45.35,2.3]]},{"ut":"base","cat":1,"mask":127,"st":1,"r":0.005,"n":4,"v":[[43.5,3],[46.5,3],[46.5,7],[43.5,7]]}]
+  A1 场上箱子=[]
+  A2 发射前 tank_a={"id":"tank_a","x":15,"y":5,"rot":1.5708} tank_b={"id":"tank_b","x":45,"y":5,"rot":0}
+  A3 记录 152 帧，目标死亡帧=-1
+  A4 破片[outside] ["53/30/deadly=false|alive=true","52.49/30/deadly=true|alive=true","52.01/30/deadly=true|alive=true","51.5/30/deadly=true|alive=true","50.99/30/deadly=true|alive=true","50.51/30/deadly=true|alive=true","50/30/deadly=true|alive=true","49.49/30/deadly=true|alive=true","49.01/0/deadly=true|alive=true","GONE|alive=true"]
+  A4 破片[insideShieldOutsideBox] ["48/30/deadly=false|alive=true","47.49/0/deadly=true|alive=true","GONE|alive=true"]
+  A4 破片[insideBox] ["46/30/deadly=false|alive=true","GONE|alive=false"]
+
+--- B 毒雾: tileBounds={"minX":0,"minY":0,"maxX":10,"maxY":5} seq=0,2,0,2,2,1,0,1,0,1,2,3,0,3,2,1
+X B: Error: teleport 失败：no tank tank_b（tank=tank_b）
+    at Match.teleport (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:449:22)
+    at async partB (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4.js:369:3)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4.js:509:11
+
+--- C 道具/形状: lane=1,0 2,0 3,0 4,0 5,0
+X C: Error: teleport 失败：no tank tank_a（tank=tank_a）
+    at Match.teleport (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:449:22)
+    at async partC (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4.js:415:3)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4.js:510:11
+
+--- D 炮管夹具参与判死（正/反两向）
+X D: Error: teleport 失败：no tank tank_b（tank=tank_b）
+    at Match.teleport (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:449:22)
+    at async partD (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4.js:465:5)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4.js:511:11
+
+[done] 3.1s

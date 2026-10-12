@@ -1,0 +1,3 @@
+{"start":"2026-10-12T10:49:55.673Z","mode":"record","iters":1,"parallel":1,"slow":0,"slowAsset":0,"in":"C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\base400.jsonl","recFrames":400,"pid":9712}
+{"i":0,"ok":true,"frames":400,"opMismatch":0,"poseMismatch":0,"maxPoseDiff":0,"projMismatch":0,"stateMismatch":0,"rngMismatch":0,"timeMismatch":0,"maxTimeDiff":0,"hiddenMismatch":0,"hiddenObsMismatch":0,"driveMismatch":0,"examples":[],"wallMs":7149,"recFrames":400,"recRngLen":15267,"recOverflow":0,"recHash":2945701784,"recPageHash":2945701784,"recFramesMatch":true,"replayRngOverflow":0,"replayDriveErrs":0,"replayFramesMatch":true,"headerMaze":"7x5/theme0"}
+{"done":"2026-10-12T10:50:02.825Z","iters":1,"pass":1,"fail":0}

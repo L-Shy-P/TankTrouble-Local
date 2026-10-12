@@ -1,0 +1,26 @@
+=== 指纹 ===
+  PRE  C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_backup\i3_scoring_fd0_20261012_1235\vantage_scoring.js  md5=d7264e6f070229e3328fe3bd53015145
+  POST C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\game_core\js\vantage_scoring.js  md5=5b1f2a9943a76c0070867efddbd3c175
+PASS  PRE 快照 md5 = 记录值 d7264e6f070229e3328fe3bd53015145   d7264e6f070229e3328fe3bd53015145
+PASS  POST 当前 md5 = 落盘记录值 5b1f2a9943a76c0070867efddbd3c175   5b1f2a9943a76c0070867efddbd3c175
+PASS  POST 含第 5 处修复标记（fd=0 第 5 sink）
+PASS  PRE 不含该标记
+=== POST（当前产品源码）必须全过 ===
+PASS  POST contact_start_overlap   dead=true df=0 pfs=[-9] total=-9  expect dead=true df=0 pfsLen=1
+PASS  POST contact_hit_frame1   dead=true df=1 pfs=[-9] total=-9  expect dead=true df=1 pfsLen=1
+PASS  POST alive_far   dead=false df=-1 pfs=[39.47841760435743,39.47841760435743] total=78.95683520871486  expect dead=false df=-1 pfsLen=2
+PASS  POST laser_start_overlap   dead=true df=0 pfs=[-9] total=-9  expect dead=true df=0 pfsLen=1
+PASS  POST laser_cross_frame1   dead=true df=1 pfs=[-9] total=-9  expect dead=true df=1 pfsLen=1
+=== PRE（修改前快照）必须在 fd=0 两例 FAIL ===
+PASS  PRE contact_start_overlap（应 FAIL）   dead=false df=-1 pfs=[39.47841760435743,39.47841760435743] total=78.95683520871486
+PASS  PRE contact_hit_frame1（应与 POST 逐值一致）   dead=true df=1 pfs=[-9] total=-9
+PASS  PRE alive_far（应与 POST 逐值一致）   dead=false df=-1 pfs=[39.47841760435743,39.47841760435743] total=78.95683520871486
+PASS  PRE laser_start_overlap（应 FAIL）   dead=true df=1 pfs=[-9] total=-9
+PASS  PRE laser_cross_frame1（应与 POST 逐值一致）   dead=true df=1 pfs=[-9] total=-9
+PASS  PRE 恰好 2 例 fd=0 失败   preFd0Fail=2
+=== fd 不许被改写成 1 ===
+PASS  POST contact_start_overlap → deathFrame===0（不是 1）   df=0
+=== 接线断言（树确实直接调用 scorePath）===
+PASS  vantage_tree.js 直接调用 VantageScoring.scorePath 的次数 >= 4   count=4
+
+SCOREPATH-FD0 GUARD PASSED (17/17)

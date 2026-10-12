@@ -1,0 +1,12 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+scene            : S8 未来节点 + 弹在节点起点附近到期
+  μ(nowTGlobal)=0.30s  T(tGlobal)=0.50s  A=0.00s  LT=0.70s
+  现在剩余寿命 L_now=0.400s
+  节点起点正确剩余寿命 = 0.200s（10.0 帧）
+  少传 nowTGlobal 时 = -0.100s ⇒ 少 15.0 帧
+  track 长度=35  节点起点的弹位 = track[25] = (5.00,11.00)
+  fd_missing(nowTGlobal=0) = [-1,-1,-1,-1,-1,-1,-1,-1,-1]
+  fd_correct(nowTGlobal=μ) = [3,-1,2,2,2,-1,-1,2,2]
+  [audit] purpose=unknown tGlobal=0.5 nowTGlobal=0.3 摆弹={"pid":null,"active":true,"src":"track","x":5,"y":11,"vx":0,"vy":-18,"threat":true,"trackLen":35,"idx":25}
+DIFF SCORE PATHS NOWTGLOBAL PASSED (after) 命中帧=3

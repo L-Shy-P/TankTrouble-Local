@@ -1,0 +1,14 @@
+  game_core/js/vantage_sandbox.js  2026-10-12T04:49:15.585Z  b804db133a6a284aa4d76d85cfb3e83e
+  game_core/js/vantage_rust_bridge.js  2026-10-12T04:49:15.553Z  0fc14b6c941bcf74fbb387b911d7277d
+  open ok
+  (0) 计时器活性验证: {"perfDelta":0,"dateDelta":0,"perfNow":2633.3333333333317,"dateNow":1791784259810.3333,"vtT":2633.3333333333317}
+  (1) 真实迷宫: {"w":6,"h":5,"pairs":648,"computed":648,"bytes":900,"inPageMs":0,"hasFlags":true}
+  (1b) 真实迷宫建表（Node 墙钟）: {"bestMs":9.39,"allMs":[9.39,9.4,11.02,11.25,11.98],"first":648}
+  (2) ${w}x${h} 建表（Node 墙钟）: {"bestMs":53.59,"allMs":[53.59,56.32,100.63],"first":{"w":10,"h":6,"pairs":3406,"computed":3406,"bytes":3600,"ok":true,"err":null}}
+  (2) ${w}x${h} 建表（Node 墙钟）: {"bestMs":651.8,"allMs":[651.8,825.1,1228.62],"first":{"w":16,"h":10,"pairs":21366,"computed":21366,"bytes":25600,"ok":true,"err":null}}
+  (2) ${w}x${h} 建表（Node 墙钟）: {"bestMs":4772.21,"allMs":[4772.21,4843.67,5030.18],"first":{"w":20,"h":12,"pairs":56764,"computed":56764,"bytes":57600,"ok":true,"err":null}}
+  (3) 保留最后一张表（给传输测用）: {"w":20,"h":12,"bytes":57600,"hasFlags":true}
+  (4) vt_set_maze 传输（Node 墙钟，20x12 / 57600B）: {"bestMs":0.87,"allMs":[0.87,0.99,1.22,1.23,2.12],"first":true}
+  (5) 恢复真实表: true
+  pageErrors: []
+[done]

@@ -1,0 +1,24 @@
+{
+ "k": "header",
+ "v": 1,
+ "treeVersion": "v171",
+ "treeMd5": "6502b8d35136116ed3ba29e332fff83f",
+ "sandboxMd5": "ec35394b7bae120ac5fd62d9544a4c83",
+ "vant": 2,
+ "ai": 1,
+ "frames": 600,
+ "rngLen": 8609,
+ "rngOverflow": 0,
+ "epoch": 1791728126459,
+ "tOpen": 7033.333333333372,
+ "bootFrames": 300,
+ "menuFrames": 24,
+ "bootPadded": 276,
+ "aiControl": {
+  "tree": true,
+  "enabled": true,
+  "ver": "v171"
+ },
+ "date": "2026-10-11T14:15:37.874Z",
+ "wallMs": 12214
+}

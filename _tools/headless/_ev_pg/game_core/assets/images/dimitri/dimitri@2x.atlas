@@ -1,0 +1,112 @@
+
+dimitri@2x.png
+size: 1024,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+arms
+  rotate: false
+  xy: 309, 211
+  size: 364, 303
+  orig: 364, 303
+  offset: 0, 0
+  index: -1
+glassesAndNose
+  rotate: false
+  xy: 675, 280
+  size: 310, 200
+  orig: 310, 200
+  offset: 0, 0
+  index: -1
+hands
+  rotate: false
+  xy: 647, 78
+  size: 113, 122
+  orig: 113, 122
+  offset: 0, 0
+  index: -1
+head
+  rotate: false
+  xy: 1, 520
+  size: 294, 474
+  orig: 294, 474
+  offset: 0, 0
+  index: -1
+leftEyebrow
+  rotate: true
+  xy: 568, 78
+  size: 125, 77
+  orig: 125, 77
+  offset: 0, 0
+  index: -1
+leftLeg
+  rotate: true
+  xy: 373, 956
+  size: 46, 97
+  orig: 46, 97
+  offset: 0, 0
+  index: -1
+leftShoe
+  rotate: false
+  xy: 762, 78
+  size: 163, 99
+  orig: 163, 99
+  offset: 0, 0
+  index: -1
+mouthOh
+  rotate: true
+  xy: 297, 956
+  size: 61, 74
+  orig: 61, 74
+  offset: 0, 0
+  index: -1
+rightEyebrow
+  rotate: true
+  xy: 473, 1
+  size: 173, 93
+  orig: 173, 93
+  offset: 0, 0
+  index: -1
+rightLeg
+  rotate: true
+  xy: 472, 956
+  size: 46, 97
+  orig: 46, 97
+  offset: 0, 0
+  index: -1
+rightShoe
+  rotate: false
+  xy: 762, 179
+  size: 163, 99
+  orig: 163, 99
+  offset: 0, 0
+  index: -1
+schnurrbart
+  rotate: false
+  xy: 571, 1
+  size: 374, 75
+  orig: 374, 75
+  offset: 0, 0
+  index: -1
+shadow
+  rotate: true
+  xy: 297, 520
+  size: 434, 174
+  orig: 434, 174
+  offset: 0, 0
+  index: -1
+shorts
+  rotate: true
+  xy: 947, 1
+  size: 208, 76
+  orig: 208, 76
+  offset: 0, 0
+  index: -1
+torso
+  rotate: false
+  xy: 1, 1
+  size: 306, 517
+  orig: 306, 517
+  offset: 0, 0
+  index: -1
+

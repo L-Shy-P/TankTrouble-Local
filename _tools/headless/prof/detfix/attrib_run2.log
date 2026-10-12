@@ -1,0 +1,75 @@
+{
+  "ok": true,
+  "out": "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\detfix\\attrib_report_1200.json",
+  "recCalls": 4680,
+  "repCalls": 4680,
+  "firstDivergence": 10,
+  "recTop": [
+    [
+      "    at c.Particles.Arcade.Emitter.makeParticles (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:763408)",
+      2730
+    ],
+    [
+      "    at methods.update (http://127.0.0.1:8000/js/vantage_testbench.js?v=118:253:26)",
+      393
+    ],
+    [
+      "    at new UITankIconScoreGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:384)",
+      300
+    ],
+    [
+      "    at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640)",
+      120
+    ],
+    [
+      "    at new UISpawnZoneSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:765)",
+      120
+    ],
+    [
+      "    at new UITankExplosionGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:256)",
+      120
+    ],
+    [
+      "    at new UIShieldSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:731)",
+      120
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:12737)",
+      100
+    ]
+  ],
+  "repTop": [
+    [
+      "    at c.Particles.Arcade.Emitter.makeParticles (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:763408)",
+      2730
+    ],
+    [
+      "    at methods.update (http://127.0.0.1:8000/js/vantage_testbench.js?v=118:253:26)",
+      393
+    ],
+    [
+      "    at new UITankIconScoreGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:384)",
+      300
+    ],
+    [
+      "    at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640)",
+      120
+    ],
+    [
+      "    at new UISpawnZoneSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:765)",
+      120
+    ],
+    [
+      "    at new UITankExplosionGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:256)",
+      120
+    ],
+    [
+      "    at new UIShieldSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:731)",
+      120
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:12737)",
+      100
+    ]
+  ]
+}

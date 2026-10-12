@@ -1,0 +1,93 @@
+[g3] version=v173 gameDir=C:/Users/L_Shy_P user/Desktop/Code/Python/Projects/TankTrouble Local/_tools/headless/_ev_pg/game_core hook="ok" ad={"ok":true,"hook":true,"err":null}
+  [g3] f=0 t=0.02 th=1 nLive=1 proj=1
+  [g3] f=300 t=5.02 th=3 nLive=3 proj=3
+  [g3] f=600 t=10.02 th=2 nLive=2 proj=2
+  [g3] f=900 t=1.70 th=0 nLive=0 proj=0
+  [g3] f=1200 t=4.70 th=2 nLive=2 proj=2
+  [g3] f=1500 t=9.70 th=2 nLive=2 proj=2
+[g3] ===== 汇总 =====
+{
+ "version": "v173",
+ "framesSampled": 1798,
+ "sampleQuality": {
+  "noProjectileFrames": 568,
+  "maxNoProjectileStreak": 284,
+  "ctrlMode": "drive",
+  "fire": 1,
+  "ai": 2,
+  "vant": 1,
+  "maxTreeTimeSec": 14.683,
+  "liveFrames": 1798,
+  "frozenFrames": 0,
+  "roundsSeen": 3
+ },
+ "delta": {
+  "n": 2910,
+  "min": 0,
+  "p50": 0.1,
+  "p90": 0.233,
+  "p99": 1.017,
+  "max": 1.184,
+  "over1": 33,
+  "maxFullWindow": 1.184,
+  "snapMax": 3.9,
+  "snapOver1": 286,
+  "staleAgeFrames": 404
+ },
+ "pxNullFrames_any": 0,
+ "pxNullFrames_liveProj": 0,
+ "deaths": [
+  {
+   "death": {
+    "t": 0.133,
+    "rootAbsT": 0.017,
+    "victim": "tank_a",
+    "killer": "tank_a",
+    "pid": "b-61ff-12",
+    "ptype": -1
+   },
+   "atFrame": 7,
+   "winFrames": 8,
+   "treePredictedDeadFrames": 0,
+   "treePredictedDead": false,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 7
+  },
+  {
+   "death": {
+    "t": 9.317000000000018,
+    "rootAbsT": 9.167000000000021,
+    "victim": "6148530",
+    "killer": "6148530",
+    "pid": "b-61ff-13",
+    "ptype": -1
+   },
+   "atFrame": 558,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 75,
+   "treePredictedDead": true,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 74
+  },
+  {
+   "death": {
+    "t": 1.2829999999999997,
+    "rootAbsT": 1.2499999999999998,
+    "victim": "tank_a",
+    "killer": "tank_a",
+    "pid": "b-61ff-24",
+    "ptype": -1
+   },
+   "atFrame": 76,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 14,
+   "treePredictedDead": true,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 0
+  }
+ ],
+ "falseRed": 906,
+ "md5Stable": true
+}
+rows -> C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_ev_logs\align_g3_rows.json
+[g3] done in 23.8s

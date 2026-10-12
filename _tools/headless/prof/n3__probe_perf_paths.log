@@ -1,0 +1,63 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=? 半径退化(0) 弹种=BULLET → 回退半径 0.25 累计: 近似摆=0 无威胁条目=0 跳过=0
+
+=== 提交切片一次的总耗时：改造前 vs 改造后 ===
+  far bullet         改造前 14.62ms   改造后 2.03ms + 确认 2.42ms = 4.45ms   3.3x
+  near bullet        改造前 3.56ms   改造后 1.56ms + 确认 0.87ms = 2.42ms   1.5x
+
+=== 验证：生长路径（Rust）认不认 k=0.4 / 动作成本=3 ===
+  逐帧分数完全相同 : true
+  总分完全相同     : true
+  结论：Rust 生长路径完全忽略 k / 动作成本（k 只对 JS 路径生效）
+  对照：JS 评分路径对同一局面 k=1 vs k=0.4：
+    总分：k=1 → 2960.9,2724.9,2960.9,2960.9,2960.9,2944.9,2929.5,2960.9,2728.9
+           k=0.4 → 1184.4,948.4,1184.4,1184.4,1184.4,1168.4,1176.6,1184.4,952.4
+
+=== 单次「9 操作 × 75 帧」耗时（同一局面，真适配器） ===
+  场景                 JS评分路径      Rust全包     倍数
+  far bullet            13.31ms      1.54ms     8.7x
+  near bullet            2.56ms      1.40ms     1.8x
+  crossing bullet       13.35ms      1.58ms     8.4x
+  laser radius 0         1.16ms      1.12ms     1.0x
+  death head-on          2.78ms      1.47ms     1.9x
+scene            : far bullet
+  ops compared   : 9
+  frames compared: 75
+  max position err: 4.440892099e-15 m at op 5 frame 53
+  max angle err   : 1.776356839e-15
+  max per-frame err: 0.000000000e+0 at 
+  max total err    : 0.000000000e+0
+scene            : near bullet
+  ops compared   : 9
+  frames compared: 4
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0
+  max per-frame err: 0.000000000e+0 at 
+  max total err    : 0.000000000e+0
+scene            : crossing bullet
+  ops compared   : 9
+  frames compared: 75
+  max position err: 4.440892099e-15 m at op 5 frame 53
+  max angle err   : 1.776356839e-15
+  max per-frame err: 0.000000000e+0 at 
+  max total err    : 0.000000000e+0
+scene            : laser radius 0
+  ops compared   : 9
+  frames compared: 1
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0
+  max per-frame err: 0.000000000e+0 at 
+  max total err    : 0.000000000e+0
+scene            : death head-on
+  ops compared   : 9
+  frames compared: 5
+  max position err: 0.000000000e+0 m at 
+  max angle err   : 0.000000000e+0
+  max per-frame err: 0.000000000e+0 at 
+  max total err    : 0.000000000e+0
+scene            : unsupported config fallback
+  lane>0 / spring rope returned null: PASS
+total compared  : 45 ops, 1506 scored frames
+DIFF SCORE PATHS BRIDGE PASSED

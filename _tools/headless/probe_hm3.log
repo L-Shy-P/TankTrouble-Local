@@ -1,0 +1,54 @@
+=== 版本指纹 ===
+  game_core/index.html  2026-10-11T14:44:50.635Z  cc0d354c7bd630005994104ba4582af3  34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  2026-06-13T17:38:28.228Z  7ecd83bb84f80beac5e1df8f4fe85f48  84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  2026-06-13T17:38:28.247Z  97cadb8a67a443a9eb2f51ebc7d12916  58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  2026-06-13T17:38:28.229Z  1c7bcaba8381d40aa591f5abacb8d96e  55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  2026-06-13T12:22:43.984Z  a2bf42171d586f54e5e5fac5779424e4  24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  2026-06-13T17:38:28.240Z  5183078f57653d2189c8517dd227a01b  51385
+  game_core/js/vantage_tree.js  2026-10-11T14:44:50.633Z  b02609ad48a06617155e7c5d0792e4dd  484237
+  game_core/js/vantage_sandbox.js  2026-10-11T14:51:24.281Z  06971cc0e7fa180e36ccd041c264b243  171358
+  game_core/js/vantage_rust_bridge.js  2026-10-11T14:44:50.637Z  63fe087444041c87e7b813eee12a8f2c  93829
+  game_core/js/wasm/vantage_core.wasm  2026-10-11T14:51:48.191Z  fd132f4b23509abb648b5807dd866fb5  207506
+  _tools/headless/match.js  2026-10-11T09:25:41.483Z  43a8ec65203f7f9c9654932ce17f6f63  28377
+  _tools/headless/clock.js  2026-10-11T09:21:03.391Z  664cd0cfb7eb12cf0c7cfd0dacf41e43  23201
+
+=== open: {"frames":120,"inRound":"in round","log":["0帧→counting down"]} ===
+  helper: installed
+  迷宫 11x7 可达 51
+  最长直道: {"n":7,"start":{"x":8,"y":0,"used":true},"dir":{"dx":0,"dy":1,"rot":3.141592653589793,"name":"+y"}}
+  直道格=[{"x":8,"y":0},{"x":8,"y":1},{"x":8,"y":2},{"x":8,"y":3},{"x":8,"y":4},{"x":8,"y":5},{"x":8,"y":6}] 起点位姿={"x":85,"y":5,"rot":3.141592653589793} 终点={"x":85,"y":65} 停车格={"x":2,"y":6,"used":false}
+
+=== A) 桩事实 ===
+  常量: {"HM_ACT":2,"HM_MAX_LIFE":10,"HM_ACC":40,"HM_RADIUS":0.2,"HM_SPEED":18,"HM_OFFSET":2.5,"TILE":10}
+  spawnCrate(CRATE_HOMING_MISSILE) → {"n":1,"one":{"id":"c-9187-12","type":3,"x":55,"y":55}}
+  真 crate 拾取后: {"weaponId":"hmw-9187-13","weaponType":3,"fields":{"_launched":false,"_activationTime":0},"isDefault":false,"movementLocked":false,"done":false}
+  直接工厂: {"type":3,"fields":{"_launched":false,"_activationTime":0}}
+  ⟹ 等价: {"typeEq":true,"fieldsEq":true}
+
+=== B) 主飞行 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火后导弹数=1（tank_a @{"x":85,"y":5,"rot":3.141592653589793} 朝 +y）
+  ta≈2.15 时: {"ta":2.1669999999999967,"id":"hm-9187-16","tgt":"tank_b","dto":true,"nb":0,"x":84.99638233965096,"y":46.505051964001005,"vx":0.11941701740583993,"vy":17.99960387275103}
+  导弹@{"x":84.99638233965096,"y":46.505051964001005,"vx":0.11941701740583993,"vy":17.99960387275103} tile={"x":8,"y":4} → 侧面格=null
+  导弹在此期间消失
+  采样帧=182  首帧={"id":"hm-9187-16","o":"tank_a","x":85,"y":7.806,"vx":0,"vy":18,"sp":18,"ta":0.017,"la":10,"dto":false,"nb":0,"tgt":null,"initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[8,0],"dist":0},{"tank":"tank_b","tile":[8,6],"dist":6},{"tank":"tank_c","tile":[2,6],"dist":20}],"tgtMy":"tank_a","sd":0,"aimKind":"tank-exact","aim":{"x":85,"y":5},"rel":{"x":0,"y":-2.806},"predGate":false,"pred":{"x":0,"y":18,"renorm":false,"gate":"pre"}}
+  |v| 范围=[18, 18]  ≠18 的帧数=0
+  首次转向: {"f":293,"ta":2.017,"deg":-2.0847514901128203,"collided":false,"from":{"vx":0,"vy":18},"to":{"vx":0.6548,"vy":17.9881}}
+  非碰撞帧：激活前最大转角=0.0000°  激活后最大转角=2.2508°（理论 atan(40*dt/18)=2.1211°）
+  ★ 逐帧精确复刻对拍: 119/181 完全一致
+  对拍失败样例: [{"f":293,"ta":2.017,"pred":{"x":0.6424,"y":17.9885,"renorm":true,"gate":"act"},"actual":{"vx":0.6548,"vy":17.9881},"aimKind":"next-tile","predGate":true,"tgt":null,"d":[0.012400000000000078,0.00039999999999906777]},{"f":294,"ta":2.033,"pred":{"x":1.2719,"y":17.955,"renorm":true,"gate":"act"},"actual":{"vx":0.0143,"vy":18},"aimKind":"next-tile","predGate":true,"tgt":"tank_b","d":[1.2576,0.045000000000001705]},{"f":295,"ta":2.05,"pred":{"x":-0.6287,"y":17.989,"renorm":true,"gate":"act"},"actual":{"vx":-0.641,"vy":17.9886},"aimKind":"next-tile","predGate":true,"tgt":"tank_b","d":[0.012299999999999978,0.00039999999999906777]},{"f":296,"ta":2.067,"pred":{"x":-1.2587,"y":17.9559,"renorm":true,"gate":"act"},"actual":{"vx":0.0376,"vy":18},"aimKind":"next-tile","predGate":true,"tgt":"tank_b","d":[1.2963,0.04410000000000025]}]
+  目标时间线: [{"f":173,"ta":0.017,"from":null,"to":null,"myTgt":"tank_a","sd":0},{"f":293,"ta":2.017,"from":null,"to":"tank_b","myTgt":"tank_b","sd":2}]
+  TARGET_CHANGED: [{"f":293,"t":4900,"kind":"targetChanged","projectileId":"hm-9187-16","targetId":"tank_b"}]
+  撞墙帧: []
+  末帧: {"id":"hm-9187-16","o":"tank_a","x":85.0208,"y":62.0771,"vx":1.3733,"vy":17.9475,"sp":18,"ta":3.033,"la":10,"dto":true,"nb":0,"tgt":"tank_b","initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[8,0],"dist":6},{"tank":"tank_b","tile":[8,6],"dist":0},{"tank":"tank_c","tile":[2,6],"dist":16}],"tgtMy":"tank_b","sd":0,"aimKind":"tank-exact","aim":{"x":85,"y":65},"rel":{"x":-0.0208,"y":2.9229},"predGate":true,"pred":{"x":0.6828,"y":17.987,"renorm":true,"gate":"act"}}
+
+=== C) 寿命终点 ===
+  X C 失败: Error: teleport 失败：no tank tank_b（tank=tank_b）
+    at Match.teleport (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:449:22)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_homing_facts.js:405:7
+
+=== vtStats ===
+  {"t":5933.333333333352,"steps":356,"pending":3,"errors":[],"errorCount":0,"epoch":1791731395209,"timersPending":10,"timerFires":402,"timerDropped":0,"timerT":5533.333333333345,"frozen":false,"released":true,"releaseSteps":24}
+  pageErrors: []
+
+[done] 用时 11.8s

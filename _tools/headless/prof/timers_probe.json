@@ -1,0 +1,1186 @@
+{
+  "frames": 600,
+  "slowMs": 0,
+  "wallMs": 3637,
+  "rec": {
+    "frames": 600,
+    "fnv": 430654428,
+    "pageFnv": 430654428,
+    "rngLen": 15532,
+    "overflow": 0,
+    "drive": {
+      "on": false,
+      "f": 600,
+      "total": 600,
+      "applied": 503,
+      "skipped": 697,
+      "errs": 0,
+      "missing": {
+        "tank_a": 461,
+        "tank_b": 236
+      },
+      "loaded": 600
+    }
+  },
+  "vtStats": {
+    "t": 12366.666666666575,
+    "steps": 742,
+    "pending": 3,
+    "errors": [],
+    "errorCount": 0
+  },
+  "timerSummary": {
+    "totalSched": 116,
+    "totalFires": 140,
+    "rngCount": 15532,
+    "rngInTimer": 2,
+    "byDelay": {
+      "timeout:50": {
+        "n": 69,
+        "fires": 67,
+        "rngUsed": 0
+      },
+      "timeout:200": {
+        "n": 7,
+        "fires": 7,
+        "rngUsed": 0
+      },
+      "interval:500": {
+        "n": 1,
+        "fires": 4,
+        "rngUsed": 0
+      },
+      "timeout:30000": {
+        "n": 2,
+        "fires": 0,
+        "rngUsed": 0
+      },
+      "timeout:0": {
+        "n": 16,
+        "fires": 16,
+        "rngUsed": 2
+      },
+      "timeout:300": {
+        "n": 8,
+        "fires": 3,
+        "rngUsed": 0
+      },
+      "interval:60000": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0
+      },
+      "timeout:2000": {
+        "n": 1,
+        "fires": 1,
+        "rngUsed": 0
+      },
+      "interval:50": {
+        "n": 1,
+        "fires": 37,
+        "rngUsed": 0
+      },
+      "timeout:5000": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0
+      },
+      "timeout:500": {
+        "n": 1,
+        "fires": 1,
+        "rngUsed": 0
+      },
+      "timeout:1500": {
+        "n": 1,
+        "fires": 1,
+        "rngUsed": 0
+      },
+      "timeout:10000": {
+        "n": 1,
+        "fires": 0,
+        "rngUsed": 0
+      },
+      "timeout:600": {
+        "n": 2,
+        "fires": 2,
+        "rngUsed": 0
+      },
+      "timeout:240000.125": {
+        "n": 2,
+        "fires": 0,
+        "rngUsed": 0
+      },
+      "timeout:800": {
+        "n": 2,
+        "fires": 1,
+        "rngUsed": 0
+      }
+    },
+    "rngFireCount": 2,
+    "rngFiresSample": [
+      {
+        "i": 56,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 21,
+        "fireSteps": 22,
+        "fireT": 366.66666666666674,
+        "fireReal": 1791703252037.6667,
+        "rngBefore": 4216,
+        "rngUsed": 1
+      },
+      {
+        "i": 58,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 21,
+        "fireSteps": 22,
+        "fireT": 366.66666666666674,
+        "fireReal": 1791703252037.6667,
+        "rngBefore": 4217,
+        "rngUsed": 1
+      }
+    ],
+    "firesSample": [
+      {
+        "i": 5,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 6,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 7,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 12,
+        "kind": "timeout",
+        "delay": 0,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 0,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 1,
+        "kind": "timeout",
+        "delay": 200,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 2,
+        "kind": "timeout",
+        "delay": 200,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 17,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 9,
+        "kind": "timeout",
+        "delay": 300,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 18,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 21,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 3,
+        "kind": "interval",
+        "delay": 500,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 22,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 0,
+        "fireT": 0,
+        "fireReal": 1791703251671,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 1,
+        "fireT": 16.666666666666668,
+        "fireReal": 1791703251687.6667,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 23,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703251704.3333,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 24,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703251704.3333,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 2,
+        "fireT": 33.333333333333336,
+        "fireReal": 1791703251704.3333,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 3,
+        "fireT": 50,
+        "fireReal": 1791703251721,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 25,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 2,
+        "fireSteps": 4,
+        "fireT": 66.66666666666667,
+        "fireReal": 1791703251737.6667,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 26,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 2,
+        "fireSteps": 4,
+        "fireT": 66.66666666666667,
+        "fireReal": 1791703251737.6667,
+        "rngBefore": 10,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 5,
+        "fireT": 83.33333333333334,
+        "fireReal": 1791703251754.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 15,
+        "kind": "timeout",
+        "delay": 500,
+        "schedSteps": 0,
+        "fireSteps": 5,
+        "fireT": 83.33333333333334,
+        "fireReal": 1791703251754.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 27,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 4,
+        "fireSteps": 5,
+        "fireT": 83.33333333333334,
+        "fireReal": 1791703251754.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 28,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 4,
+        "fireSteps": 5,
+        "fireT": 83.33333333333334,
+        "fireReal": 1791703251754.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 19,
+        "kind": "timeout",
+        "delay": 300,
+        "schedSteps": 0,
+        "fireSteps": 5,
+        "fireT": 83.33333333333334,
+        "fireReal": 1791703251754.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 5,
+        "fireT": 83.33333333333334,
+        "fireReal": 1791703251754.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 29,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 5,
+        "fireSteps": 7,
+        "fireT": 116.66666666666669,
+        "fireReal": 1791703251787.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 30,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 5,
+        "fireSteps": 7,
+        "fireT": 116.66666666666669,
+        "fireReal": 1791703251787.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 7,
+        "fireT": 116.66666666666669,
+        "fireReal": 1791703251787.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 31,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 7,
+        "fireSteps": 11,
+        "fireT": 183.33333333333331,
+        "fireReal": 1791703251854.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 32,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 7,
+        "fireSteps": 11,
+        "fireT": 183.33333333333331,
+        "fireReal": 1791703251854.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 11,
+        "fireT": 183.33333333333331,
+        "fireReal": 1791703251854.3333,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 13,
+        "fireT": 216.66666666666663,
+        "fireReal": 1791703251887.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 33,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 11,
+        "fireSteps": 13,
+        "fireT": 216.66666666666663,
+        "fireReal": 1791703251887.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 34,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 11,
+        "fireSteps": 13,
+        "fireT": 216.66666666666663,
+        "fireReal": 1791703251887.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 13,
+        "kind": "interval",
+        "delay": 50,
+        "schedSteps": 0,
+        "fireSteps": 16,
+        "fireT": 266.66666666666663,
+        "fireReal": 1791703251937.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      },
+      {
+        "i": 35,
+        "kind": "timeout",
+        "delay": 50,
+        "schedSteps": 13,
+        "fireSteps": 16,
+        "fireT": 266.66666666666663,
+        "fireReal": 1791703251937.6667,
+        "rngBefore": 430,
+        "rngUsed": 0
+      }
+    ],
+    "phaserRnd": {
+      "s0": 0.853612236911431,
+      "s1": 0.35675400542095304,
+      "s2": 0.046647717244923115,
+      "c": 600460
+    },
+    "vtSteps": 742,
+    "vtT": 12366.666666666575,
+    "rngState": {
+      "mode": "record",
+      "len": 15532,
+      "idx": 0,
+      "overflow": 0
+    },
+    "recStats": {
+      "on": false,
+      "f": 600,
+      "n": 600,
+      "err": null,
+      "fnv": 430654428
+    },
+    "recInit": {
+      "v": 1,
+      "page": "index.html",
+      "bootstrap": {
+        "humanIds": [
+          "tank_a",
+          "tank_b"
+        ],
+        "aiCount": 0,
+        "vantCount": 0
+      },
+      "driven": [
+        "tank_a",
+        "tank_b"
+      ],
+      "vt": {
+        "t": 2366.6666666666674,
+        "steps": 142
+      },
+      "constsNote": "vt.t 是绝对虚拟时间；帧记录里的 t 是相对录制起点的差值",
+      "rng": {
+        "mode": "record",
+        "len": 4458,
+        "idx": 0,
+        "overflow": 0
+      },
+      "gcState": "in round",
+      "mode": "client local",
+      "gameMode": 1,
+      "roundId": "rc-33da-6",
+      "players": [
+        "tank_a",
+        "tank_b"
+      ],
+      "flags": {
+        "ranked": false,
+        "symmetric": false,
+        "storm": false,
+        "premium": false
+      },
+      "consts": {
+        "COUNTDOWN_DURATION": 0.5,
+        "COUNTDOWN_START_VALUE": 3,
+        "BETWEEN_ROUNDS_DURATION": 1,
+        "CELEBRATION_DURATION": 7,
+        "MAX_DELTA_TIME": 0.1,
+        "MAZE_TILE_SIZE": 10,
+        "THEMES": {
+          "STANDARD": 0,
+          "HALLOWEEN": 1,
+          "CHRISTMAS": 2,
+          "COUNT": 3,
+          "RANDOM": 4
+        }
+      },
+      "maze": {
+        "width": 6,
+        "height": 5,
+        "tileSize": 10,
+        "theme": 0,
+        "tiles": [
+          [
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              0,
+              1
+            ]
+          ]
+        ],
+        "tankPositions": [
+          {
+            "x": 45,
+            "y": 15,
+            "rotation": 1.4056638826684547,
+            "playerId": "tank_a"
+          },
+          {
+            "x": 45,
+            "y": 45,
+            "rotation": 5.91313542425295,
+            "playerId": "tank_b"
+          }
+        ]
+      },
+      "tanks": [
+        {
+          "id": "tank_a",
+          "alive": true,
+          "x": 45,
+          "y": 15,
+          "rot": 1.4056638826684547,
+          "fwd": false,
+          "back": false,
+          "left": false,
+          "right": false,
+          "fire": false,
+          "op": 0,
+          "opName": "静止",
+          "action": 0
+        },
+        {
+          "id": "tank_b",
+          "alive": true,
+          "x": 45,
+          "y": 45,
+          "rot": 5.91313542425295,
+          "fwd": false,
+          "back": false,
+          "left": false,
+          "right": false,
+          "fire": false,
+          "op": 0,
+          "opName": "静止",
+          "action": 0
+        }
+      ]
+    }
+  },
+  "pageMeta": {
+    "k": "meta",
+    "frames": 600,
+    "pageFrames": 600,
+    "fnv": 430654428,
+    "pageFnv": 430654428,
+    "recErr": null,
+    "drive": {
+      "on": false,
+      "f": 600,
+      "total": 600,
+      "applied": 503,
+      "skipped": 697,
+      "errs": 0,
+      "missing": {
+        "tank_a": 461,
+        "tank_b": 236
+      },
+      "loaded": 600
+    },
+    "rngLen": 15532,
+    "rngOverflow": 0,
+    "rngAtStart": {
+      "mode": "record",
+      "len": 4458,
+      "idx": 0,
+      "overflow": 0
+    },
+    "wallMs": 3626,
+    "vt": {
+      "t": 12366.666666666575,
+      "steps": 742
+    }
+  },
+  "headerInit": {
+    "v": 1,
+    "page": "index.html",
+    "bootstrap": {
+      "humanIds": [
+        "tank_a",
+        "tank_b"
+      ],
+      "aiCount": 0,
+      "vantCount": 0
+    },
+    "driven": [
+      "tank_a",
+      "tank_b"
+    ],
+    "vt": {
+      "t": 2366.6666666666674,
+      "steps": 142
+    },
+    "constsNote": "vt.t 是绝对虚拟时间；帧记录里的 t 是相对录制起点的差值",
+    "rng": {
+      "mode": "record",
+      "len": 4458,
+      "idx": 0,
+      "overflow": 0
+    },
+    "gcState": "in round",
+    "mode": "client local",
+    "gameMode": 1,
+    "roundId": "rc-33da-6",
+    "players": [
+      "tank_a",
+      "tank_b"
+    ],
+    "flags": {
+      "ranked": false,
+      "symmetric": false,
+      "storm": false,
+      "premium": false
+    },
+    "consts": {
+      "COUNTDOWN_DURATION": 0.5,
+      "COUNTDOWN_START_VALUE": 3,
+      "BETWEEN_ROUNDS_DURATION": 1,
+      "CELEBRATION_DURATION": 7,
+      "MAX_DELTA_TIME": 0.1,
+      "MAZE_TILE_SIZE": 10,
+      "THEMES": {
+        "STANDARD": 0,
+        "HALLOWEEN": 1,
+        "CHRISTMAS": 2,
+        "COUNT": 3,
+        "RANDOM": 4
+      }
+    },
+    "maze": {
+      "width": 6,
+      "height": 5,
+      "tileSize": 10,
+      "theme": 0,
+      "tiles": [
+        [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ]
+        ],
+        [
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ]
+        ],
+        [
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ],
+        [
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ],
+        [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ]
+        ]
+      ],
+      "tankPositions": [
+        {
+          "x": 45,
+          "y": 15,
+          "rotation": 1.4056638826684547,
+          "playerId": "tank_a"
+        },
+        {
+          "x": 45,
+          "y": 45,
+          "rotation": 5.91313542425295,
+          "playerId": "tank_b"
+        }
+      ]
+    },
+    "tanks": [
+      {
+        "id": "tank_a",
+        "alive": true,
+        "x": 45,
+        "y": 15,
+        "rot": 1.4056638826684547,
+        "fwd": false,
+        "back": false,
+        "left": false,
+        "right": false,
+        "fire": false,
+        "op": 0,
+        "opName": "静止",
+        "action": 0
+      },
+      {
+        "id": "tank_b",
+        "alive": true,
+        "x": 45,
+        "y": 45,
+        "rot": 5.91313542425295,
+        "fwd": false,
+        "back": false,
+        "left": false,
+        "right": false,
+        "fire": false,
+        "op": 0,
+        "opName": "静止",
+        "action": 0
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+A = prof/_p1_1_dt_laika_p11b_before_rule_on.jsonl
+B = prof/_p1_1_dt_laika_p11b_after_replay_beforemap.jsonl
+帧数 A/B = 200/200   对比前 200 帧
+首帧 FRAME_DT: A=0.02 B=0.02 ; 末帧 FRAME_DT: A=0.017166625976562502 B=0.016666666666666514
+首个 op 分歧帧 = 149 ; 首个 commitNode 分歧帧 = 39 ; 首个位姿分歧帧 = 149 ; 首个 RNG 消费分歧帧 = 1
+分歧帧数: op 40/200 (20.0%) ; commit(不含tEnd) 94/200 ; tEnd 179/200 ; nodes 169/200 ; 位姿>1e-6 52/200 ; rngIdx 200/200
+首个 commit(不含tEnd) 分歧帧 = 39 ; tEnd 首个分歧帧 = 22 ; nodes 首个分歧帧 = 32
+位姿最大差 = 5.2961 m ; 末帧位姿 A={"x":2.9105,"y":25.3704,"rot":2.547516} B={"x":7.9708,"y":26.8748,"rot":3.203952}
+末帧 rng overflow A=0 B=45
+首个 commit 分歧详情: A=10|静止|17|alive|-1  B=19|静止|17|alive|-1
+RULEDIFF_EXIT=0

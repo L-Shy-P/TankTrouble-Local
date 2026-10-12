@@ -1,0 +1,12 @@
+hook: gcPatch=instance-ok tickPatched=true pnow=function
+ticks=60 upd_in=60
+dPerf(ms) 中位=16.6667 范围=[16.6667,16.6667]
+dWall(ms) 中位=17 范围=[16.6667,17.3333]
+dLu(ms)  中位=17 范围=[16,17]（含 0 = 同一帧两次 tick）
+dTickWall(ms) 中位=16.6667
+前 12 tick 事件序（看 tick 在 upd_in/upd_out 之间还是之前）:
+  tick@2433.333 upd_in@2433.333 upd_out@2433.333 tick@2450.000 upd_in@2450.000 upd_out@2450.000 tick@2466.667 upd_in@2466.667 upd_out@2466.667 tick@2483.333 upd_in@2483.333 upd_out@2483.333
+→ C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\prof\_p11b_pnow.jsonl
+exportRecord().meta = {"frameDt":0.016666666666666514,"frameDtMeasured":0.01667,"frameDtLastAdv":0.01667,"frameDtSwitches":1,"frameDtSampleSrc":"perf","frameDtWallLast":0.016667,"frameDtCrossMiss":0,"frameDtCrossMaxMs":0.667}
+【反面校验 performance.now×1.5】meta = {"frameDt":0.025,"frameDtSampleSrc":"perf","frameDtWallLast":0.017,"frameDtCrossMiss":19,"frameDtCrossMaxMs":8.333,"warns":1,"warnFirst":"[Vantage] 帧长校准交叉校验不一致：performance.now() 自分差=25.000ms，gc.lastUpdate 墙钟差分=17.000ms，差 8.000ms > 1ms（两者本应一致，请查时钟来源）"}
+PNOW_EXIT=0

@@ -1,0 +1,15 @@
+=== 指纹 ===
+  game_core/js/vantage_tree.js  2026-10-11T15:30:12.771Z  3e3136e17baf648a1acefdb7216ca54c
+  game_core/js/vantage_sandbox.js  2026-10-11T15:29:22.148Z  5e978e00781d039d414301ae0844aef1
+  game_core/index.html  2026-10-11T15:30:12.772Z  481fecb26df301cb5cfbb0b42cf2eb0b
+  open ok; VantageTree.VERSION=v173
+  tree: {"active":false,"rebuilds":1}
+  seeded missile: {"id":"probe_hm_rt","tgt":null,"ta":0}
+  [A 对照] 不换目标 30 帧 → 新接线事件数 = 0 []
+  [B] flip target: {"before":null,"after":"tank_b"}
+  [B 实验] 换目标后 4 帧 → 新接线事件数 = 1
+     {"t":16.516999999999847,"type":"threat","info":"导弹换目标-刷新"}
+  [C 反向] 改回 tank_a 后 → 累计事件数 = 0
+  ★ 判定: PASS（对照不触发 / 换目标触发）
+  pageErrors: []
+[done]

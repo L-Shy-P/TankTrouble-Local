@@ -1,0 +1,45 @@
+=== 版本指纹 ===
+  game_core/index.html  2026-10-11T14:44:50.635Z  cc0d354c7bd630005994104ba4582af3  34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  2026-06-13T17:38:28.228Z  7ecd83bb84f80beac5e1df8f4fe85f48  84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  2026-06-13T17:38:28.247Z  97cadb8a67a443a9eb2f51ebc7d12916  58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  2026-06-13T17:38:28.229Z  1c7bcaba8381d40aa591f5abacb8d96e  55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  2026-06-13T12:22:43.984Z  a2bf42171d586f54e5e5fac5779424e4  24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  2026-06-13T17:38:28.240Z  5183078f57653d2189c8517dd227a01b  51385
+  game_core/js/vantage_tree.js  2026-10-11T14:44:50.633Z  b02609ad48a06617155e7c5d0792e4dd  484237
+  game_core/js/vantage_sandbox.js  2026-10-11T14:51:24.281Z  06971cc0e7fa180e36ccd041c264b243  171358
+  game_core/js/vantage_rust_bridge.js  2026-10-11T14:44:50.637Z  63fe087444041c87e7b813eee12a8f2c  93829
+  game_core/js/wasm/vantage_core.wasm  2026-10-11T14:51:48.191Z  fd132f4b23509abb648b5807dd866fb5  207506
+  _tools/headless/match.js  2026-10-11T09:25:41.483Z  43a8ec65203f7f9c9654932ce17f6f63  28377
+  _tools/headless/clock.js  2026-10-11T09:21:03.391Z  664cd0cfb7eb12cf0c7cfd0dacf41e43  23201
+
+=== open: {"frames":120,"inRound":"in round","log":["0帧→counting down"]} ===
+  helper: installed
+  迷宫 10x6 可达 45；格子: [{"x":2,"y":2,"used":true},{"x":1,"y":2,"used":true},{"x":3,"y":2,"used":true},{"x":2,"y":1,"used":true},{"x":4,"y":2,"used":true},{"x":3,"y":3,"used":true},{"x":3,"y":1,"used":true},{"x":1,"y":1,"used":true},{"x":5,"y":2,"used":true},{"x":3,"y":4,"used":true},{"x":4,"y":1,"used":true},{"x":5,"y":3,"used":true},{"x":2,"y":4,"used":true},{"x":6,"y":3,"used":false},{"x":5,"y":4,"used":false},{"x":1,"y":4,"used":true},{"x":2,"y":3,"used":true},{"x":7,"y":3,"used":false},{"x":6,"y":4,"used":false},{"x":5,"y":5,"used":false},{"x":1,"y":5,"used":true},{"x":1,"y":3,"used":true},{"x":8,"y":3,"used":false},{"x":7,"y":4,"used":false},{"x":4,"y":5,"used":false},{"x":6,"y":5,"used":false},{"x":0,"y":5,"used":true},{"x":0,"y":3,"used":true},{"x":9,"y":3,"used":false},{"x":7,"y":5,"used":false},{"x":0,"y":4,"used":true},{"x":0,"y":2,"used":true},{"x":9,"y":4,"used":false},{"x":9,"y":2,"used":false},{"x":8,"y":5,"used":false},{"x":8,"y":2,"used":true},{"x":8,"y":1,"used":true},{"x":7,"y":1,"used":true},{"x":8,"y":0,"used":true},{"x":6,"y":1,"used":false},{"x":7,"y":0,"used":true},{"x":9,"y":0,"used":true},{"x":5,"y":1,"used":false},{"x":6,"y":0,"used":true},{"x":5,"y":0,"used":true}]
+
+=== A) 桩事实 ===
+  常量: {"HM_ACT":2,"HM_MAX_LIFE":10,"HM_ACC":40,"HM_RADIUS":0.2,"HM_SPEED":18,"HM_OFFSET":2.5,"TILE":10,"BOUNCE_WIN":35,"BOUNCE_CNT":5}
+  spawnCrate(CRATE_HOMING_MISSILE) → {"n":1,"one":{"id":"c-5374-12","type":3,"x":85,"y":35}}
+  拾取前: {"x":15,"y":35,"weaponId":"bw-5374-11","weaponType":-1}
+  拾取后(真 crate): {"weaponId":"hmw-5374-13","weaponType":3,"fields":{"_launched":false,"_activationTime":0},"defaultType":-1,"isDefault":false,"movementLocked":false,"done":false}
+  直接工厂: {"type":3,"fields":{"_launched":false,"_activationTime":0}}
+  ⟹ 等价性: {"typeEq":true,"fieldsEq":true,"isDefault":false,"movementLocked":false}
+
+=== B) 主飞行：激活/转向/速度/目标/寿命 ===
+  摆位: {"tankA":{"x":1,"y":1,"used":true},"tankB":{"x":9,"y":4,"used":false},"tankC":{"x":8,"y":5,"used":false}}
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火（tank_a @(15,15) rot=0）；场上导弹=1
+  帧数=13 首帧转向={"f":180,"t":3016.67,"ta":0.116,"from":{"vx":0,"vy":-18},"to":{"vx":0,"vy":18},"dthetaDeg":180}
+  |v| 范围=[18.000000, 18.000000]（≠18 的帧数=0）
+  激活后最大单帧转角=0.0000°  （理论 atan(40*dt/18)=2.1211°）
+  逐帧预测对拍: 0/12 完全一致
+  对拍失败样例: [{"f":175,"ta":0.033,"pred":{"x":0.6667,"y":-17.3333,"renorm":false},"actual":{"x":0,"y":-18,"sp":18},"dx":0.6667,"dy":0.6666999999999987,"aimKind":"tank-exact","tgt":null},{"f":176,"ta":0.05,"pred":{"x":0.6667,"y":-17.3333,"renorm":false},"actual":{"x":0,"y":-18,"sp":18},"dx":0.6667,"dy":0.6666999999999987,"aimKind":"tank-exact","tgt":null},{"f":177,"ta":0.066,"pred":{"x":0.6667,"y":-17.3333,"renorm":false},"actual":{"x":0,"y":-18,"sp":18},"dx":0.6667,"dy":0.6666999999999987,"aimKind":"tank-exact","tgt":null},{"f":178,"ta":0.083,"pred":{"x":0.6667,"y":-17.3333,"renorm":false},"actual":{"x":0,"y":-18,"sp":18},"dx":0.6667,"dy":0.6666999999999987,"aimKind":"tank-exact","tgt":null},{"f":179,"ta":0.1,"pred":{"x":0.6667,"y":-17.3333,"renorm":false},"actual":{"x":0,"y":-18,"sp":18},"dx":0.6667,"dy":0.6666999999999987,"aimKind":"tank-exact","tgt":null}]
+  目标时间线: [{"f":174,"ta":0.016,"from":"<none>","to":null}]
+  TARGET_CHANGED 事件: []
+  激活窗口: []
+  末帧: {"f":186,"ta":0.216,"tgt":null,"tgtMy":"tank_a","sd":0,"aimKind":"tank-exact","aim":{"x":15,"y":15},"rel":{"x":0,"y":2.412},"v":{"x":0,"y":18,"sp":18},"pred":{"x":0.6424,"y":17.9885,"renorm":true},"err":null,"dto":true,"nb":1,"cands":[{"tank":"tank_a","tile":[1,1],"dist":0},{"tank":"tank_b","tile":[9,4],"dist":11},{"tank":"tank_c","tile":[8,5],"dist":11}]}
+
+=== vtStats ===
+  {"t":3183.3333333333267,"steps":191,"pending":3,"errors":[],"errorCount":0,"epoch":1791731102454,"timersPending":11,"timerFires":228,"timerDropped":0,"timerT":2783.3333333333303,"frozen":false,"released":true,"releaseSteps":24}
+  pageErrors: []
+
+[done] 用时 5.2s

@@ -1,0 +1,9 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+scene            : S7 段中 tGlobal≈0 批次（节点起点在过去 15 帧）
+  真实弹现在 = (5, 11.00)  速度(0,-18)  现在剩余寿命 = 0.10s
+  节点起点应在 = (5, 16.40)  该处剩余寿命 = 0.40s  trackLen=20
+  旧（nowTGlobal=0）   : 摆弹={"pid":null,"active":true,"src":"real","x":5,"y":11,"vx":0,"vy":-18,"threat":true,"trackLen":20,"idx":0} fd[0]=3
+  新（nowTGlobal=0.30）: 摆弹={"pid":null,"active":true,"src":"track","x":5,"y":16.4,"vx":0,"vy":-18,"threat":true,"trackLen":20,"idx":0} fd[0]=18
+  期望摆位 y=16.40  旧摆位 y=11.00（差 5.40m = tBack×弹速）
+DIFF S7 PASTNODE PASSED (after)：摆位回推 5.40m，死帧从 3 修到 18（+15 帧 = tBack）

@@ -1,0 +1,159 @@
+{
+ "frames": 14000,
+ "noTree": 0,
+ "err": null,
+ "sumThreat": 2779,
+ "sumNoTrack": 0,
+ "占比_威胁帧": 0,
+ "framesWithThreat": 766,
+ "framesWithNoTrack": 0,
+ "占比_有威胁的帧": 0,
+ "framesAllNoTrack": 0,
+ "framesZeroThreat": 13234,
+ "framesGoneThreat": 1,
+ "idMismatch": 0,
+ "mismatchKinds": {},
+ "kindHist": {},
+ "typeHistAll": {
+  "t-1": 2778,
+  "tnull": 1
+ },
+ "typeHistNoTrack": {},
+ "typeHistGone": {
+  "tnull": 1
+ },
+ "projTypeHist": {
+  "t-1": {
+   "1": 138,
+   "2": 56,
+   "3": 138,
+   "4": 56,
+   "5": 378
+  }
+ },
+ "trackSourceHist": {
+  "box2d": 2779
+ },
+ "diagTrackCount": {
+  "1": 13283,
+  "2": 27,
+  "3": 21,
+  "4": 24,
+  "5": 91,
+  "undef": 554
+ },
+ "histNoTrackPerFrame": {
+  "0": 14000
+ },
+ "streakMax": 0,
+ "threatPerFrame": {
+  "p50": 0,
+  "p95": 1,
+  "max": 5,
+  "mean": 0.2
+ },
+ "noTrackPerFrame": {
+  "p50": 0,
+  "p95": 0,
+  "max": 0
+ },
+ "tRange": [
+  0.017,
+  237.99966674800683
+ ],
+ "byRound": {
+  "rc-8bd6-8": {
+   "frames": 14000,
+   "threatFrames": 2779,
+   "noTrackThreatFrames": 0,
+   "framesWithNoTrack": 0,
+   "maxProj": 5,
+   "占比": 0
+  }
+ },
+ "roundOrder": [
+  "rc-8bd6-8"
+ ],
+ "eventCount": 0,
+ "events": [],
+ "sampleTail": [
+  [
+   13998,
+   0,
+   0,
+   "rc-8bd6-8",
+   0
+  ],
+  [
+   13999,
+   0,
+   0,
+   "rc-8bd6-8",
+   0
+  ],
+  [
+   14000,
+   0,
+   0,
+   "rc-8bd6-8",
+   0
+  ]
+ ],
+ "env": {
+  "hasVT": true,
+  "hasScoring": true,
+  "modes": "CURRENT=-1,CLASSIC=0,BOOT_CAMP=1,DEATHMATCH=2,TEAM_CLASSIC=3,TEAM_DEATHMATCH=4,CAPTURE_THE_FLAG=5,COUNT=3",
+  "bootCrates": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "weaponTypes": {
+   "BULLET": -1,
+   "LASER": 0,
+   "DOUBLE_BARREL": 1,
+   "SHOTGUN": 2,
+   "HOMING_MISSILE": 3,
+   "MINE": 4,
+   "GATLING_GUN": 5
+  },
+  "collectibleTypes": {
+   "CRATE_LASER": 0,
+   "CRATE_DOUBLE_BARREL": 1,
+   "CRATE_SHOTGUN": 2,
+   "CRATE_HOMING_MISSILE": 3,
+   "CRATE_MINE": 4,
+   "CRATE_GATLING_GUN": 5,
+   "WEAPON_CRATE_COUNT": 6,
+   "CRATE_SHIELD": 6,
+   "CRATE_AIMER": 7,
+   "CRATE_SPEED_BOOST": 8,
+   "UPGRADE_CRATE_COUNT": 9,
+   "CRATE_COUNT": 9,
+   "GOLD": 9,
+   "DIAMOND": 10,
+   "FLAG": 11,
+   "COLLECTIBLE_TO_UPGRADE_OFFSET": -4
+  }
+ },
+ "framesRequested": 14000,
+ "aiCount": 2,
+ "bootstrap": {
+  "gameId": "gc-8bd6-0",
+  "humanIds": [
+   "tank_a"
+  ],
+  "aiIds": [
+   "6148530"
+  ],
+  "vantageIds": [
+   "vantage_1"
+  ],
+  "started": true
+ },
+ "pageErrors": []
+}

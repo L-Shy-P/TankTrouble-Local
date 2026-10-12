@@ -1,0 +1,157 @@
+{
+  "file": "prof/_loop_rec_record_0.jsonl",
+  "frames": 1200,
+  "runs": 2,
+  "lossless": {
+    "lines": 1203,
+    "frameLines": 1200,
+    "frames": 1200,
+    "fileHash": 646957011,
+    "metaHash": 646957011,
+    "pageHash": 646957011,
+    "ok": true
+  },
+  "run1vsRun2": {
+    "label": "r1v2",
+    "framesA": 1200,
+    "framesB": 1200,
+    "ok": true,
+    "opMismatch": 0,
+    "poseMismatch": 0,
+    "projMismatch": 0,
+    "stateMismatch": 0,
+    "rngMismatch": 0,
+    "timeMismatch": 0,
+    "hiddenMismatch": 0,
+    "maxPoseDiff": 0,
+    "maxTimeDiff": 0,
+    "examples": []
+  },
+  "recordingVsRun1": {
+    "label": "原始录制 vs 回放#1",
+    "framesA": 1200,
+    "framesB": 1200,
+    "ok": false,
+    "opMismatch": 3,
+    "poseMismatch": 3,
+    "projMismatch": 2,
+    "stateMismatch": 3,
+    "rngMismatch": 1114,
+    "timeMismatch": 0,
+    "hiddenMismatch": 717,
+    "maxPoseDiff": 0,
+    "maxTimeDiff": 0,
+    "examples": [
+      "帧86 tank_b: 一边缺席 (A=false B=true)",
+      "帧86: 随机数消费计数 A=4921 B=4819",
+      "帧86: 隐藏状态 A={\"rc\":\"rc-6836-6\",\"th\":0,\"wpn\":[],\"col\":0,\"rnd\":[0.8690549177117646,0.629624490160495,0.3331497588660568,1003012],\"q\":{\"q\":\"auto\",\"fps\":60,\"n\":207},\"ai\":0,\"b2d\":{\"n\":27,\" B={\"rc\":\"rc-6836-6\",\"th\":0,\"wpn\":[[\"tank_b\",-1,5,3,3.45]],\"col\":0,\"rnd\":[0.49923060229048133,0.31841388274915516,0.0679193059913814,380179],\"q\":{\"q\":\"auto\",\"fps\":60,\"n\":207",
+      "帧86: 子弹 A=[{\"id\":\"b-6836-12\",\"owner\":\"tank_b\",\"x\":63.98774152461335,\"y\":30.798867143296302,\"type\":-1},{\"id\":\"b-6836-13\",\"owner\":\"t B=[{\"id\":\"b-6836-10\",\"owner\":\"tank_b\",\"x\":57.3989109782918,\"y\":31.872624592332706,\"type\":-1},{\"id\":\"b-6836-12\",\"owner\":\"ta",
+      "帧87: 随机数消费计数 A=4923 B=4922"
+    ]
+  },
+  "perRun": [
+    {
+      "run": 1,
+      "initPose": [
+        {
+          "id": "tank_a",
+          "x": 5,
+          "y": 15,
+          "rot": 5.926012282643754
+        },
+        {
+          "id": "tank_b",
+          "x": 55,
+          "y": 35,
+          "rot": 1.7084234803271525
+        }
+      ],
+      "drive": {
+        "on": false,
+        "f": 1200,
+        "total": 1200,
+        "applied": 1166,
+        "skipped": 6,
+        "errs": 0,
+        "missing": {
+          "tank_a": 3,
+          "tank_b": 3
+        },
+        "loaded": 1200
+      },
+      "rng": {
+        "mode": "play",
+        "len": 17674,
+        "idx": 0,
+        "overflow": 0,
+        "calls": 17673,
+        "siteCount": 148,
+        "siteOverflow": 0,
+        "firstRec": null,
+        "firstPlay": {
+          "key": 3040316008,
+          "head": [
+            "Error",
+            "    at siteKey (<anonymous>:269:18)",
+            "    at Math.random (<anonymous>:290:19)",
+            "    at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:1746"
+          ]
+        }
+      },
+      "framesMatch": true,
+      "chunks": 25
+    },
+    {
+      "run": 2,
+      "initPose": [
+        {
+          "id": "tank_a",
+          "x": 5,
+          "y": 15,
+          "rot": 5.926012282643754
+        },
+        {
+          "id": "tank_b",
+          "x": 55,
+          "y": 35,
+          "rot": 1.7084234803271525
+        }
+      ],
+      "drive": {
+        "on": false,
+        "f": 1200,
+        "total": 1200,
+        "applied": 1166,
+        "skipped": 6,
+        "errs": 0,
+        "missing": {
+          "tank_a": 3,
+          "tank_b": 3
+        },
+        "loaded": 1200
+      },
+      "rng": {
+        "mode": "play",
+        "len": 17674,
+        "idx": 0,
+        "overflow": 0,
+        "calls": 17673,
+        "siteCount": 148,
+        "siteOverflow": 0,
+        "firstRec": null,
+        "firstPlay": {
+          "key": 3040316008,
+          "head": [
+            "Error",
+            "    at siteKey (<anonymous>:269:18)",
+            "    at Math.random (<anonymous>:290:19)",
+            "    at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:1746"
+          ]
+        }
+      },
+      "framesMatch": true,
+      "chunks": 25
+    }
+  ],
+  "ok": false
+}

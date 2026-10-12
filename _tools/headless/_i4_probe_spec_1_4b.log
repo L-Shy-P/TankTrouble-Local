@@ -1,0 +1,29 @@
+X A: Error: no lane
+    at Array.partA (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:218:22)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:495:31
+B0 victimCell={"x":10,"y":2} world={"x":105,"y":25} box=[103.5,23,106.5,27]
+B0 round={"state":"in round","roundDuration":null,"storm":false,"stormSpawned":false,"tanks":3} stormFlag={"gcStorm":true,"gmStorm":true} seq=0,0,2,0,0,3,1,0,2,1,2,1,2,0,2 bounds={"minX":0,"minY":0,"maxX":10,"maxY":4} appearAt=60
+   ...pump 30 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 930 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 1830 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 2730 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 3630 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 4530 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 5430 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+   ...pump 6330 round={"state":"in round","roundDuration":null,"storm":true,"stormSpawned":false,"tanks":3}
+B1 spawn@frame=null roundDuration=null
+B1 fixtures AABB=null
+B1 corners=null tilesN=null
+X B: Error: no storm in 60s
+    at Array.partB (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:379:23)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:495:31
+X C: TypeError: Cannot read properties of null (reading '0')
+    at Array.partC (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:414:23)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:495:31
+D[barrelAway] rot=3.141592653589793 deadAt=-1 bulletY=-6.212..-0.794 baseBox=[3,7] turret=[[[44.65,6.3],[45.35,6.3],[45.35,7.7],[44.65,7.7]]]
+X D: Error: teleport 失败：no tank tank_a（tank=tank_a）
+    at Match.teleport (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:449:22)
+    at async Array.partD (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:465:7)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4b.js:495:31
+
+[done] 16.2s

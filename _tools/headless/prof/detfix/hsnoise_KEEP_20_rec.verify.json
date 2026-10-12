@@ -1,0 +1,85 @@
+{
+  "file": "prof/detfix/hsnoise_KEEP_20_rec.jsonl",
+  "frames": 1200,
+  "runs": 1,
+  "lossless": {
+    "lines": 1203,
+    "frameLines": 1200,
+    "frames": 1200,
+    "fileHash": 2049181470,
+    "metaHash": 2049181470,
+    "pageHash": 2049181470,
+    "ok": true
+  },
+  "run1vsRun2": null,
+  "recordingVsRun1": {
+    "label": "原始录制 vs 回放#1",
+    "framesA": 1200,
+    "framesB": 1200,
+    "ok": true,
+    "opMismatch": 0,
+    "poseMismatch": 0,
+    "projMismatch": 0,
+    "stateMismatch": 0,
+    "rngMismatch": 0,
+    "timeMismatch": 0,
+    "hiddenMismatch": 0,
+    "hiddenObsMismatch": 0,
+    "driveMismatch": 0,
+    "maxPoseDiff": 0,
+    "maxTimeDiff": 0,
+    "examples": [],
+    "obsExamples": []
+  },
+  "perRun": [
+    {
+      "run": 1,
+      "initPose": [
+        {
+          "id": "tank_a",
+          "x": 65,
+          "y": 15,
+          "rot": 5.123666330724925
+        },
+        {
+          "id": "tank_b",
+          "x": 5,
+          "y": 5,
+          "rot": 2.7266080934148063
+        }
+      ],
+      "drive": {
+        "on": false,
+        "f": 1200,
+        "total": 1200,
+        "applied": 1279,
+        "skipped": 0,
+        "errs": 0,
+        "missing": {},
+        "loaded": 1200
+      },
+      "rng": {
+        "mode": "play",
+        "len": 27615,
+        "idx": 0,
+        "overflow": 0,
+        "calls": 27615,
+        "siteCount": 144,
+        "siteOverflow": 0,
+        "firstRec": null,
+        "firstPlay": {
+          "key": 3040316008,
+          "head": [
+            "Error",
+            "    at siteKey (<anonymous>:270:18)",
+            "    at Math.random (<anonymous>:295:19)",
+            "    at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:1746"
+          ]
+        }
+      },
+      "framesMatch": true,
+      "chunks": 25
+    }
+  ],
+  "ok": true
+}

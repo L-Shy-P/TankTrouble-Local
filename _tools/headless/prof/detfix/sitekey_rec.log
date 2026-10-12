@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "file": "prof/detfix/sitekey_rec.jsonl",
+  "frames": 100,
+  "chunks": 3,
+  "hash": 3028508824,
+  "pageHash": 3028508824,
+  "drive": {
+    "on": false,
+    "f": 100,
+    "total": 100,
+    "applied": 200,
+    "skipped": 0,
+    "errs": 0,
+    "missing": {},
+    "loaded": 100
+  },
+  "rngLen": 4842,
+  "rngOverflow": 0,
+  "wallMs": 2560,
+  "vt": {
+    "t": 8700.000000000042,
+    "steps": 522
+  }
+}

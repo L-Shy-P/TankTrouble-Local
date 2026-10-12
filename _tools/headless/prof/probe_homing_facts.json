@@ -1,0 +1,1325 @@
+{
+ "fingerprints": [
+  {
+   "file": "game_core/index.html",
+   "mtime": "2026-10-11T14:44:50.635Z",
+   "bytes": 34723,
+   "md5": "cc0d354c7bd630005994104ba4582af3"
+  },
+  {
+   "file": "game_core/js/418577fd210ad079ea3d1e5e04050fe0.js",
+   "mtime": "2026-06-13T17:38:28.228Z",
+   "bytes": 84517,
+   "md5": "7ecd83bb84f80beac5e1df8f4fe85f48"
+  },
+  {
+   "file": "game_core/js/b714588dc4621fe104113111ba90b1a7.js",
+   "mtime": "2026-06-13T17:38:28.247Z",
+   "bytes": 58771,
+   "md5": "97cadb8a67a443a9eb2f51ebc7d12916"
+  },
+  {
+   "file": "game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js",
+   "mtime": "2026-06-13T17:38:28.229Z",
+   "bytes": 55406,
+   "md5": "1c7bcaba8381d40aa591f5abacb8d96e"
+  },
+  {
+   "file": "game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js",
+   "mtime": "2026-06-13T12:22:43.984Z",
+   "bytes": 24449,
+   "md5": "a2bf42171d586f54e5e5fac5779424e4"
+  },
+  {
+   "file": "game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js",
+   "mtime": "2026-06-13T17:38:28.240Z",
+   "bytes": 51385,
+   "md5": "5183078f57653d2189c8517dd227a01b"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "mtime": "2026-10-11T14:44:50.633Z",
+   "bytes": 484237,
+   "md5": "b02609ad48a06617155e7c5d0792e4dd"
+  },
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-11T14:51:24.281Z",
+   "bytes": 171358,
+   "md5": "06971cc0e7fa180e36ccd041c264b243"
+  },
+  {
+   "file": "game_core/js/vantage_rust_bridge.js",
+   "mtime": "2026-10-11T14:44:50.637Z",
+   "bytes": 93829,
+   "md5": "63fe087444041c87e7b813eee12a8f2c"
+  },
+  {
+   "file": "game_core/js/wasm/vantage_core.wasm",
+   "mtime": "2026-10-11T14:51:48.191Z",
+   "bytes": 207506,
+   "md5": "fd132f4b23509abb648b5807dd866fb5"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "mtime": "2026-10-11T09:25:41.483Z",
+   "bytes": 28377,
+   "md5": "43a8ec65203f7f9c9654932ce17f6f63"
+  },
+  {
+   "file": "_tools/headless/clock.js",
+   "mtime": "2026-10-11T09:21:03.391Z",
+   "bytes": 23201,
+   "md5": "664cd0cfb7eb12cf0c7cfd0dacf41e43"
+  }
+ ],
+ "stages": [
+  {
+   "tag": "A_facts",
+   "consts": {
+    "HM_ACT": 2,
+    "HM_MAX_LIFE": 10,
+    "HM_ACC": 40,
+    "HM_RADIUS": 0.2,
+    "HM_SPEED": 18,
+    "HM_OFFSET": 2.5,
+    "TILE": 10
+   },
+   "spawned": {
+    "n": 1,
+    "one": {
+     "id": "c-2cfd-12",
+     "type": 3,
+     "x": 25,
+     "y": 5
+    }
+   },
+   "afterPickup": {
+    "weaponId": "hmw-2cfd-13",
+    "weaponType": 3,
+    "fields": {
+     "_launched": false,
+     "_activationTime": 0
+    },
+    "isDefault": false,
+    "movementLocked": false,
+    "done": false
+   },
+   "direct": {
+    "type": 3,
+    "fields": {
+     "_launched": false,
+     "_activationTime": 0
+    }
+   }
+  },
+  {
+   "tag": "B_flight",
+   "setup": {
+    "laneStartPose": {
+     "x": 75,
+     "y": 5,
+     "rot": -1.5707963267948966
+    },
+    "laneEndPose": {
+     "x": 5,
+     "y": 5
+    },
+    "park": {
+     "x": 7,
+     "y": 4,
+     "used": true
+    }
+   },
+   "at215": {
+    "ta": 2.1669999999999967,
+    "id": "hm-2cfd-16",
+    "tgt": "tank_b",
+    "dto": true,
+    "nb": 1,
+    "x": 67.20403999999965,
+    "y": 5.01356,
+    "vx": 11.32,
+    "vy": 0.039999999999998925
+   },
+   "sideTile": {
+    "x": 6,
+    "y": 1
+   },
+   "missileAt215": {
+    "x": 67.20403999999965,
+    "y": 5.01356,
+    "vx": 11.32,
+    "vy": 0.039999999999998925
+   },
+   "id": "hm-2cfd-16",
+   "rows": 176,
+   "analysis": {
+    "frames": 171,
+    "colFrames": [
+     247
+    ],
+    "first": {
+     "id": "hm-2cfd-16",
+     "o": "tank_a",
+     "x": 72.194,
+     "y": 5,
+     "vx": -18,
+     "vy": 0,
+     "sp": 18,
+     "ta": 0.017,
+     "la": 10,
+     "dto": false,
+     "nb": 0,
+     "tgt": null,
+     "initSpSq": 324,
+     "st": false,
+     "cands": [
+      {
+       "tank": "tank_a",
+       "tile": [
+        7,
+        0
+       ],
+       "dist": 0
+      },
+      {
+       "tank": "tank_b",
+       "tile": [
+        0,
+        0
+       ],
+       "dist": 9
+      },
+      {
+       "tank": "tank_c",
+       "tile": [
+        7,
+        4
+       ],
+       "dist": 14
+      }
+     ],
+     "tgtMy": "tank_a",
+     "sd": 0,
+     "aimKind": "tank-exact",
+     "aim": {
+      "x": 75,
+      "y": 5
+     },
+     "rel": {
+      "x": 2.806,
+      "y": 0
+     },
+     "predGate": false,
+     "pred": {
+      "x": -18,
+      "y": 0,
+      "renorm": false,
+      "gate": "pre"
+     }
+    },
+    "last": {
+     "id": "hm-2cfd-16",
+     "o": "tank_a",
+     "x": 66.5118,
+     "y": 12.6608,
+     "vx": -9.7482,
+     "vy": 15.1318,
+     "sp": 18,
+     "ta": 2.85,
+     "la": 10,
+     "dto": true,
+     "nb": 1,
+     "tgt": "tank_b",
+     "initSpSq": 324,
+     "st": false,
+     "cands": [
+      {
+       "tank": "tank_a",
+       "tile": [
+        7,
+        4
+       ],
+       "dist": 12
+      },
+      {
+       "tank": "tank_b",
+       "tile": [
+        6,
+        1
+       ],
+       "dist": 0
+      },
+      {
+       "tank": "tank_c",
+       "tile": [
+        7,
+        4
+       ],
+       "dist": 12
+      }
+     ],
+     "tgtMy": "tank_b",
+     "sd": 0,
+     "aimKind": "tank-exact",
+     "aim": {
+      "x": 65,
+      "y": 15
+     },
+     "rel": {
+      "x": -1.5118,
+      "y": 2.3392
+     },
+     "predGate": true,
+     "pred": {
+      "x": -9.9101,
+      "y": 15.0263,
+      "renorm": true,
+      "gate": "act"
+     }
+    },
+    "speed": {
+     "min": 8.0455,
+     "max": 18,
+     "bad": 35
+    },
+    "firstTurn": {
+     "f": 247,
+     "ta": 1.217,
+     "deg": -180,
+     "collided": true,
+     "from": {
+      "vx": -18,
+      "vy": 0
+     },
+     "to": {
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    "turnCount": 52,
+    "turnsNonCollision": [
+     {
+      "f": 295,
+      "ta": 2.017,
+      "deg": 2.248333142350922,
+      "collided": false,
+      "from": {
+       "vx": 18,
+       "vy": 0
+      },
+      "to": {
+       "vx": 17.32,
+       "vy": 0.68
+      }
+     },
+     {
+      "f": 296,
+      "ta": 2.034,
+      "deg": -2.248333142350922,
+      "collided": false,
+      "from": {
+       "vx": 17.32,
+       "vy": 0.68
+      },
+      "to": {
+       "vx": 16.64,
+       "vy": 0
+      }
+     },
+     {
+      "f": 297,
+      "ta": 2.05,
+      "deg": -2.2906100426385296,
+      "collided": false,
+      "from": {
+       "vx": 16.64,
+       "vy": 0
+      },
+      "to": {
+       "vx": 16,
+       "vy": -0.64
+      }
+     },
+     {
+      "f": 298,
+      "ta": 2.067,
+      "deg": -2.6339396574804357,
+      "collided": false,
+      "from": {
+       "vx": 16,
+       "vy": -0.64
+      },
+      "to": {
+       "vx": 15.32,
+       "vy": -1.32
+      }
+     },
+     {
+      "f": 299,
+      "ta": 2.084,
+      "deg": 2.42140992053406,
+      "collided": false,
+      "from": {
+       "vx": 15.32,
+       "vy": -1.32
+      },
+      "to": {
+       "vx": 14.64,
+       "vy": -0.64
+      }
+     },
+     {
+      "f": 300,
+      "ta": 2.1,
+      "deg": 2.503139779584906,
+      "collided": false,
+      "from": {
+       "vx": 14.64,
+       "vy": -0.64
+      },
+      "to": {
+       "vx": 14,
+       "vy": 0
+      }
+     },
+     {
+      "f": 301,
+      "ta": 2.117,
+      "deg": 2.922472668024903,
+      "collided": false,
+      "from": {
+       "vx": 14,
+       "vy": 0
+      },
+      "to": {
+       "vx": 13.32,
+       "vy": 0.68
+      }
+     },
+     {
+      "f": 302,
+      "ta": 2.134,
+      "deg": 3.218637948851902,
+      "collided": false,
+      "from": {
+       "vx": 13.32,
+       "vy": 0.68
+      },
+      "to": {
+       "vx": 12.64,
+       "vy": 1.36
+      }
+     },
+     {
+      "f": 303,
+      "ta": 2.15,
+      "deg": -2.707480254426283,
+      "collided": false,
+      "from": {
+       "vx": 12.64,
+       "vy": 1.36
+      },
+      "to": {
+       "vx": 12,
+       "vy": 0.72
+      }
+     },
+     {
+      "f": 304,
+      "ta": 2.167,
+      "deg": -3.2311726202323285,
+      "collided": false,
+      "from": {
+       "vx": 12,
+       "vy": 0.72
+      },
+      "to": {
+       "vx": 11.32,
+       "vy": 0.04
+      }
+     },
+     {
+      "f": 305,
+      "ta": 2.184,
+      "deg": 3.6687984897674353,
+      "collided": false,
+      "from": {
+       "vx": 11.32,
+       "vy": 0.04
+      },
+      "to": {
+       "vx": 10.64,
+       "vy": 0.72
+      }
+     },
+     {
+      "f": 306,
+      "ta": 2.2,
+      "deg": 3.873454314437286,
+      "collided": false,
+      "from": {
+       "vx": 10.64,
+       "vy": 0.72
+      },
+      "to": {
+       "vx": 10,
+       "vy": 1.36
+      }
+     },
+     {
+      "f": 307,
+      "ta": 2.217,
+      "deg": 4.601710122303921,
+      "collided": false,
+      "from": {
+       "vx": 10,
+       "vy": 1.36
+      },
+      "to": {
+       "vx": 9.32,
+       "vy": 2.04
+      }
+     },
+     {
+      "f": 308,
+      "ta": 2.234,
+      "deg": 5.128353587528832,
+      "collided": false,
+      "from": {
+       "vx": 9.32,
+       "vy": 2.04
+      },
+      "to": {
+       "vx": 8.64,
+       "vy": 2.72
+      }
+     },
+     {
+      "f": 309,
+      "ta": 2.25,
+      "deg": 5.307631474226018,
+      "collided": false,
+      "from": {
+       "vx": 8.64,
+       "vy": 2.72
+      },
+      "to": {
+       "vx": 8,
+       "vy": 3.36
+      }
+     },
+     {
+      "f": 310,
+      "ta": 2.267,
+      "deg": 6.11245218536945,
+      "collided": false,
+      "from": {
+       "vx": 8,
+       "vy": 3.36
+      },
+      "to": {
+       "vx": 7.32,
+       "vy": 4.04
+      }
+     },
+     {
+      "f": 311,
+      "ta": 2.284,
+      "deg": 6.512007821418524,
+      "collided": false,
+      "from": {
+       "vx": 7.32,
+       "vy": 4.04
+      },
+      "to": {
+       "vx": 6.64,
+       "vy": 4.72
+      }
+     },
+     {
+      "f": 312,
+      "ta": 2.3,
+      "deg": 6.368611656210434,
+      "collided": false,
+      "from": {
+       "vx": 6.64,
+       "vy": 4.72
+      },
+      "to": {
+       "vx": 6,
+       "vy": 5.36
+      }
+     },
+     {
+      "f": 313,
+      "ta": 2.317,
+      "deg": 6.85109439039952,
+      "collided": false,
+      "from": {
+       "vx": 6,
+       "vy": 5.36
+      },
+      "to": {
+       "vx": 5.32,
+       "vy": 6.04
+      }
+     },
+     {
+      "f": 314,
+      "ta": 2.334,
+      "deg": 6.749273136171435,
+      "collided": false,
+      "from": {
+       "vx": 5.32,
+       "vy": 6.04
+      },
+      "to": {
+       "vx": 4.64,
+       "vy": 6.72
+      }
+     },
+     {
+      "f": 315,
+      "ta": 2.35,
+      "deg": 6.101036473636927,
+      "collided": false,
+      "from": {
+       "vx": 4.64,
+       "vy": 6.72
+      },
+      "to": {
+       "vx": 4,
+       "vy": 7.36
+      }
+     },
+     {
+      "f": 316,
+      "ta": 2.367,
+      "deg": 6.085659131745763,
+      "collided": false,
+      "from": {
+       "vx": 4,
+       "vy": 7.36
+      },
+      "to": {
+       "vx": 3.32,
+       "vy": 8.04
+      }
+     },
+     {
+      "f": 317,
+      "ta": 2.384,
+      "deg": 5.593650922838832,
+      "collided": false,
+      "from": {
+       "vx": 3.32,
+       "vy": 8.04
+      },
+      "to": {
+       "vx": 2.64,
+       "vy": 8.72
+      }
+     },
+     {
+      "f": 318,
+      "ta": 2.4,
+      "deg": 4.782499094682929,
+      "collided": false,
+      "from": {
+       "vx": 2.64,
+       "vy": 8.72
+      },
+      "to": {
+       "vx": 2,
+       "vy": 9.36
+      }
+     },
+     {
+      "f": 319,
+      "ta": 2.417,
+      "deg": 4.571356772412056,
+      "collided": false,
+      "from": {
+       "vx": 2,
+       "vy": 9.36
+      },
+      "to": {
+       "vx": 1.32,
+       "vy": 10.04
+      }
+     },
+     {
+      "f": 320,
+      "ta": 2.434,
+      "deg": 4.073364492861103,
+      "collided": false,
+      "from": {
+       "vx": 1.32,
+       "vy": 10.04
+      },
+      "to": {
+       "vx": 0.64,
+       "vy": 10.72
+      }
+     },
+     {
+      "f": 321,
+      "ta": 2.45,
+      "deg": 3.416588191771339,
+      "collided": false,
+      "from": {
+       "vx": 0.64,
+       "vy": 10.72
+      },
+      "to": {
+       "vx": 0,
+       "vy": 11.36
+      }
+     },
+     {
+      "f": 322,
+      "ta": 2.467,
+      "deg": 3.2325401137458796,
+      "collided": false,
+      "from": {
+       "vx": 0,
+       "vy": 11.36
+      },
+      "to": {
+       "vx": -0.68,
+       "vy": 12.04
+      }
+     },
+     {
+      "f": 323,
+      "ta": 2.484,
+      "deg": 2.8702395399099108,
+      "collided": false,
+      "from": {
+       "vx": -0.68,
+       "vy": 12.04
+      },
+      "to": {
+       "vx": -1.36,
+       "vy": 12.72
+      }
+     },
+     {
+      "f": 324,
+      "ta": 2.5,
+      "deg": 2.4112082760945714,
+      "collided": false,
+      "from": {
+       "vx": -1.36,
+       "vy": 12.72
+      },
+      "to": {
+       "vx": -2,
+       "vy": 13.36
+      }
+     },
+     {
+      "f": 325,
+      "ta": 2.517,
+      "deg": 2.292811224590956,
+      "collided": false,
+      "from": {
+       "vx": -2,
+       "vy": 13.36
+      },
+      "to": {
+       "vx": -2.68,
+       "vy": 14.04
+      }
+     },
+     {
+      "f": 326,
+      "ta": 2.534,
+      "deg": 2.0512910186568694,
+      "collided": false,
+      "from": {
+       "vx": -2.68,
+       "vy": 14.04
+      },
+      "to": {
+       "vx": -3.36,
+       "vy": 14.72
+      }
+     },
+     {
+      "f": 327,
+      "ta": 2.55,
+      "deg": 1.7384853524959982,
+      "collided": false,
+      "from": {
+       "vx": -3.36,
+       "vy": 14.72
+      },
+      "to": {
+       "vx": -4,
+       "vy": 15.36
+      }
+     },
+     {
+      "f": 328,
+      "ta": 2.567,
+      "deg": 1.669115707699329,
+      "collided": false,
+      "from": {
+       "vx": -4,
+       "vy": 15.36
+      },
+      "to": {
+       "vx": -4.68,
+       "vy": 16.04
+      }
+     },
+     {
+      "f": 329,
+      "ta": 2.584,
+      "deg": 1.5088167610705359,
+      "collided": false,
+      "from": {
+       "vx": -4.68,
+       "vy": 16.04
+      },
+      "to": {
+       "vx": -5.36,
+       "vy": 16.72
+      }
+     },
+     {
+      "f": 330,
+      "ta": 2.6,
+      "deg": 1.2917848194939225,
+      "collided": false,
+      "from": {
+       "vx": -5.36,
+       "vy": 16.72
+      },
+      "to": {
+       "vx": -5.8799,
+       "vy": 17.0125
+      }
+     },
+     {
+      "f": 331,
+      "ta": 2.617,
+      "deg": 1.2769868557043194,
+      "collided": false,
+      "from": {
+       "vx": -5.8799,
+       "vy": 17.0125
+      },
+      "to": {
+       "vx": -6.2576,
+       "vy": 16.8773
+      }
+     },
+     {
+      "f": 332,
+      "ta": 2.634,
+      "deg": 1.2178528623771414,
+      "collided": false,
+      "from": {
+       "vx": -6.2576,
+       "vy": 16.8773
+      },
+      "to": {
+       "vx": -6.6149,
+       "vy": 16.7405
+      }
+     },
+     {
+      "f": 333,
+      "ta": 2.65,
+      "deg": 1.0953134846010657,
+      "collided": false,
+      "from": {
+       "vx": -6.6149,
+       "vy": 16.7405
+      },
+      "to": {
+       "vx": -6.9337,
+       "vy": 16.611
+      }
+     },
+     {
+      "f": 334,
+      "ta": 2.667,
+      "deg": 1.1086999942255826,
+      "collided": false,
+      "from": {
+       "vx": -6.9337,
+       "vy": 16.611
+      },
+      "to": {
+       "vx": -7.2538,
+       "vy": 16.4737
+      }
+     },
+     {
+      "f": 335,
+      "ta": 2.684,
+      "deg": 1.0561031458536558,
+      "collided": false,
+      "from": {
+       "vx": -7.2538,
+       "vy": 16.4737
+      },
+      "to": {
+       "vx": -7.5562,
+       "vy": 16.3372
+      }
+     },
+     {
+      "f": 336,
+      "ta": 2.7,
+      "deg": 0.9488791244531067,
+      "collided": false,
+      "from": {
+       "vx": -7.5562,
+       "vy": 16.3372
+      },
+      "to": {
+       "vx": -7.8257,
+       "vy": 16.2098
+      }
+     },
+     {
+      "f": 337,
+      "ta": 2.717,
+      "deg": 0.9596248007500905,
+      "collided": false,
+      "from": {
+       "vx": -7.8257,
+       "vy": 16.2098
+      },
+      "to": {
+       "vx": -8.0961,
+       "vy": 16.0765
+      }
+     },
+     {
+      "f": 338,
+      "ta": 2.734,
+      "deg": 0.9132548946162796,
+      "collided": false,
+      "from": {
+       "vx": -8.0961,
+       "vy": 16.0765
+      },
+      "to": {
+       "vx": -8.3513,
+       "vy": 15.9454
+      }
+     },
+     {
+      "f": 339,
+      "ta": 2.75,
+      "deg": 0.8202358223448174,
+      "collided": false,
+      "from": {
+       "vx": -8.3513,
+       "vy": 15.9454
+      },
+      "to": {
+       "vx": -8.5787,
+       "vy": 15.8242
+      }
+     },
+     {
+      "f": 340,
+      "ta": 2.767,
+      "deg": 0.8287413051544088,
+      "collided": false,
+      "from": {
+       "vx": -8.5787,
+       "vy": 15.8242
+      },
+      "to": {
+       "vx": -8.8067,
+       "vy": 15.6985
+      }
+     },
+     {
+      "f": 341,
+      "ta": 2.784,
+      "deg": 0.7880950949393292,
+      "collided": false,
+      "from": {
+       "vx": -8.8067,
+       "vy": 15.6985
+      },
+      "to": {
+       "vx": -9.0218,
+       "vy": 15.5759
+      }
+     },
+     {
+      "f": 342,
+      "ta": 2.8,
+      "deg": 0.7074060348230322,
+      "collided": false,
+      "from": {
+       "vx": -9.0218,
+       "vy": 15.5759
+      },
+      "to": {
+       "vx": -9.2134,
+       "vy": 15.4633
+      }
+     },
+     {
+      "f": 343,
+      "ta": 2.817,
+      "deg": 0.7144780358409617,
+      "collided": false,
+      "from": {
+       "vx": -9.2134,
+       "vy": 15.4633
+      },
+      "to": {
+       "vx": -9.4055,
+       "vy": 15.3472
+      }
+     },
+     {
+      "f": 344,
+      "ta": 2.834,
+      "deg": 0.6790742985559566,
+      "collided": false,
+      "from": {
+       "vx": -9.4055,
+       "vy": 15.3472
+      },
+      "to": {
+       "vx": -9.5867,
+       "vy": 15.2346
+      }
+     },
+     {
+      "f": 345,
+      "ta": 2.85,
+      "deg": 0.6093836853109018,
+      "collided": false,
+      "from": {
+       "vx": -9.5867,
+       "vy": 15.2346
+      },
+      "to": {
+       "vx": -9.7482,
+       "vy": 15.1318
+      }
+     }
+    ],
+    "maxTurnGuided": 6.85109439039952,
+    "maxTurnPre": 0,
+    "predCmp": {
+     "n": 169,
+     "ok": 164,
+     "bad": [
+      {
+       "f": 294,
+       "ta": 2,
+       "pred": {
+        "x": 17.36,
+        "y": 0.64,
+        "renorm": false,
+        "gate": "act"
+       },
+       "actual": {
+        "vx": 18,
+        "vy": 0
+       },
+       "aimKind": "next-tile",
+       "predGate": true,
+       "tgt": null,
+       "d": [
+        0.6400000000000006,
+        0.64
+       ]
+      },
+      {
+       "f": 296,
+       "ta": 2.034,
+       "pred": {
+        "x": 16.64,
+        "y": 1.36,
+        "renorm": false,
+        "gate": "act"
+       },
+       "actual": {
+        "vx": 16.64,
+        "vy": 0
+       },
+       "aimKind": "next-tile",
+       "predGate": true,
+       "tgt": "tank_b",
+       "d": [
+        0,
+        1.36
+       ]
+      },
+      {
+       "f": 299,
+       "ta": 2.084,
+       "pred": {
+        "x": 14.64,
+        "y": -2,
+        "renorm": false,
+        "gate": "act"
+       },
+       "actual": {
+        "vx": 14.64,
+        "vy": -0.64
+       },
+       "aimKind": "next-tile",
+       "predGate": true,
+       "tgt": "tank_b",
+       "d": [
+        0,
+        1.3599999999999999
+       ]
+      },
+      {
+       "f": 303,
+       "ta": 2.15,
+       "pred": {
+        "x": 12,
+        "y": 2,
+        "renorm": false,
+        "gate": "act"
+       },
+       "actual": {
+        "vx": 12,
+        "vy": 0.72
+       },
+       "aimKind": "next-tile",
+       "predGate": true,
+       "tgt": "tank_b",
+       "d": [
+        0,
+        1.28
+       ]
+      },
+      {
+       "f": 305,
+       "ta": 2.184,
+       "pred": {
+        "x": 10.64,
+        "y": -0.64,
+        "renorm": false,
+        "gate": "act"
+       },
+       "actual": {
+        "vx": 10.64,
+        "vy": 0.72
+       },
+       "aimKind": "next-tile",
+       "predGate": true,
+       "tgt": "tank_b",
+       "d": [
+        0,
+        1.3599999999999999
+       ]
+      }
+     ]
+    },
+    "targetTimeline": [
+     {
+      "f": 175,
+      "ta": 0.017,
+      "from": null,
+      "to": null,
+      "myTgt": "tank_a",
+      "sd": 0
+     },
+     {
+      "f": 295,
+      "ta": 2.017,
+      "from": null,
+      "to": "tank_b",
+      "myTgt": "tank_b",
+      "sd": 8
+     }
+    ],
+    "evs": [
+     {
+      "f": 295,
+      "t": 4933.333333333334,
+      "kind": "targetChanged",
+      "projectileId": "hm-2cfd-16",
+      "targetId": "tank_b"
+     },
+     {
+      "f": 346,
+      "t": 5783.333333333349,
+      "kind": "tank killed",
+      "victim": "tank_b",
+      "killer": "tank_a"
+     },
+     {
+      "f": 346,
+      "t": 5783.333333333349,
+      "kind": "projectile destroyed",
+      "data": "hm-2cfd-16"
+     },
+     {
+      "f": 346,
+      "t": 5783.333333333349,
+      "kind": "tank deadly collision",
+      "id": "hm-2cfd-16",
+      "ty": 3,
+      "ta": 2.8499999999999943
+     }
+    ]
+   },
+   "csv": {
+    "file": "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\probe_homing_work.csv",
+    "rows": 177,
+    "bytes": 16364
+   }
+  },
+  {
+   "tag": "C_lifetime",
+   "seeded": {
+    "id": "probe_hm_life",
+    "ta": 0,
+    "la": 10,
+    "x": 75,
+    "y": 5,
+    "vx": -18,
+    "vy": -1.102182119232618e-15,
+    "tgt": null
+   },
+   "lastSt": {
+    "ta": 9.867000000000006,
+    "x": 77.4715898759788,
+    "y": 47.008441214616916,
+    "vx": -9.771421629004857,
+    "vy": -15.116855471566037,
+    "tgt": "tank_c",
+    "nb": 1
+   },
+   "frames": 594,
+   "evs": [
+    {
+     "f": 467,
+     "t": 7800.000000000053,
+     "kind": "targetChanged",
+     "projectileId": "probe_hm_life",
+     "targetId": "tank_c"
+    },
+    {
+     "f": 940,
+     "t": 15683.333333333121,
+     "kind": "tank killed",
+     "victim": "tank_c",
+     "killer": "tank_a"
+    },
+    {
+     "f": 940,
+     "t": 15683.333333333121,
+     "kind": "projectile destroyed",
+     "data": "probe_hm_life"
+    },
+    {
+     "f": 940,
+     "t": 15683.333333333121,
+     "kind": "tank deadly collision",
+     "id": "probe_hm_life",
+     "ty": 3,
+     "ta": 9.883000000000006
+    }
+   ]
+  },
+  {
+   "tag": "C2_lifetime_empty",
+   "outside": {
+    "tank_a": {
+     "x": -80,
+     "y": -80,
+     "tile": {
+      "x": -8,
+      "y": -8
+     },
+     "dist": "false"
+    },
+    "tank_b": {
+     "x": -92,
+     "y": -80,
+     "tile": {
+      "x": -10,
+      "y": -8
+     },
+     "dist": "false"
+    },
+    "tank_c": {
+     "x": -104,
+     "y": -80,
+     "tile": {
+      "x": -11,
+      "y": -8
+     },
+     "dist": "false"
+    }
+   },
+   "seeded": {
+    "id": "probe_hm_life2",
+    "ta": 0,
+    "la": 10,
+    "tgt": null,
+    "x": 75,
+    "y": 5,
+    "vx": -18,
+    "vy": -1.102182119232618e-15
+   },
+   "last": {
+    "ta": 10.000000000000004,
+    "x": 67.80000000000169,
+    "y": 5,
+    "vx": -18,
+    "vy": -1.102182119232618e-15,
+    "tgt": null,
+    "nb": 1,
+    "sp": 324
+   },
+   "frames": 602,
+   "evs": [
+    {
+     "f": 1549,
+     "t": 25833.333333333783,
+     "kind": "projectile timeout",
+     "data": "probe_hm_life2"
+    }
+   ]
+  },
+  {
+   "tag": "G_switch",
+   "rows": 146,
+   "evs": [
+    {
+     "f": 1677,
+     "t": 27966.66666666727,
+     "kind": "targetChanged",
+     "projectileId": "hm-2cfd-23",
+     "targetId": "tank_b"
+    },
+    {
+     "f": 1702,
+     "t": 28383.33333333397,
+     "kind": "targetChanged",
+     "projectileId": "hm-2cfd-23",
+     "targetId": "tank_a"
+    }
+   ]
+  },
+  {
+   "tag": "F_prekill",
+   "err": "Error: setControl: 受控坦克 tank_a 不在场上 —— 这样写下去输入会静默失效\n    at Match.setControl (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\match.js:400:13)\n    at async fireOne (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_probe_homing_facts.js:263:3)\n    at async C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_probe_homing_facts.js:583:18"
+  }
+ ]
+}

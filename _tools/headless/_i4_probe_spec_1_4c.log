@@ -1,0 +1,44 @@
+A1 upgrade=[{"id":"su-d704-13","type":2,"life":5.983}]
+A1 fixtures=[{"ut":2,"cat":32,"mask":101,"st":0,"r":4.3,"n":null,"v":null},{"ut":"turret","cat":1,"mask":119,"st":1,"r":0.005,"n":4,"v":[[36.3,15.35],[36.3,14.65],[37.7,14.65],[37.7,15.35]]},{"ut":"base","cat":1,"mask":127,"st":1,"r":0.005,"n":4,"v":[[37,13.5],[37,16.5],[33,16.5],[33,13.5]]}]
+A2 headOn flip@-1 in=null out=null at=null deadly null->null minDist=12.806 alive=true
+X A: Error: setControl: 受控坦克 tank_a 不在场上 —— 这样写下去输入会静默失效
+    at Match.setControl (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:400:13)
+    at async shoot (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4c.js:230:7)
+    at async Array.partA (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4c.js:267:14)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_i4_probe_spec_1_4c.js:472:31
+B0 mode={"gmRoundControllerNull":false,"mode":1,"storm":false,"stormSpawned":false,"roundDuration":null,"className":"class ","gcStorm":false,"state":"in round"} stormFlag={"gcStorm":true,"gmStorm":true}
+B0 bounds={"minX":0,"minY":0,"maxX":10,"maxY":4} seq=0,0,0,0,3,3,0,0,1,2,2,0,1,2,3 appearAt=60
+B0 victimCell={"x":10,"y":2} world={"x":105,"y":25} box=[103.5,23,106.5,27]
+B1 bootcamp storm=true 推 120 帧后：zones=0 mode={"gmRoundControllerNull":false,"mode":1,"storm":true,"stormSpawned":false,"roundDuration":null,"className":"class ","gcStorm":true,"state":"in round"}
+B2 注入后 zone: side=0 t=0 corners={"stormStartRight":110,"stormEndRight":110.4,"stormStartBottom":50,"stormEndBottom":50.4,"stormStartLeft":-0.4,"stormEndLeft":0,"stormStartTop":-0.4,"stormEndTop":0}
+B2 4 个夹具 AABB=[[-0.4,-0.4,110.4,0],[-0.4,-0.4,0,50.4],[-0.4,50,110.4,50.4],[110,-0.4,110.4,50.4]] isPhysical=false tilesN=0 tiles=[]
+   f0 t=0 side=0 RBLT=0000 sR=110 eL=0 aabbR=[-0.4,-0.4,110.4,0] tilesN=0 tankB=105
+   f64 t=8.95 side=-1 RBLT=0000 sR=110 eL=0 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f128 t=7.884 side=-1 RBLT=0000 sR=110 eL=0 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f192 t=6.817 side=-1 RBLT=0000 sR=110 eL=0 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f256 t=5.75 side=-1 RBLT=0000 sR=110 eL=0 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f320 t=4.684 side=2 RBLT=0010 sR=110 eL=0.6320000000000081 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f384 t=3.617 side=2 RBLT=0010 sR=110 eL=2.766000000000025 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f448 t=2.55 side=2 RBLT=0010 sR=110 eL=4.900000000000018 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f512 t=1.484 side=2 RBLT=0010 sR=110 eL=7.032000000000009 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f576 t=0.417 side=2 RBLT=0010 sR=110 eL=9.166000000000007 aabbR=[-0.4,-0.4,110.4,0] tilesN=3 tankB=105
+   f640 t=9.35 side=-1 RBLT=0010 sR=110 eL=10 aabbR=[-0.4,-0.4,110.4,0] tilesN=8 tankB=105
+   f704 t=8.284 side=-1 RBLT=0010 sR=110 eL=10 aabbR=[-0.4,-0.4,110.4,0] tilesN=8 tankB=105
+   f768 t=7.217 side=-1 RBLT=0010 sR=110 eL=10 aabbR=[-0.4,-0.4,110.4,0] tilesN=8 tankB=105
+   f832 t=6.15 side=-1 RBLT=0010 sR=110 eL=10 aabbR=[-0.4,-0.4,110.4,0] tilesN=8 tankB=105
+   f896 t=5.084 side=-1 RBLT=0010 sR=110 eL=10 aabbR=[-0.4,-0.4,110.4,0] tilesN=8 tankB=105
+B3 deathFrame=-1 = -0.02s（自注入）
+C0 lane=x ["3,1","4,1","5,1","6,1","7,1"] pose={"x":35,"y":15,"rot":1.5707963267948966}
+C0 default fixtures=[{"ut":"turret","cat":1,"mask":119,"st":1,"r":0.005,"n":4,"v":[[36.3,15.35],[36.3,14.65],[37.7,14.65],[37.7,15.35]]},{"ut":"base","cat":1,"mask":127,"st":1,"r":0.005,"n":4,"v":[[37,13.5],[37,16.5],[33,16.5],[33,13.5]]}]
+C1 after shotgun fixtures=[{"ut":"turret","cat":1,"mask":119,"st":1,"r":0.005,"n":4,"v":[[36.275,15.7],[36.275,14.3],[37.625,14.3],[37.625,15.7]]},{"ut":"base","cat":1,"mask":127,"st":1,"r":0.005,"n":4,"v":[[37,13.5],[37,16.5],[33,16.5],[33,13.5]]}]
+C1 weapons=[{"id":"bw-f052-9","owner":"tank_a","type":-1,"num":5},{"id":"bw-f052-10","owner":"tank_b","type":-1,"num":5},{"id":"bw-f052-11","owner":"tank_c","type":-1,"num":5},{"id":"sw-f052-13","owner":"tank_a","type":2,"num":3}] cratesLeft=[]
+C2 spawn type=1 -> weapons=[-1(5),2(3),1(10)] crateStillThere=false
+C2 spawn type=3 -> weapons=[-1(5),2(3),1(10),3(undefined)] crateStillThere=false
+C2 spawn type=5 -> weapons=[-1(5),2(3),1(10),3(undefined),5(20)] crateStillThere=false
+C2 spawn type=4 -> weapons=[-1(5),2(3),1(10),3(undefined),5(20)] crateStillThere=true
+C2 spawn type=2 -> weapons=[-1(5),2(3),1(10),3(undefined),5(20)] crateStillThere=true
+C2 fixtures after queue=[{"ut":"turret","cat":1,"mask":119,"st":1,"r":0.005,"n":4,"v":[[36.275,15.7],[36.275,14.3],[37.625,14.3],[37.625,15.7]]},{"ut":"base","cat":1,"mask":127,"st":1,"r":0.005,"n":4,"v":[[37,13.5],[37,16.5],[33,16.5],[33,13.5]]}]
+D[barrelAway] rot=3.141592653589793 deadAt=-1 (expect expectSurvive) bulletX=[27.81,72.5] bulletYmean=32.6 baseBoxY=[33,37] turret=[[[44.65,36.3],[45.35,36.3],[45.35,37.7],[44.65,37.7]]]
+D[barrelToward] rot=0 deadAt=56 (expect expectDie) bulletX=[80.29,89.29] bulletYmean=32.6 baseBoxY=[33,37] turret=[[[45.35,33.7],[44.65,33.7],[44.65,32.3],[45.35,32.3]]]
+
+[done] 31.1s

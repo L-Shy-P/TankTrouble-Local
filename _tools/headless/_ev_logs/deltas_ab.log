@@ -1,0 +1,157 @@
+--- copy tree md5=3e3136e17baf648a1acefdb7216ca54c
+===== [ctlcp] start 2026-10-12 12:25:54 =====
+----- md5 BEFORE [ctlcp] -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+[ctlcp] version=v173 gameDir=C:/Users/L_Shy_P user/Desktop/Code/Python/Projects/TankTrouble Local/_tools/headless/_ev_pg/game_core hook="ok" ad={"ok":true,"hook":true,"err":null}
+  [ctlcp] f=0 t=0.02 th=1 nLive=1 proj=1
+  [ctlcp] f=300 t=4.78 th=6 nLive=6 proj=6
+  [ctlcp] f=600 t=4.78 th=6 nLive=6 proj=5
+[ctlcp] ===== 汇总 =====
+{
+ "version": "v173",
+ "framesSampled": 900,
+ "sampleQuality": {
+  "noProjectileFrames": 12,
+  "maxNoProjectileStreak": 12,
+  "ctrlMode": "drive"
+ },
+ "delta": {
+  "n": 4498,
+  "min": 0,
+  "p50": 0.051,
+  "p90": 0.717,
+  "p99": 0.95,
+  "max": 1.117,
+  "over1": 27,
+  "maxFullWindow": 1.117,
+  "snapMax": 1.133,
+  "snapOver1": 32,
+  "staleAgeFrames": 614
+ },
+ "pxNullFrames_any": 0,
+ "pxNullFrames_liveProj": 0,
+ "deaths": [
+  {
+   "death": {
+    "t": 3.1499999999999932,
+    "rootAbsT": 3.0829999999999935,
+    "victim": "tank_a",
+    "killer": "tank_a",
+    "pid": null,
+    "ptype": null
+   },
+   "atFrame": 188,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 0,
+   "treePredictedDead": false,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 0
+  },
+  {
+   "death": {
+    "t": 4.767000000000001,
+    "rootAbsT": 4.7330000000000005,
+    "victim": "vantage_2",
+    "killer": "6148530",
+    "pid": null,
+    "ptype": null
+   },
+   "atFrame": 285,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 0,
+   "treePredictedDead": false,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 0
+  }
+ ],
+ "falseRed": 0,
+ "md5Stable": true
+}
+rows -> C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_ev_logs\align_ctlcp_rows.json
+[ctlcp] done in 8.6s
+----- md5 AFTER  [ctlcp] rc=0 elapsed=9s -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+===== [ctlcp] end 2026-10-12 12:26:03 =====
+--- copy tree md5(gate)=5f233b946ea5a485ce45d70dd39be9e6
+===== [gate167] start 2026-10-12 12:26:03 =====
+----- md5 BEFORE [gate167] -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+[ev167gate] version=v173 gameDir=C:/Users/L_Shy_P user/Desktop/Code/Python/Projects/TankTrouble Local/_tools/headless/_ev_pg/game_core hook="ok" ad={"ok":true,"hook":true,"err":null}
+  [ev167gate] f=0 t=0.02 th=1 nLive=1 proj=1
+  [ev167gate] f=300 t=3.62 th=5 nLive=5 proj=5
+  [ev167gate] f=600 t=3.62 th=5 nLive=5 proj=4
+[ev167gate] ===== 汇总 =====
+{
+ "version": "v173",
+ "framesSampled": 900,
+ "sampleQuality": {
+  "noProjectileFrames": 0,
+  "maxNoProjectileStreak": 0,
+  "ctrlMode": "drive"
+ },
+ "delta": {
+  "n": 4125,
+  "min": 0,
+  "p50": 0.117,
+  "p90": 0.6,
+  "p99": 0.984,
+  "max": 1.216,
+  "over1": 37,
+  "maxFullWindow": 1.216,
+  "snapMax": 1.233,
+  "snapOver1": 41,
+  "staleAgeFrames": 684
+ },
+ "pxNullFrames_any": 0,
+ "pxNullFrames_liveProj": 0,
+ "deaths": [
+  {
+   "death": {
+    "t": 3.5999999999999917,
+    "rootAbsT": 3.499999999999992,
+    "victim": "vantage_2",
+    "killer": "6148530",
+    "pid": null,
+    "ptype": null
+   },
+   "atFrame": 215,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 0,
+   "treePredictedDead": false,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 0
+  },
+  {
+   "death": {
+    "t": 3.6166666666666583,
+    "rootAbsT": 3.499999999999992,
+    "victim": "tank_a",
+    "killer": "tank_a",
+    "pid": null,
+    "ptype": null
+   },
+   "atFrame": 216,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 0,
+   "treePredictedDead": false,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 0
+  }
+ ],
+ "falseRed": 0,
+ "md5Stable": true
+}
+rows -> C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_ev_logs\align_ev167gate_rows.json
+[ev167gate] done in 9.3s
+----- md5 AFTER  [gate167] rc=0 elapsed=10s -----
+e4530739bf05916ea1563f36663a7d8c  game_core/js/vantage_sandbox.js
+3e3136e17baf648a1acefdb7216ca54c  game_core/js/vantage_tree.js
+fd132f4b23509abb648b5807dd866fb5  game_core/js/wasm/vantage_core.wasm
+===== [gate167] end 2026-10-12 12:26:13 =====
+COPY RESTORED md5=3e3136e17baf648a1acefdb7216ca54c product=3e3136e17baf648a1acefdb7216ca54c

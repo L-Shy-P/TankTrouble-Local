@@ -1,0 +1,61 @@
+[ctl4] version=v173 gameDir=C:/Users/L_Shy_P user/Desktop/Code/Python/Projects/TankTrouble Local/_tools/headless/_ev_pg/game_core hook="ok" ad={"ok":true,"hook":true,"err":null}
+  [ctl4] f=0 t=0.02 th=1 nLive=1 proj=1
+  [ctl4] f=300 t=5.02 th=3 nLive=3 proj=3
+  [ctl4] f=600 t=10.02 th=2 nLive=2 proj=2
+  [ctl4] f=900 t=15.02 th=0 nLive=0 proj=0
+  [ctl4] f=1200 t=20.02 th=0 nLive=0 proj=0
+  [ctl4] f=1500 t=25.02 th=0 nLive=0 proj=0
+[ctl4] ===== 汇总 =====
+{
+ "version": "v173",
+ "framesSampled": 1800,
+ "sampleQuality": {
+  "noProjectileFrames": 1115,
+  "maxNoProjectileStreak": 1115,
+  "ctrlMode": "drive",
+  "fire": 1,
+  "ai": 2,
+  "vant": 1,
+  "maxTreeTimeSec": 30,
+  "liveFrames": 1800,
+  "frozenFrames": 0,
+  "roundsSeen": 1
+ },
+ "delta": {
+  "n": 1809,
+  "min": 0,
+  "p50": 0.1,
+  "p90": 0.183,
+  "p99": 0.934,
+  "max": 1.067,
+  "over1": 5,
+  "maxFullWindow": 1.067,
+  "snapMax": 18.733,
+  "snapOver1": 1072,
+  "staleAgeFrames": 1114
+ },
+ "pxNullFrames_any": 0,
+ "pxNullFrames_liveProj": 0,
+ "deaths": [
+  {
+   "death": {
+    "t": 1.6499999999999984,
+    "rootAbsT": 1.5169999999999988,
+    "victim": "tank_a",
+    "killer": "tank_a",
+    "pid": null,
+    "ptype": null
+   },
+   "atFrame": 98,
+   "winFrames": 75,
+   "treePredictedDeadFrames": 0,
+   "treePredictedDead": false,
+   "killAnchorPxNullFrames": 0,
+   "killProjAliveFrames": 0
+  }
+ ],
+ "falseRed": 0,
+ "md5Stable": true
+}
+rows -> C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_ev_logs\align_ctl4_rows.json
+[ctl4] done in 19.9s

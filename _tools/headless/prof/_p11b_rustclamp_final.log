@@ -1,0 +1,10 @@
+=== 最终部署 wasm (md5 e4d27c7e) ===
+wasm=C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\game_core\js\wasm\vantage_core.wasm md5=e4d27c7ee42bc47812244156e9ed1c00 abi=9
+dt=0.05 → 10帧位移=7.9750m  位移比=1.0000  线性期望=1.0000(线性=true)  [收下]  JS值域内=true
+dt=0.04 → 10帧位移=6.3800m  位移比=0.8000  线性期望=0.8000(线性=true)  [收下]  JS值域内=true
+dt=0.01667 → 10帧位移=2.6589m  位移比=0.3334  线性期望=0.3334(线性=true)  [收下]  JS值域内=true
+dt=0.004 → 10帧位移=0.6380m  位移比=0.0800  线性期望=0.0800(线性=true)  [收下]  JS值域内=true
+dt=0.001 → 10帧位移=0.1595m  位移比=0.0200  线性期望=0.0200(线性=true)  [收下]  JS值域内=true
+dt=1 → 10帧位移=80.0000m  位移比=10.0313  线性期望=20.0000(线性=false)  [收下]  JS值域内=true
+基准 dt=0.05 位移=7.9750m（理论 7.9750m）
+判定[JS 值域内 Rust 一律收下]: PASS（dt=1.0 时 Box2D 大步长下位移不再线性，属正常）

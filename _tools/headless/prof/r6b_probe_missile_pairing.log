@@ -1,0 +1,25 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+=== 1-2④ N 弹体配对 2×2（ABI v12） ===
+  PASS  wasm ABI >= 12   abi=12
+  PASS  D1 断言：HOMING_MISSILE 不进 track 白名单
+--- ① 只有对应的那颗弹报命中（op0 静止 / op1 逃跑） ---
+  PASS  JS 融合 dead=[op0=true, op1=false]   [true,false] fd0=67
+  PASS  Rust 快路 dead=[op0=true, op1=false]   [true,false] fd0=67
+  PASS  JS/Rust 死亡帧一致   js=67 rust=67
+--- ② 2×2 退化对照：{制导门开/关} × {初速朝/反} ---
+  PASS  JS 开+朝   [true,false] fd=67
+  PASS  Rust 开+朝   [true,false] fd=67
+  PASS  JS 开+反   [true,false] fd=57
+  PASS  Rust 开+反   [true,false] fd=57
+  PASS  JS 关+朝   [true,false] fd=64
+  PASS  Rust 关+朝   [true,false] fd=64
+  PASS  JS 关+反   [false,false] fd=-1
+  PASS  Rust 关+反   [false,false] fd=-1
+--- ③ 9 副本同帧撞同一面墙（不许把共享 bounces 攒到 ≥5 误杀整颗弹） ---
+  PASS  JS 融合：撞墙后仍能制导打死 op0（未被 bounce-timeout 误杀）   [true,true] fd0=59
+  PASS  Rust 快路：撞墙后仍能制导打死 op0（未被 bounce-timeout 误杀）   [true,true] fd0=59
+  PASS  JS/Rust 撞墙场景死亡帧一致   js=59 rust=59
+
+MISSILE PAIRING PROBE PASSED

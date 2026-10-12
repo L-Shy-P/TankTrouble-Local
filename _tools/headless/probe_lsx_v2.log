@@ -1,0 +1,184 @@
+=== 版本指纹 ===
+  game_core/js/vantage_tree.js  mtime=2026-10-11T07:42:41.944Z  md5=ab09788384e8eb61dea38ee977e5b3e2  bytes=469378
+  game_core/js/vantage_sandbox.js  mtime=2026-10-11T07:41:10.816Z  md5=6cf2ad3ce50fc4466a025d43381d43df  bytes=146817
+  _tools/headless/match.js  mtime=2026-10-11T09:25:41.483Z  md5=43a8ec65203f7f9c9654932ce17f6f63  bytes=28377
+  _tools/headless/clock.js  mtime=2026-10-11T09:21:03.391Z  md5=664cd0cfb7eb12cf0c7cfd0dacf41e43  bytes=23201
+  _tools/headless/cdp.js  mtime=2026-10-11T09:38:07.535Z  md5=dae0a155e00e628000566f3627ee5bd7  bytes=7108
+  game_core/index.html  mtime=2026-10-11T07:41:10.815Z  md5=b70ec966b8671ebfe5df853b59c8d38e  bytes=34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  mtime=2026-06-13T17:38:28.228Z  md5=7ecd83bb84f80beac5e1df8f4fe85f48  bytes=84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  mtime=2026-06-13T17:38:28.247Z  md5=97cadb8a67a443a9eb2f51ebc7d12916  bytes=58771
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  mtime=2026-06-13T17:38:28.240Z  md5=5183078f57653d2189c8517dd227a01b  bytes=51385
+  game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js  mtime=2026-06-13T12:22:28.277Z  md5=7bb079c4eaf88c8e4267c52f918e0fdf  bytes=231059
+
+============ full_edge 第 1 次尝试 ============
+  open 2.6s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 full_edge/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 7x4 可达 24; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  X full_edge 第 1 次失败: Error: 没有两侧都 ≥26m 空程的直道
+    at runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:575:30)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+============ full_edge 第 2 次尝试 ============
+  open 2.7s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 full_edge/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 6x4 可达 22; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  X full_edge 第 2 次失败: Error: 没有两侧都 ≥26m 空程的直道
+    at runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:575:30)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+============ full_edge 第 3 次尝试 ============
+  open 2.6s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 full_edge/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 8x4 可达 32; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  发射位 @(35,25) dir=(1,0) 前后空程=44/34m
+  激光出现 @(43.44,25) v=(180,0) |v|=180 r=0；tank_a 就位 rot=1.5708 预测前向=(1,0)
+  控制组（tank_b 在远处）: tank_b存活=true 击杀=0 激光(43.44,25)→(46.5,25)→(49.56,25)
+  控制窗口每帧位移=3.06,3.06m；dt日志 10 条 周期=1 ；预测下一帧 dt=0.017s ⟹ 步长=(3.06,0) |3.06|m
+  [cycle 0] 摆位 θ=0° sA=0 d=0 C=(51.09,25) rot=0 弦长=3 采样gap: r0=0.03 r0.05=-0.02 r0.25=-0.22 车体=true 炮塔=false 最近端点离车心=1.53
+  沙箱: checkDeath→true; fused(dt=0.017) dead=true fd=0 proxMin=-0.02 弹半径用=0.05 fallback=false; fused@16ms=true fused@17ms=true; track dead=false fd=-1
+  沙箱告警: ["[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=l-db02-10 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0"]
+  游戏: tank_b="DEAD/REMOVED" 激光=null gc=in round
+  游戏事件: 击杀=1 致命碰撞=1 [{"evt":"tank killed","f":432,"t":7216.67,"victim":"tank_b","killer":"tank_a"}] [{"evt":"tank deadly collision","f":432,"t":7216.67,"pid":"l-db02-10","pty":0,"pOwner":"tank_a","px":49.56,"py":25,"vx":-180,"vy":0,"nb":0,"ta":0.067,"tankA":"tank_b"}]
+  实际下一帧: 游戏dt=16ms 步长=2.88m 真实命中=true 弦长=2.85 采样gap r0.05=-0.2 r0.25=-0.4
+
+---- full_edge 结论: 游戏判死 / 沙箱判死 ----
+
+============ miss_nearedge 第 1 次尝试 ============
+  open 2.5s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 miss_nearedge/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 8x4 可达 30; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  发射位 @(45,15) dir=(1,0) 前后空程=34/44m
+  第 1 次开火没出弹，事件=[{"evt":"weapon fired","f":428,"t":7133.33,"playerId":"tank_a"},{"evt":"projectile created","f":428,"t":7133.33,"playerId":"tank_a"},{"evt":"projectile maze collision","f":428,"t":7150,"pid":"l-43a9-10","pty":0,"pOwner":"tank_a","px":47.5,"py":15,"vx":-180,"vy":0,"nb":1,"ta":0},{"evt":"tank killed","f":429,"t":7166.67,"victim":"tank_a","killer":"tank_a"}]
+  X miss_nearedge 第 1 次失败: Error: setControl: 受控坦克 tank_a 不在场上 —— 这样写下去输入会静默失效
+    at Match.setControl (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\match.js:400:13)
+    at async runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:597:7)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+============ miss_nearedge 第 2 次尝试 ============
+  open 2.6s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 miss_nearedge/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 8x4 可达 32; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  发射位 @(35,25) dir=(1,0) 前后空程=44/34m
+  激光出现 @(43.44,25) v=(180,0) |v|=180 r=0；tank_a 就位 rot=1.5708 预测前向=(1,0)
+  控制组（tank_b 在远处）: tank_b存活=true 击杀=0 激光(43.44,25)→(46.5,25)→(49.56,25)
+  控制窗口每帧位移=3.06,3.06m；dt日志 10 条 周期=1 ；预测下一帧 dt=0.017s ⟹ 步长=(3.06,0) |3.06|m
+  [cycle 0] 这个 p0 附近没有满足 miss_nearedge 的合法摆位（几何命中 9300/可站稳 9300）→ 前进 1 帧再试
+  [cycle 1] 这个 p0 附近没有满足 miss_nearedge 的合法摆位（几何命中 9300/可站稳 9300）→ 前进 1 帧再试
+  [cycle 2] 这个 p0 附近没有满足 miss_nearedge 的合法摆位（几何命中 9300/可站稳 9300）→ 前进 1 帧再试
+  [cycle 3] 这个 p0 附近没有满足 miss_nearedge 的合法摆位（几何命中 9300/可站稳 9300）→ 前进 1 帧再试
+
+---- miss_nearedge 结论: 游戏没死 / 沙箱没死 ----
+
+============ miss_oblique 第 1 次尝试 ============
+  open 2.6s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 miss_oblique/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 6x5 可达 30; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  发射位 @(35,25) dir=(0.7071,0.7071) 前后空程=34/34m
+  激光出现 @(38.2267,28.2267) v=(-127.2792,-127.2792) |v|=180 r=0；tank_a 就位 rot=2.3562 预测前向=(0.7071,0.7071)
+  控制组（tank_b 在远处）: tank_b存活=true 击杀=0 激光(38.2267,28.2267)→(36.063,26.063)→(33.8992,23.8992)
+  X miss_oblique 第 1 次失败: Error: 控制帧期间激光撞墙/消失了
+    at runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:628:82)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+============ miss_oblique 第 2 次尝试 ============
+  open 2.6s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 miss_oblique/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 7x4 可达 21; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  X miss_oblique 第 2 次失败: Error: 没有两侧都 ≥26m 空程的直道
+    at runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:575:30)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+============ miss_oblique 第 3 次尝试 ============
+  open 2.5s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 miss_oblique/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 6x4 可达 18; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  X miss_oblique 第 3 次失败: Error: 没有两侧都 ≥26m 空程的直道
+    at runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:575:30)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+============ miss_oblique 第 4 次尝试 ============
+  open 2.5s waitForRound={"frames":120,"inRound":"in round","log":["0帧→counting down"]} bootFrames=300
+  [守卫 miss_oblique/pre] {"gc":"in round","inRound":"in round","tanks":["tank_a","tank_b"],"projs":0,"mz":true}
+  沙箱: dt=0.016666666666666666s 预筛半径=3.4887 旧checkDeath弹半径=0.25 激光真实半径=0 激光速度=180 寿命=0.8s fused=true
+  maze 6x5 可达 23; tank_b 夹具多边形=[[[0.35,-1.3],[-0.35,-1.3],[-0.35,-2.7],[0.35,-2.7]],[[-1.5,-2],[1.5,-2],[1.5,2],[-1.5,2]]]
+  X miss_oblique 第 4 次失败: Error: 没有两侧都 ≥26m 空程的直道
+    at runKind (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:575:30)
+    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_probe_laser_straddle.js:779:15
+
+---- miss_oblique 结论: 无结果 / 沙箱没死 ----
+
+=== 解析扫描（点采样漏判比例；判据=线段∩真实夹具多边形） ===
+  预筛半径=3.4887m；扫描 360 个方向 × 冲击参数 d∈[-5,5] 步长 0.01m（每个方向 1001 点）
+  > 步长=3.06m：真命中摆位样本 164628；漏判(fused r=0.05)=41368 (25.1%)；漏判(checkDeath r=0.25)=23691 (14.4%)；两端在外 50704 其中漏(fused) 41368 (81.6%)；预筛会筛掉 0
+    θ=0°: 真命中 470 漏fused 66 漏check 45 两端在外 470 其中漏fused 66
+    θ=2°: 真命中 477 漏fused 78 漏check 44 两端在外 255 其中漏fused 78
+    θ=5°: 真命中 485 漏fused 100 漏check 47 两端在外 165 其中漏fused 100
+    θ=10°: 真命中 495 漏fused 132 漏check 92 两端在外 149 其中漏fused 132
+    θ=15°: 真命中 502 漏fused 159 漏check 119 两端在外 169 其中漏fused 159
+    θ=20°: 真命中 505 漏fused 180 漏check 138 两端在外 190 其中漏fused 180
+    θ=30°: 真命中 500 漏fused 159 漏check 77 两端在外 187 其中漏fused 159
+    θ=45°: 真命中 495 漏fused 149 漏check 93 两端在外 163 其中漏fused 149
+    θ=60°: 真命中 459 漏fused 170 漏check 90 两端在外 190 其中漏fused 170
+    θ=90°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+    θ=135°: 真命中 495 漏fused 149 漏check 93 两端在外 163 其中漏fused 149
+    θ=180°: 真命中 470 漏fused 66 漏check 46 两端在外 470 其中漏fused 66
+    θ=225°: 真命中 495 漏fused 149 漏check 93 两端在外 163 其中漏fused 149
+    θ=270°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+  > 步长=2.88m：真命中摆位样本 164444；漏判(fused r=0.05)=36750 (22.3%)；漏判(checkDeath r=0.25)=20074 (12.2%)；两端在外 41592 其中漏(fused) 36750 (88.4%)；预筛会筛掉 0
+    θ=0°: 真命中 470 漏fused 65 漏check 45 两端在外 70 其中漏fused 65
+    θ=2°: 真命中 477 漏fused 62 漏check 41 两端在外 86 其中漏fused 62
+    θ=5°: 真命中 485 漏fused 98 漏check 38 两端在外 108 其中漏fused 98
+    θ=10°: 真命中 495 漏fused 130 漏check 88 两端在外 140 其中漏fused 130
+    θ=15°: 真命中 502 漏fused 155 漏check 113 两端在外 165 其中漏fused 155
+    θ=20°: 真命中 505 漏fused 174 漏check 92 两端在外 184 其中漏fused 174
+    θ=30°: 真命中 500 漏fused 128 漏check 72 两端在外 156 其中漏fused 128
+    θ=45°: 真命中 495 漏fused 149 漏check 92 两端在外 163 其中漏fused 149
+    θ=60°: 真命中 459 漏fused 138 漏check 58 两端在外 158 其中漏fused 138
+    θ=90°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+    θ=135°: 真命中 495 漏fused 149 漏check 92 两端在外 163 其中漏fused 149
+    θ=180°: 真命中 470 漏fused 65 漏check 45 两端在外 70 其中漏fused 65
+    θ=225°: 真命中 495 漏fused 149 漏check 92 两端在外 163 其中漏fused 149
+    θ=270°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+  > 步长=3m：真命中摆位样本 164572；漏判(fused r=0.05)=39794 (24.2%)；漏判(checkDeath r=0.25)=22422 (13.6%)；两端在外 44792 其中漏(fused) 39794 (88.8%)；预筛会筛掉 0
+    θ=0°: 真命中 470 漏fused 65 漏check 45 两端在外 70 其中漏fused 65
+    θ=2°: 真命中 477 漏fused 78 漏check 42 两端在外 88 其中漏fused 78
+    θ=5°: 真命中 485 漏fused 100 漏check 43 两端在外 110 其中漏fused 100
+    θ=10°: 真命中 495 漏fused 132 漏check 90 两端在外 142 其中漏fused 132
+    θ=15°: 真命中 502 漏fused 157 漏check 117 两端在外 169 其中漏fused 157
+    θ=20°: 真命中 505 漏fused 178 漏check 129 两端在外 188 其中漏fused 178
+    θ=30°: 真命中 500 漏fused 148 漏check 75 两端在外 175 其中漏fused 148
+    θ=45°: 真命中 495 漏fused 149 漏check 92 两端在外 163 其中漏fused 149
+    θ=60°: 真命中 459 漏fused 158 漏check 78 两端在外 178 其中漏fused 158
+    θ=90°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+    θ=135°: 真命中 495 漏fused 149 漏check 92 两端在外 163 其中漏fused 149
+    θ=180°: 真命中 470 漏fused 65 漏check 45 两端在外 70 其中漏fused 65
+    θ=225°: 真命中 495 漏fused 149 漏check 92 两端在外 163 其中漏fused 149
+    θ=270°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+  > 步长=3.06m：真命中摆位样本 164628；漏判(fused r=0.05)=41368 (25.1%)；漏判(checkDeath r=0.25)=23691 (14.4%)；两端在外 50704 其中漏(fused) 41368 (81.6%)；预筛会筛掉 0
+    θ=0°: 真命中 470 漏fused 66 漏check 45 两端在外 470 其中漏fused 66
+    θ=2°: 真命中 477 漏fused 78 漏check 44 两端在外 255 其中漏fused 78
+    θ=5°: 真命中 485 漏fused 100 漏check 47 两端在外 165 其中漏fused 100
+    θ=10°: 真命中 495 漏fused 132 漏check 92 两端在外 149 其中漏fused 132
+    θ=15°: 真命中 502 漏fused 159 漏check 119 两端在外 169 其中漏fused 159
+    θ=20°: 真命中 505 漏fused 180 漏check 138 两端在外 190 其中漏fused 180
+    θ=30°: 真命中 500 漏fused 159 漏check 77 两端在外 187 其中漏fused 159
+    θ=45°: 真命中 495 漏fused 149 漏check 93 两端在外 163 其中漏fused 149
+    θ=60°: 真命中 459 漏fused 170 漏check 90 两端在外 190 其中漏fused 170
+    θ=90°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+    θ=135°: 真命中 495 漏fused 149 漏check 93 两端在外 163 其中漏fused 149
+    θ=180°: 真命中 470 漏fused 66 漏check 46 两端在外 470 其中漏fused 66
+    θ=225°: 真命中 495 漏fused 149 漏check 93 两端在外 163 其中漏fused 149
+    θ=270°: 真命中 300 漏fused 0 漏check 0 两端在外 0 其中漏fused 0
+
+=== 结束 ===
+  vtStats 读不到
+
+[done] 28.9s → prof/probe_lsx_report.json

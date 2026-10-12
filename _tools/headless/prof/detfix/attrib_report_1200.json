@@ -1,0 +1,255 @@
+{
+  "frames": 1200,
+  "maxSteps": 480,
+  "recFile": "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\detfix\\attrib_rec_1200.jsonl",
+  "repFile": "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\detfix\\attrib_rep_1200.jsonl",
+  "recCalls": 4680,
+  "repCalls": 4680,
+  "firstDivergence": 10,
+  "recTop": [
+    [
+      "    at c.Particles.Arcade.Emitter.makeParticles (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:763408)",
+      2730
+    ],
+    [
+      "    at methods.update (http://127.0.0.1:8000/js/vantage_testbench.js?v=118:253:26)",
+      393
+    ],
+    [
+      "    at new UITankIconScoreGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:384)",
+      300
+    ],
+    [
+      "    at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640)",
+      120
+    ],
+    [
+      "    at new UISpawnZoneSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:765)",
+      120
+    ],
+    [
+      "    at new UITankExplosionGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:256)",
+      120
+    ],
+    [
+      "    at new UIShieldSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:731)",
+      120
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:12737)",
+      100
+    ],
+    [
+      "    at object.eval (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:128:32)",
+      86
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:13062)",
+      80
+    ],
+    [
+      "    at UITankExplosionGroup.spawn (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1458)",
+      70
+    ],
+    [
+      "    at c.Particles.Arcade.Emitter.emitParticle (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:766431)",
+      54
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:12956)",
+      50
+    ],
+    [
+      "    at object._calculateBorderFloorsSpacesWallsAndDecorations (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1362:46)",
+      48
+    ],
+    [
+      "    at new UIRubbleGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:189)",
+      25
+    ],
+    [
+      "    at cls.getRandomFloor (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:3571)",
+      19
+    ],
+    [
+      "    at object._calculateBorderFloorsSpacesWallsAndDecorations (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1266:59)",
+      19
+    ],
+    [
+      "    at object._expandReachable (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:669:20)",
+      18
+    ],
+    [
+      "    at cls.getRandomWalls (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:6280)",
+      16
+    ],
+    [
+      "    at cls.getRandomWalls (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:6588)",
+      16
+    ],
+    [
+      "    at Array.<anonymous> (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:16101)",
+      12
+    ],
+    [
+      "    at new UICelebrationTrophyGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1260)",
+      12
+    ],
+    [
+      "    at UIRubbleGroup.emit (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:2:640)",
+      12
+    ],
+    [
+      "    at new UIShieldSparkGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:188)",
+      10
+    ],
+    [
+      "    at object.getPlayerDetails (http://127.0.0.1:8000/js/72ec8ebb83f13159b067977210415d77.js:1:1231)",
+      10
+    ]
+  ],
+  "repTop": [
+    [
+      "    at c.Particles.Arcade.Emitter.makeParticles (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:763408)",
+      2730
+    ],
+    [
+      "    at methods.update (http://127.0.0.1:8000/js/vantage_testbench.js?v=118:253:26)",
+      393
+    ],
+    [
+      "    at new UITankIconScoreGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:384)",
+      300
+    ],
+    [
+      "    at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640)",
+      120
+    ],
+    [
+      "    at new UISpawnZoneSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:765)",
+      120
+    ],
+    [
+      "    at new UITankExplosionGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:256)",
+      120
+    ],
+    [
+      "    at new UIShieldSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:731)",
+      120
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:12737)",
+      100
+    ],
+    [
+      "    at object.eval (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:128:32)",
+      86
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:13062)",
+      80
+    ],
+    [
+      "    at UITankExplosionGroup.spawn (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1458)",
+      70
+    ],
+    [
+      "    at c.Particles.Arcade.Emitter.emitParticle (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:766431)",
+      54
+    ],
+    [
+      "    at object.create (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:12956)",
+      50
+    ],
+    [
+      "    at object._calculateBorderFloorsSpacesWallsAndDecorations (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1362:46)",
+      48
+    ],
+    [
+      "    at new UIRubbleGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:189)",
+      25
+    ],
+    [
+      "    at cls.getRandomFloor (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:3571)",
+      19
+    ],
+    [
+      "    at object._calculateBorderFloorsSpacesWallsAndDecorations (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1266:59)",
+      19
+    ],
+    [
+      "    at object._expandReachable (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:669:20)",
+      18
+    ],
+    [
+      "    at cls.getRandomWalls (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:6280)",
+      16
+    ],
+    [
+      "    at cls.getRandomWalls (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:6588)",
+      16
+    ],
+    [
+      "    at Array.<anonymous> (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:16101)",
+      12
+    ],
+    [
+      "    at new UICelebrationTrophyGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1260)",
+      12
+    ],
+    [
+      "    at UIRubbleGroup.emit (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:2:640)",
+      12
+    ],
+    [
+      "    at new UIShieldSparkGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:188)",
+      10
+    ],
+    [
+      "    at object.getPlayerDetails (http://127.0.0.1:8000/js/72ec8ebb83f13159b067977210415d77.js:1:1231)",
+      10
+    ]
+  ],
+  "at": {
+    "rec": {
+      "i": 10,
+      "st": 6,
+      "rn": 11,
+      "stack": "    at Math.random (<anonymous>:580:27) |     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) |     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) |     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602) |     at object.create (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:2:391)"
+    },
+    "rep": {
+      "i": 10,
+      "st": 4,
+      "rn": 11,
+      "stack": "    at Math.random (<anonymous>:580:27) |     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) |     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) |     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602) |     at object.create (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:2:391)"
+    }
+  },
+  "contextRec": [
+    "[6] st=0 rn=7     at f (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:20740) <-     at Array.<anonymous> (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:16101) <-     at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:19202",
+    "[7] st=0 rn=8     at f (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:20740) <-     at Array.<anonymous> (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:16101) <-     at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:19202",
+    "[8] st=0 rn=9     at c.Game.parseConfig (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:288510) <-     at new c.Game (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:287482) <-     at cls.insertGame (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1972)",
+    "[9] st=0 rn=10     at c.Game.parseConfig (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:288510) <-     at new c.Game (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:287482) <-     at cls.insertPanel (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:494)",
+    "[10] st=6 rn=11     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[11] st=6 rn=12     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[12] st=6 rn=13     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[13] st=6 rn=14     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[14] st=6 rn=15     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[15] st=6 rn=16     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[16] st=6 rn=17     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[17] st=6 rn=18     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)"
+  ],
+  "contextRep": [
+    "[6] st=0 rn=7     at f (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:20740) <-     at Array.<anonymous> (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:16101) <-     at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:19202",
+    "[7] st=0 rn=8     at f (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:20740) <-     at Array.<anonymous> (http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:16101) <-     at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:19202",
+    "[8] st=0 rn=9     at c.Game.parseConfig (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:288510) <-     at new c.Game (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:287482) <-     at cls.insertGame (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1972)",
+    "[9] st=0 rn=10     at c.Game.parseConfig (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:288510) <-     at new c.Game (http://127.0.0.1:8000/js/75c76f1d382639f5dc22fe467491448c.js:1:287482) <-     at cls.insertPanel (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:494)",
+    "[10] st=4 rn=11     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[11] st=4 rn=12     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[12] st=4 rn=13     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[13] st=4 rn=14     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[14] st=4 rn=15     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[15] st=4 rn=16     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[16] st=4 rn=17     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)",
+    "[17] st=4 rn=18     at new UIRankIconSparkleImage (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:141) <-     at new UIRankIconGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1640) <-     at new UITankIconNameGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:602)"
+  ]
+}

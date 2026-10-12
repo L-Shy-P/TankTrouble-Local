@@ -1,0 +1,61 @@
+PASS      diff_audit_contactlist.js                         86ms
+PASS      diff_audit_geometry.js                            79ms
+PASS      diff_audit_polygap.js                             80ms
+PASS      diff_bounce_timeout_window.js                    280ms
+SKIP-MSVC diff_box2d.js                                    713ms
+PASS      diff_commit_slice_rust.js                        138ms
+PASS      diff_death_geometry_fallback.js                   83ms
+PASS      diff_external_hybrid.js                          149ms
+PASS      diff_external_hybrid_obs.js                      328ms
+PASS      diff_incremental_death_merge.js                   99ms
+PASS      diff_killfield_brain.js                          111ms
+PASS      diff_killfield_field.js                          200ms
+PASS      diff_killfield_risk.js                            96ms
+PASS      diff_killfield_walls.js                           95ms
+PASS      diff_lobby_hybrid.js                              84ms
+PASS      diff_lobby_killfield.js                           81ms
+PASS      diff_panel_eval_wheel.js                          81ms
+PASS      diff_panel_risk.js                             65749ms
+PASS      diff_record_forensics.js                         101ms
+PASS      diff_record_meta.js                               99ms
+SKIP-MSVC diff_rescore.js                                  874ms
+PASS      diff_rescore_bridge.js                           269ms
+PASS      diff_rescore_life_anchor.js                      641ms
+FAIL      diff_rescore_proj_semantics.js                   337ms  status=0
+   >> == ① 残余缺口（只记录，不算 FAIL）：path-only（折线回退，无 track）==
+SKIP-MSVC diff_rollout.js                                  803ms
+PASS      diff_rollout_bridge.js                           179ms
+PASS      diff_rollout_rescore_edge.js                     323ms
+PASS      diff_rust_frame_dt_sync.js                       103ms
+PASS      diff_s7_pastnode.js                              176ms
+PASS      diff_score_paths_bridge.js                       311ms
+PASS      diff_score_paths_nowtglobal.js                   197ms
+PASS      diff_shotgun_wall_lifetime.js                    261ms
+PASS      diff_shrapnel_lifetime_zero.js                    96ms
+PASS      diff_shrapnel_no_bounce.js                        94ms
+PASS      diff_shrapnel_wall_stop.js                        95ms
+PASS      diff_tree_coarse_reach.js                        105ms
+PASS      diff_tree_continuous_refine.js                   158ms
+PASS      diff_tree_death_blind.js                         105ms
+PASS      diff_tree_death_shorten.js                        99ms
+PASS      diff_tree_grow_boost.js                          106ms
+PASS      diff_tree_growth_switch.js                       300ms
+PASS      diff_tree_killfield.js                            99ms
+PASS      diff_tree_low_eval_frames.js                     103ms
+PASS      diff_tree_move_target.js                         103ms
+PASS      diff_tree_no_veto.js                              98ms
+PASS      diff_tree_nodecount.js                           100ms
+PASS      diff_tree_prune_compensation.js                  158ms
+PASS      diff_tree_red_never_over_nonred.js                99ms
+PASS      diff_tree_refine_split.js                        103ms
+PASS      diff_tree_refine_split_death_inherit.js          181ms
+PASS      diff_tree_reset_calib.js                          85ms
+PASS      diff_tree_retreat_depth.js                        94ms
+PASS      diff_tree_retreat_reroute.js                      89ms
+PASS      diff_tree_soft_dead_growth.js                    101ms
+PASS      diff_tree_softdead_refork.js                     100ms
+PASS      diff_tree_warmup_cap.js                          202ms
+SUMMARY {"total":56,"pass":52,"fail":1,"skip":3}
+FAILS=["diff_rescore_proj_semantics.js"]
+EXIT=1
+DONE

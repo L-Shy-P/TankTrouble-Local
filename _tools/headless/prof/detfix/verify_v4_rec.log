@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "file": "prof/detfix/verify_v4.jsonl",
+  "frames": 1200,
+  "chunks": 25,
+  "hash": 913091750,
+  "pageHash": 913091750,
+  "drive": {
+    "on": false,
+    "f": 1200,
+    "total": 1200,
+    "applied": 1123,
+    "skipped": 1277,
+    "errs": 0,
+    "missing": {
+      "tank_a": 683,
+      "tank_b": 594
+    },
+    "loaded": 1200
+  },
+  "rngLen": 8513,
+  "rngOverflow": 0,
+  "wallMs": 4594,
+  "vt": {
+    "t": 27033.33333333387,
+    "steps": 1622
+  }
+}

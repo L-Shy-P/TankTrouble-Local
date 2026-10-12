@@ -1,0 +1,433 @@
+warmup started: true
+probe after warmup: {
+ "tank": {
+  "x": 66.38762725419892,
+  "y": 24.280436094982246,
+  "rot": 1.0924135234801555,
+  "locked": false,
+  "fwd": true,
+  "back": false,
+  "left": false,
+  "right": false
+ },
+ "started": true,
+ "maze": true,
+ "gcState": {
+  "__class": {
+   "__metaclass": {
+    "create": {},
+    "withState": {},
+    "withObject": {}
+   },
+   "__superclass": {},
+   "__constructors": {
+    "create": {},
+    "withState": {},
+    "withObject": {}
+   },
+   "__methods": {
+    "toString": {},
+    "className": {},
+    "classs": {},
+    "set": {},
+    "get": {},
+    "wrapField": {},
+    "unwrapField": {},
+    "unwrapFields": {},
+    "setPlayerStates": {},
+    "getPlayerStates": {},
+    "setMode": {},
+    "getMode": {},
+    "setMaxActivePlayerCount": {},
+    "getMaxActivePlayerCount": {},
+    "setTheme": {},
+    "getTheme": {},
+    "setRanked": {},
+    "getRanked": {},
+    "setSymmetric": {},
+    "getSymmetric": {},
+    "setStorm": {},
+    "getStorm": {},
+    "setPremium": {},
+    "getPremium": {},
+    "setScoreStates": {},
+    "getScoreStates": {},
+    "setEmblemStates": {},
+    "getEmblemStates": {},
+    "setId": {},
+    "getId": {},
+    "toObj": {}
+   },
+   "__fields": {
+    "data": {
+     "playerStates": [],
+     "mode": null,
+     "maxActivePlayerCount": 0,
+     "theme": null,
+     "ranked": false,
+     "symmetric": false,
+     "storm": false,
+     "premium": false,
+     "scoreStates": [],
+     "emblemStates": [],
+     "id": null
+    }
+   },
+   "__activeFields": {},
+   "__mixins": [],
+   "__wrappedFields": {},
+   "__name": "GameState"
+  },
+  "data": {
+   "playerStates": [
+    {
+     "playerId": "tank_a",
+     "queued": false,
+     "enqueueTime": {},
+     "team": 0
+    },
+    {
+     "playerId": "vantage_1",
+     "queued": false,
+     "enqueueTime": {},
+     "team": 0
+    }
+   ],
+   "mode": 1,
+   "maxActivePlayerCount": 8,
+   "theme": 4,
+   "ranked": false,
+   "symmetric": false,
+   "storm": false,
+   "premium": false,
+   "scoreStates": [
+    {
+     "id": "s-4910-2",
+     "playerId": "tank_a",
+     "type": 0,
+     "value": 0
+    },
+    {
+     "id": "s-4910-3",
+     "playerId": "tank_a",
+     "type": 1,
+     "value": 0
+    },
+    {
+     "id": "s-4910-4",
+     "playerId": "vantage_1",
+     "type": 0,
+     "value": 0
+    },
+    {
+     "id": "s-4910-5",
+     "playerId": "vantage_1",
+     "type": 1,
+     "value": 0
+    }
+   ],
+   "emblemStates": [],
+   "id": "gc-4910-0"
+  }
+ },
+ "ctrl": {
+  "fwd": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fire": false
+ },
+ "vtT": 2283.333333333335,
+ "dts": 0,
+ "stepSrc": "function(t,i,s){void 0===t&&(t=0),void 0===i&&(i=0),void 0===s&&(s=0),this.m_flags&j.e_newFixture&&(this.m_contactManage",
+ "sameWorld": true
+}
+hook: hooked
+probe after teleport: {
+ "tank": {
+  "x": 65,
+  "y": 25,
+  "rot": 0,
+  "locked": false,
+  "fwd": false,
+  "back": false,
+  "left": false,
+  "right": false
+ },
+ "started": true,
+ "maze": true,
+ "gcState": {
+  "__class": {
+   "__metaclass": {
+    "create": {},
+    "withState": {},
+    "withObject": {}
+   },
+   "__superclass": {},
+   "__constructors": {
+    "create": {},
+    "withState": {},
+    "withObject": {}
+   },
+   "__methods": {
+    "toString": {},
+    "className": {},
+    "classs": {},
+    "set": {},
+    "get": {},
+    "wrapField": {},
+    "unwrapField": {},
+    "unwrapFields": {},
+    "setPlayerStates": {},
+    "getPlayerStates": {},
+    "setMode": {},
+    "getMode": {},
+    "setMaxActivePlayerCount": {},
+    "getMaxActivePlayerCount": {},
+    "setTheme": {},
+    "getTheme": {},
+    "setRanked": {},
+    "getRanked": {},
+    "setSymmetric": {},
+    "getSymmetric": {},
+    "setStorm": {},
+    "getStorm": {},
+    "setPremium": {},
+    "getPremium": {},
+    "setScoreStates": {},
+    "getScoreStates": {},
+    "setEmblemStates": {},
+    "getEmblemStates": {},
+    "setId": {},
+    "getId": {},
+    "toObj": {}
+   },
+   "__fields": {
+    "data": {
+     "playerStates": [],
+     "mode": null,
+     "maxActivePlayerCount": 0,
+     "theme": null,
+     "ranked": false,
+     "symmetric": false,
+     "storm": false,
+     "premium": false,
+     "scoreStates": [],
+     "emblemStates": [],
+     "id": null
+    }
+   },
+   "__activeFields": {},
+   "__mixins": [],
+   "__wrappedFields": {},
+   "__name": "GameState"
+  },
+  "data": {
+   "playerStates": [
+    {
+     "playerId": "tank_a",
+     "queued": false,
+     "enqueueTime": {},
+     "team": 0
+    },
+    {
+     "playerId": "vantage_1",
+     "queued": false,
+     "enqueueTime": {},
+     "team": 0
+    }
+   ],
+   "mode": 1,
+   "maxActivePlayerCount": 8,
+   "theme": 4,
+   "ranked": false,
+   "symmetric": false,
+   "storm": false,
+   "premium": false,
+   "scoreStates": [
+    {
+     "id": "s-4910-2",
+     "playerId": "tank_a",
+     "type": 0,
+     "value": 0
+    },
+    {
+     "id": "s-4910-3",
+     "playerId": "tank_a",
+     "type": 1,
+     "value": 0
+    },
+    {
+     "id": "s-4910-4",
+     "playerId": "vantage_1",
+     "type": 0,
+     "value": 0
+    },
+    {
+     "id": "s-4910-5",
+     "playerId": "vantage_1",
+     "type": 1,
+     "value": 0
+    }
+   ],
+   "emblemStates": [],
+   "id": "gc-4910-0"
+  }
+ },
+ "ctrl": {
+  "fwd": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fire": false
+ },
+ "vtT": 2350.000000000001,
+ "dts": 4,
+ "stepSrc": "function (dt, vi, pi) {\n    (window.__worldDt = window.__worldDt || []).push(+dt.toFixed(6));\n    return orig.call(w, dt",
+ "sameWorld": true
+}
+probe after slow fwd: {
+ "tank": {
+  "x": 65,
+  "y": 23.107499999999998,
+  "rot": 0,
+  "locked": false,
+  "fwd": true,
+  "back": false,
+  "left": false,
+  "right": false
+ },
+ "started": true,
+ "maze": true,
+ "gcState": {
+  "__class": {
+   "__metaclass": {
+    "create": {},
+    "withState": {},
+    "withObject": {}
+   },
+   "__superclass": {},
+   "__constructors": {
+    "create": {},
+    "withState": {},
+    "withObject": {}
+   },
+   "__methods": {
+    "toString": {},
+    "className": {},
+    "classs": {},
+    "set": {},
+    "get": {},
+    "wrapField": {},
+    "unwrapField": {},
+    "unwrapFields": {},
+    "setPlayerStates": {},
+    "getPlayerStates": {},
+    "setMode": {},
+    "getMode": {},
+    "setMaxActivePlayerCount": {},
+    "getMaxActivePlayerCount": {},
+    "setTheme": {},
+    "getTheme": {},
+    "setRanked": {},
+    "getRanked": {},
+    "setSymmetric": {},
+    "getSymmetric": {},
+    "setStorm": {},
+    "getStorm": {},
+    "setPremium": {},
+    "getPremium": {},
+    "setScoreStates": {},
+    "getScoreStates": {},
+    "setEmblemStates": {},
+    "getEmblemStates": {},
+    "setId": {},
+    "getId": {},
+    "toObj": {}
+   },
+   "__fields": {
+    "data": {
+     "playerStates": [],
+     "mode": null,
+     "maxActivePlayerCount": 0,
+     "theme": null,
+     "ranked": false,
+     "symmetric": false,
+     "storm": false,
+     "premium": false,
+     "scoreStates": [],
+     "emblemStates": [],
+     "id": null
+    }
+   },
+   "__activeFields": {},
+   "__mixins": [],
+   "__wrappedFields": {},
+   "__name": "GameState"
+  },
+  "data": {
+   "playerStates": [
+    {
+     "playerId": "tank_a",
+     "queued": false,
+     "enqueueTime": {},
+     "team": 0
+    },
+    {
+     "playerId": "vantage_1",
+     "queued": false,
+     "enqueueTime": {},
+     "team": 0
+    }
+   ],
+   "mode": 1,
+   "maxActivePlayerCount": 8,
+   "theme": 4,
+   "ranked": false,
+   "symmetric": false,
+   "storm": false,
+   "premium": false,
+   "scoreStates": [
+    {
+     "id": "s-4910-2",
+     "playerId": "tank_a",
+     "type": 0,
+     "value": 0
+    },
+    {
+     "id": "s-4910-3",
+     "playerId": "tank_a",
+     "type": 1,
+     "value": 0
+    },
+    {
+     "id": "s-4910-4",
+     "playerId": "vantage_1",
+     "type": 0,
+     "value": 0
+    },
+    {
+     "id": "s-4910-5",
+     "playerId": "vantage_1",
+     "type": 1,
+     "value": 0
+    }
+   ],
+   "emblemStates": [],
+   "id": "gc-4910-0"
+  }
+ },
+ "ctrl": {
+  "fwd": false,
+  "back": false,
+  "left": false,
+  "right": false,
+  "fire": false
+ },
+ "vtT": 2683.333333333331,
+ "dts": 20,
+ "stepSrc": "function (dt, vi, pi) {\n    (window.__worldDt = window.__worldDt || []).push(+dt.toFixed(6));\n    return orig.call(w, dt",
+ "sameWorld": true
+}
+world dts: [0.021,0.026,0.019,0.027,0.018,0.03,0.033,0.015,0.031,0.017,0.017,0.012,0.019,0.03,0.014,0.017,0.013,0.034,0.03,0.016]
+lastUpdate delta check: 1791315807358

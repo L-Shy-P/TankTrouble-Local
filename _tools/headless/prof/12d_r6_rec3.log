@@ -1,0 +1,10 @@
+RECORD OK {"file":"prof/_multiai_vant2_missile.jsonl","rngFile":"prof/_multiai_vant2_missile.rng.json","metaFile":"prof/_multiai_vant2_missile.meta.json","frames":600,"treeVersion":"v174","treeMd5":"7bd5910d7fd02a19894313698a1d1f2b","rngLen":9163,"rngOverflow":0,"aiControl":{"tree":true,"enabled":true,"ver":"v174"},"wallMs":9718}
+  MISSILE-INJECT [{"f":60,"inject":{"err":"no tanks"}},{"f":120,"inject":{"err":"no tanks"}},{"f":180,"inject":{"err":"no tanks"}}]
+  MISSILE-FINAL  {"t":17033.333333333143,"missileCount":0,"missiles":[],"treeVersion":"v174","abiVersion":12}
+VERIFY PASS
+  baseline=prof/_multiai_vant2_missile.jsonl treeVersion=v174 treeMd5(录制时)=7bd5910d7fd02a19894313698a1d1f2b
+  treeMd5(现在)=7bd5910d7fd02a19894313698a1d1f2b  frames=600  rngLen=9163 replayOverflow=0 aiControl={"tree":true,"enabled":true,"ver":"v174"}
+  epoch(录制/现在)=1791802139364 / 1791802139364  bootFrames(录制/现在)=300 / 300  menuFrames(录制/现在)=21 / 24
+  不一致帧数=0/600  分歧字段={}
+  MISSILE-INJECT [{"f":60,"inject":{"err":"no tanks"}},{"f":120,"inject":{"err":"no tanks"}},{"f":180,"inject":{"err":"no tanks"}}]
+  MISSILE-FINAL  {"t":17033.333333333143,"missileCount":0,"missiles":[],"treeVersion":"v174","abiVersion":12}

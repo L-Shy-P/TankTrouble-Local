@@ -1,0 +1,71 @@
+=== 版本指纹 ===
+  game_core/index.html  2026-10-11T14:44:50.635Z  cc0d354c7bd630005994104ba4582af3  34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  2026-06-13T17:38:28.228Z  7ecd83bb84f80beac5e1df8f4fe85f48  84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  2026-06-13T17:38:28.247Z  97cadb8a67a443a9eb2f51ebc7d12916  58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  2026-06-13T17:38:28.229Z  1c7bcaba8381d40aa591f5abacb8d96e  55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  2026-06-13T12:22:43.984Z  a2bf42171d586f54e5e5fac5779424e4  24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  2026-06-13T17:38:28.240Z  5183078f57653d2189c8517dd227a01b  51385
+  game_core/js/vantage_tree.js  2026-10-11T14:44:50.633Z  b02609ad48a06617155e7c5d0792e4dd  484237
+  game_core/js/vantage_sandbox.js  2026-10-11T14:51:24.281Z  06971cc0e7fa180e36ccd041c264b243  171358
+  game_core/js/vantage_rust_bridge.js  2026-10-11T14:44:50.637Z  63fe087444041c87e7b813eee12a8f2c  93829
+  game_core/js/wasm/vantage_core.wasm  2026-10-11T14:51:48.191Z  fd132f4b23509abb648b5807dd866fb5  207506
+  _tools/headless/match.js  2026-10-11T09:25:41.483Z  43a8ec65203f7f9c9654932ce17f6f63  28377
+  _tools/headless/clock.js  2026-10-11T09:21:03.391Z  664cd0cfb7eb12cf0c7cfd0dacf41e43  23201
+
+=== open: {"frames":120,"inRound":"in round","log":["0帧→counting down"]} ===
+  helper: installed
+  迷宫 9x5 可达 40
+  最长直道: {"n":9,"start":{"x":8,"y":1,"used":true},"dir":{"dx":-1,"dy":0,"rot":-1.5707963267948966,"name":"-x"}}
+  直道格=[{"x":8,"y":1},{"x":7,"y":1},{"x":6,"y":1},{"x":5,"y":1},{"x":4,"y":1},{"x":3,"y":1},{"x":2,"y":1},{"x":1,"y":1},{"x":0,"y":1}] 起点位姿={"x":85,"y":15,"rot":-1.5707963267948966} 终点={"x":5,"y":15} 停车格={"x":8,"y":4,"used":true}
+
+=== A) 桩事实 ===
+  常量: {"HM_ACT":2,"HM_MAX_LIFE":10,"HM_ACC":40,"HM_RADIUS":0.2,"HM_SPEED":18,"HM_OFFSET":2.5,"TILE":10}
+  spawnCrate(CRATE_HOMING_MISSILE) → {"n":1,"one":{"id":"c-f9b7-12","type":3,"x":25,"y":5}}
+  真 crate 拾取后: {"weaponId":"hmw-f9b7-13","weaponType":3,"fields":{"_launched":false,"_activationTime":0},"isDefault":false,"movementLocked":false,"done":false}
+  直接工厂: {"type":3,"fields":{"_launched":false,"_activationTime":0}}
+  ⟹ 等价: {"typeEq":true,"fieldsEq":true}
+
+=== B) 主飞行 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火后导弹数=1（tank_a @{"x":85,"y":15,"rot":-1.5707963267948966} 朝 -x）
+  已把 tank_a 挪到停车格 {"x":8,"y":4,"used":true}
+  ta≈2.15 时: {"ta":2.1659999999999964,"id":"hm-f9b7-16","tgt":"tank_b","dto":true,"nb":0,"x":43.64758454781429,"y":15.457233987657524,"vx":-14.436482361614928,"vy":6.270819232290904}
+  导弹@{"x":43.64758454781429,"y":15.457233987657524,"vx":-14.436482361614928,"vy":6.270819232290904} tile={"x":4,"y":1} → 侧面格={"x":4,"y":2}
+  已把 tank_b 挪到侧面（迷宫距离 1 → aim=tank-exact → 满转向）
+  导弹在此期间消失
+  采样帧=175  首帧={"id":"hm-f9b7-16","o":"tank_a","x":82.212,"y":15,"vx":-18,"vy":0,"sp":18,"ta":0.016,"la":10,"dto":false,"nb":0,"tgt":null,"initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[8,1],"dist":0},{"tank":"tank_b","tile":[0,1],"dist":10},{"tank":"tank_c","tile":[8,4],"dist":13}],"tgtMy":"tank_a","sd":0,"aimKind":"tank-exact","aim":{"x":85,"y":15},"rel":{"x":2.788,"y":0},"predGate":false,"pred":{"x":-18,"y":0,"renorm":false,"gate":"pre"}}
+  |v| 范围=[14.6427, 18]  ≠18 的帧数=29
+  首次转向: {"f":297,"ta":2.016,"deg":-1.9665860828589368,"collided":false,"from":{"vx":-18,"vy":0},"to":{"vx":-17.9894,"vy":0.6177}}
+  非碰撞帧：激活前最大转角=0.0000°  激活后最大转角=3.7594°（理论 atan(40*dt/18)=2.1211°）
+  ★ 逐帧精确复刻对拍: 172/174 完全一致
+  对拍失败样例: [{"f":302,"ta":2.1,"pred":{"x":-17.6608,"y":3.4781,"renorm":true,"gate":"act"},"actual":{"vx":-17.0765,"vy":3.6308},"aimKind":"next-tile","predGate":true,"tgt":"tank_b","d":[0.5842999999999989,0.15269999999999984]},{"f":345,"ta":2.816,"pred":{"x":7.8595,"y":16.1935,"renorm":true,"gate":"act"},"actual":{"vx":8.2318,"vy":15.6807},"aimKind":"tank-exact","predGate":true,"tgt":"tank_b","d":[0.3723000000000001,0.5128000000000004]}]
+  目标时间线: [{"f":177,"ta":0.016,"from":null,"to":null,"myTgt":"tank_a","sd":0},{"f":297,"ta":2.016,"from":null,"to":"tank_b","myTgt":"tank_b","sd":6}]
+  TARGET_CHANGED: [{"f":297,"t":4966.666666666668,"kind":"targetChanged","projectileId":"hm-f9b7-16","targetId":"tank_b"},{"f":352,"t":5883.333333333351,"kind":"tank killed","victim":"tank_b","killer":"tank_a"},{"f":352,"t":5883.333333333351,"kind":"projectile destroyed","data":"hm-f9b7-16"},{"f":352,"t":5883.333333333351,"kind":"tank deadly collision","id":"hm-f9b7-16","ty":3,"ta":2.9159999999999937}]
+  撞墙帧: []
+  末帧: {"id":"hm-f9b7-16","o":"tank_a","x":43.1718,"y":26.5368,"vx":12.2318,"vy":11.6807,"sp":16.9132,"ta":2.916,"la":10,"dto":true,"nb":0,"tgt":"tank_b","initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[8,4],"dist":8},{"tank":"tank_b","tile":[4,2],"dist":0},{"tank":"tank_c","tile":[8,4],"dist":8}],"tgtMy":"tank_b","sd":0,"aimKind":"tank-exact","aim":{"x":45,"y":25},"rel":{"x":1.8282,"y":-1.5368},"predGate":true,"pred":{"x":12.9118,"y":11.0007,"renorm":false,"gate":"act"}}
+[C] lifetime (seeded, no tanks to chase)
+  seeded: {"id":"probe_hm_life","ta":0,"la":10,"x":85,"y":15,"vx":-18,"vy":-1.102182119232618e-15,"tgt":null}
+  missile gone after ~466 frames
+  末态(最后一次读到): {"ta":7.733000000000043,"x":81.2952777004602,"y":44.31378105940742,"vx":17.995954533679107,"vy":-0.3816024393978407,"tgt":"tank_c","nb":0}
+  事件流: [{"f":818,"t":13649.999999999862,"kind":"tank killed","victim":"tank_a","killer":"tank_a"},{"f":818,"t":13649.999999999862,"kind":"projectile destroyed","data":"probe_hm_life"},{"f":818,"t":13649.999999999862,"kind":"tank deadly collision","id":"probe_hm_life","ty":3,"ta":7.7500000000000435}]
+  采样帧数: 466
+[G] target switch
+  [setup] respawn tank_a
+  [setup] respawn tank_b
+  fired=1, owner parked
+  before switch: {"ta":2.416999999999996,"id":"hm-f9b7-21","tgt":"tank_b","dto":true,"nb":0,"x":41.38748808921262,"y":18.24701092288599,"vx":-3.835178736139125,"vy":16.430308509216662}
+  switch: move tank_b far, move tank_a to {"x":5,"y":1}
+  ★ target switched to tank_a at ta=2.4339999999999957
+  events: [{"f":949,"t":15833.333333333116,"kind":"targetChanged","projectileId":"hm-f9b7-21","targetId":"tank_b"},{"f":974,"t":16249.999999999767,"kind":"targetChanged","projectileId":"hm-f9b7-21","targetId":"tank_a"}]
+
+=== F) pre-activation owner kill ===
+  [F] fired=1 missile={"ta":0.066,"id":"hm-f9b7-24","tgt":null,"dto":false,"nb":0,"x":81.31200000000001,"y":15,"vx":-18,"vy":-1.102182119232618e-15}
+  [F] owner moved to lane tile {"x":6,"y":1} = (65,15); missile tile={"x":8,"y":1}
+  [F] dead=false minDistToOwner=0.112 passedThrough=true
+  [F] events: []
+
+=== vtStats ===
+  {"t":20216.666666666708,"steps":1213,"pending":3,"errors":[],"errorCount":0,"epoch":1791731923360,"timersPending":9,"timerFires":1115,"timerDropped":0,"timerT":19816.66666666668,"frozen":false,"released":true,"releaseSteps":24}
+  pageErrors: []
+
+[done] 用时 27.9s

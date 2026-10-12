@@ -1,0 +1,839 @@
+{
+  "startedAt": "2026-10-12T11:31:26.314Z",
+  "A": {
+    "liveFrame": {
+      "n": 1,
+      "buggy": [
+        {
+          "id": "b-fe6c-9",
+          "o": "tank_a",
+          "t": -1,
+          "x": 18.216,
+          "y": 33.897,
+          "vx": null,
+          "vy": -5.838,
+          "sp": 18,
+          "live": {
+            "deadly": false,
+            "stopped": false
+          }
+        }
+      ],
+      "fixed": [
+        {
+          "id": "b-fe6c-9",
+          "x": 18.216,
+          "y": 33.897,
+          "vx": 17.027,
+          "vy": -5.838,
+          "raw_has_vx": false,
+          "raw_has_speedX": true,
+          "typeof_vx": "undefined"
+        }
+      ]
+    },
+    "vx恒null": true,
+    "lane": null
+  },
+  "B": {
+    "steps": [
+      {
+        "tag": "开局默认(BULLET)",
+        "wpn": [
+          [
+            "tank_a",
+            -1,
+            5,
+            1,
+            2.05
+          ],
+          [
+            "tank_b",
+            -1,
+            5,
+            0,
+            2.05
+          ]
+        ],
+        "wpnJSON": "[[\"tank_a\",-1,5,1,2.05],[\"tank_b\",-1,5,0,2.05]]",
+        "detail": [
+          {
+            "id": "bw-fe6c-7",
+            "owner": "tank_a",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": true,
+              "_bulletsFired": 1,
+              "_timeAlive": 2.049999999999997
+            }
+          },
+          {
+            "id": "bw-fe6c-8",
+            "owner": "tank_b",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": false,
+              "_bulletsFired": 0,
+              "_timeAlive": 2.049999999999997
+            }
+          }
+        ]
+      },
+      {
+        "tag": "注入 HOMING 后",
+        "wpn": [
+          [
+            "tank_a",
+            -1,
+            5,
+            1,
+            2.067
+          ],
+          [
+            "tank_b",
+            -1,
+            5,
+            0,
+            2.067
+          ],
+          [
+            "tank_a",
+            3,
+            null,
+            null,
+            null
+          ]
+        ],
+        "wpnJSON": "[[\"tank_a\",-1,5,1,2.067],[\"tank_b\",-1,5,0,2.067],[\"tank_a\",3,null,null,null]]",
+        "detail": [
+          {
+            "id": "bw-fe6c-7",
+            "owner": "tank_a",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": true,
+              "_bulletsFired": 1,
+              "_timeAlive": 2.066999999999997
+            }
+          },
+          {
+            "id": "bw-fe6c-8",
+            "owner": "tank_b",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": false,
+              "_bulletsFired": 0,
+              "_timeAlive": 2.066999999999997
+            }
+          },
+          {
+            "id": "hmw-fe6c-10",
+            "owner": "tank_a",
+            "type": 3,
+            "keys": [
+              "_activationTime",
+              "_launched"
+            ],
+            "fields": {
+              "_launched": false,
+              "_activationTime": 0
+            }
+          }
+        ]
+      },
+      {
+        "tag": "注入 LASER 后",
+        "wpn": [
+          [
+            "tank_a",
+            -1,
+            5,
+            1,
+            2.083
+          ],
+          [
+            "tank_b",
+            -1,
+            5,
+            0,
+            2.083
+          ],
+          [
+            "tank_a",
+            3,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            0,
+            null,
+            null,
+            null
+          ]
+        ],
+        "wpnJSON": "[[\"tank_a\",-1,5,1,2.083],[\"tank_b\",-1,5,0,2.083],[\"tank_a\",3,null,null,null],[\"tank_a\",0,null,null,null]]",
+        "detail": [
+          {
+            "id": "bw-fe6c-7",
+            "owner": "tank_a",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": true,
+              "_bulletsFired": 1,
+              "_timeAlive": 2.082999999999997
+            }
+          },
+          {
+            "id": "bw-fe6c-8",
+            "owner": "tank_b",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": false,
+              "_bulletsFired": 0,
+              "_timeAlive": 2.082999999999997
+            }
+          },
+          {
+            "id": "hmw-fe6c-10",
+            "owner": "tank_a",
+            "type": 3,
+            "keys": [
+              "_activationTime",
+              "_launched"
+            ],
+            "fields": {
+              "_launched": false,
+              "_activationTime": 0
+            }
+          },
+          {
+            "id": "lw-fe6c-11",
+            "owner": "tank_a",
+            "type": 0,
+            "keys": [
+              "_fired",
+              "_timeSinceFire"
+            ],
+            "fields": {
+              "_fired": false,
+              "_timeSinceFire": 0
+            }
+          }
+        ]
+      },
+      {
+        "tag": "注入 MINE 后",
+        "wpn": [
+          [
+            "tank_a",
+            -1,
+            5,
+            1,
+            2.1
+          ],
+          [
+            "tank_b",
+            -1,
+            5,
+            0,
+            2.1
+          ],
+          [
+            "tank_a",
+            3,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            0,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            4,
+            null,
+            null,
+            null
+          ]
+        ],
+        "wpnJSON": "[[\"tank_a\",-1,5,1,2.1],[\"tank_b\",-1,5,0,2.1],[\"tank_a\",3,null,null,null],[\"tank_a\",0,null,null,null],[\"tank_a\",4,null,null,null]]",
+        "detail": [
+          {
+            "id": "bw-fe6c-7",
+            "owner": "tank_a",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": true,
+              "_bulletsFired": 1,
+              "_timeAlive": 2.099999999999997
+            }
+          },
+          {
+            "id": "bw-fe6c-8",
+            "owner": "tank_b",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": false,
+              "_bulletsFired": 0,
+              "_timeAlive": 2.099999999999997
+            }
+          },
+          {
+            "id": "hmw-fe6c-10",
+            "owner": "tank_a",
+            "type": 3,
+            "keys": [
+              "_activationTime",
+              "_launched"
+            ],
+            "fields": {
+              "_launched": false,
+              "_activationTime": 0
+            }
+          },
+          {
+            "id": "lw-fe6c-11",
+            "owner": "tank_a",
+            "type": 0,
+            "keys": [
+              "_fired",
+              "_timeSinceFire"
+            ],
+            "fields": {
+              "_fired": false,
+              "_timeSinceFire": 0
+            }
+          },
+          {
+            "id": "mw-fe6c-12",
+            "owner": "tank_a",
+            "type": 4,
+            "keys": [
+              "_numMines",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numMines": 3,
+              "_triggerPulled": false
+            }
+          }
+        ]
+      },
+      {
+        "tag": "注入 SHOTGUN 后",
+        "wpn": [
+          [
+            "tank_a",
+            -1,
+            5,
+            1,
+            2.117
+          ],
+          [
+            "tank_b",
+            -1,
+            5,
+            0,
+            2.117
+          ],
+          [
+            "tank_a",
+            3,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            0,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            4,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            2,
+            3,
+            null,
+            null
+          ]
+        ],
+        "wpnJSON": "[[\"tank_a\",-1,5,1,2.117],[\"tank_b\",-1,5,0,2.117],[\"tank_a\",3,null,null,null],[\"tank_a\",0,null,null,null],[\"tank_a\",4,null,null,null],[\"tank_a\",2,3,null,null]]",
+        "detail": [
+          {
+            "id": "bw-fe6c-7",
+            "owner": "tank_a",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": true,
+              "_bulletsFired": 1,
+              "_timeAlive": 2.116999999999997
+            }
+          },
+          {
+            "id": "bw-fe6c-8",
+            "owner": "tank_b",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": false,
+              "_bulletsFired": 0,
+              "_timeAlive": 2.116999999999997
+            }
+          },
+          {
+            "id": "hmw-fe6c-10",
+            "owner": "tank_a",
+            "type": 3,
+            "keys": [
+              "_activationTime",
+              "_launched"
+            ],
+            "fields": {
+              "_launched": false,
+              "_activationTime": 0
+            }
+          },
+          {
+            "id": "lw-fe6c-11",
+            "owner": "tank_a",
+            "type": 0,
+            "keys": [
+              "_fired",
+              "_timeSinceFire"
+            ],
+            "fields": {
+              "_fired": false,
+              "_timeSinceFire": 0
+            }
+          },
+          {
+            "id": "mw-fe6c-12",
+            "owner": "tank_a",
+            "type": 4,
+            "keys": [
+              "_numMines",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numMines": 3,
+              "_triggerPulled": false
+            }
+          },
+          {
+            "id": "sw-fe6c-13",
+            "owner": "tank_a",
+            "type": 2,
+            "keys": [
+              "_numBullets",
+              "_reloadTime",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 3,
+              "_triggerPulled": false,
+              "_reloadTime": 0
+            }
+          }
+        ]
+      },
+      {
+        "tag": "注入 GATLING 后",
+        "wpn": [
+          [
+            "tank_a",
+            -1,
+            5,
+            1,
+            2.133
+          ],
+          [
+            "tank_b",
+            -1,
+            5,
+            0,
+            2.133
+          ],
+          [
+            "tank_a",
+            3,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            0,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            4,
+            null,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            2,
+            3,
+            null,
+            null
+          ],
+          [
+            "tank_a",
+            5,
+            20,
+            null,
+            null
+          ]
+        ],
+        "wpnJSON": "[[\"tank_a\",-1,5,1,2.133],[\"tank_b\",-1,5,0,2.133],[\"tank_a\",3,null,null,null],[\"tank_a\",0,null,null,null],[\"tank_a\",4,null,null,null],[\"tank_a\",2,3,null,null],[\"tank_a\",5,20,null,null]]",
+        "detail": [
+          {
+            "id": "bw-fe6c-7",
+            "owner": "tank_a",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": true,
+              "_bulletsFired": 1,
+              "_timeAlive": 2.132999999999997
+            }
+          },
+          {
+            "id": "bw-fe6c-8",
+            "owner": "tank_b",
+            "type": -1,
+            "keys": [
+              "_bulletsFired",
+              "_numBullets",
+              "_timeAlive",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 5,
+              "_triggerPulled": false,
+              "_bulletsFired": 0,
+              "_timeAlive": 2.132999999999997
+            }
+          },
+          {
+            "id": "hmw-fe6c-10",
+            "owner": "tank_a",
+            "type": 3,
+            "keys": [
+              "_activationTime",
+              "_launched"
+            ],
+            "fields": {
+              "_launched": false,
+              "_activationTime": 0
+            }
+          },
+          {
+            "id": "lw-fe6c-11",
+            "owner": "tank_a",
+            "type": 0,
+            "keys": [
+              "_fired",
+              "_timeSinceFire"
+            ],
+            "fields": {
+              "_fired": false,
+              "_timeSinceFire": 0
+            }
+          },
+          {
+            "id": "mw-fe6c-12",
+            "owner": "tank_a",
+            "type": 4,
+            "keys": [
+              "_numMines",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numMines": 3,
+              "_triggerPulled": false
+            }
+          },
+          {
+            "id": "sw-fe6c-13",
+            "owner": "tank_a",
+            "type": 2,
+            "keys": [
+              "_numBullets",
+              "_reloadTime",
+              "_triggerPulled"
+            ],
+            "fields": {
+              "_numBullets": 3,
+              "_triggerPulled": false,
+              "_reloadTime": 0
+            }
+          },
+          {
+            "id": "ggw-fe6c-14",
+            "owner": "tank_a",
+            "type": 5,
+            "keys": [
+              "_newBurst",
+              "_numBullets",
+              "_timeSinceFire",
+              "_triggerPulled",
+              "_weaponCharge"
+            ],
+            "fields": {
+              "_numBullets": 20,
+              "_triggerPulled": false,
+              "_weaponCharge": 0,
+              "_timeSinceFire": 0,
+              "_newBurst": true
+            }
+          }
+        ]
+      }
+    ],
+    "inject_HOMING": {
+      "ok": true,
+      "id": "hmw-fe6c-10",
+      "type": 3
+    },
+    "inject_LASER": {
+      "ok": true,
+      "id": "lw-fe6c-11",
+      "type": 0
+    },
+    "inject_MINE": {
+      "ok": true,
+      "id": "mw-fe6c-12",
+      "type": 4
+    },
+    "inject_SHOTGUN": {
+      "ok": true,
+      "id": "sw-fe6c-13",
+      "type": 2
+    },
+    "inject_GATLING": {
+      "ok": true,
+      "id": "ggw-fe6c-14",
+      "type": 5
+    },
+    "inject_HOMING2": {
+      "ok": true,
+      "id": "hmw-fe6c-15",
+      "type": 3
+    },
+    "fired": {
+      "wpnJSON_before": "[[\"tank_a\",-1,5,1,2.15],[\"tank_b\",-1,5,0,2.15],[\"tank_a\",3,null,null,null],[\"tank_a\",0,null,null,null],[\"tank_a\",4,null,null,null],[\"tank_a\",2,3,null,null],[\"tank_a\",5,20,null,null],[\"tank_a\",3,null,null,null]]",
+      "wpnJSON_after": "[[\"tank_a\",-1,5,1,2.233],[\"tank_b\",-1,5,0,2.233],[\"tank_a\",3,null,null,null],[\"tank_a\",0,null,null,null],[\"tank_a\",4,null,null,null],[\"tank_a\",2,3,null,null],[\"tank_a\",5,20,null,null],[\"tank_a\",3,null,null,null]]",
+      "wpnChanged": true,
+      "tankA_fields_after": [
+        {
+          "id": "bw-fe6c-7",
+          "owner": "tank_a",
+          "type": -1,
+          "keys": [
+            "_bulletsFired",
+            "_numBullets",
+            "_timeAlive",
+            "_triggerPulled"
+          ],
+          "fields": {
+            "_numBullets": 5,
+            "_triggerPulled": true,
+            "_bulletsFired": 1,
+            "_timeAlive": 2.2329999999999965
+          }
+        },
+        {
+          "id": "hmw-fe6c-10",
+          "owner": "tank_a",
+          "type": 3,
+          "keys": [
+            "_activationTime",
+            "_launched"
+          ],
+          "fields": {
+            "_launched": true,
+            "_activationTime": 1.9170000000000003
+          }
+        },
+        {
+          "id": "lw-fe6c-11",
+          "owner": "tank_a",
+          "type": 0,
+          "keys": [
+            "_fired",
+            "_timeSinceFire"
+          ],
+          "fields": {
+            "_fired": false,
+            "_timeSinceFire": 0
+          }
+        },
+        {
+          "id": "mw-fe6c-12",
+          "owner": "tank_a",
+          "type": 4,
+          "keys": [
+            "_numMines",
+            "_triggerPulled"
+          ],
+          "fields": {
+            "_numMines": 3,
+            "_triggerPulled": false
+          }
+        },
+        {
+          "id": "sw-fe6c-13",
+          "owner": "tank_a",
+          "type": 2,
+          "keys": [
+            "_numBullets",
+            "_reloadTime",
+            "_triggerPulled"
+          ],
+          "fields": {
+            "_numBullets": 3,
+            "_triggerPulled": false,
+            "_reloadTime": 0
+          }
+        },
+        {
+          "id": "ggw-fe6c-14",
+          "owner": "tank_a",
+          "type": 5,
+          "keys": [
+            "_newBurst",
+            "_numBullets",
+            "_timeSinceFire",
+            "_triggerPulled",
+            "_weaponCharge"
+          ],
+          "fields": {
+            "_numBullets": 20,
+            "_triggerPulled": false,
+            "_weaponCharge": 0,
+            "_timeSinceFire": 0,
+            "_newBurst": true
+          }
+        },
+        {
+          "id": "hmw-fe6c-15",
+          "owner": "tank_a",
+          "type": 3,
+          "keys": [
+            "_activationTime",
+            "_launched"
+          ],
+          "fields": {
+            "_launched": false,
+            "_activationTime": 0
+          }
+        }
+      ],
+      "projN": 2
+    },
+    "pageErr": []
+  },
+  "weaponTypes": {
+    "BULLET": -1,
+    "LASER": 0,
+    "DOUBLE_BARREL": 1,
+    "SHOTGUN": 2,
+    "HOMING_MISSILE": 3,
+    "MINE": 4,
+    "GATLING_GUN": 5
+  }
+}

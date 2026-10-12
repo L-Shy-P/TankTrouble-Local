@@ -1,0 +1,5035 @@
+{
+ "startedAt": "2026-10-12T04:24:54.181Z",
+ "fingerprints": [
+  {
+   "file": "game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js",
+   "mtime": "2026-06-13T12:22:43.984Z",
+   "bytes": 24449,
+   "md5": "a2bf42171d586f54e5e5fac5779424e4"
+  },
+  {
+   "file": "game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js",
+   "mtime": "2026-06-13T17:38:28.240Z",
+   "bytes": 51385,
+   "md5": "5183078f57653d2189c8517dd227a01b"
+  },
+  {
+   "file": "game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js",
+   "mtime": "2026-06-13T17:38:28.229Z",
+   "bytes": 55406,
+   "md5": "1c7bcaba8381d40aa591f5abacb8d96e"
+  },
+  {
+   "file": "game_core/js/418577fd210ad079ea3d1e5e04050fe0.js",
+   "mtime": "2026-06-13T17:38:28.228Z",
+   "bytes": 84517,
+   "md5": "7ecd83bb84f80beac5e1df8f4fe85f48"
+  },
+  {
+   "file": "game_core/js/b714588dc4621fe104113111ba90b1a7.js",
+   "mtime": "2026-06-13T17:38:28.247Z",
+   "bytes": 58771,
+   "md5": "97cadb8a67a443a9eb2f51ebc7d12916"
+  },
+  {
+   "file": "game_core/js/54518faa8d672020d7af8ed7c353bc1b.js",
+   "mtime": "2026-06-13T17:38:28.231Z",
+   "bytes": 61876,
+   "md5": "bd4736542c88b42fb7dfd1ff08c0dc72"
+  },
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-11T15:53:53.290Z",
+   "bytes": 173348,
+   "md5": "e4530739bf05916ea1563f36663a7d8c"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "mtime": "2026-10-11T09:25:41.483Z",
+   "bytes": 28377,
+   "md5": "43a8ec65203f7f9c9654932ce17f6f63"
+  }
+ ],
+ "openMs": 2208,
+ "A": {
+  "rows": [
+   {
+    "f": 0,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 17.788,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.016,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 1,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.094,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.033,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 2,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.4,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.05,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 3,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.688,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.066,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 4,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.994,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.083,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 5,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.3,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.1,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 6,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.588,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.116,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 7,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.894,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.133,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 8,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 20.2,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.15,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 9,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 20.488,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.166,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 10,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 20.794,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.183,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 11,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 21.1,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.2,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 12,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 21.388,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.216,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 13,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 21.694,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.233,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 14,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.25,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 15,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.288,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.266,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 16,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.594,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.283,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 17,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.9,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.3,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 18,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 23.188,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.316,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 19,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 23.494,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.333,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 20,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 23.8,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.35,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 21,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.088,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.366,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 22,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.394,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.383,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 23,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.7,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.4,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 24,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.988,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.416,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 25,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.294,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.433,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 26,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.6,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.45,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 27,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.888,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.466,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 28,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 26.194,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.483,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 29,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 26.5,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.5,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 30,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 26.788,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.516,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 31,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.094,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.533,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 32,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.4,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.55,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 33,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.688,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.566,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 34,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.994,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.583,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 35,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.3,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.6,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 36,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.588,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.616,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 37,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.894,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.633,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 38,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 29.2,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.65,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 39,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 29.488,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.666,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 40,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 29.794,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.683,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 41,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 30.1,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.7,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 42,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 30.388,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.716,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 43,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 30.694,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.733,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 44,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.75,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 45,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.288,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.766,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 46,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.594,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.783,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 47,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.9,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.8,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 48,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 32.188,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.816,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 49,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 32.494,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.833,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 50,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 32.8,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.85,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 51,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.088,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.866,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 52,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.394,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.883,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 53,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.7,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.9,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 54,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.988,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.916,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 55,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.294,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.933,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 56,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.6,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.95,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 57,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.888,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.966,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 58,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 35.194,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 0.983,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 59,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 35.5,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 60,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 35.788,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.016,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 61,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.094,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.033,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 62,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.4,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.05,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 63,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.688,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.066,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 64,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.994,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.083,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 65,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.3,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.1,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 66,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.588,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.116,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 67,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.894,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.133,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 68,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 38.2,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.15,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 69,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 38.488,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.166,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 70,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 38.794,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.183,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 71,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 39.1,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.2,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 72,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 39.388,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.216,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 73,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 39.694,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.233,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 74,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 40,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.25,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 75,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 40.288,
+      "y": 5,
+      "vx": 18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": false,
+       "ta": 1.266,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 76,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 40.316,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.283,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 77,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 40.01,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.3,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 78,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 39.722,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.316,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 79,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 39.416,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.333,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 80,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 39.11,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.35,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 81,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 38.822,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.366,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 82,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 38.516,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.383,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 83,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 38.21,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.4,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 84,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.922,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.416,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 85,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.616,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.433,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 86,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.31,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.45,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 87,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 37.022,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.466,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 88,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.716,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.483,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 89,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.41,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.5,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 90,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 36.122,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.516,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 91,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 35.816,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.533,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 92,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 35.51,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.55,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 93,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 35.222,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.566,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 94,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.916,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.583,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 95,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.61,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.6,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 96,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.322,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.616,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 97,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 34.016,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.633,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 98,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.71,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.65,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 99,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.422,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.666,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 100,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 33.116,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.683,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 101,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 32.81,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.7,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 102,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 32.522,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.716,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 103,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 32.216,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.733,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 104,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.91,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.75,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 105,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.622,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.766,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 106,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.316,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.783,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 107,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 31.01,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.8,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 108,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 30.722,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.816,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 109,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 30.416,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.833,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 110,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 30.11,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.85,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 111,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 29.822,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.866,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 112,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 29.516,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.883,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 113,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 29.21,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.9,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 114,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.922,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.916,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 115,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.616,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.933,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 116,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.31,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.95,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 117,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 28.022,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.966,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 118,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.716,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 1.983,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 119,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.41,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 120,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 27.122,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.016,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 121,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 26.816,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.033,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 122,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 26.51,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.05,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 123,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 26.222,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.066,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 124,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.916,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.083,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 125,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.61,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.1,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 126,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.322,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.116,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 127,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 25.016,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.133,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 128,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.71,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.15,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 129,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.422,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.166,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 130,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 24.116,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.183,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 131,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 23.81,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.2,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 132,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 23.522,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.216,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 133,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 23.216,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.233,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 134,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.91,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.25,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 135,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.622,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.266,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 136,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.316,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.283,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 137,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 22.01,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.3,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 138,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 21.722,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.316,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 139,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 21.416,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.333,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 140,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 21.11,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.35,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 141,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 20.822,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.366,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 142,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 20.516,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.383,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 143,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 20.21,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.4,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 144,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.922,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.416,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 145,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.616,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.433,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 146,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.31,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.45,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 147,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 19.022,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.466,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 148,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.716,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.483,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 149,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.41,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.5,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 150,
+    "b": [
+     {
+      "id": "b-0ad4-14",
+      "o": "tank_a",
+      "t": -1,
+      "x": 18.122,
+      "y": 5,
+      "vx": -18,
+      "vy": 0,
+      "sp": 18,
+      "live": {
+       "deadly": true,
+       "ta": 2.516,
+       "stopped": false
+      }
+     }
+    ],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   },
+   {
+    "f": 151,
+    "b": [],
+    "tankB": {
+     "id": "tank_b",
+     "x": 45,
+     "y": 5,
+     "rot": 0
+    },
+    "up": null
+   }
+  ],
+  "globals": {
+   "Constants": "object",
+   "B2DUtils": "object",
+   "IdGenerator": "object",
+   "TankState": "object",
+   "ProjectileState": "object",
+   "ZoneState": "object",
+   "CollectibleState": "object",
+   "TrapState": "object",
+   "UpgradeState": "object",
+   "WeaponState": "object",
+   "Mine": "object",
+   "Shrapnel": "object",
+   "StormZone": "object",
+   "ShieldUpgrade": "object",
+   "Collectible": "object",
+   "Pickup": "object",
+   "Tank": "object",
+   "Zone": "object"
+  },
+  "tileInfo": {
+   "TILE": 10,
+   "WALL": 0.8,
+   "tileBounds": {
+    "minX": 0,
+    "minY": 0,
+    "maxX": 10,
+    "maxY": 5
+   },
+   "seq": [
+    3,
+    2,
+    2,
+    1,
+    0,
+    2,
+    3,
+    0,
+    1,
+    3,
+    0,
+    2
+   ],
+   "seqLen": 16
+  },
+  "lane": [
+   "1,0",
+   "2,0",
+   "3,0",
+   "4,0",
+   "5,0"
+  ],
+  "laneWorld": {
+   "y": 5,
+   "x1": 15,
+   "x2": 55
+  },
+  "pickup": {
+   "crateId": "c-0ad4-12",
+   "beforeFx": [
+    {
+     "ut": "turret",
+     "cat": 1,
+     "mask": 119,
+     "st": 1,
+     "r": 0.005,
+     "n": 4,
+     "v": [
+      [
+       45.35,
+       3.7
+      ],
+      [
+       44.65,
+       3.7
+      ],
+      [
+       44.65,
+       2.3
+      ],
+      [
+       45.35,
+       2.3
+      ]
+     ]
+    },
+    {
+     "ut": "base",
+     "cat": 1,
+     "mask": 127,
+     "st": 1,
+     "r": 0.005,
+     "n": 4,
+     "v": [
+      [
+       43.5,
+       3
+      ],
+      [
+       46.5,
+       3
+      ],
+      [
+       46.5,
+       7
+      ],
+      [
+       43.5,
+       7
+      ]
+     ]
+    }
+   ],
+   "beforeUp": [],
+   "afterFx": [
+    {
+     "ut": 2,
+     "cat": 32,
+     "mask": 101,
+     "st": 0,
+     "r": 4.3,
+     "n": null,
+     "v": null
+    },
+    {
+     "ut": "turret",
+     "cat": 1,
+     "mask": 119,
+     "st": 1,
+     "r": 0.005,
+     "n": 4,
+     "v": [
+      [
+       45.35,
+       3.7
+      ],
+      [
+       44.65,
+       3.7
+      ],
+      [
+       44.65,
+       2.3
+      ],
+      [
+       45.35,
+       2.3
+      ]
+     ]
+    },
+    {
+     "ut": "base",
+     "cat": 1,
+     "mask": 127,
+     "st": 1,
+     "r": 0.005,
+     "n": 4,
+     "v": [
+      [
+       43.5,
+       3
+      ],
+      [
+       46.5,
+       3
+      ],
+      [
+       46.5,
+       7
+      ],
+      [
+       43.5,
+       7
+      ]
+     ]
+    }
+   ],
+   "afterUp": [
+    {
+     "id": "su-0ad4-13",
+     "type": 2,
+     "fields": {
+      "_lifetime": 5.983,
+      "_weakened": false
+     }
+    }
+   ],
+   "leftCollectibles": [],
+   "tankB": {
+    "id": "tank_b",
+    "x": 45,
+    "y": 5,
+    "rot": 0
+   }
+  },
+  "shieldFixture": [
+   {
+    "ut": 2,
+    "cat": 32,
+    "mask": 101,
+    "st": 0,
+    "r": 4.3,
+    "n": null,
+    "v": null
+   }
+  ],
+  "shooter": {
+   "x": 15,
+   "y": 5,
+   "rot": 1.5707963267948966
+  },
+  "target": {
+   "x": 45,
+   "y": 5
+  },
+  "fired": true,
+  "deathFrame": -1,
+  "rowsLen": 152,
+  "beforeShrapnel": {
+   "id": "tank_b",
+   "x": 45,
+   "y": 5,
+   "rot": 0
+  },
+  "shrapnel": {
+   "outside": {
+    "startX": 53,
+    "off": 8,
+    "frames": [
+     {
+      "f": 0,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 53,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": false,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.399999999999974
+     },
+     {
+      "f": 1,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 52.49,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.3829999999999742
+     },
+     {
+      "f": 2,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 52.01,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.3669999999999742
+     },
+     {
+      "f": 3,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 51.5,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.3499999999999743
+     },
+     {
+      "f": 4,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 50.99,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.3329999999999744
+     },
+     {
+      "f": 5,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 50.51,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.3169999999999744
+     },
+     {
+      "f": 6,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 50,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.2999999999999745
+     },
+     {
+      "f": 7,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 49.49,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.2829999999999746
+     },
+     {
+      "f": 8,
+      "b": [
+       {
+        "id": "i4mb_outside",
+        "o": "tank_a",
+        "t": 4,
+        "x": 49.01,
+        "y": 5,
+        "vx": 0,
+        "vy": 0,
+        "sp": 0,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.2669999999999746
+     },
+     {
+      "f": 9,
+      "b": [],
+      "alive": true,
+      "upLife": 3.2499999999999747
+     }
+    ],
+    "goneAt": 9
+   },
+   "insideBox": {
+    "startX": 46,
+    "off": 1,
+    "frames": [
+     {
+      "f": 0,
+      "b": [
+       {
+        "id": "i4mb_insideBox",
+        "o": "tank_a",
+        "t": 4,
+        "x": 46,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": false,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.116999999999975
+     },
+     {
+      "f": 1,
+      "b": [],
+      "alive": false,
+      "upLife": null
+     }
+    ],
+    "goneAt": 1
+   },
+   "insideShieldOutsideBox": {
+    "startX": 48,
+    "off": 3,
+    "frames": [
+     {
+      "f": 0,
+      "b": [
+       {
+        "id": "i4mb_insideShieldOutsideBox",
+        "o": "tank_a",
+        "t": 4,
+        "x": 48,
+        "y": 5,
+        "vx": -30,
+        "vy": 0,
+        "sp": 30,
+        "live": {
+         "deadly": false,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.199999999999975
+     },
+     {
+      "f": 1,
+      "b": [
+       {
+        "id": "i4mb_insideShieldOutsideBox",
+        "o": "tank_a",
+        "t": 4,
+        "x": 47.49,
+        "y": 5,
+        "vx": 0,
+        "vy": 0,
+        "sp": 0,
+        "live": {
+         "deadly": true,
+         "ta": 0,
+         "stopped": false
+        }
+       }
+      ],
+      "alive": true,
+      "upLife": 3.182999999999975
+     },
+     {
+      "f": 2,
+      "b": [],
+      "alive": true,
+      "upLife": 3.166999999999975
+     }
+    ],
+    "goneAt": 2
+   }
+  }
+ },
+ "B": {
+  "rows": [],
+  "tileInfo": {
+   "tileBounds": {
+    "minX": 0,
+    "minY": 0,
+    "maxX": 10,
+    "maxY": 5
+   },
+   "width": 11,
+   "height": 6,
+   "seq": [
+    0,
+    2,
+    0,
+    2,
+    2,
+    1,
+    0,
+    1,
+    0,
+    1,
+    2,
+    3,
+    0,
+    3,
+    2,
+    1
+   ],
+   "TILE": 10,
+   "WALL": 0.8,
+   "stormAppearAt": 60,
+   "cells": [
+    {
+     "x": 0,
+     "y": 1,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 0,
+     "y": 2,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 0,
+     "y": 3,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 1,
+     "y": 0,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 1,
+     "y": 2,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 1,
+     "y": 3,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 1,
+     "y": 4,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 2,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 2,
+     "y": 1,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 2,
+     "y": 2,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 2,
+     "y": 4,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 2,
+     "y": 5,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 3,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 3,
+     "y": 1,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 3,
+     "y": 2,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 3,
+     "y": 3,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 3,
+     "y": 4,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 4,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 4,
+     "y": 1,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 4,
+     "y": 2,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 4,
+     "y": 3,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 4,
+     "y": 4,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 4,
+     "y": 5,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 5,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 5,
+     "y": 1,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 5,
+     "y": 2,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 5,
+     "y": 3,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 5,
+     "y": 4,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 5,
+     "y": 5,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 6,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 6,
+     "y": 1,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 6,
+     "y": 2,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 6,
+     "y": 5,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 7,
+     "y": 0,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 7,
+     "y": 1,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 7,
+     "y": 3,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 7,
+     "y": 4,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 7,
+     "y": 5,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 8,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 8,
+     "y": 2,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 8,
+     "y": 3,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 8,
+     "y": 4,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 8,
+     "y": 5,
+     "top": 1,
+     "left": 0
+    },
+    {
+     "x": 9,
+     "y": 1,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 9,
+     "y": 3,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 9,
+     "y": 4,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 9,
+     "y": 5,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 10,
+     "y": 0,
+     "top": 1,
+     "left": 1
+    },
+    {
+     "x": 10,
+     "y": 1,
+     "top": 0,
+     "left": 0
+    },
+    {
+     "x": 10,
+     "y": 2,
+     "top": 0,
+     "left": 1
+    },
+    {
+     "x": 10,
+     "y": 3,
+     "top": 0,
+     "left": 0
+    }
+   ]
+  },
+  "victimCell": {
+   "x": 10,
+   "y": 2
+  },
+  "victimWorld": {
+   "x": 105,
+   "y": 25
+  }
+ },
+ "B_err": "Error: teleport 失败：no tank tank_b（tank=tank_b）\n    at Match.teleport (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\match.js:449:22)\n    at async partB (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_i4_probe_spec_1_4.js:369:3)\n    at async C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_i4_probe_spec_1_4.js:509:11",
+ "C": {
+  "rows": []
+ },
+ "C_err": "Error: teleport 失败：no tank tank_a（tank=tank_a）\n    at Match.teleport (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\match.js:449:22)\n    at async partC (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_i4_probe_spec_1_4.js:415:3)\n    at async C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_i4_probe_spec_1_4.js:510:11",
+ "D": {
+  "case": {}
+ },
+ "D_err": "Error: teleport 失败：no tank tank_b（tank=tank_b）\n    at Match.teleport (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\match.js:449:22)\n    at async partD (C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_i4_probe_spec_1_4.js:465:5)\n    at async C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\_i4_probe_spec_1_4.js:511:11",
+ "pageErrors": []
+}

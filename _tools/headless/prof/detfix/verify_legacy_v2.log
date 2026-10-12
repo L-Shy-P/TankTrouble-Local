@@ -1,0 +1,21 @@
+落盘复核: 文件 203 行（frame 200/200 条）; 文件哈希=1359711513 meta=1359711513 页面=1359711513 → 一条不丢
+录制: prof/detfix/final_check.jsonl
+  header: v=2 page=index.html 玩家=["tank_a","tank_b"]
+  初始位姿=[{"id":"tank_a","alive":true,"x":25,"y":5,"rot":2.2092996977485733,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0},{"id":"tank_b","alive":true,"x":25,"y":35,"rot":4.603299750276242,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0}]
+  地图=6x4 主题=1  回合设置={"COUNTDOWN_DURATION":0.5,"COUNTDOWN_START_VALUE":3,"BETWEEN_ROUNDS_DURATION":1,"CELEBRATION_DURATION":7,"MAX_DELTA_TIME":0.1,"MAZE_TILE_SIZE":10,"THEMES":{"STANDARD":0,"HALLOWEEN":1,"CHRISTMAS":2,"COUNT":3,"RANDOM":4}}
+  帧数=200  随机序列=5024  录制时 RNG 溢出=0
+
+---- 回放 #1 → prof/detfix/final_check.replay1.jsonl
+  initPose = [{"id":"tank_a","x":25,"y":5,"rot":2.2092996977485733},{"id":"tank_b","x":25,"y":35,"rot":4.603299750276242}]
+  drive    = {"on":false,"f":200,"total":200,"applied":58,"skipped":0,"errs":0,"missing":{},"loaded":200}
+  rng      = {"mode":"play","len":5024,"idx":0,"overflow":0,"calls":5024,"siteCount":125,"siteOverflow":0,"firstRec":null,"firstPlay":{"key":3040316008,"head":["Error","    at siteKey (<anonymous>:270:18)","    at Math.random (<anonymous>:295:19)","    at http://127.0.0.1:8000/js/jquery/jquery-1.11.2.min.js:2:1746"]}}
+  导出      = frames=200 分片=5 页面fnv=3098973668 落盘一致=true wallMs=2608
+  复核      = 一条不丢 (文件 202 行)
+
+================ 对拍结果 ================
+
+【验收】回放#1 vs 原始录制: FAIL
+  opName(含fire)不一致=0 坦克位姿不一致=0 (最大差 0) 子弹位姿不一致=0 回合状态不一致=0 随机数消费不一致=0 决定性隐藏不一致=0 观测性不一致(仅信息)=0 实际输入不一致=200 时间不一致=0 (最大差 0ms)
+  例子: 帧0: 实际输入 A=undefined B=[{"id":"tank_a","fwd":true,"back":false,"left":false,"right":false,"fire":false},{"id":"tank_b","fwd":false,"back":true,"left":false,"right" ; 帧1: 实际输入 A=undefined B=[{"id":"tank_a","fwd":true,"back":false,"left":false,"right":false,"fire":false},{"id":"tank_b","fwd":false,"back":true,"left":false,"right" ; 帧2: 实际输入 A=undefined B=[{"id":"tank_a","fwd":true,"back":false,"left":false,"right":false,"fire":false},{"id":"tank_b","fwd":false,"back":true,"left":true,"right": ; 帧3: 实际输入 A=undefined B=[{"id":"tank_a","fwd":true,"back":false,"left":true,"right":false,"fire":false},{"id":"tank_b","fwd":false,"back":false,"left":true,"right": ; 帧4: 实际输入 A=undefined B=[{"id":"tank_a","fwd":true,"back":false,"left":true,"right":false,"fire":false},{"id":"tank_b","fwd":false,"back":false,"left":true,"right":
+
+结论: FAIL

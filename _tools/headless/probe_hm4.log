@@ -1,0 +1,63 @@
+=== 版本指纹 ===
+  game_core/index.html  2026-10-11T14:44:50.635Z  cc0d354c7bd630005994104ba4582af3  34723
+  game_core/js/418577fd210ad079ea3d1e5e04050fe0.js  2026-06-13T17:38:28.228Z  7ecd83bb84f80beac5e1df8f4fe85f48  84517
+  game_core/js/b714588dc4621fe104113111ba90b1a7.js  2026-06-13T17:38:28.247Z  97cadb8a67a443a9eb2f51ebc7d12916  58771
+  game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js  2026-06-13T17:38:28.229Z  1c7bcaba8381d40aa591f5abacb8d96e  55406
+  game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js  2026-06-13T12:22:43.984Z  a2bf42171d586f54e5e5fac5779424e4  24449
+  game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js  2026-06-13T17:38:28.240Z  5183078f57653d2189c8517dd227a01b  51385
+  game_core/js/vantage_tree.js  2026-10-11T14:44:50.633Z  b02609ad48a06617155e7c5d0792e4dd  484237
+  game_core/js/vantage_sandbox.js  2026-10-11T14:51:24.281Z  06971cc0e7fa180e36ccd041c264b243  171358
+  game_core/js/vantage_rust_bridge.js  2026-10-11T14:44:50.637Z  63fe087444041c87e7b813eee12a8f2c  93829
+  game_core/js/wasm/vantage_core.wasm  2026-10-11T14:51:48.191Z  fd132f4b23509abb648b5807dd866fb5  207506
+  _tools/headless/match.js  2026-10-11T09:25:41.483Z  43a8ec65203f7f9c9654932ce17f6f63  28377
+  _tools/headless/clock.js  2026-10-11T09:21:03.391Z  664cd0cfb7eb12cf0c7cfd0dacf41e43  23201
+
+=== open: {"frames":120,"inRound":"in round","log":["0帧→counting down"]} ===
+  helper: installed
+  迷宫 8x7 可达 50
+  最长直道: {"n":8,"start":{"x":7,"y":3,"used":true},"dir":{"dx":-1,"dy":0,"rot":-1.5707963267948966,"name":"-x"}}
+  直道格=[{"x":7,"y":3},{"x":6,"y":3},{"x":5,"y":3},{"x":4,"y":3},{"x":3,"y":3},{"x":2,"y":3},{"x":1,"y":3},{"x":0,"y":3}] 起点位姿={"x":75,"y":35,"rot":-1.5707963267948966} 终点={"x":5,"y":35} 停车格={"x":4,"y":0,"used":false}
+
+=== A) 桩事实 ===
+  常量: {"HM_ACT":2,"HM_MAX_LIFE":10,"HM_ACC":40,"HM_RADIUS":0.2,"HM_SPEED":18,"HM_OFFSET":2.5,"TILE":10}
+  spawnCrate(CRATE_HOMING_MISSILE) → {"n":1,"one":{"id":"c-b9c4-12","type":3,"x":55,"y":65}}
+  真 crate 拾取后: {"weaponId":"hmw-b9c4-13","weaponType":3,"fields":{"_launched":false,"_activationTime":0},"isDefault":false,"movementLocked":false,"done":false}
+  直接工厂: {"type":3,"fields":{"_launched":false,"_activationTime":0}}
+  ⟹ 等价: {"typeEq":true,"fieldsEq":true}
+
+=== B) 主飞行 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":false,\"_activationTime\":0}"}
+  开火后导弹数=1（tank_a @{"x":75,"y":35,"rot":-1.5707963267948966} 朝 -x）
+  !! 导弹提前消失
+  ta≈2.15 时: null
+  导弹在此期间消失
+  采样帧=80  首帧={"id":"hm-b9c4-16","o":"tank_a","x":72.212,"y":35,"vx":-18,"vy":0,"sp":18,"ta":0.016,"la":10,"dto":false,"nb":0,"tgt":null,"initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[7,3],"dist":0},{"tank":"tank_b","tile":[0,3],"dist":11},{"tank":"tank_c","tile":[4,0],"dist":16}],"tgtMy":"tank_a","sd":0,"aimKind":"tank-exact","aim":{"x":75,"y":35},"rel":{"x":2.788,"y":0},"predGate":false,"pred":{"x":-18,"y":0,"renorm":false,"gate":"pre"}}
+  |v| 范围=[18, 18]  ≠18 的帧数=0
+  首次转向: {"f":219,"ta":0.666,"deg":-180,"collided":true,"from":{"vx":-18,"vy":0},"to":{"vx":18,"vy":0}}
+  非碰撞帧：激活前最大转角=0.0000°  激活后最大转角=0.0000°（理论 atan(40*dt/18)=2.1211°）
+  ★ 逐帧精确复刻对拍: 78/78 完全一致
+  目标时间线: [{"f":180,"ta":0.016,"from":null,"to":null,"myTgt":"tank_a","sd":0}]
+  TARGET_CHANGED: [{"f":260,"t":4349.99999999999,"kind":"tank killed","victim":"tank_a","killer":"tank_a"},{"f":260,"t":4349.99999999999,"kind":"projectile destroyed","data":"hm-b9c4-16"},{"f":260,"t":4349.99999999999,"kind":"tank deadly collision","id":"hm-b9c4-16","ty":3,"ta":1.3329999999999995}]
+  撞墙帧: [219]
+  末帧: {"id":"hm-b9c4-16","o":"tank_a","x":72.694,"y":35,"vx":18,"vy":0,"sp":18,"ta":1.333,"la":10,"dto":true,"nb":1,"tgt":null,"initSpSq":324,"st":false,"cands":[{"tank":"tank_a","tile":[7,3],"dist":0},{"tank":"tank_b","tile":[0,3],"dist":11},{"tank":"tank_c","tile":[4,0],"dist":16}],"tgtMy":"tank_a","sd":0,"aimKind":"tank-exact","aim":{"x":75,"y":35},"rel":{"x":2.306,"y":0},"predGate":false,"pred":{"x":18,"y":0,"renorm":false,"gate":"pre"}}
+
+=== F) pre-activation owner kill ===
+  [F] respawn tank_a
+  [F] fired=1 missile={"ta":0.067,"id":"hm-b9c4-19","tgt":null,"dto":false,"nb":0,"x":71.29400000000001,"y":35,"vx":-18,"vy":-1.102182119232618e-15}
+  [F] owner moved to lane tile {"x":5,"y":3} = (55,35); missile tile={"x":7,"y":3}
+  [F] dead=false minDistToOwner=5.706 passedThrough=false
+  [F] events: []
+
+=== C) 寿命终点 ===
+  给武器: {"activeType":3,"fields":"{\"_launched\":true,\"_activationTime\":0.7670000000000033}"}
+  开火后导弹数=1
+  导弹消失（约第 14 帧）
+  [C] events(non-targetChanged): [{"f":359,"t":6000.00000000002,"kind":"tank killed","victim":"tank_c","killer":"tank_a"},{"f":359,"t":6000.00000000002,"kind":"projectile destroyed","data":"hm-b9c4-19"},{"f":359,"t":6000.00000000002,"kind":"tank deadly collision","id":"hm-b9c4-19","ty":3,"ta":1.449999999999999}]
+  [C] targetChanged count: 0
+  末态: {"ta":1.449999999999999,"id":"hm-b9c4-19","tgt":null,"dto":true,"nb":1,"x":74.79999999999976,"y":35,"vx":18,"vy":-1.102182119232618e-15}  挪坦克次数=2
+
+=== vtStats ===
+  {"t":6016.666666666687,"steps":361,"pending":3,"errors":[],"errorCount":0,"epoch":1791731540532,"timersPending":10,"timerFires":409,"timerDropped":0,"timerT":5516.666666666678,"frozen":false,"released":true,"releaseSteps":30}
+  pageErrors: []
+
+[done] 用时 13.1s

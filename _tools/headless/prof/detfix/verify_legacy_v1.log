@@ -1,0 +1,21 @@
+落盘复核: 文件 403 行（frame 400/400 条）; 文件哈希=164287825 meta=164287825 页面=164287825 → 一条不丢
+录制: prof/base400.jsonl
+  header: v=1 page=index.html 玩家=["tank_a","tank_b"]
+  初始位姿=[{"id":"tank_a","alive":true,"x":45,"y":5,"rot":3.8188459474142387,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0},{"id":"tank_b","alive":true,"x":15,"y":25,"rot":3.4237166863885022,"fwd":false,"back":false,"left":false,"right":false,"fire":false,"op":0,"opName":"静止","action":0}]
+  地图=8x4 主题=0  回合设置={"COUNTDOWN_DURATION":0.5,"COUNTDOWN_START_VALUE":3,"BETWEEN_ROUNDS_DURATION":1,"CELEBRATION_DURATION":7,"MAX_DELTA_TIME":0.1,"MAZE_TILE_SIZE":10,"THEMES":{"STANDARD":0,"HALLOWEEN":1,"CHRISTMAS":2,"COUNT":3,"RANDOM":4}}
+  帧数=400  随机序列=5953  录制时 RNG 溢出=0
+
+---- 回放 #1 → prof/base400.replay1.jsonl
+  initPose = [{"id":"tank_a","x":45,"y":5,"rot":3.8188459474142387},{"id":"tank_b","x":15,"y":25,"rot":3.4237166863885022}]
+  drive    = {"on":false,"f":400,"total":400,"applied":263,"skipped":2,"errs":0,"missing":{"tank_a":1,"tank_b":1},"loaded":400}
+  rng      = {"mode":"play","len":5953,"idx":5537,"overflow":0,"calls":5537,"siteCount":0,"siteOverflow":0,"firstRec":null,"firstPlay":null}
+  导出      = frames=400 分片=9 页面fnv=3284475448 落盘一致=true wallMs=2627
+  复核      = 一条不丢 (文件 402 行)
+
+================ 对拍结果 ================
+
+【验收】回放#1 vs 原始录制: FAIL
+  opName(含fire)不一致=0 坦克位姿不一致=258 (最大差 20) 子弹位姿不一致=264 回合状态不一致=0 随机数消费不一致=259 决定性隐藏不一致=0 观测性不一致(仅信息)=0 实际输入不一致=0 时间不一致=0 (最大差 0ms)
+  例子: 帧1 tank_a: 位姿 A=(44.66016505261855,5.4226127051311295,3.8188459474142387) B=(44.67016019812977,5.410182919686096,3.8188459474142387) ; 帧1 tank_b: 位姿 A=(15.121158085823417,24.582005073906863,3.4237166863885022) B=(15.117594612710963,24.594299042321367,3.4237166863885022) ; 帧2 tank_b: 位姿 A=(15.178173655622672,24.3853015792748,3.343716686388502) B=(15.178173655622672,24.3853015792748,3.3387166863885023) ; 帧3 tank_b: 位姿 A=(15.178173655622672,24.3853015792748,3.258716686388502) B=(15.178173655622672,24.3853015792748,3.2537166863885023) ; 帧4 tank_a: 位姿 A=(44.17896065413962,6.057764692454278,3.6488459474142387) B=(44.18786445394013,6.044531217887392,3.6538459474142386)
+
+结论: FAIL

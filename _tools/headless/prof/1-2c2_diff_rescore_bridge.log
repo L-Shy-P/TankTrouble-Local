@@ -1,0 +1,25 @@
+[Vantage Sandbox] 模块已加载（v57：S3 寿命口径换算到轨迹锚点（+ nowTGlobal）+ S7 节点起点在过去时不再拿"现在"的弹位/寿命（回推+有符号 qAge）+ v56：v165 寿命扣减基准修正（qAge=从现在到节点起点，与轨迹索引 qLife 分开；rescore 路径改用 lifetimeSecOf 哨兵） + Rust ABI v9 破片语义（bullet_is_shrapnel 透传 + Shrapnel.hitMaze/done/不归一化逐字对齐） + v164 弹种档案（半径退化护栏/按弹种反弹次数/approx 分支补落弹种标记/破片不归一化保初速） + v137 修死权失明（placement 不因 lifeLeft 关整颗弹）+ Rust 快路帧步长护栏（写死0.02 vs 校准值不一致就回退 JS 融合） + v47：q<0钳到track[0]+alive不管位置+贴墙爬行校准 speedCap+候选坦克继承真实线/角速度+帧步长可外设(setFrameDtSec)+轨迹带摆位基准(real/track/path/approx+offset+下标) + 不静默丢弹（近似摆放+响亮计数）+遮蔽开关接进 Rust（ABI v7）+ 融合世界缓存按 aiId 分槽 + 墙几何外供 + Rust 物理默认开 + vt_score_paths 九操作 Rust 评分 + simulateTankBatchScored + 执行路线 JS 融合确认）
+[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）
+[VantageRustBridge] loaded (v12: ABI v10 弹种码 0=普通/1=破片/2=霰弹 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+scene            : bridge rescore head-on bullet
+  ops compared   : 9
+  frames compared: 5
+  sample identity/length: PASS
+  max per-frame err: 0.000000000e+0 at 
+  max total err    : 0.000000000e+0 at 
+  per-frame 1e-9   : PASS
+  total 1e-9       : PASS
+  deathFrame exact : PASS
+scene            : warm persistence
+  calls compared : 2
+  identical       : PASS
+scene            : cached incremental + new far-away bullet
+  max per-frame err: 0.000000000e+0
+  max total err    : 0.000000000e+0
+  deathFrame exact : PASS
+perf             : full crossing rescore avg 1.185 ms, cached far-away avg 1.076 ms, cached crossing avg 1.777 ms (9 nodes)
+perf             : rescoreTankSamples avg 1.378 ms, fused simulateTankBatch avg 13.616 ms
+[VantageSandbox] Rust 增量重评分节点 0 需要回退，改用 JS 融合路径
+scene            : spring rope fallback
+  rescoreTankSamples returned null (JS fallback path would be used): PASS
+DIFF RESCORE BRIDGE PASSED

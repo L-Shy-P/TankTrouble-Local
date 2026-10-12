@@ -1,0 +1,15 @@
++ node verify_record.js --in prof/base400.jsonl --runs 2
++ echo VERIFY_EXIT=0
++ node _probe_p1_1_dt.js --case nobullet --tag p11b_before
++ echo NOBULLET_EXIT=0
++ node _probe_p1_1_dt.js --case laika --tag p11b_before
++ echo LAIKA_EXIT=0
++ node _probe_p1_1_dt.js --case fpsdrop --tag p11b_before
++ echo FPSDROP_EXIT=0
++ node _probe_p1_1_tstamp.js --tag p11b_before
++ echo TSTAMP_EXIT=0
++ node _probe_p1_1_dt.js --case laika --tag p11b_before_rule_on --dump-rng prof/_p11b_rng_laika.json
++ node _probe_p1_1_dt.js --case laika --tag p11b_before_rule_off --rngseq prof/_p11b_rng_laika.json --calib-off
++ node _probe_p1_1_rulediff.js prof/_p11b_dt_laika_p11b_before_rule_on.jsonl prof/_p11b_dt_laika_p11b_before_rule_off.jsonl
++ echo ALL_BEFORE_DONE
+ALL_BEFORE_DONE

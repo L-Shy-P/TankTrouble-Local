@@ -1,0 +1,34 @@
+=== _lfd_ frame-diff probe ===
+sandbox=C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_backup\12d_missile_20261013\vantage_sandbox.js  md5=06971cc0e7fa180e36ccd041c264b243  dt=0.016666666666666666
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b2 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b0 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+[VantageSandbox] 融合世界摆放弹药不完整（预测可能偏乐观）：id=b1 半径退化(0) 弹种=LASER → 回退半径 0.05 累计: 近似摆=0 无威胁条目=0 跳过=0
+batches=600 rustUsed=600 rustFallback=0 jsFail=0 warns=18
+bothDead=3776 diverged=1049 (27.8%)
+diff js-rust: min=1 p50=1 p90=1 max=50
+convergence: rustEqSweep=1049 jsEqSweep=0 sweepLtJs=1049 sweepGtJs=0 sweepMissing=0 sweepNotEqualRust=0
+nonLaserDiv=0
+TOP sc=1 op=后 jsDF=53 rustDF=3 diff=50 jsSweepHit=3 geoFb=false sweepFb=false bullets=["LASER/r0.05/sp176.6/off1.80","BULLET/r0.25/sp17.8/off-0.93","BULLET/r0.25/sp18.6/off-0.79"]
+TOP sc=432 op=后右 jsDF=52 rustDF=2 diff=50 jsSweepHit=2 geoFb=false sweepFb=false bullets=["HOMING_MISSILE/r0.2/sp18.1/off-0.55","LASER/r0.05/sp186.6/off-2.72"]
+TOP sc=17 op=静止 jsDF=39 rustDF=2 diff=37 jsSweepHit=2 geoFb=false sweepFb=true bullets=["BULLET/r0.25/sp17.1/off0.65","LASER/r0.05/sp182.4/off2.30","BULLET/r0.25/sp17.7/off-2.46"]
+TOP sc=243 op=后右 jsDF=34 rustDF=3 diff=31 jsSweepHit=3 geoFb=false sweepFb=true bullets=["BULLET/r0.25/sp18.3/off0.96","BULLET/r0.25/sp18.8/off-0.15","LASER/r0.05/sp180.0/off-2.34"]
+TOP sc=224 op=前左 jsDF=34 rustDF=4 diff=30 jsSweepHit=4 geoFb=false sweepFb=true bullets=["LASER/r0.05/sp171.1/off0.83"]
+TOP sc=288 op=右 jsDF=31 rustDF=2 diff=29 jsSweepHit=2 geoFb=false sweepFb=true bullets=["DOUBLE_BARREL/r0.25/sp18.6/off-0.04","LASER/r0.05/sp187.9/off1.60"]
+rows written: _tools/headless/prof/_lfd_rows_06971cc0.json

@@ -1,0 +1,29 @@
+[Vantage Sandbox] 模块已加载（v59：1-2③ 收尾 —— v172 fd=0 rescore 死判/评分消费层修正（rescore_nodes>=0 + bridge actualFrames + dead>=0；不改写 fd）+ 激光线段扫掠（Step 前后实际位移 × 候选全部 sensor 多边形，墙裁剪+镜面反射，回溯补判不中途停车）+ ABI v11 弹种码 3=LASER + v164 弹种档案 + v166 霰弹/反弹上限 + v57：S3/S7 时间基准修正）
+[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)
+=== 指纹 ===
+  {"wasm":"fd132f4b23509abb648b5807dd866fb5","sandbox":"e4530739bf05916ea1563f36663a7d8c","bridge":"63fe087444041c87e7b813eee12a8f2c","rollout_rs":"db5da0d13f8f11bc60b33d6a65c22f96","tree_version":"v173"}
+=== G1 raw vt_rollout_batch：起点重叠必须 df=0 ===
+PASS  G1.center raw dead=1 & df=0   dead=[true,true,true,true,true,true,true,true,true] df=[0,0,0,0,0,0,0,0,0]
+PASS  G1.inside0.5 raw dead=1 & df=0   dead=[true,true,true,true,true,true,true,true,true] df=[0,0,0,0,0,0,0,0,0]
+PASS  G1.edge raw dead=1 & df=0   dead=[true,true,true,true,true,true,true,true,true] df=[0,0,0,0,0,0,0,0,0]
+=== G2+G3 raw vt_score_paths 与生产消费层：起点重叠必须 dead/df=0 ===
+PASS  G2.center raw vt_score_paths df=0   rawDF=[0,0,0,0,0,0,0,0,0]
+PASS  G3.center 生产链 dead=1/df=0 (rustUsed)   curDF=[0,0,0,0,0,0,0,0,0] rustUsed=true jsDF=[0,0,0,0,0,0,0,0,0]
+PASS  G4.center legacy(>0)重放必为 -1   legacyDF=[-1,-1,-1,-1,-1,-1,-1,-1,-1]
+PASS  G2.inside0.5 raw vt_score_paths df=0   rawDF=[0,0,0,0,0,0,0,0,0]
+PASS  G3.inside0.5 生产链 dead=1/df=0 (rustUsed)   curDF=[0,0,0,0,0,0,0,0,0] rustUsed=true jsDF=[0,0,0,0,0,0,0,0,0]
+PASS  G4.inside0.5 legacy(>0)重放必为 -1   legacyDF=[-1,-1,-1,-1,-1,-1,-1,-1,-1]
+PASS  G2.edge raw vt_score_paths df=0   rawDF=[0,0,0,0,0,0,0,0,0]
+PASS  G3.edge 生产链 dead=1/df=0 (rustUsed)   curDF=[0,0,0,0,0,0,0,0,0] rustUsed=true jsDF=[0,0,0,0,0,0,0,0,0]
+PASS  G4.edge legacy(>0)重放必为 -1   legacyDF=[-1,-1,-1,-1,-1,-1,-1,-1,-1]
+=== G5 far-8m 对照 + 2x2 单位退化矩阵 ===
+PASS  G5.far raw 与生产链逐 op 一致   rawDF=[17,9,59,21,21,14,14,-1,-1] curDF=[17,9,59,21,21,14,14,-1,-1]
+PASS  G5.far 生产链与 JS 融合逐 op 一致   jsDF=[17,9,59,21,21,14,14,-1,-1] curDF=[17,9,59,21,21,14,14,-1,-1]
+PASS  G5.far 确实发生死亡（弹飞满 8m）   curDF=[17,9,59,21,21,14,14,-1,-1]
+PASS  G5.2x2 far+每帧位移 必须不死（证明 far 的死要求真飞）   rawDF=[-1,-1,-1,-1,-1,-1,-1,-1,-1]
+PASS  G5.2x2 overlap+每帧位移 仍 df=0（重叠分支与速度单位无关）   rawDF=[0,0,0,0,0,0,0,0,0]
+PASS  G5.no-bullet 对照 必须全活   dead=[false,false,false,false,false,false,false,false,false]
+=== G6 反向验证：把消费层改回 v172 前 `dead = df > 0` 的 mutant，本守卫必须报 -1 ===
+PASS  G6 mutant(legacy>0) 必须观测到 df=-1（⇒ 修前守卫必 FAIL）   mutant curDF=[-1,-1,-1,-1,-1,-1,-1,-1,-1] rawDF=[0,0,0,0,0,0,0,0,0]
+
+GUARD PASSED (19/19)

@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "file": "prof/detfix/final_check.jsonl",
+  "frames": 200,
+  "chunks": 5,
+  "hash": 1359711513,
+  "pageHash": 1359711513,
+  "drive": {
+    "on": false,
+    "f": 200,
+    "total": 200,
+    "applied": 60,
+    "skipped": 340,
+    "errs": 0,
+    "missing": {
+      "tank_b": 174,
+      "tank_a": 166
+    },
+    "loaded": 200
+  },
+  "rngLen": 5024,
+  "rngOverflow": 0,
+  "wallMs": 2973,
+  "vt": {
+    "t": 10366.666666666648,
+    "steps": 622
+  }
+}
