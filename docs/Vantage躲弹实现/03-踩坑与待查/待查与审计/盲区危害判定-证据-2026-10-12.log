@@ -1,0 +1,219 @@
+### 盲区危害判定 证据（2026-10-12）—— 只读探针输出汇总
+### 产品代码指纹: game_core/js/vantage_tree.js md5 d2a311f5a84293bfd805716079867b8a  TREE_VERSION=v169 (:797)
+### 探针: _tools/headless/_probe_blindharm.js md5 fb3cba5a2792e45658d00d63acaa4e13（v1，已弃用）
+###       _tools/headless/_probe_blindharm2.js md5 aca3a32ff95da09fa016fb522887c596（v2，本轮结果全出自它）
+### 复现: node _tools/headless/_probe_blindharm2.js --frames=1200 --tag=Q1,Q2 --vant=1   （Q/X/V/W=1 vantage；C=2 vantage；A/B1=2 vantage 早冻）
+### 口径: dumpDiagnostics().liveAnchors[]；只统计 tick 帧（lastCheckAt===tNow）；样本=帧×活锚点
+
+============ §Q 主证据（vant=1，2跑×1200帧）============
+=== 盲区危害判定探针v2 [Q1,Q2] VERSION=v169 ===
+-- run Q1: 帧=1200 有效帧=1199 tick帧=1199 节点数最大=3717 needFrames首值=480 tick样本行=5681
+-- run Q2: 帧=1200 有效帧=1200 tick帧=1200 节点数最大=2817 needFrames首值=480 tick样本行=4815
+--- ① 时钟比 ratio = Δ(树秒) / 真游戏已过秒（同代内，n>=3，两侧增量>0.05s）---
+  样本代=883 min=1.0119 p25=1.0149 med=1.0189 p75=1.02 max=1.2289
+  ratio∈[0.9,1.1] 的代=880/883  ratio≈2 的代=0
+  树绝对钟 _timeAcc 跨度=20.298s / 泵帧跨度=1194 → 0.017 树秒每泵帧（游戏每泵帧=0.01667s）
+--- ② 取位 null_now × 真游戏弹状态（只 tick 帧，n=10496）---
+  null_now & 真弹活着(假绿候选)=0 | null_now & 真弹done=0 | null_now & 弹不存在=0
+  取位正常 & 真弹活着=10243 | 取位正常 & 真弹done=14 | 取位正常 & 弹不存在=239
+  假绿候选里 寿命截断型=0 满窗口型=0
+  全样本里 len<need(截断型)=9144/10496  null_now 总行=0
+  ★短轨迹行 err=cover−Δ−真弹剩余寿命: n=8907 min=0.0073 p10=0.0143 med=0.0283 p90=0.0327 max=0.0337 | 提前(<-2帧 ⇒ 轨迹比真弹死得早=假绿方向)=0 滞后(>+2帧=假红方向)=0
+  覆盖 cover 分布: min=0.0167 p10=1.3167 med=5.5167 max=9.62  cover<1s 行=774 cover<0.3s 行=171 cover<8.2s 行=8202
+  深节点 horizon(树秒) 分布: min=0.0667 med=7.9147 p90=8.05 max=8.4157
+--- ③ 深节点越界(盲区)（只 tick 帧）---
+  盲区行=7022/10496 (66.902%)  单行盲区节点数最大=2538
+  盲区来源: 寿命截断型=7022 满窗口型=0
+  盲区行 cover 分布: min=0.0167 med=4.1167 max=8.0333
+  盲区行 Δ 分布: min=0 med=0.085 max=0.476  horizon med=7.9493
+  ⚠"越界但真弹还没死"行=35 其 err=cover−Δ−生活着秒: med=0.0323 min=0.0153 反弹记录分布={"nB1":35} stopped=0 类型={"-1":35}
+  ⚠样例(前 3):
+    {"run":"Q1","f":135,"id":"b-3bbc-13","delta":0.017,"len":468,"tdt":0.016666666666666514,"cover":7.8,"horizon":7.8663,"ahead":7.7204,"lifeLeft":7.75,"lifeAge":2.25,"nB":1,"stopped":0,"type":-1}
+    {"run":"Q1","f":135,"id":"b-3bbc-14","delta":0.017,"len":469,"tdt":0.016666666666666514,"cover":7.8167,"horizon":7.8663,"ahead":7.7204,"lifeLeft":7.766,"lifeAge":2.234,"nB":1,"stopped":0,"type":-1}
+    {"run":"Q1","f":135,"id":"b-3bbc-15","delta":0.017,"len":470,"tdt":0.016666666666666514,"cover":7.8333,"horizon":7.8663,"ahead":7.7204,"lifeLeft":7.783,"lifeAge":2.217,"nB":1,"stopped":0,"type":-1}
+  盲区行里 真弹还在(real=1,未done)=6771/7022 | 真弹剩余寿命 med=4.017 min=0
+  [判据·按 ratio 换算成真游戏秒，含 Δ] 越界时刻超过剩余寿命(⇒弹必已死 ⇒ 盲区无害)=6750/6785  反向(越界却在寿命内 ⇒ 危险)=35  反向里不足<=2帧的=18 不足>2帧的=17
+    (越界时刻 − 剩余寿命) med=3.3553 min=-0.1117 max=8.0319  < −2帧的行=17
+  [判据·按轨迹自己的帧时基] 深节点查询下标 idx=(Δ+horizon)/tdt: med=484.002 vs 该行 len med=247（越界定义保证 idx>=len）  超出末端的树秒 med=3.4163
+  换算用 ratio(med)=1.0189；ahead med=7.8006 left med=4.017
+--- ④ 逐弹（只 tick 帧）---
+  b-3bbc-12      行=  15 活帧=  14 null帧=   0 null首帧f=null Δmax=0.119 cover=9.3667~9.62 lifeLeftMin=9.767
+  b-3bbc-13      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.275 cover=0.0333~9.62 lifeLeftMin=0
+  b-3bbc-14      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.275 cover=0.0333~9.62 lifeLeftMin=0
+  b-3bbc-15      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.275 cover=0.05~9.62 lifeLeftMin=0
+  b-3bbc-16      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.343 cover=0.0833~9.3667 lifeLeftMin=0
+  b-3bbc-17      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.258 cover=0.0333~9.3667 lifeLeftMin=0
+  b-3bbc-18      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.343 cover=0.1833~9.3667 lifeLeftMin=0
+  b-3bbc-21      行= 571 活帧= 512 null帧=   0 null首帧f=null Δmax=0.986 cover=1.5~9.3667 lifeLeftMin=1.466
+  b-3bbc-22      行= 562 活帧= 503 null帧=   0 null首帧f=null Δmax=1.02 cover=1.65~9.3667 lifeLeftMin=1.616
+  b-3bbc-23      行= 198 活帧= 197 null帧=   0 null首帧f=null Δmax=1.139 cover=6.8667~9.3667 lifeLeftMin=6.717
+  b-3bbc-24      行= 412 活帧= 353 null帧=   0 null首帧f=null Δmax=1.088 cover=4.1667~9.3667 lifeLeftMin=4.116
+  b-3bbc-25      行= 323 活帧= 264 null帧=   0 null首帧f=null Δmax=1.071 cover=5.65~9.3833 lifeLeftMin=5.6
+  b-0cb1-12      行=  15 活帧=  14 null帧=   0 null首帧f=null Δmax=0.238 cover=9.62~9.62 lifeLeftMin=9.767
+  b-0cb1-13      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.122 cover=0.1~9.62 lifeLeftMin=0
+  b-0cb1-14      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.122 cover=0.0167~9.62 lifeLeftMin=0
+  b-0cb1-15      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.122 cover=0.0333~9.62 lifeLeftMin=0
+  b-0cb1-16      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.088 cover=0.05~9.3667 lifeLeftMin=0
+  b-0cb1-17      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.02 cover=0.1333~9.3667 lifeLeftMin=0
+  b-0cb1-18      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.088 cover=0.1~9.3667 lifeLeftMin=0
+  b-0cb1-19      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.003 cover=0.1333~9.3667 lifeLeftMin=0
+  b-0cb1-21      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=0.476 cover=0.1~9.6167 lifeLeftMin=0
+--- ⑤ 轨迹代（abs0 变）结构 ---
+  代总数=930 活跃代(realSeen>=3)=921
+  代首帧 err=cover0−lifeLeft0: n=921 min=-0.6173 med=0.0173 p90=0.0333 max=0.0337 |err|<=2帧=893/921
+  ★早死代(cover0−lifeLeft1 小于 −2帧=模型判死比真游戏早)=28/921  nB0>=5 的=0  nB0=1~4 的=4 nB0=0 的=24  stopped=0 | 提前秒 med=-0.5163 min=-0.6173
+    早死代样例 {"id":"b-3bbc-12","t0":0.017,"len0":481,"cover0":9.62,"lifeLeft0":9.983,"lifeAge0":0.017,"deltaFirst":0,"type":-1,"nB0":0,"stopped0":0,"n":8,"f0":0}
+    早死代样例 {"id":"b-3bbc-13","t0":0.034,"len0":481,"cover0":9.62,"lifeLeft0":9.984,"lifeAge0":0.016,"deltaFirst":0,"type":-1,"nB0":0,"stopped0":0,"n":7,"f0":1}
+    早死代样例 {"id":"b-3bbc-14","t0":0.051,"len0":481,"cover0":9.62,"lifeLeft0":9.983,"lifeAge0":0.017,"deltaFirst":0,"type":-1,"nB0":0,"stopped0":0,"n":6,"f0":2}
+    早死代样例 {"id":"b-3bbc-15","t0":0.068,"len0":481,"cover0":9.62,"lifeLeft0":9.983,"lifeAge0":0.017,"deltaFirst":0,"type":-1,"nB0":0,"stopped0":0,"n":5,"f0":3}
+    早死代样例 {"id":"b-3bbc-16","t0":0.085,"len0":562,"cover0":9.3667,"lifeLeft0":9.984,"lifeAge0":0.016,"deltaFirst":0,"type":-1,"nB0":0,"stopped0":0,"n":80,"f0":4}
+    早死代样例 {"id":"b-3bbc-12","t0":0.153,"len0":562,"cover0":9.3667,"lifeLeft0":9.85,"lifeAge0":0.15,"deltaFirst":0,"type":-1,"nB0":1,"stopped0":0,"n":7,"f0":8}
+  ★"短代"(len0<need0 或 cover0<8s) n=893 err0=cover0−lifeLeft0: min=0.016 p10=0.0163 med=0.0173 max=0.0337  早期截断(err0<−2帧)=0  晚期窗口截断(err0>2帧)=0
+  短代(cover0<8s)=798 其中 lifeLeft0<8s=798  类型分布={"-1":798}  有反弹记录(nB0>0)=797 stopped=0
+  全部代类型分布={"-1":921}
+  样例·短代(前 6):
+    {"id":"b-3bbc-13","t0":2.295,"len0":468,"cover0":7.8,"lifeLeft0":7.767,"type":-1,"nB0":1,"stopped0":0,"n":25,"minLen":468,"deltaMax":0.408,"f0":134,"fLast":158}
+    {"id":"b-3bbc-14","t0":2.295,"len0":469,"cover0":7.8167,"lifeLeft0":7.783,"type":-1,"nB0":1,"stopped0":0,"n":25,"minLen":469,"deltaMax":0.408,"f0":134,"fLast":158}
+    {"id":"b-3bbc-15","t0":2.295,"len0":470,"cover0":7.8333,"lifeLeft0":7.8,"type":-1,"nB0":1,"stopped0":0,"n":25,"minLen":470,"deltaMax":0.408,"f0":134,"fLast":158}
+    {"id":"b-3bbc-16","t0":2.295,"len0":471,"cover0":7.85,"lifeLeft0":7.817,"type":-1,"nB0":1,"stopped0":0,"n":25,"minLen":471,"deltaMax":0.408,"f0":134,"fLast":158}
+    {"id":"b-3bbc-13","t0":2.72,"len0":443,"cover0":7.3833,"lifeLeft0":7.35,"type":-1,"nB0":1,"stopped0":0,"n":25,"minLen":443,"deltaMax":0.408,"f0":159,"fLast":183}
+    {"id":"b-3bbc-14","t0":2.72,"len0":443,"cover0":7.3833,"lifeLeft0":7.366,"type":-1,"nB0":1,"stopped0":0,"n":25,"minLen":443,"deltaMax":0.408,"f0":159,"fLast":183}
+  样例·假绿候选行(前 4):
+wallMs=33414
+
+============ §X（vant=1，2跑×1200帧；含 6 行 null_now=弹已done）============
+=== 盲区危害判定探针v2 [X1,X2] VERSION=v169 ===
+-- run X1: 帧=1200 有效帧=1200 tick帧=1200 节点数最大=2871 needFrames首值=480 tick样本行=7428
+-- run X2: 帧=1200 有效帧=1200 tick帧=1200 节点数最大=3033 needFrames首值=480 tick样本行=4445
+--- ① 时钟比 ratio = Δ(树秒) / 真游戏已过秒（同代内，n>=3，两侧增量>0.05s）---
+  ratio∈[0.9,1.1] 的代=819/821  ratio≈2 的代=0
+  树绝对钟 _timeAcc 跨度=20.383s / 泵帧跨度=1199 → 0.017 树秒每泵帧（游戏每泵帧=0.01667s）
+--- ② 取位 null_now × 真游戏弹状态（只 tick 帧，n=11873）---
+  null_now & 真弹活着(假绿候选)=0 | null_now & 真弹done=6 | null_now & 弹不存在=0
+  取位正常 & 真弹活着=11857 | 取位正常 & 真弹done=8 | 取位正常 & 弹不存在=2
+  假绿候选里 寿命截断型=0 满窗口型=0
+  全样本里 len<need(截断型)=10440/11873  null_now 总行=6
+  ★短轨迹行 err=cover−Δ−真弹剩余寿命: n=10440 min=-0.6383 p10=0.011 med=0.0157 p90=0.0323 max=0.0337 | 提前(<-2帧 ⇒ 轨迹比真弹死得早=假绿方向)=154 滞后(>+2帧=假红方向)=0
+  覆盖 cover 分布: min=0.0333 p10=1.4833 med=5.6333 max=9.7  cover<1s 行=770 cover<0.3s 行=94 cover<8.2s 行=9365
+  深节点 horizon(树秒) 分布: min=0.15 med=8.0323 p90=8.2813 max=8.4833
+--- ③ 深节点越界(盲区)（只 tick 帧）---
+  盲区行=8753/11873 (73.722%)  单行盲区节点数最大=2844
+  盲区来源: 寿命截断型=8753 满窗口型=0
+  盲区行 cover 分布: min=0.0333 med=4.3167 max=8.3333
+  盲区行 Δ 分布: min=0 med=0.102 max=0.493  horizon med=8.0823
+    {"run":"X1","f":183,"id":"b-3b4b-18","delta":0,"len":469,"tdt":0.016666666666666514,"cover":7.8167,"horizon":7.9,"ahead":7.7634,"lifeLeft":7.783,"lifeAge":2.217,"nB":1,"stopped":0,"type":-1}
+    {"run":"X1","f":184,"id":"b-3b4b-20","delta":0.017,"len":500,"tdt":0.016666666666666514,"cover":8.3333,"horizon":8.3833,"ahead":8.2383,"lifeLeft":8.3,"lifeAge":1.7,"nB":0,"stopped":0,"type":-1}
+    {"run":"X1","f":185,"id":"b-3b4b-20","delta":0.034,"len":500,"tdt":0.016666666666666514,"cover":8.3333,"horizon":8.366,"ahead":8.2213,"lifeLeft":8.283,"lifeAge":1.717,"nB":0,"stopped":0,"type":-1}
+  盲区行里 真弹还在(real=1,未done)=8739/8753 | 真弹剩余寿命 med=4.233 min=0
+  [判据·按 ratio 换算成真游戏秒，含 Δ] 越界时刻超过剩余寿命(⇒弹必已死 ⇒ 盲区无害)=8725/8753  反向(越界却在寿命内 ⇒ 危险)=28  反向里不足<=2帧的=18 不足>2帧的=10
+    (越界时刻 − 剩余寿命) med=3.7903 min=-0.0715 max=8.353  < −2帧的行=10
+  [判据·按轨迹自己的帧时基] 深节点查询下标 idx=(Δ+horizon)/tdt: med=493.002 vs 该行 len med=259（越界定义保证 idx>=len）  超出末端的树秒 med=3.783
+  换算用 ratio(med)=1.0176；ahead med=7.9425 left med=4.233
+  代首帧 err=cover0−lifeLeft0: n=888 min=-0.6173 med=0.0167 p90=0.0333 max=0.0337 |err|<=2帧=851/888
+  样例·假绿候选行(前 4):
+
+============ §V（vant=1，2跑×1200帧；null_now=0/12075）============
+=== 盲区危害判定探针v2 [V1,V2] VERSION=v169 ===
+-- run V1: 帧=1200 有效帧=1200 tick帧=1200 节点数最大=1152 needFrames首值=480 tick样本行=5377
+-- run V2: 帧=1200 有效帧=1198 tick帧=1198 节点数最大=2169 needFrames首值=480 tick样本行=6698
+--- ① 时钟比 ratio = Δ(树秒) / 真游戏已过秒（同代内，n>=3，两侧增量>0.05s）---
+  ratio∈[0.9,1.1] 的代=689/692  ratio≈2 的代=0
+  树绝对钟 _timeAcc 跨度=20.383s / 泵帧跨度=1199 → 0.017 树秒每泵帧（游戏每泵帧=0.01667s）
+--- ② 取位 null_now × 真游戏弹状态（只 tick 帧，n=12075）---
+  null_now & 真弹活着(假绿候选)=0 | null_now & 真弹done=0 | null_now & 弹不存在=0
+  取位正常 & 真弹活着=11155 | 取位正常 & 真弹done=12 | 取位正常 & 弹不存在=908
+  假绿候选里 寿命截断型=0 满窗口型=0
+  全样本里 len<need(截断型)=10222/12075  null_now 总行=0
+  覆盖 cover 分布: min=0.0167 p10=2.1833 med=6.2333 max=9.62  cover<1s 行=436 cover<0.3s 行=100 cover<8.2s 行=9236
+  深节点 horizon(树秒) 分布: min=0.0167 med=6.7237 p90=8.0817 max=8.1997
+--- ③ 深节点越界(盲区)（只 tick 帧）---
+  盲区行=5004/12075 (41.441%)  单行盲区节点数最大=900
+  盲区来源: 寿命截断型=5004 满窗口型=0
+  盲区行 cover 分布: min=0.0167 med=4.5667 max=8.1667
+  盲区行 Δ 分布: min=0 med=0.102 max=0.374  horizon med=8.0137
+  盲区行里 真弹还在(real=1,未done)=4996/5004 | 真弹剩余寿命 med=4.45 min=0
+  [判据·按 ratio 换算成真游戏秒] 深节点超过剩余寿命(⇒弹必已死 ⇒ 盲区无害)=4853/5004  反向(越界却还没死 ⇒ 危险)=151
+  [判据·按轨迹自己的帧时基] 深节点查询下标 idx=(Δ+horizon)/tdt: med=489 vs 该行 len med=274（越界定义保证 idx>=len）  超出末端的树秒 med=3.1496
+  换算用 ratio(med)=1.02；ahead med=7.8566 left med=4.45
+  代首帧 err=cover0−lifeLeft0: n=812 min=-0.6173 med=0.0327 p90=0.0337 max=0.0337 |err|<=2帧=774/812
+  短代(cover0<8s)=665 其中 lifeLeft0<8s=665  类型分布={"-1":665}  有反弹记录(nB0>0)=665 stopped=0
+  样例·短代(前 6):
+  样例·假绿候选行(前 4):
+
+============ §C（vant=2，3跑×1200帧；ratio≈2.04）============
+=== 盲区危害判定探针v2 [C1,C2,C3] VERSION=v169 ===
+-- run C1: 帧=1200 有效帧=1200 tick帧=279 节点数最大=585 needFrames首值=480 tick样本行=1818
+-- run C2: 帧=1200 有效帧=1198 tick帧=782 节点数最大=3024 needFrames首值=480 tick样本行=3456
+-- run C3: 帧=1200 有效帧=1200 tick帧=571 节点数最大=2718 needFrames首值=480 tick样本行=2289
+--- ① 时钟比 ratio = Δ(树秒) / 真游戏已过秒（同代内，n>=3，两侧增量>0.05s）---
+  ratio∈[0.9,1.1] 的代=0/744  ratio≈2 的代=740
+  树绝对钟 _timeAcc 跨度=19.3807s / 泵帧跨度=1199 → 0.0162 树秒每泵帧（游戏每泵帧=0.01667s）
+--- ② 取位 null_now × 真游戏弹状态（只 tick 帧，n=7563）---
+  null_now & 真弹活着(假绿候选)=0 | null_now & 真弹done=0 | null_now & 弹不存在=0
+  取位正常 & 真弹活着=7556 | 取位正常 & 真弹done=0 | 取位正常 & 弹不存在=7
+  假绿候选里 寿命截断型=0 满窗口型=0
+  全样本里 len<need(截断型)=6124/7563  null_now 总行=0
+  覆盖 cover 分布: min=0.55 p10=3.2333 med=7.4 max=9.62  cover<1s 行=108 cover<0.3s 行=0 cover<8.2s 行=4753
+  深节点 horizon(树秒) 分布: min=0.0667 med=7.8277 p90=8.1813 max=8.25
+--- ③ 深节点越界(盲区)（只 tick 帧）---
+  盲区行=3103/7563 (41.029%)  单行盲区节点数最大=369
+  盲区来源: 寿命截断型=3103 满窗口型=0
+  盲区行 cover 分布: min=0.55 med=5.3667 max=8.2167
+  盲区行 Δ 分布: min=0 med=0.119 max=0.289  horizon med=8.08
+  盲区行里 真弹还在(real=1,未done)=3102/3103 | 真弹剩余寿命 med=5.284 min=0.5
+  [判据] 深节点在游戏秒上超过剩余寿命(=弹必已死 ⇒ 盲区无害) 的行=1026/3102  反向(越界却还没死 ⇒ 危险)=2076
+  换算用 ratio(med)=2.0394；ahead med=3.9619 left med=5.284
+  代首帧 err=cover0−lifeLeft0: n=880 min=-0.633 med=0.0327 p90=0.0337 max=0.0337 |err|<=2帧=787/880
+  短代(cover0<8s)=549 其中 lifeLeft0<8s=549  类型分布={"-1":549}  有反弹记录(nB0>0)=549 stopped=0
+  样例·短代(前 6):
+  样例·假绿候选行(前 4):
+
+============ §A/B1（vant=2，早冻场景：tick 帧只占 1/3，仅作对照）============
+/tmp/vt-blindharm-A.log:--- 3. 取位 null_now × 真游戏弹状态 ---
+/tmp/vt-blindharm-A.log:  null_now & 真弹活着(假绿候选)=0 | null_now & 真弹done=0 | null_now & 弹不存在=0
+/tmp/vt-blindharm-A.log:  取位正常 & 真弹活着=2591 | 取位正常 & 真弹done=4 | 取位正常 & 弹不存在=2811
+/tmp/vt-blindharm-A.log:  ⚠假绿候选里 寿命截断型=0 满窗口型=0
+/tmp/vt-blindharm-A.log:  盲区行=0/5406 (0%)  单行盲区节点数最大=0
+/tmp/vt-blindharm-A.log:  代首帧 err=cover0−lifeLeft0: n=146 min=-0.6173 med=0.0333 p90=0.0337 max=0.0337 |err|<=1帧=25/146
+/tmp/vt-blindharm-A.log:  样例·假绿候选行(前3):
+/tmp/vt-blindharm-A.log:  假绿候选逐 id:
+/tmp/vt-blindharm-b1.log:-- run B1: 帧=900 有效帧=899 tick帧=398 节点数最大=684 needFrames首值=480 tick样本行=517
+/tmp/vt-blindharm-b1.log:--- ① 时钟比 ratio = Δ(树秒) / 真游戏已过秒（同代内，n>=3，两侧增量>0.05s）---
+/tmp/vt-blindharm-b1.log:  ratio∈[0.9,1.1] 的代=0/32  ratio≈2 的代=32
+/tmp/vt-blindharm-b1.log:--- ② 取位 null_now × 真游戏弹状态（只 tick 帧，n=517）---
+/tmp/vt-blindharm-b1.log:  null_now & 真弹活着(假绿候选)=0 | null_now & 真弹done=0 | null_now & 弹不存在=0
+/tmp/vt-blindharm-b1.log:  取位正常 & 真弹活着=515 | 取位正常 & 真弹done=0 | 取位正常 & 弹不存在=2
+/tmp/vt-blindharm-b1.log:  假绿候选里 寿命截断型=0 满窗口型=0
+/tmp/vt-blindharm-b1.log:  全样本里 len<need(截断型)=251/517  null_now 总行=0
+/tmp/vt-blindharm-b1.log:  盲区行=0/517 (0%)  单行盲区节点数最大=0
+/tmp/vt-blindharm-b1.log:  [判据] 深节点在游戏秒上超过剩余寿命(=弹必已死 ⇒ 盲区无害) 的行=0/0  反向(越界却还没死 ⇒ 危险)=0
+/tmp/vt-blindharm-b1.log:  换算用 ratio(med)=2.04；ahead med=null left med=null
+/tmp/vt-blindharm-b1.log:  代首帧 err=cover0−lifeLeft0: n=39 min=-0.6173 med=-0.1993 p90=0.0333 max=0.0337 |err|<=2帧=15/39
+/tmp/vt-blindharm-b1.log:  样例·假绿候选行(前 4):
+
+============ §局部切片（Q 的逐弹与样例）============
+--- ④ 逐弹（只 tick 帧）---
+  b-3bbc-12      行=  15 活帧=  14 null帧=   0 null首帧f=null Δmax=0.119 cover=9.3667~9.62 lifeLeftMin=9.767
+  b-3bbc-13      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.275 cover=0.0333~9.62 lifeLeftMin=0
+  b-3bbc-14      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.275 cover=0.0333~9.62 lifeLeftMin=0
+  b-3bbc-15      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.275 cover=0.05~9.62 lifeLeftMin=0
+  b-3bbc-16      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.343 cover=0.0833~9.3667 lifeLeftMin=0
+  b-3bbc-17      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.258 cover=0.0333~9.3667 lifeLeftMin=0
+  b-3bbc-18      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.343 cover=0.1833~9.3667 lifeLeftMin=0
+  b-3bbc-21      行= 571 活帧= 512 null帧=   0 null首帧f=null Δmax=0.986 cover=1.5~9.3667 lifeLeftMin=1.466
+  b-3bbc-22      行= 562 活帧= 503 null帧=   0 null首帧f=null Δmax=1.02 cover=1.65~9.3667 lifeLeftMin=1.616
+  b-3bbc-23      行= 198 活帧= 197 null帧=   0 null首帧f=null Δmax=1.139 cover=6.8667~9.3667 lifeLeftMin=6.717
+  b-3bbc-24      行= 412 活帧= 353 null帧=   0 null首帧f=null Δmax=1.088 cover=4.1667~9.3667 lifeLeftMin=4.116
+  b-3bbc-25      行= 323 活帧= 264 null帧=   0 null首帧f=null Δmax=1.071 cover=5.65~9.3833 lifeLeftMin=5.6
+  b-0cb1-12      行=  15 活帧=  14 null帧=   0 null首帧f=null Δmax=0.238 cover=9.62~9.62 lifeLeftMin=9.767
+  b-0cb1-13      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.122 cover=0.1~9.62 lifeLeftMin=0
+  b-0cb1-14      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.122 cover=0.0167~9.62 lifeLeftMin=0
+  b-0cb1-15      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.122 cover=0.0333~9.62 lifeLeftMin=0
+  b-0cb1-16      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.088 cover=0.05~9.3667 lifeLeftMin=0
+  b-0cb1-17      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.02 cover=0.1333~9.3667 lifeLeftMin=0
+  b-0cb1-18      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.088 cover=0.1~9.3667 lifeLeftMin=0
+  b-0cb1-19      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=1.003 cover=0.1333~9.3667 lifeLeftMin=0
+  b-0cb1-21      行= 600 活帧= 599 null帧=   0 null首帧f=null Δmax=0.476 cover=0.1~9.6167 lifeLeftMin=0
+--- ⑤ 轨迹代（abs0 变）结构 ---
+
+============ §说明：产品代码本轮一字节未改（只新增 2 个只读探针）。无头跑前后按目录精确比对 /tmp/vt-chrome-*，收工 0 个。
