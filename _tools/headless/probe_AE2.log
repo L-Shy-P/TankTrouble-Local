@@ -1,0 +1,12 @@
+  game_core/js/vantage_sandbox.js  2026-10-12T12:51:35.879Z  6a33b37b195a5f8cd0d224eeff6fcf1b  230679
+  game_core/js/vantage_tree.js  2026-10-12T12:49:43.889Z  b06551b3bba14baa5953e298f82b7164  478695
+  game_core/index.html  2026-10-12T12:49:43.890Z  04f276ef3d1811cf6617b64a52a78651  34042
+  open ok; TREE=v176
+  [A] 建表发生在第 201 帧：{"state":"idle","w":0,"h":0,"tiles":0,"cells":0,"limit":30000,"builtAtVtMs":null,"reason":"","budgetCells":30000}  vt=null
+  [A] 第一发导弹出现于 vt=10366.666666666648  (建表 vt=null)  {"ok":true,"tgt":null,"vt":10366.666666666648}
+  [E] 大迷宫（20x12）后状态 = {"state":"disabled-budget","w":20,"h":12,"tiles":240,"cells":57600,"limit":30000,"builtAtVtMs":1791809517055.3333,"reason":"maze 20x12 = 240 tiles ⇒ table 57600 cells > budget 30000 cells (57600 bytes)","budgetCells":30000}
+  [E] console.error 拦截 = ["[VantageSandbox][导航表][预算超限·本局停用制导] maze 20x12 = 240 tiles ⇒ table 57600 cells > budget 30000 cells (57600 bytes) —— 追踪导弹不会进入本批模拟（不直飞）；详见 VantageSandbox.getNavTableStatus()"]
+  [E] 节点墙钟（含 10 帧泵帧）= 580.9 ms
+  [恢复] 真实迷宫状态（未再跑）= {"state":"disabled-budget","w":20,"h":12,"tiles":240,"cells":57600,"limit":30000,"builtAtVtMs":1791809517055.3333,"reason":"maze 20x12 = 240 tiles ⇒ table 57600 cells > budget 30000 cells (57600 bytes)","budgetCells":30000}
+  pageErrors: []
+[done]

@@ -102,7 +102,7 @@ window.__i4 = {
     return (d.projectileStates || []).map(function (p) {
       var live = null;
       try { var o = gc.getProjectile(p.id); if (o) live = { deadly: o.isDeadlyToOwner(), stopped: !!o.stopped }; } catch (e) {}
-      return { id: p.id, o: p.playerId, t: p.type, x: this.sub(p.x), y: this.sub(p.y), vx: this.sub(p.vx),
+      return { id: p.id, o: p.playerId, t: p.type, x: this.sub(p.x), y: this.sub(p.y), vx: this.sub(p.speedX),   // ★2026-10-12 修：schema 键是 speedX（原读 p.vx 恒 null ⟹ 判据只剩 |Δvy|）
                vy: this.sub(p.speedY), sp: this.sub(Math.sqrt(p.speedX * p.speedX + p.speedY * p.speedY)), live: live };
     }, this);
   },
@@ -211,7 +211,9 @@ async function partA(A) {
     const lane = findLane(ti, 5);
     if (!lane) throw new Error('no lane');
     A.lane = { axis: lane.axis, cells: lane.cells.map((c) => c.x + ',' + c.y) };
-    const far = lanePose(lane, lane.cells.length - 1), near = lanePose(lane, lane.cells.length - 2);
+    // ★2026-10-12 修：原版 shooter 放【走廊末端】却朝 +x 开枪 ⟹ 背对目标（归档日志里 minDist=12.806 就来自这里）。
+    //   现在：target 放【末端】、shooter 放【起点】，两者都朝 +x。
+    const near = lanePose(lane, lane.cells.length - 1), far = lanePose(lane, 0);
     A.pose = { shooter: far, target: near };
     await m.teleport('tank_c', lanePose(lane, 0).x, lanePose(lane, 0).y + (lane.axis === 'x' ? 20 : 0), 0).catch(() => {});
     await m.teleport('tank_b', near.x, near.y, near.rot);

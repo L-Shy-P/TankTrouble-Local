@@ -2,7 +2,17 @@
 /* 页面内录制/回放源码（由 match.js 在【所有页面脚本之前】注入）
  * 说明见 record.js 头部。这里只放浏览器里跑的代码。
  */
-const VERSION = 4;   // v4: hs 拆成 hs(决定性,硬FAIL)+hx(观测性,仅信息); v3: drive; v2: hs/boot/vtEpoch/sites
+const VERSION = 6;   // v6: freshRoundData 改调 gc.roundController.getRoundState(true)【强制 expanded 视图】——
+                     //     否则 RoundModel 的 sticky 标志一旦被 clearExpandedRoundStateBits() 清掉，
+                     //     老路径 gc.getRoundState() 的 weaponStates 恒空 ⟹ hs.wpn 在那之后一直什么都没盯
+                     //     （实测：清标志后同帧 old=0 / new=2，模型真值=2，且此后一直 0）。
+                     //     ⚠️ 注意：`gc.getRoundState(true)` 是【no-op】—— GameController.getRoundState()
+                     //     忽略参数、只传 this.playerAdded（源码：return this.roundController.getRoundState(this.playerAdded)）
+                     //     ⟹ 必须直接调 roundController.getRoundState(true) 才真生效。
+                     //     ⚠️ 安全性已实测：该调用无副作用（同帧 before/after 全同 + A/B 对拍 150 帧全 0）
+                     // v5: hs.wpn 改成【按弹种取该弹种自己的字段】+ 记武器总数(wpnN)；projs 去掉恒 undefined 的 rot；
+                     // v4: hs 拆成 hs(决定性,硬FAIL)+hx(观测性,仅信息); v3: drive; v2: hs/boot/vtEpoch/sites
+                     // ⚠️ v5 起：hs.wpn 形状变了 ⟹【旧录制不能与新录制对拍】(见 hidden哨兵分析/拆分-验收 两份报告)
 
 const PAGE_SRC = `
 (() => {
@@ -58,7 +68,18 @@ const PAGE_SRC = `
       var rc = gc.roundController;
       if (rc && rc.model && ('cachedRoundState' in rc.model)) rc.model.cachedRoundState = null;
     } catch (e) {}
-    return data(gc.getRoundState());
+    // ★ v6：强制取【expanded 视图】—— 必须走 roundController.getRoundState(true)。
+    //   为什么不能写 gc.getRoundState(true)：GameController.getRoundState() **忽略参数**
+    //   （源码：getRoundState:function(){ return this.roundController.getRoundState(this.playerAdded); }）
+    //   ⟹ 那写法与 gc.getRoundState() 完全等价（实测 no-op）。
+    //   为什么必须 expanded：非 expanded 的返回值只在 RoundModel 的 sticky 标志
+    //   （trapCreated/weaponCreated/upgradeCreated/counterCreated/zoneCreated/zoneChanged）为真时才带
+    //   weaponStates/upgradeStates/counterStates/zoneStates；一旦 clearExpandedRoundStateBits() 被调过，
+    //   老路径的 weaponStates 就恒空 ⟹ hs.wpn 一直"什么都没盯"（实测：清标志后同帧 old=0 / new=2，模型真值=2）。
+    //   安全性（已实测）：该调用不改游戏状态 —— 同帧 rn/rc/模型真值计数全同；A/B 对拍 150 帧全 0。
+    //   注意：collectibleStates 是【基本字段】（不受 expanded 影响）⟹ hs.col 与本改动无关。
+    return data((gc.roundController && gc.roundController.getRoundState)
+      ? gc.roundController.getRoundState(true) : gc.getRoundState());
   }
 
   /** 四个按键 → 0..8 槽位（顺序 = sandbox OPERATIONS；与 rollout_worker 的 __vtAct 一致） */
@@ -105,7 +126,10 @@ const PAGE_SRC = `
     var out = [];
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
-      out.push({ id: p.id, owner: p.playerId, x: p.x, y: p.y, rot: p.rotation, type: p.type });
+      // ★ v5：去掉 rot —— projectileStates schema 里【没有 rotation】(只有 id/playerId/type/x/y/speedX/speedY)，
+      //   旧版写 rot: p.rotation 恒 undefined ⟹ JSON.stringify 直接丢键（已在 prof/base400.jsonl 实测：projs 条目无 rot）。
+      //   不改成 atan2：新增字段会让旧录制逐帧假 FAIL（record.js:392 是整串 JSON 比）。
+      out.push({ id: p.id, owner: p.playerId, x: p.x, y: p.y, type: p.type });
     }
     out.sort(function (a, b) { return String(a.id) < String(b.id) ? -1 : (String(a.id) > String(b.id) ? 1 : 0); });
     return out;
@@ -195,6 +219,18 @@ const PAGE_SRC = `
   //   其余全部进 hs（决定性）：rc/th/wpn/col/rnd/ai/b2d/raw/err 及未来新增字段默认决定性。
   var OBSERVATIONAL_KEYS = { q: 1, pg: 1, tf: 1, lu: 1 };
 
+  /** ★ v5：把 weaponStates[].fieldsJSON 规范化成一串稳定文本（键排序；数字留 6 位小数防浮点末位噪声） */
+  function wpnFields(f) {
+    var ks = Object.keys(f || {}).sort(), out = [];
+    for (var i = 0; i < ks.length; i++) {
+      var v = f[ks[i]];
+      if (typeof v === 'number') v = +v.toFixed(6);
+      else if (v !== null && typeof v === 'object') { try { v = JSON.stringify(v); } catch (e) { v = String(v); } }
+      out.push(ks[i] + '=' + v);
+    }
+    return out.join(',');
+  }
+
   function hiddenState(d0) {
     var out = {};
     var d = d0 || freshRoundData() || {};
@@ -207,10 +243,14 @@ const PAGE_SRC = `
       for (var i = 0; i < Math.min(ws.length, 16); i++) {
         var w = ws[i], f = {};
         try { f = JSON.parse(w.fieldsJSON || '{}'); } catch (e) {}
-        wout.push([w.playerId, w.type, f._numBullets, f._bulletsFired,
-                   f._timeAlive == null ? null : +(+f._timeAlive).toFixed(4)]);
+        // ★ v5：按【该弹种自己的字段】入哨兵（键排序 + 数字留 6 位小数）。
+        //   旧版固定取 _numBullets/_bulletsFired/_timeAlive —— 对 LASER/HOMING/MINE 三字段全 undefined，
+        //   那三种武器在哨兵里等于"什么都没盯"（实测：导弹发射前后 wpn 行逐字不变）。
+        //   BULLET 信息不减：旧三值都在新串里（例：_bulletsFired=1,_numBullets=5,_timeAlive=2.05,...）。
+        wout.push([w.playerId, w.type, wpnFields(f)]);
       }
       out.wpn = wout;
+      out.wpnN = ws.length;   // ★ v5：武器【总】数；> 16 即说明上面 wout 被截断过（截断条数 = wpnN - wout.length）
       out.col = (arr(d.collectibleStates) || []).length;
     } catch (e) { out.err = String((e && e.message) || e); }
     try {

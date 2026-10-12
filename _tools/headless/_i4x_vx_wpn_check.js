@@ -47,6 +47,8 @@ window.__i4x = {
   upgrades: function(id){ var d=__vtData(this.gc().getRoundState())||{}; var us=d.upgradeStates||[]; var o=[];
     for(var i=0;i<us.length;i++) if(us[i].playerId===id){ var f={}; try{f=JSON.parse(us[i].fieldsJSON||'{}');}catch(e){}
       o.push({type:us[i].type, life:+(f._lifetime||0).toFixed(3)}); } return o; },
+  clearBullets: function(){ var d = __vtData(this.gc().getRoundState()) || {}; var ps = d.projectileStates || []; var n = 0;
+    for (var i = 0; i < ps.length; i++) { try { this.gc().destroyProjectile(ps[i].id); n++; } catch (e) {} } return n; },
   spawnCrate: function(type,x,y,rot){ var st=CollectibleState.withState(IdGenerator.instance.gen('c'),type,x,y,rot||0); this.rc().setCollectibleState(st); return st.getId(); },
   tileInfo: function () {
     var mz = this.gc().getMaze(); var tiles = mz.getTiles();
@@ -115,6 +117,29 @@ const lanePose = (lane, idx) => lane.axis === 'x'
   ? { x: lane.cells[idx].x * TILE + TILE / 2, y: lane.cells[idx].y * TILE + TILE / 2, rot: Math.PI / 2 }
   : { x: lane.cells[idx].x * TILE + TILE / 2, y: lane.cells[idx].y * TILE + TILE / 2, rot: 0 };
 
+
+function longestRun(ti) {
+  const rows = {}, cols = {};
+  for (const c of ti.cells) { (rows[c.y] = rows[c.y] || []).push(c); (cols[c.x] = cols[c.x] || []).push(c); }
+  let best = null;
+  for (const horiz of [true, false]) {
+    const map = horiz ? rows : cols;
+    for (const k of Object.keys(map)) {
+      const line = map[k].slice().sort((a, b) => (horiz ? a.x - b.x : a.y - b.y));
+      for (let i = 0; i < line.length; i++) {
+        for (let j = line.length - 1; j > i; j--) {
+          if (j - i + 1 <= (best ? best.cells.length : 1)) continue;
+          if (horiz && line[j].x - line[i].x !== j - i) continue;
+          if (!horiz && line[j].y - line[i].y !== j - i) continue;
+          best = { axis: horiz ? 'x' : 'y', cells: line.slice(i, j + 1) };
+          break;
+        }
+      }
+    }
+  }
+  return best;
+}
+
 (async () => {
   const out = { startedAt: new Date().toISOString(), A: {}, B: {} };
   let m;
@@ -136,13 +161,17 @@ const lanePose = (lane, idx) => lane.axis === 'x'
         fixed: await m.eval('window.__i4x.bulletsOk()') };
       out.A.vx恒null = (out.A.liveFrame.buggy || []).every((b) => b.vx === null) &&
                        (out.A.liveFrame.fixed || []).every((b) => typeof b.vx === 'number');
+      out.A.cleared = await m.eval('window.__i4x.clearBullets()'); await m.pump(2, { yieldMs: 0 });
+      out.A.afterClearN = await m.eval('window.__i4x.bulletsOk().length');
 
       const ti = await m.eval('window.__i4x.tileInfo()');
-      const lane = findLane(ti, 5);
+      let lane = findLane(ti, 5) || findLane(ti, 4) || findLane(ti, 3);
+      if (!lane) { const lg = longestRun(ti); lane = lg; }
       out.A.lane = lane ? { axis: lane.axis, cells: lane.cells.map((c) => c.x + ',' + c.y) } : null;
       if (lane) {
-        const near = lanePose(lane, lane.cells.length - 2), far = lanePose(lane, lane.cells.length - 1);
-        out.A.pose = { shooter: far, target: near };
+        const near = lanePose(lane, lane.cells.length - 1);   // 目标 = +x 端
+        const far = lanePose(lane, 0);                        // 射手 = -x 端（朝 +x，正对目标）
+        out.A.pose = { shooter: far, target: near, note: 'shooter 在 -x 端、target 在 +x 端，双方 rot=π/2（朝 +x）' };
         await m.teleport('tank_b', near.x, near.y, near.rot);
         await m.pump(3, { yieldMs: 0 });
         out.A.crateId = await m.eval(`window.__i4x.spawnCrate(6, ${near.x}, ${near.y}, 0)`);
@@ -153,16 +182,20 @@ const lanePose = (lane, idx) => lane.axis === 'x'
         out.A.shieldR = shield ? shield.r : null;
         await m.teleport('tank_a', far.x, far.y, far.rot);
         await m.pump(3, { yieldMs: 0 });
+        out.A.shooterPose = await m.myTank();
         await m.setControl({ fire: true }); await m.pump(1, { yieldMs: 0 }); await m.setControl({ fire: false });
-        const rows = []; let any = false;
+        const rows = []; let any = false; let bid = null;
         for (let i = 0; i <= 200; i++) {
-          const bg = await m.eval('window.__i4x.bullets4c()');
-          const ok = await m.eval('window.__i4x.bulletsOk()');
+          const bgAll = await m.eval('window.__i4x.bullets4c()');
+          const okAll = await m.eval('window.__i4x.bulletsOk()');
           const tb = await m.eval("(()=>{var t=window.__i4x.gc().getTank('tank_b');return t?{x:t.getX(),y:t.getY()}:null})()");
+          if (!bid && okAll.length) bid = okAll[0].id;
+          const bg = bgAll.filter((b) => b.id === bid), ok = okAll.filter((b) => b.id === bid);
           rows.push({ f: i, bg: bg, ok: ok, tb: tb });
           if (bg.length) any = true; else if (any) break;
           await m.pump(1, { yieldMs: 0 });
         }
+        out.A.bulletId = bid;
         const used = rows.filter((r) => r.bg.length);
         let flipBuggy = -1, flipFixed = -1;
         for (let i = 1; i < used.length; i++) {
@@ -171,8 +204,8 @@ const lanePose = (lane, idx) => lane.axis === 'x'
           if (flipBuggy < 0 && dvg > 1e-6) flipBuggy = i;
           if (flipFixed < 0 && dvf > 1e-6) flipFixed = i;
         }
-        const minDist = used.length && used[0].tb
-          ? +Math.min(...used.map((r) => Math.hypot(r.ok[0].x - r.tb.x, r.ok[0].y - r.tb.y))).toFixed(3) : null;
+        const dists = used.filter((r) => r.ok.length && r.tb).map((r) => Math.hypot(r.ok[0].x - r.tb.x, r.ok[0].y - r.tb.y));
+        const minDist = dists.length ? +Math.min(...dists).toFixed(3) : null;
         const tail = used.slice(-3).map((r) => ({ f: r.f, x: r.ok[0].x, y: r.ok[0].y, vx: r.ok[0].vx, vy: r.ok[0].vy, bg_vx: r.bg[0].vx }));
         out.A.headOn = {
           bulletsSeen: used.length, flipBuggy: flipBuggy, flipFixed: flipFixed,

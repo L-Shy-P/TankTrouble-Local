@@ -1,0 +1,67 @@
+{
+ "fps": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-12T13:03:29.572Z",
+   "bytes": 231828,
+   "md5": "c3c47f7d77f201b429138ece1ae0bdea"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "mtime": "2026-10-12T12:49:43.889Z",
+   "bytes": 478695,
+   "md5": "b06551b3bba14baa5953e298f82b7164"
+  },
+  {
+   "file": "game_core/index.html",
+   "mtime": "2026-10-12T12:49:43.890Z",
+   "bytes": 34042,
+   "md5": "04f276ef3d1811cf6617b64a52a78651"
+  }
+ ],
+ "A": {
+  "builtAtFrame": 151,
+  "status": {
+   "state": "ready",
+   "w": 14,
+   "h": 6,
+   "tiles": 84,
+   "cells": 7056,
+   "limit": 12000,
+   "builtAtVtMs": 1791810215984,
+   "reason": "",
+   "budgetCells": 12000
+  },
+  "vtAtBuild": 7050.000000000039,
+  "missileVt": 9550.000000000011,
+  "lagMs": 2499.999999999972
+ },
+ "E": {
+  "status": {
+   "state": "disabled-budget",
+   "w": 20,
+   "h": 12,
+   "tiles": 240,
+   "cells": 57600,
+   "limit": 12000,
+   "builtAtVtMs": 1791810220500.6667,
+   "reason": "maze 20x12 = 240 tiles ⇒ table 57600 cells > budget 12000 cells (57600 bytes)",
+   "budgetCells": 12000
+  },
+  "consoleErrors": [
+   "[VantageSandbox][导航表][预算超限·本局停用制导] maze 20x12 = 240 tiles ⇒ table 57600 cells > budget 12000 cells (57600 bytes) —— 追踪导弹不会进入本批模拟（不直飞）；详见 VantageSandbox.getNavTableStatus()"
+  ],
+  "wallMs": 322.7996
+ },
+ "restored": {
+  "state": "disabled-budget",
+  "w": 20,
+  "h": 12,
+  "tiles": 240,
+  "cells": 57600,
+  "limit": 12000,
+  "builtAtVtMs": 1791810220500.6667,
+  "reason": "maze 20x12 = 240 tiles ⇒ table 57600 cells > budget 12000 cells (57600 bytes)",
+  "budgetCells": 12000
+ }
+}

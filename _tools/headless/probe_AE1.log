@@ -1,0 +1,10 @@
+  game_core/js/vantage_sandbox.js  2026-10-12T12:49:37.398Z  569540b6e0bf2d3e3384f1af9de4d2cb  230301
+  game_core/js/vantage_tree.js  2026-10-12T12:49:43.889Z  b06551b3bba14baa5953e298f82b7164  478695
+  game_core/index.html  2026-10-12T12:49:43.890Z  04f276ef3d1811cf6617b64a52a78651  34042
+  open ok; TREE=v176
+  [1] 刚开局 getNavTableStatus = {"state":"idle","w":0,"h":0,"cells":0,"limit":30000,"builtAtVtMs":null,"reason":"","budgetCells":30000}
+  [2] 跑 20 帧后 = {"state":"idle","w":0,"h":0,"cells":0,"limit":30000,"builtAtVtMs":null,"reason":"","budgetCells":30000}   vtT=7366.6666666667115
+  [3] 20x12 迷荡建好（本次测试用）: {"before":{"state":"idle","w":0,"h":0,"cells":0,"limit":30000,"builtAtVtMs":null,"reason":"","budgetCells":30000},"w":20,"h":12}  Node墙钟=49.5ms
+  [4] 预算判定: {"budget":30000,"cells20x12":240,"over":false,"wouldSkip":false,"tableBytes":57600}
+  pageErrors: []
+[done]
