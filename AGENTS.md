@@ -133,6 +133,42 @@ Get-Process node,chrome -ErrorAction SilentlyContinue | Stop-Process -Force   # 
 
 ---
 
+## 🔬 纪律：判「纯读」**必须读到底层 RNG/写盘点**，或做「跑 `N` 次看它动不动」的实测（2026-10-14 定）
+
+**现场**：某代理给观测编码器加了一个"道具将来刷在哪"的字段，注释自称
+「`symmetric` 分支**确定性** + **绝不消费 RNG**」。**独立核查两个代理各自实测否掉**：
+
+```
+getCrateSpawnPosition(rs)
+  → return this._getRandomPosition(availablePositions)   ← 名字里没有 random 的"查表"函数
+      → MathUtils.randomArrayEntry(positions)             ← ★ 第 1 发 Math.random()
+      → _makePositionPhysical(...)                        ← ★ 第 2 发 Math.random()（抽朝向）
+      → _updateUsedPositions(...)                         ← ★ 还【写】maze 的 used 标志
+⟹ 每次调用消费 2 个随机数，直接推移游戏 RNG 流（连箱子类型、下次倒计时都跟着变）
+```
+
+**⟹ 它同时违反三条**：**编码器纯读 · 不改游戏行为 · 给事实不给结论** ⚠️
+
+**⟹ 规矩**：
+1. ⛔ **不许凭【函数名】+【分支形态】推断"它是不是纯读"** —— **名字里没 `random` 不代表不抽随机数**；
+2. ✅ **要判纯读，只有两条路**：
+   - **`grep` 到底层**（**追到 `Math.random` / `MathUtils.*` / 任何 `set*`/写字段**），或
+   - ⭐ **做实测**：**把 `Math.random` 包成计数器 ⟹ 跑 `N` 次（建议 `100`）⟹ 看计数有没有涨**；
+3. ⚠️ **"假对象自证"的假绿**：**用 camelCase 假 adapter 跑出来的值，可能和真 `Classy` 对象完全对不上**
+   （**同一天另一处：编码器读 `wf.timeSinceFire`，而真对象交的是 `_timeSinceFire`（带下划线）⟹ 字段恒 `−1`，
+   而假 adapter 却"跑出"了 `0.4` 这种看着合理的假值**）
+   ⟹ **任何"实测值"都必须说清"我是用真对象还是假对象跑的"**。
+
+**同族（本项目第 6 个成员）**：
+- `fd=0` sink（"`>0` 才判死"看着能跑，其实漏了同帧命中）
+- `resolveWorldDt` 死分支（"有墙钟回退"看着有兜底，其实永不执行）
+- `gc.getRoundState(true)` 是 `no-op`（"传了参数"看着改了行为，其实没有）
+- `proj[].rot` 恒 `NaN`（"字段有值"看着有数据，其实是垃圾）
+- `type` 只见过一个值（"字段有定义"≠"字段有变化"）
+- ⭐ **`getCrateSpawnPosition`**（"名字像查表"看着是纯读，其实每次消费 `2` 个随机数）
+
+---
+
 ## 🏛 架构原则：**以【游戏】为绝对权威，所有数据全发，树只是辅助预测**（主人 2026-10-14 定案）
 
 > **主人原话**：「**以游戏为绝对权威，所有数据全发，树只是辅助预测，不拿树当权威，真实数据在现实都有。
