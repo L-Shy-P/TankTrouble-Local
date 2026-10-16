@@ -5,7 +5,7 @@
   · 父代理裁定 `2026-10-17`（派单原文）：「定义并实现"近线 buffer"（父代理已裁定：走路线 `C`）」
   · `docs/Vantage躲弹实现/02-实现/实施方案/今晚训练循环-G4盘点与设计-2026-10-17.md`
       §2.1（数据流）· §2.3（参数表）· §四 `P0-1`（观测上行）/`P2-2`（小记录落盘）/`C1~C6` 契约
-  · 段维度 `SEG` 出处：`_tools/training/net_v2_fixed.py:7`（`node 10 / opp 15 / bullet 6 / item 6 / global 38 / mem 256`）
+  · 段维度 `SEG` 出处：`_tools/training/net_v2_fixed.py:7`（`node 10 / opp 15 / bullet 7 / item 6 / global 38 / mem 256`（**子弹 7 维**对齐 `阶段2-3观测字段表-定稿`：x,y,vx,vy,theta,type,lifeLeft））
     与 `docs/.../阶段2-3观测字段表-定稿-2026-10-12.md`
   · 段容量 `N_NODE/N_OPP/N_BUL/N_ITM/N_GLB/N_MEM = 1000/1/64/8/1/4` 出处：`net_v2_fixed.py:8`
   · 动作口径「只在前 `N` 个节点 token 里选 1 个」出处：父代理派单 `2026-10-17`
@@ -26,7 +26,7 @@ import os
 import numpy as np
 
 # ---------------------------------------------------------------- 段定义（与网络对齐）
-SEG_DIM = {"node": 10, "opp": 15, "bullet": 6, "item": 6, "global": 38, "mem": 256}
+SEG_DIM = {"node": 10, "opp": 15, "bullet": 7, "item": 6, "global": 38, "mem": 256}   # ⭐ bullet 6→7（对齐 net_v2_fixed.SEG）
 CAP = {"node": None, "opp": 1, "bullet": 64, "item": 8, "global": 1, "mem": 4}  # node 容量 = N（不填）
 SEG_ORDER = ("node", "opp", "bullet", "item", "global", "mem")
 CTX_TOKENS = CAP["opp"] + CAP["bullet"] + CAP["item"] + CAP["global"] + CAP["mem"]  # = 78
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     N = 7
 
     def mkframe(t, node_id, done):
-        obs = {"node": rng.randn(N, 10), "opp": rng.randn(1, 15), "bullet": rng.randn(64, 6),
+        obs = {"node": rng.randn(N, 10), "opp": rng.randn(1, 15), "bullet": rng.randn(64, 7),
                "item": rng.randn(8, 6), "global": rng.randn(1, 38), "mem": np.zeros((4, 256), np.float32)}
         return {"t": t, "N": N, "obs": obs,
                 "act": {"nodeId": node_id, "fire": 0, "picks": [{"nodeId": node_id, "back": 0}]},

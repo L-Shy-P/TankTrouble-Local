@@ -645,7 +645,7 @@ def make_fake_episode(ep, rng, players=2, n_frames=30, n_lo=40, n_hi=300, win=No
         obs = {
             "node": rng.randn(N, vb.SEG_DIM["node"]).astype(np.float32),
             "opp": rng.randn(1, 15).astype(np.float32),
-            "bullet": rng.randn(64, 6).astype(np.float32),
+            "bullet": rng.randn(64, 7).astype(np.float32),   # ⭐ 6→7 对齐 net_v2_fixed.SEG / 定稿
             "item": rng.randn(8, 6).astype(np.float32),
             "global": rng.randn(1, 38).astype(np.float32),
             "mem": np.zeros((4, 256), np.float32),

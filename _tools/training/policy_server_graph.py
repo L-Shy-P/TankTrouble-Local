@@ -29,7 +29,7 @@ _REQN = 0                                                  # ⭐ 请求计数：
 _TRACE = False                                             # ⭐ 插桩总开关（默认关：插桩不得破坏"一问一答"协议）
 _FIRST_PRINT = True                                        # ⭐ FIRST_SEGS 只打一次
 def mk(N):                                                # ⭐ 裁剪唯一入口（张量与掩码同长）
-    segs={'node':torch.zeros(B,N,10,device=dev),'opp':torch.zeros(B,1,15,device=dev),'bullet':torch.zeros(B,64,6,device=dev),
+    segs={'node':torch.zeros(B,N,10,device=dev),'opp':torch.zeros(B,1,15,device=dev),'bullet':torch.zeros(B,64,7,device=dev),
           'item':torch.zeros(B,8,6,device=dev),'global':torch.zeros(B,1,38,device=dev),'mem':torch.zeros(B,4,256,device=dev)}
     mask=torch.zeros(B,N+78,dtype=torch.bool,device=dev)
     assert mask.shape[1]==segs['node'].shape[1]+78, '掩码与张量长度不一致'

@@ -4,7 +4,7 @@ Engineering defaults (overridable by master): node order = ascending unique node
 """
 import torch, torch.nn as nn, time
 D,L,H,FF = 256,3,8,4
-SEG = {"node":10,"opp":15,"bullet":6,"item":6,"global":38,"mem":256}   # node: 10 = 阶段2-3观测字段表定稿（uid·parentIdx·slot·depth·tRel·L·dx·dy·dRot·hasGrown）
+SEG = {"node":10,"opp":15,"bullet":7,"item":6,"global":38,"mem":256}   # ⭐ bullet 6→7：对齐 阶段2-3观测字段表-定稿（BULLET_FIELDS=[x,y,vx,vy,theta,type,lifeLeft]）   # node: 10 = 阶段2-3观测字段表定稿（uid·parentIdx·slot·depth·tRel·L·dx·dy·dRot·hasGrown）
 N_NODE,N_OPP,N_BUL,N_ITM,N_GLB,N_MEM = 1000,1,64,8,1,4
 
 class NetV2(nn.Module):
