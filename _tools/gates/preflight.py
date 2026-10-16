@@ -119,15 +119,18 @@ def main():
                 err = err.strip()
                 if err: log("--- server stderr（末 1500 字）---"); log(err[-1500:])
             except Exception: pass
-        if logf: logf.close()
+        pass  # ⚠️ 不在这里 close：下面还要打 RESULT（曾因此抛 ValueError: I/O operation on closed file）
 
     log("")
     if red:
         log("RESULT RED（%d 条）:" % len(red))
         for x in red: log("  ✗ " + x)
         log("⛔ 不许开整夜跑")
+        if logf: logf.close()
         sys.exit(1)
-    log("RESULT GREEN —— 五条闸门全过"); sys.exit(0)
+    log("RESULT GREEN —— 五条闸门全过")
+    if logf: logf.close()
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
