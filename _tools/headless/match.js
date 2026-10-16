@@ -60,14 +60,33 @@ const bootstrapSrc = (o = {}) => `(() => {
   try {
     var ph = GameManager.getGame();
     if (ph.state.current === 'Game') { return { already: true, warn: '页面已经在 Game 状态，本次没有新建对局（bootstrap 直接返回）' }; }
-    var humans = ${JSON.stringify(o.humanIds || ['tank_a'])};
+    var totalPlayers = ${(o.players === undefined || o.players === null) ? 'null' : Number(o.players)};
+    var humans = ${JSON.stringify(o.humanIds || ((o.players === undefined || o.players === null) ? ['tank_a'] : []))};
     var aiCount = ${Number(o.aiCount === undefined ? 1 : o.aiCount)};
-    var vantCount = ${Number(o.vantCount === undefined ? 0 : o.vantCount)};
+    var vantCount = ${Number(o.vantCount === undefined ? ((o.players === undefined || o.players === null) ? 0 : 1) : o.vantCount)};
+    // ★ G2（场景参数）：
+    //   · totalPlayers 给了 ⟹ 【总坦克数】= players，我方 1 辆 vantage_1 + 其余 laikaX_i；
+    //     maxActivePlayerCount 必须给到 players（CLIENT.MAX_PLAYERS 只有 3，是"每条连接"上限，
+    //     不是每局上限；每局上限常量是 GAME.MAX_ACTIVE_PLAYERS=8）。
+    //   · crates = null/true ⟹ BOOT_CAMP.DEFAULT_AVAILABLE_CRATES；false ⟹ []；数组 ⟹ 原样。
+    //   · ⛔ 建图尺寸不由我们指定：仍由 BootCampGameMode.getMaze(activePlayerIds) 按原版公式决定。
+    var crates = ${JSON.stringify(o.crates === undefined ? null : o.crates)};
+    var crateTypes = (crates === null || crates === true)
+      ? Constants.GAME_MODE_INFO[Constants.GAME_MODES.BOOT_CAMP].DEFAULT_AVAILABLE_CRATES
+      : crates;
+    var maxActive = Constants.CLIENT.MAX_PLAYERS;
+    if (totalPlayers !== null) {
+      if (!(totalPlayers >= 2 && totalPlayers <= 8)) { out.err = 'players 必须在 2~8（收到 ' + totalPlayers + '）'; return out; }
+      if (humans.length + vantCount > totalPlayers) { out.err = 'players=' + totalPlayers + ' 装不下 humanIds=' + humans.length + ' + vantCount=' + vantCount; return out; }
+      aiCount = totalPlayers - humans.length - vantCount;
+      maxActive = Math.max(totalPlayers, Constants.CLIENT.MAX_PLAYERS);
+    }
+    if (!Array.isArray(crateTypes)) { out.err = 'crates 必须是数组或 true/false/null（收到 ' + JSON.stringify(crates) + '）'; return out; }
     Constants.setMode(Constants.MODE_CLIENT_LOCAL);
     var ttGame = GameController.create(
       BootCampGameMode.create(), false, false, false,
-      Constants.CLIENT.MAX_PLAYERS,
-      Constants.GAME_MODE_INFO[Constants.GAME_MODES.BOOT_CAMP].DEFAULT_AVAILABLE_CRATES,
+      maxActive,
+      crateTypes,
       false, Constants.MAZE_THEMES.RANDOM);
     out.gameId = ttGame.getId();
     out.humanIds = humans;
@@ -76,9 +95,40 @@ const bootstrapSrc = (o = {}) => `(() => {
     if (aiCount > 0 && !AIs.isReady()) out.aiWarn = 'aiCount=' + aiCount + ' 但 AIs.isReady()=false，一个 AI 都没加上';
     if (AIs.isReady()) {
       var used = {};
+      // ★ G2 多 Laika 实例：⛔ 不能用 laika_ 前缀 —— local_patch.js:1106-1112 把 laika_*
+      //   折回 6148530（加 7 个只得 1 个）。改用 laikaX_i，并逐 id 在 AIs.ais 里放一份
+      //   Laika（6148530）的 config 副本（照 local_patch 的 cloneLaikaConfig 做法）。
+      var tplLaika = null;
+      if (totalPlayers !== null) {
+        tplLaika = (AIs.ais && AIs.ais['6148530']) || (AIs.getAI && AIs.getAI('6148530'));
+        if (!tplLaika) out.aiErr = 'Laika 模板 6148530 的 config 不存在；AIs.ais keys=' + Object.keys(AIs.ais || {}).join(',');
+      }
       for (var k = 0; k < aiCount; k++) {
-        var aiId = AIs.getAvailableAIId(ttGame.getId());
-        if (aiId && !used[aiId]) { used[aiId] = 1; AIs.addAIManager(ttGame, aiId); ttGame.addPlayer(aiId); out.aiIds.push(aiId); }
+        var aiId = null;
+        if (totalPlayers !== null) {
+          if (!tplLaika) break;
+          aiId = 'laikaX_' + (k + 1);
+          var cfgL = {};
+          for (var ckL in tplLaika) { if (Object.prototype.hasOwnProperty.call(tplLaika, ckL)) cfgL[ckL] = tplLaika[ckL]; }
+          cfgL.name = 'Laika';
+          AIs.ais[aiId] = cfgL;
+        } else {
+          aiId = AIs.getAvailableAIId(ttGame.getId());
+        }
+        if (aiId && !used[aiId]) {
+          used[aiId] = 1;
+          var addOk = false;
+          try { addOk = AIs.addAIManager(ttGame, aiId); }
+          catch (eAdd) { out.aiErr = 'AIs.addAIManager 抛异常 ' + aiId + ': ' + String((eAdd && eAdd.message) || eAdd); }
+          if (addOk === false) out.aiErr = 'AIs.addAIManager 返回 false: ' + aiId;
+          if (addOk !== false) {
+            var plOk = false;
+            try { plOk = ttGame.addPlayer(aiId); }
+            catch (ePl) { out.aiErr = 'ttGame.addPlayer 抛异常 ' + aiId + ': ' + String((ePl && ePl.message) || ePl); }
+            if (plOk === false) out.aiErr = 'ttGame.addPlayer 返回 false: ' + aiId;
+            if (plOk !== false) out.aiIds.push(aiId);
+          }
+        }
       }
     }
     out.vantageIds = [];
@@ -94,6 +144,16 @@ const bootstrapSrc = (o = {}) => `(() => {
       out.aiWarn = 'aiCount=' + aiCount + ' 但 getAvailableAIId 没给出任何可用 AI（会变成空场）';
     }
     if (vantCount > 0 && out.vantageIds.length === 0 && !out.vantageErr) out.vantageErr = 'vantCount=' + vantCount + ' 但一个 vantage_ 玩家都没加上（会变成空场）';
+    if (${o.storm === true ? 'true' : 'false'}) {
+      // 任务指定的钩子（gc.storm / gameMode.setStorm）。⚠️ 对 BOOT_CAMP 只是"置位"：
+      // BootCampGameMode.update 全文没有 storm 生成路径（只有 ClassicGameMode.update 会
+      // setZoneState(StormZone...)）。真正的毒雾区由 Match.open() 在 IN_ROUND 后注入。
+      ttGame.storm = true;
+      if (ttGame.gameMode && typeof ttGame.gameMode.setStorm === 'function') ttGame.gameMode.setStorm(true);
+    }
+    out.stormFlag = { gcStorm: !!ttGame.storm, modeStorm: !!(ttGame.gameMode && ttGame.gameMode.storm) };
+    out.maxActivePlayerCount = maxActive;
+    out.crateTypes = crateTypes.slice();
     GameManager.setGameController(ttGame);
     ph.state.start('Game', true, false, ttGame);
     out.started = true;
@@ -257,6 +317,7 @@ class Match {
     const boot = await this.eval(bootstrapSrc(opts));
     if (boot && boot.err) throw new Error('引导本地对局失败: ' + boot.err);
     if (boot && boot.aiWarn) throw new Error('引导本地对局: ' + boot.aiWarn);
+    if (boot && boot.aiErr) throw new Error('引导本地对局（多 Laika 实例）: ' + boot.aiErr);
     if (boot && boot.vantageErr) throw new Error('引导本地对局: ' + boot.vantageErr);
     this.bootstrap = boot;
 
@@ -283,6 +344,16 @@ class Match {
     this.tankId = opts.tankId || 'tank_a';
     // ★ 0-1：倒计时阶段的 setTankState 会静默 return false ⟹ 先等到 IN_ROUND 再返回
     if (opts.waitRound !== false) await this.waitForRound(opts);
+    // ★ G2 毒雾：任务指定的钩子（gc.storm / gameMode.setStorm）在 bootstrap 里已置位，
+    //   但 BOOT_CAMP 的 update 没有 storm 生成路径（只有 ClassicGameMode.update 会
+    //   setZoneState(StormZone...)，且要等 60s）⟹ 这里照【游戏自己的那一句】注入 STORM 区
+    //   （StormZone.createInitialZoneState(id, maze.getStormExpansionSequence(), maze.getTileBounds())）。
+    //   ⛔ 不改建图逻辑、⛔ 不碰 DEATHMATCH；注入失败【抛错】，不静默降级。
+    if (opts.storm) {
+      this.stormSpawn = await this.spawnStorm();
+      if (!this.stormSpawn || this.stormSpawn.err) throw new Error('毒雾注入失败: ' + JSON.stringify(this.stormSpawn));
+      this.stormFlag = boot.stormFlag || null;
+    }
     // ★ 「不呈现」开关（默认关）：opts.noRender===true 或环境变量 VT_NO_RENDER=1 才开（见 setNoRender）
     if (opts.noRender === true || process.env.VT_NO_RENDER === '1') this.noRenderBoot = await this.setNoRender(true);
     // 装好开坦克的钩子（默认开 tank_a）。waitRound:false 时默认不装（那时坦克可能还没生成）
@@ -321,6 +392,53 @@ class Match {
     }
     this.roundWait = { frames: done, inRound: inRound, log: log };
     return this.roundWait;
+  }
+
+  /**
+   * 注入毒雾区（照 ClassicGameMode.update 的那一句）并**当场验证**场上真有 STORM 区。
+   * 返回 { gcStorm, modeStorm, zonesBefore, zonesAfter, nStorm, zoneId } 或 { err }。
+   */
+  async spawnStorm() {
+    return this.eval(`(() => {
+      var gc = GameManager.getGameController();
+      var out = { gcStorm: gc ? !!gc.storm : null, modeStorm: (gc && gc.gameMode) ? !!gc.gameMode.storm : null };
+      if (!gc || !gc.roundController) { out.err = 'no roundController'; return out; }
+      var mz = gc.roundController.getMaze();
+      if (!mz) { out.err = 'no maze'; return out; }
+      if (typeof StormZone === 'undefined' || !StormZone.createInitialZoneState) { out.err = 'StormZone 不可用'; return out; }
+      var zones0 = __vtArr(gc.getZones ? gc.getZones() : []);
+      out.zonesBefore = zones0.length;
+      var st = null;
+      try { st = StormZone.createInitialZoneState(IdGenerator.instance.gen('sz'), mz.getStormExpansionSequence(), mz.getTileBounds()); }
+      catch (eC) { out.err = 'createInitialZoneState 抛异常: ' + String((eC && eC.message) || eC); return out; }
+      try { gc.roundController.setZoneState(st); }
+      catch (eS) { out.err = 'setZoneState 抛异常: ' + String((eS && eS.message) || eS); return out; }
+      var zones = __vtArr(gc.getZones ? gc.getZones() : []);
+      var nStorm = 0;
+      for (var i = 0; i < zones.length; i++) {
+        try { if (zones[i] && zones[i].getType && zones[i].getType() === Constants.ZONE_TYPES.STORM) nStorm++; } catch (eT) {}
+      }
+      out.zonesAfter = zones.length; out.nStorm = nStorm;
+      out.zoneId = (st && st.getId) ? st.getId() : null;
+      if (nStorm < 1) out.err = '注入后场上没有 STORM 区（zones=' + zones.length + '）';
+      return out;
+    })()`);
+  }
+
+  /** 便宜的毒雾/道具计数（跑局器每隔若干帧采样一次用） */
+  async stormState() {
+    return this.eval(`(() => {
+      var gc = GameManager.getGameController();
+      if (!gc) return { nStorm: 0, nZones: 0, nCrates: 0, gcStorm: null, modeStorm: null };
+      var zs = (gc.getZones) ? __vtArr(gc.getZones()) : [];
+      var n = 0;
+      for (var i = 0; i < zs.length; i++) {
+        try { if (zs[i] && zs[i].getType && zs[i].getType() === Constants.ZONE_TYPES.STORM) n++; } catch (e) {}
+      }
+      var cs = (gc.getCollectibles) ? __vtArr(gc.getCollectibles()) : [];
+      return { nStorm: n, nZones: zs.length, nCrates: cs.length, gcStorm: !!gc.storm,
+               modeStorm: gc.gameMode ? !!gc.gameMode.storm : null };
+    })()`);
   }
 
   /** 泵 n 帧；yieldMs>0 时每帧让出真实时间（I/O 用） */
@@ -576,7 +694,11 @@ if (require.main === module) {
     const m = new Match();
     try {
       const t0 = Date.now();
-      await m.open({ verbose: flag('verbose') });
+      // G2 场景参数（向后兼容：不给 --players 就是老行为：1 辆 tank_a + 1 个原生 Laika）
+      const players = (() => { const i = argv.indexOf('--players'); return i < 0 ? undefined : Number(argv[i + 1]); })();
+      const storm = flag('storm');
+      const crates = flag('no-crates') ? [] : undefined;
+      await m.open({ verbose: flag('verbose'), players, storm, crates, control: players === undefined });
       const openMs = Date.now() - t0;
       const s0 = await m.snapshot();
       const t1 = Date.now();
