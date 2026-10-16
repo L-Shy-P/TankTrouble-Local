@@ -47,11 +47,11 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
         obs:{node:o.n,opp:[new Array(OPP).fill(0)],bullet:pad(bRows,BUL_SLOTS,7),item:Array.from({length:8},()=>new Array(6).fill(0)),global:[o.g]},
         act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:FIRE?1:0,picks:[{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),back:0}]},
         lp:(lpOkF?p.lp:0),v:(typeof p.v==='number'&&isFinite(p.v)?p.v:0),
-        r:{total:1.0,result:0,survive:1.0,legal:0},done:false});
+        r:{total:0.01,result:0,survive:0.01,legal:0},done:false});
       await m.pump(1,{yieldMs:0});
     }
     if(!done){ truncated++; }
-    if(frames.length){ const last=frames[frames.length-1]; last.done=true; last.r.result=(won===null?0:(won===1?1:(won===-1?-0.25:-1))); last.r.total=last.r.result+(last.r.survive||0); }
+    if(frames.length){ const last=frames[frames.length-1]; last.done=true; last.r.result=(won===null?0:(won===1?1:(won===-1?-0.25:-1))); last.r.total=last.r.result+(last.r.survive||0);   // ⭐ 存活尺度 1.0→0.01：让回报 O(1~5) 而非几百（价值头不再把主干带偏） }
     episodes.push({ep:ep,scene:{players:2,mapW:(await m.maze()).width,mapH:(await m.maze()).height,storm:false,crates:[]},frames:frames,win:won});
     totalFrames+=frames.length;
     // 每局复位：重开一局（原版会自动开新回合）
