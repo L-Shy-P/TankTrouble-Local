@@ -30,6 +30,7 @@ const CLOCK_SRC = fs.readFileSync(path.join(__dirname, 'clock.js'), 'utf8');
 
 /** 页面内录制/回放源码（阶段0-2/0-3）：随 clock.js 一起在【所有页面脚本之前】注入 */
 const { PAGE_SRC: REC_SRC } = require('./record_page');
+const { PAGE_SRC: NORE_SRC } = require('./norender_page');   // ★ 「不呈现」开关（默认关，见 setNoRender）
 
 /** 把 Classy 的集合/对象统一成数组，别管它是啥 */
 const PAGE_HELPERS = `
@@ -220,7 +221,7 @@ class Match {
     }
 
     // 资产阶段：必须交错让出真实时间
-    const menu = await this.pumpUntilState('Menu', 900, opts.assetYieldMs || 8, opts);
+    const menu = await this.pumpUntilState('Menu', (Number(process.env.VT_MENU_FRAMES) || 900), opts.assetYieldMs || 8, opts);
     this.menuFrames = menu.frames;
     const releaseSteps = await this.eval('window.__vt.releaseSteps == null ? null : window.__vt.releaseSteps');
     this.bootPadded = 0;
@@ -282,6 +283,8 @@ class Match {
     this.tankId = opts.tankId || 'tank_a';
     // ★ 0-1：倒计时阶段的 setTankState 会静默 return false ⟹ 先等到 IN_ROUND 再返回
     if (opts.waitRound !== false) await this.waitForRound(opts);
+    // ★ 「不呈现」开关（默认关）：opts.noRender===true 或环境变量 VT_NO_RENDER=1 才开（见 setNoRender）
+    if (opts.noRender === true || process.env.VT_NO_RENDER === '1') this.noRenderBoot = await this.setNoRender(true);
     // 装好开坦克的钩子（默认开 tank_a）。waitRound:false 时默认不装（那时坦克可能还没生成）
     if (opts.control === true || (opts.control !== false && opts.waitRound !== false)) {
       await this.installControl(this.tankId);
@@ -421,6 +424,21 @@ class Match {
   }
 
   async getControl() { return this.eval('Object.assign({}, window.__vtCtrl)'); }
+
+  /**
+   * 「不呈现」开关（默认关）—— 只关绘制、不碰物理/逻辑；可运行时开/关、可还原。
+   *   enabled=true : canvas 隐藏 + 1×1，mode='full'(默认) 再把 renderer.render/postRender 置空
+   *   enabled=false: 逐字还原（原函数按 own/prototype 归属还原，canvas 尺寸/display 还原）
+   *   mode         : 'full'(默认) | 'canvas'（只做 canvas、不置空 render，用于拆分收益来源）
+   * 返回页面侧自检对象（canvas 尺寸/display、render 是否已置空 Noop）；失败【抛错】、不静默降级。
+   */
+  async setNoRender(enabled, mode) {
+    await this.eval(NORE_SRC);
+    const r = await this.eval(`window.__vtSetNoRender(${enabled ? 'true' : 'false'}, ${JSON.stringify(mode || 'full')})`);
+    const o = (typeof r === 'string') ? JSON.parse(r) : r;
+    if (!o || o.err) throw new Error('setNoRender 失败: ' + JSON.stringify(o));
+    return o;
+  }
 
   /**
    * 直接把坦克传送到位姿 —— 训练阶段 1/2/3 的核心。
