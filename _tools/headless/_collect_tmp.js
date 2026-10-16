@@ -25,19 +25,24 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
         let v={}; for(const k in st.scores){ if(k.indexOf(':1')>0) v[k.split(':')[0]]=st.scores[k]; }
         const ids=Object.keys(v);
         if(ids.length===1) won=(ids[0]==='vantage_1')?1:0; else won=(ids.length===0)?-1:null;
+        if(won===null){ var anyV=false; for(var k2 in st.scores){ if(k2.indexOf(':1')>0&&st.scores[k2]>0) anyV=true; }
+          if(anyV){ var vp=Object.keys(st.scores).filter(function(k3){return k3.indexOf(':1')>0&&st.scores[k3]>0;})[0];
+                    won=(vp.indexOf('vantage_1')===0)?1:0; } }
         console.log('EP'+ep+' ROUND_END state='+st.state+' scores='+JSON.stringify(st.scores)+' won='+won);
         break; }
       const o=JSON.parse(await m.eval('window.__b.step('+nodeId+','+FIRE+')'));
       if(o.err){ console.log('STEP_ERR '+o.err); break; }
       const N=(o.n||[]).length;
-      const p=await ask(srv,{N:N,seed:ep*100000+f,segs:{node:o.n,bullet:o.b,global:[o.g]}});
+      const bRows=(o.b&&o.b.length)?o.b:[[0,0,0,0,0,0,0]];   // ⭐ 没子弹时不能发 []（服务端要求二维）
+      const p=await ask(srv,{N:N,seed:ep*100000+f,segs:{node:o.n,bullet:bRows,global:[o.g]}});
       lpTot++; const lpOkF=(typeof p.lp==='number'&&isFinite(p.lp)); if(lpOkF)lpOk++;
+      if(p.err){ if(!global.__errSeen)global.__errSeen={}; if(!global.__errSeen[p.err]){global.__errSeen[p.err]=0; console.log('SRV_ERR '+p.err);} global.__errSeen[p.err]=(global.__errSeen[p.err]||0)+1; }
       if(typeof p.nodeId==='number'){ if(p.nodeId>=N||p.nodeId<0)oob++; nodeId=p.nodeId; }
       const proj=(await m.snapshot()).projectiles||[];
       const nProj=proj.length; if(nProj>totalProj)totalProj=nProj;
       if(proj.some(x=>String(x.owner)==='vantage_1')) vFire++;
       frames.push({t:f,N:N,
-        obs:{node:o.n,opp:[new Array(OPP).fill(0)],bullet:pad(o.b||[],BUL_SLOTS,7),item:Array.from({length:8},()=>new Array(6).fill(0)),global:[o.g]},
+        obs:{node:o.n,opp:[new Array(OPP).fill(0)],bullet:pad(bRows,BUL_SLOTS,7),item:Array.from({length:8},()=>new Array(6).fill(0)),global:[o.g]},
         act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:FIRE?1:0,picks:[{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),back:0}]},
         lp:(lpOkF?p.lp:0),v:(typeof p.v==='number'&&isFinite(p.v)?p.v:0),
         r:{total:1.0,result:0,survive:1.0,legal:0},done:false});
