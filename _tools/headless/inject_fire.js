@@ -66,8 +66,10 @@
     }
     window.__b.pendingSlots = slots;
     window.__b.wantFire = !!fire;
+    var gl = e.global || {};
     return JSON.stringify({ h: h >>> 0, alive: d === 0, dots: e.dims.total, g: gArr, n: nSrc,
-      b: bSrc, nSlots: slots ? slots.length : -1, nBul: bSrc.length, bDim: (e.bullets && e.bullets.dim) || null });
+      b: bSrc, nSlots: slots ? slots.length : -1, nBul: bSrc.length, bDim: (e.bullets && e.bullets.dim) || null,
+      opp: (gl.oppTok || null), col: (gl.colTok || null), mine: (gl.mineTok || null) });   // ⭐ 敌人/道具信息（在 global 里）
   };
   window.__probe = window.__b;
   return 'installed';

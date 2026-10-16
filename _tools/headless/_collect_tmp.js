@@ -4,6 +4,17 @@ const SRC=fs.readFileSync(__dirname+'/inject_fire.js','utf8');
 const OUT=(process.env.C_OUT||'D:/vt_run/collect')+'/';
 const ROUNDS=+process.env.C_ROUNDS||3, CAP=+process.env.C_CAP||900, FIRE=+process.env.C_FIRE||1;
 const NODE_SLOTS=1000, BUL_SLOTS=64, OPP=15, ITEM_R=8, ITEM_C=6, GLB=38;
+// ⭐ 从 global 的 oppTok/colTok/mineTok 造 opp(1,15) 与 item(8,6)
+function oppRow(o){ var src=(o&&o.opp)||[]; var r=[]; for(var i=0;i<OPP;i++) r.push(i<src.length?+src[i]||0:0); return r; }
+function itemRows(o){
+  var col=(o&&o.col)||[], mine=(o&&o.mine)||[], out=[];
+  for(var k=0;k<8;k++){
+    var c=col.slice(k*3,k*3+3), m=mine.slice(k*3,k*3+3);
+    while(c.length<3)c.push(0); while(m.length<3)m.push(0);
+    out.push([+c[0]||0,+c[1]||0,+c[2]||0,+m[0]||0,+m[1]||0,+m[2]||0]);
+  }
+  return out;
+}
 function pad(rows,slot,w){ if(rows.length>=slot) return rows.slice(0,slot); const out=rows.slice(); const z=new Array(w).fill(0); while(out.length<slot) out.push(z.slice()); return out; }
 function ask(srv,o){return new Promise(r=>{srv.stdin.write(JSON.stringify(o)+'\n');srv.stdout.once('data',d=>{try{r(JSON.parse(String(d).trim()))}catch(e){r({lp:null,err:'parse'})}});});}
 const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?gc.getState():null,scores:{}};try{var ss=gc.getScores();for(var k in ss){var s=ss[k];var pid=s.getPlayerId?s.getPlayerId():s.playerId;var t=s.getType?s.getType():s.type;var v=s.getValue?s.getValue():s.value;out.scores[pid+':'+t]=v;}}catch(e){out.err=String(e&&e.message||e);}return out})()";
@@ -44,14 +55,14 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       const nProj=proj.length; if(nProj>totalProj)totalProj=nProj;
       if(proj.some(x=>String(x.owner)==='vantage_1')) vFire++;
       frames.push({t:f,N:N,
-        obs:{node:o.n,opp:[new Array(OPP).fill(0)],bullet:pad(bRows,BUL_SLOTS,7),item:Array.from({length:8},()=>new Array(6).fill(0)),global:[o.g]},
+        obs:{node:o.n,opp:[oppRow(o)],bullet:pad(bRows,BUL_SLOTS,7),item:itemRows(o),global:[o.g]},
         act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:FIRE?1:0,picks:[{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),back:0}]},
         lp:(lpOkF?p.lp:0),v:(typeof p.v==='number'&&isFinite(p.v)?p.v:0),
         r:{total:0.01,result:0,survive:0.01,legal:0},done:false});
       await m.pump(1,{yieldMs:0});
     }
     if(!done){ truncated++; }
-    if(frames.length){ const last=frames[frames.length-1]; last.done=true; last.r.result=(won===null?0:(won===1?1:(won===-1?-0.25:-1))); last.r.total=last.r.result+(last.r.survive||0);   // ⭐ 存活尺度 1.0→0.01：让回报 O(1~5) 而非几百（价值头不再把主干带偏） }
+    if(frames.length){ const last=frames[frames.length-1]; last.done=true; last.r.result=(won===null?0:(won===1?1:(won===-1?-0.25:-1))); last.r.total=last.r.result+(last.r.survive||0); }   // ⭐ 存活尺度 1.0→0.01：回报 O(1~5)
     episodes.push({ep:ep,scene:{players:2,mapW:(await m.maze()).width,mapH:(await m.maze()).height,storm:false,crates:[]},frames:frames,win:won});
     totalFrames+=frames.length;
     // 每局复位：重开一局（原版会自动开新回合）
