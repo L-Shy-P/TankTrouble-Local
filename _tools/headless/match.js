@@ -66,7 +66,7 @@ const bootstrapSrc = (o = {}) => `(() => {
     var vantCount = ${Number(o.vantCount === undefined ? ((o.players === undefined || o.players === null) ? 0 : 1) : o.vantCount)};
     // ★ G2（场景参数）：
     //   · totalPlayers 给了 ⟹ 【总坦克数】= players，我方 1 辆 vantage_1 + 其余 laikaX_i；
-    //     maxActivePlayerCount 必须给到 players（CLIENT.MAX_PLAYERS 只有 3，是"每条连接"上限，
+    //     maxActivePlayerCount 必须给到 players（raw CLIENT.MAX_PLAYERS=3（local_patch.js:29 运行时改成 8 ⟹ 实测 8），是"每条连接"上限，
     //     不是每局上限；每局上限常量是 GAME.MAX_ACTIVE_PLAYERS=8）。
     //   · crates = null/true ⟹ BOOT_CAMP.DEFAULT_AVAILABLE_CRATES；false ⟹ []；数组 ⟹ 原样。
     //   · ⛔ 建图尺寸不由我们指定：仍由 BootCampGameMode.getMaze(activePlayerIds) 按原版公式决定。
