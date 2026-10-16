@@ -43,7 +43,7 @@
   // ⭐ step：只读观测 + 记下"意图"（目标节点的 slot 路径 + 是否开火）；真正的包在 decide() 当帧建
   window.__b.step = function (nodeId, fire) {
     var gc = GameManager.getGameController();
-    var ad = VantageSandbox.createAdapter(gc, 'tank_a');
+    var ad = VantageSandbox.createAdapter(gc, window.__b.tankId || 'vantage_1');   // ⭐ 目标坦克：2 人局里没有 tank_a ⟹ 默认 vantage_1（★ 此前写死 tank_a ⟹ 观测 self 恒 0）
     var e = VantageObserve.encode({ adapter: ad, tree: VantageTree.getTree(), horizonSec: 10, K_death: 1, frameDt: 1 / 60 });
     var h = 2166136261 >>> 0;
     function mix(arr) { for (var i = 0; i < arr.length; i++) { h ^= (arr[i] | 0); h = (h * 16777619) >>> 0; } }
