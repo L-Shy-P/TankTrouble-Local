@@ -41,7 +41,19 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   srv.stderr.on('data',d=>{ const t=String(d); if(t.indexOf('CKPT_')>=0 || t.indexOf('MEM_STATE')>=0 || t.indexOf('NET_SPLIT')>=0 || t.indexOf('SRV_CAND')>=0) console.log('SRV_CKPT '+t.trim().slice(0,120)); });
   srv.stdout.setEncoding('utf8');
   srv.stdout.on('data',d=>{ _buf+=String(d); let i; while((i=_buf.indexOf('\n'))>=0){ const ln=_buf.slice(0,i); _buf=_buf.slice(i+1); _pumpLine(ln); } });
-  const m=new Match(); const op=await m.open({humanIds:[],aiCount:1,vantCount:1,control:false});
+  // ⭐⭐⭐ 父代理 2026-10-18：**采集环境必须与评测同构**，否则训练数据里没有胜负信号。
+  //   实测：老口径 `{aiCount:1,vantCount:1}` 跑 8725 帧(175s) ⟹ kill=0 selfkill=0 death=0 ⟹ 回合永不完结
+  //        ⟹ `win/lose` 只在末帧写 ⟹ **策略永远学不到"想赢"**（也解释了"非零奖励帧 0.5%"）。
+  //   而评测口径 `{players:2,storm,crates}` 下 303~2603 帧就会 victory/defeat。
+  //   ⟹ `C_PLAYERS=2`（推荐）走评测同构开局；不给则保持老口径（兼容）。
+  const m=new Match();
+  const _CP=+(process.env.C_PLAYERS||0);
+  const _op = _CP ? {humanIds:[], players:_CP, storm:!!+(process.env.C_STORM||0),
+                      crates:(function(){var v=process.env.C_CRATES; if(v===undefined||v==='')return null; if(v==='1')return true; if(v==='0')return false; try{return JSON.parse(v);}catch(e){return null;}})(),
+                      epoch:(process.env.C_EPOCH?Number(process.env.C_EPOCH):undefined), control:false}
+                  : {humanIds:[],aiCount:1,vantCount:1,control:false};
+  console.log('OPEN_MODE '+(_CP?('players='+_CP+' storm='+(+process.env.C_STORM||0)+' crates='+(process.env.C_CRATES||'')):'legacy aiCount=1 vantCount=1'));
+  const op=await m.open(_op);
   console.log('SRV_BOOT_LINES '+await waitBoot());   // ⭐ 必须先吃完开机行（否则前几帧串包）
   console.log('OPEN '+JSON.stringify({ai:op.aiIds,vant:op.vantageIds}));
   await m.eval(SRC); console.log('SETUP '+await m.eval('window.__probe.setup()'));
