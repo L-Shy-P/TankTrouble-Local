@@ -38,7 +38,7 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
 (async()=>{
   fs.mkdirSync(OUT,{recursive:true});
   const srv=spawn('py',['-3.13','_tools/training/policy_server_graph.py'],{env:{...process.env,PYTHONIOENCODING:'utf-8'}});
-  srv.stderr.on('data',d=>{ const t=String(d); if(t.indexOf('CKPT_')>=0) console.log('SRV_CKPT '+t.trim().slice(0,120)); });
+  srv.stderr.on('data',d=>{ const t=String(d); if(t.indexOf('CKPT_')>=0 || t.indexOf('MEM_STATE')>=0 || t.indexOf('NET_SPLIT')>=0 || t.indexOf('SRV_CAND')>=0) console.log('SRV_CKPT '+t.trim().slice(0,120)); });
   srv.stdout.setEncoding('utf8');
   srv.stdout.on('data',d=>{ _buf+=String(d); let i; while((i=_buf.indexOf('\n'))>=0){ const ln=_buf.slice(0,i); _buf=_buf.slice(i+1); _pumpLine(ln); } });
   const m=new Match(); const op=await m.open({humanIds:[],aiCount:1,vantCount:1,control:false});
@@ -48,7 +48,14 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   // ⭐ 开火接线（2026-10-17 派单③）：服务端返回的 fire 决定本帧要不要拼 picks[1] 射击帧
   const FIRE_BACK=process.env.VT_FIRE_BACK||'now';
   const MEM_ENV=(process.env.VT_MEM_ON==='1');
-  const GROW_SRC=(process.env.VT_GROW_SRC||'server');   // ⭐ A/B 开关：server=服务端 head_grow 采样；bridge=桥自己取 B 目标叶（Arm A）   // ⭐ 记忆开关：环境可强制开；否则读 window.__vtConfig.mem   // ⭐ 默认 now = back=L−1−rel（2026-10-17 裁定 (a)：当帧开火）
+  const GROW_SRC=(process.env.VT_GROW_SRC||'server');
+  const PULSE_BLOCK=(process.env.VT_PULSE_BLOCK==='1')?1:0;   // ⭐ 默认 0 = 只记录不拦截（权威版：连续帧=按住是设计）   // ⭐ A/B 开关：server=服务端 head_grow 采样；bridge=桥自己取 B 目标叶（Arm A）   // ⭐ 记忆开关：环境可强制开；否则读 window.__vtConfig.mem   // ⭐ 默认 now = back=L−1−rel（2026-10-17 裁定 (a)：当帧开火）
+  await m.eval('window.__b.pulseBlock='+PULSE_BLOCK+';'); if(process.env.VT_FIRE_FIRST==='1') await m.eval('window.__b.fireFirst=1;'); if(process.env.VT_PROBE_DZ==='1') await m.eval('window.__b.probeDzOn=1;'); if(process.env.VT_PROBE_MATCH==='1') await m.eval('window.__b.probeMatchOn=1;');
+  if(process.env.VT_PROBE_GATE==='1') await m.eval('window.__b.probeGateOn=1;'); if(process.env.VT_PROBE_MDBG==='1') await m.eval('window.__b.probeMatchDbgOn=1;');
+  if((process.env.VT_FIRE_MODE||'')==='mask') await m.eval("window.__b.fireMode='mask';");
+  if(process.env.VT_AIM_GATE) console.log('AIM_GATE '+await m.eval('window.__b.setAimGate('+(+process.env.VT_AIM_GATE||0)+')'));
+  if(process.env.VT_HOLD_TARGET) console.log('HOLD_TARGET '+await m.eval('window.__b.setHoldTarget('+(+process.env.VT_HOLD_TARGET||0)+')'));
+  if(process.env.VT_FIRE_HACK==='1') await m.eval('window.__b.fireHack=1;'); console.log('PULSE_BLOCK '+PULSE_BLOCK);
   await m.eval('window.__b.fireBias='+(+process.env.VT_FIRE_REL_BIAS||0)+';'); console.log('FIRE_BIAS '+(+process.env.VT_FIRE_REL_BIAS||0)+' FIRE_BACK '+await m.eval('window.__b.setFireBack('+JSON.stringify(FIRE_BACK)+')')+'（zero=父代理指定 back=0 / now=对照 back=L-1-rel）');
   await m.pump(20,{yieldMs:0});
   const inRound=await m.eval("(()=>{try{return GameModel._STATES.IN_ROUND}catch(e){return 'in round'}})()");
@@ -60,7 +67,13 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   let aReqOk=0, aReqBad=0, aSkipNoCand=0, growEntSee=null;
   let fireEntSee=null, fireLpCnt=0;
   let fireSelN=0, fireEnts=[];
-  let skipNoAction=0;   // ⭐ N<2 无合法动作（no-op 已移出）   // ⭐ head_fire 采样参数   // ⭐ A 相：请求成功/失败/无候选
+  let skipNoAction=0;
+  let fbSum=0, fbN=0, fb1=0, fb24=0, fb5=0;
+  let execPolN=0;
+  let fireForced=0, fireEpsN=0, firePN=0, fireTot=0;
+  let routeNN=0, fireNZ=0, routeTot=0;
+  let stillN=0, stillTot=0;   // ⭐ 静止帧计数   // ⭐ 强制/探索/火头 fire_p 统计   // ⭐ 真由策略执行的帧数
+  let factLoggedOk=0, factLoggedRej=0, planCnt=0;   // ⭐ fireBacksPerSubmit 直方图   // ⭐ N<2 无合法动作（no-op 已移出）   // ⭐ head_fire 采样参数   // ⭐ A 相：请求成功/失败/无候选
   let growUidCnt=0;
   let emptyIntentFrames=0;
   const MEM_ECHO_MAX=+(process.env.VT_MEM_ECHO_MAX||260);   // ⭐ 对拍回声上限（帧）
@@ -159,14 +172,30 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
         if(pa && pa.grow && typeof pa.grow.grow_nodeId==='number'){ const rw=pa.grow.grow_nodeId; if(o.n[rw]) growUid=o.n[rw][0]|0; lpGrow=pa.grow.lp_grow; await m.eval('window.__b.growRow='+rw); aReqOk++; growEntSee=(pa.grow.ent_grow!==undefined?pa.grow.ent_grow:growEntSee); }
         else { aReqBad++; await m.eval('window.__b.growRow=null'); }
       } else { aSkipNoCand++; await m.eval('window.__b.growRow=null'); }   // GROW_SRC=bridge 或无候选 ⇒ 桥回退到 B 目标叶
+      if(o.probeDz) console.log('DZ_PROBE '+JSON.stringify(o.probeDz));
+      if(o.probeMatch) console.log('MATCH_PROBE '+JSON.stringify(o.probeMatch));
+      if(o.probeGate) console.log('GATE_PROBE '+JSON.stringify(o.probeGate));
+      if(o.matchDbg) console.log('MATCHDBG '+JSON.stringify(o.matchDbg));
       const _lpF=(o.stats&&o.stats.lastFirePick)||null;
+      if(o.growFact&&!factLoggedOk&&o.growFact.result==='ok'){ factLoggedOk=1; console.log('FACT_OK '+JSON.stringify(o.growFact)+' plan='+JSON.stringify(o.plan)); }
+      if(o.growFact&&!factLoggedRej&&o.growFact.result==='reject'){ factLoggedRej=1; console.log('FACT_REJECT '+JSON.stringify(o.growFact)+' plan='+JSON.stringify(o.plan)); }
+      if(Array.isArray(o.plan)) planCnt++;
+      if(o.execByPolicy===true) execPolN++;
+      if(o.execStill===true) stillN++;
+      if(o.execStill!==null&&o.execStill!==undefined) stillTot++;
+      if(o.matchDbg&&o.matchDbg.agentRouteId_stats!==undefined&&o.matchDbg.agentRouteId_stats!==null) routeNN++;
+      if(o.matchDbg&&o.matchDbg.agentFirePicksLen_stats>0) fireNZ++;
+      if(o.matchDbg) routeTot++;
       const fireCand=(_lpF&&Array.isArray(_lpF.backs))?_lpF.backs.map(function(bk){return {nodeId:_lpF.nodeId,back:bk};}):[];   // ⭐ 本段可执行帧
-      const p=await ask(srv,{N:N,seed:ep*100000+f,mem_on:memOn,phase:'B',round_id:ep,fire_cand:fireCand,fire_k:4,segs:{node:o.n,opp:oppR,bullet:bRows,item:itemR,global:[o.g]}});
+      const p=await ask(srv,{N:N,seed:ep*100000+f,mem_on:memOn,phase:'B',round_id:ep,fire_cand:fireCand,segs:{node:o.n,opp:oppR,bullet:bRows,item:itemR,global:[o.g]}});
       lpTot++; const lpOkF=(typeof p.lp==='number'&&isFinite(p.lp)); if(lpOkF)lpOk++;
       if(!lpOkF){ badLp++; if(badLp<=3) console.log('BAD_LP ep='+ep+' f='+f+' lp='+p.lp+' err='+(p.err||'')); await m.pump(1,{yieldMs:0}); continue; }   // ⭐ 非有限 lp ⟹ 该帧不进数据（⛔ 不许静默写 0）
       if(p.err){ if(!global.__errSeen)global.__errSeen={}; if(!global.__errSeen[p.err]){global.__errSeen[p.err]=0; console.log('SRV_ERR '+p.err);} global.__errSeen[p.err]=(global.__errSeen[p.err]||0)+1; }
       if(typeof p.nodeId==='number'){ if(p.nodeId>=N||p.nodeId<0)oob++; nodeId=p.nodeId; }
       if(growUid!==null) growUidCnt++;
+      if(Array.isArray(o.plan)) planCnt++;
+      if(o.growFact&&!factLoggedOk&&o.growFact.result==='ok'){ factLoggedOk=1; console.log('FACT_OK '+JSON.stringify(o.growFact)+' plan='+JSON.stringify(o.plan)); }
+      if(o.growFact&&!factLoggedRej&&o.growFact.result==='reject'){ factLoggedRej=1; console.log('FACT_REJECT '+JSON.stringify(o.growFact)+' plan='+JSON.stringify(o.plan)); }
       if(typeof p.fire_ent==='number') fireEntSee=p.fire_ent;
       if(typeof p.lp_fire==='number') fireLpCnt++;
       if(p.mem_echo && memEcho.length<MEM_ECHO_MAX) memEcho.push({f:f,N:N,mem:p.mem_echo});   // ⭐ 对拍用：服务端每帧到底喂了什么
@@ -174,11 +203,14 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       // ⭐ 开火接线：服务端 fire（out[1]）⟹ 本帧 wantFire ⟹ build() 拼 picks[1] 射击帧
       //    `VT_FIRE_FORCE=0` = A/B 基线（完全不发射击帧）；不设 = 用服务端的 fire
       const FORCE=(process.env.VT_FIRE_FORCE===''||process.env.VT_FIRE_FORCE===undefined)?null:(+process.env.VT_FIRE_FORCE);
+      await m.eval('window.__b.fireWantedLast='+((p.fire===1)?'1':'0'));
       if(p.fire_sel && Array.isArray(p.fire_sel.fire_frames)){ await m.eval('window.__b.fireFramesFromServer='+JSON.stringify(p.fire_sel.fire_frames)); fireSelN++; if(typeof p.fire_sel.fire_ent==='number') fireEnts.push(p.fire_sel.fire_ent); }
       else { await m.eval('window.__b.fireFramesFromServer=null'); }
-      if(p.fire_sel && Array.isArray(p.fire_sel.fire_frames)){ await m.eval('window.__b.fireFramesFromServer='+JSON.stringify(p.fire_sel.fire_frames)); fireSelN++; if(typeof p.fire_sel.fire_ent==='number') fireEnts.push(p.fire_sel.fire_ent); }
-      else { await m.eval('window.__b.fireFramesFromServer=null'); }
-      const fire=(FORCE===null)?((p.fire===1)?1:0):FORCE;
+      let fire=(FORCE===null)?((p.fire===1)?1:0):FORCE;
+      // ⭐⭐ 探针/探索：VT_FORCE_FIRE=1 无条件强制；VT_FIRE_EPS=ε 每帧以ε概率强制（给火头探索信号）
+      const _eps=parseFloat(process.env.VT_FIRE_EPS||'0');
+      if(process.env.VT_FORCE_FIRE==='1'){ fire=1; fireForced++; } else if(_eps>0 && Math.random()<_eps && fire===0){ fire=1; fireEpsN++; }
+      firePN += (p.fire===1?1:0); fireTot++;
       await m.eval('window.__b.setFire('+fire+')');
       if(fire===1) firedFrames++;
       const proj=(await m.snapshot()).projectiles||[];
@@ -194,8 +226,12 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       const curPick=o.cur||null;
       const picksRec=[{nodeId:nid,back:0}];
       if(fire===1&&curPick){ picksRec.push({nodeId:curPick.id,back:(FIRE_BACK==='now')?Math.max(0,curPick.L-1-curPick.rel):0}); }   // ⭐ picks[1]=射击帧（意图记录；真提交/被接受另用 stats 差分核对）
+      { const _nb=picksRec.length-1; if(_nb>0){ fbSum+=_nb; fbN++; if(_nb===1) fb1++; else if(_nb<=4) fb24++; else fb5++; } }   // ⭐ 每次提交拼了几个 back
       frames.push({t:f,N:N,
         obs:{node:o.n,opp:oppR,bullet:pad(bRows,BUL_SLOTS,7),item:itemR,global:[o.g]},
+        execByPolicy:(o.execByPolicy===true), execStill:(o.execStill===true),   // ⭐ 「静止」判据：本帧执行的 inputs 全 false
+   // ⭐ Phase1 数据保险：本帧执行源是否策略
+        plan:(Array.isArray(o.plan)?o.plan:null),   // ⭐ 事实直传：plan 段承载「A 长了哪个/结果」
         act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:fire,picks:picksRec,
              grow:(growUid===null?null:{nodeId:growUid,lp_grow:lpGrow}),
              lp_fire:(typeof p.lp_fire==='number'?p.lp_fire:null), fire_ent:(typeof p.fire_ent==='number'?p.fire_ent:null),
@@ -220,12 +256,12 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       // ⭐⭐ (A)1 截断局：末帧 done 写【真值】(false)，并补 v_next = 【下一帧】服务端返回的 v
       try{
         const o2=JSON.parse(await m.eval('window.__b.step('+nodeId+',0)'));
-        if(o2 && !o2.err && (o2.n||[]).length>=1){
+        if(o2 && !o2.err && (o2.n||[]).length>=2){   // ⭐ D11：N<2 无合法动作 ⇒ 不能问（否则服务端报错 ⇒ v_next 缺失）
           const N2=o2.n.length, b2=(o2.b&&o2.b.length)?o2.b:[[0,0,0,0,0,0,0]];
           const p2=await ask(srv,{N:N2,seed:(ep*100000+999983)%2147483647,segs:{node:o2.n,opp:oppRows(o2),bullet:b2,item:itemRows(o2),global:[o2.g]}});
           if(typeof p2.v==='number'&&isFinite(p2.v)){ frames[frames.length-1].v_next=p2.v; vNextOk++; }
           else { vNextFail++; console.log('V_NEXT_FAIL ep='+ep+' v='+p2.v+' err='+(p2.err||'')); }
-        } else { vNextFail++; }
+        } else { vNextFail++; if(vNextFail<=3) console.log('V_NEXT_SKIP ep='+ep+' N='+((o2&&o2.n)?o2.n.length:'?')); }
       }catch(eVN){ vNextFail++; }
     }
     { if(frames.length){ const lf=frames[frames.length-1]; lf.r.win=(won===1?1:0); lf.r.lose=(won===0?1:0); } legalPenBase=legalPen; }   // ⭐ legal 已逐帧写，此处只写 win/lose
@@ -242,12 +278,17 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   const _ifc=JSON.parse(await m.eval('JSON.stringify(window.__vantageIface||{})'));   // ⭐ A 相被接受数 = _ifaceStats.growAt
    // ⭐ 脉冲开火计数（父代理要求单独上报）
   const summary={rounds:episodes.length, fireSubmitsTotal:_fin.fireSubmits||0,
-    aCalls:_fin.aCalls||0, aReqOk, aReqBad, aSkipNoCand, growEntSee, fireEntSee, fireLpCnt, fireSelN, fireEntMean:(fireEnts.length?fireEnts.reduce(function(x,y){return x+y;},0)/fireEnts.length:null), skipNoAction, aGrowServer:_fin.aGrowServer||0, aServerReject:_fin.aServerReject||0, growOkCountEnd:_fin.growOkCount||0, aGrow:_fin.aGrow||0, aNotGrowable:_fin.aNotGrowable||0, aTreeFull:_fin.aTreeFull||0, growRejectMissing:_fin.growRejectMissing||0, growRejectNotGrowable:_fin.growRejectNotGrowable||0, growStillValid:_fin.growStillValid||0, growChkErr:_fin.growChkErr||null, aNotLeaf:_fin.aNotLeaf||0, aNoSlots:_fin.aNoSlots||0, aErr:_fin.aErr||null,
+    aCalls:_fin.aCalls||0, aReqOk, aReqBad, aSkipNoCand, growEntSee, fireEntSee, fireLpCnt, fireSelN, fireBacksMean_bridge:(_fin.fbN?_fin.fbSum/_fin.fbN:null), fireBacksBuckets_bridge:{one:_fin.fb1||0, two2four:_fin.fb24||0, fivePlus:_fin.fb5||0}, fireBacksFrames_bridge:_fin.fbN||0, fireBacksMean_collectorSide:(fbN?fbSum/fbN:null), fireEmptyFallback:(_fin.fireEmptyFallback||0), fireFilterTooSmall:(_fin.fireFilterTooSmall||0), fireEntMean:(fireEnts.length?fireEnts.reduce(function(x,y){return x+y;},0)/fireEnts.length:null), skipNoAction, aGrowServer:_fin.aGrowServer||0, aServerReject:_fin.aServerReject||0, growOkCountEnd:_fin.growOkCount||0, aGrow:_fin.aGrow||0, aNotGrowable:_fin.aNotGrowable||0, aTreeFull:_fin.aTreeFull||0, growRejectMissing:_fin.growRejectMissing||0, growRejectNotGrowable:_fin.growRejectNotGrowable||0, growStillValid:_fin.growStillValid||0, growChkErr:_fin.growChkErr||null, aNotLeaf:_fin.aNotLeaf||0, aNoSlots:_fin.aNoSlots||0, aErr:_fin.aErr||null,
     agAccepted:(_ifc.growAt||0), giveUpA:(_ifc.giveUpA||0), callsA:(_ifc.callsA||0), callsB:(_ifc.callsB||0), nodeCountEnd:_fin.nodeCount,
-    bPicks:(_ifc.picks||0), pulseBlocked:_fin.pulseBlocked||0, pulseBlockedByPrev:_fin.pulseBlockedByPrev||0, pulseBlockedBySelfFire:_fin.pulseBlockedBySelfFire||0,totalFrames,totalProj,vFire,truncated,lpOk,lpTot,oob,skippedNoTree,badLp,oppRowsMax:oppSeen.max,oppOver:oppSeen.over,
+    bPicks:(_ifc.picks||0), pulseBlocked:_fin.pulseBlocked||0, pulseBlock:_fin.pulseBlock||0, pulseHeldFrames:_fin.pulseHeldFrames||0, pulseBlockedByPrev:_fin.pulseBlockedByPrev||0, pulseBlockedBySelfFire:_fin.pulseBlockedBySelfFire||0,totalFrames,totalProj,vFire,truncated,lpOk,lpTot,oob,skippedNoTree,badLp,oppRowsMax:oppSeen.max,oppOver:oppSeen.over,
     fireMode:FIRE_BACK, fire1Frames:firedFrames, vBulletFrames:vFire, fire1AndBulletFrames:fireAndBullet, noFireButBulletFrames:noFireButBullet,
     vBulletSpawnFrames:spawnFrames, fire1ThenSpawnFrames:fire1ThenSpawn, subFireFrames:subFireFrames, lastPickSameCursor:lastPickSameCursor, lastPickCursorChanged:lastPickCursorChanged, targetChangedFrames:targetChangedFrames, targetSameFrames:targetSameFrames, opBFrames:opBFrames, opBFireFrames:opBFireFrames, opOtherFrames:opOtherFrames, desiredFireFrames:desiredFireFrames, desiredErr:desiredErrSeen, slotsNullFrames:slotsNullFrames, vNextOk:vNextOk, vNextFail:vNextFail, buildOK:buildOKEnd, buildMisses:buildMissEnd, fireNoCursor:fireNoCursorEnd, fireErr:fireErrSeen,
-    itemOver, bulletOver, aimFramesTotal:aimFrames, growFramesWithAction:growUidCnt, distinctNodeIdsTotal:nodeIdSet.size, emptyIntentFrames, legalPen, legalExcluded, legalUnknown, legalByCls, emptyBlocked:(_fin.emptyBlocked||0), deathSubErr:(_fin.deathSubErr||null), picks1Submitted, pickExtrasAccepted:pickExtras, giveUpB, skipReasons:skipReasons, aReasons:aReasons, roundFire:roundFire, win:wins};
+    planFrames:planCnt,
+    // ⭐ 口径澄清：两个完全不同的数
+    fireSubmitsTotal:_fin.fireSubmits||0,          // 「想开火」帧数（提交次数）
+    bulletsSpawned:(function(){var _t=0;for(var _i=0;_i<roundFire.length;_i++)_t+=(roundFire[_i].wepShotsByInc||0);return _t;})(),   // ⭐ 真子弹（_bulletsFired 增量）
+    fireFallbackUsed:_fin.fireFallbackUsed||0, fireMasked:_fin.fireMasked||0, stillFrames:stillN, stillPct:(stillTot?stillN/stillTot:null), routeNonNullPct:(routeTot?routeNN/routeTot:null), fireFramesNonZeroPct:(routeTot?fireNZ/routeTot:null), routeSamples:routeTot, fireHackApplied:_fin.fireHackApplied||0, bTargetSrc:_fin.bTargetSrc||null, bNoTargetAll:_fin.bNoTargetAll||0, fireHackErr:_fin.fireHackErr||null, aSkipEnoughLeaves:_fin.aSkipEnoughLeaves||0, aSkipNotThisFrame:_fin.aSkipNotThisFrame||0, aNoTree:_fin.aNoTree||0, aNoSlots:_fin.aNoSlots||0, aBadTarget:_fin.aBadTarget||0, aCallsTotal:_fin.aCalls||0, aGrowTurns:_fin.aGrowTurns||0,
+    agentFrameFromCache:_fin.agentFrameFromCache||0, agentFrameFromDz:_fin.agentFrameFromDz||0, agentFrameMissing:_fin.agentFrameMissing||0, bResendAfterA:_fin.bResendAfterA||0, bResendOk:_fin.bResendOk||0, execByPolicyFrames:execPolN, fireForced:fireForced, fireEpsN:fireEpsN, fire_p:(fireTot?firePN/fireTot:null), fireTot:fireTot, curLStats:_fin.curLStats||null, nodePeak:_fin.nodeCount||null, itemOver, bulletOver, aimFramesTotal:aimFrames, growFramesWithAction:growUidCnt, distinctNodeIdsTotal:nodeIdSet.size, emptyIntentFrames, legalPen, legalExcluded, legalUnknown, legalByCls, emptyBlocked:(_fin.emptyBlocked||0), deathSubErr:(_fin.deathSubErr||null), picks1Submitted, pickExtrasAccepted:pickExtras, giveUpB, skipReasons:skipReasons, aReasons:aReasons, roundFire:roundFire, win:wins};
   fs.closeSync(epFd);   // ⭐ episodes.jsonl 已逐局写入
   fs.writeFileSync(OUT+'summary.json',JSON.stringify(summary,null,2));
   console.log('SUMMARY '+JSON.stringify(summary));

@@ -80,7 +80,47 @@
     if (!p.length) return null;
     var dz = null;
     try { dz = VantageTree.getDesiredOperation(); } catch (e) { window.__b.fireErr = 'getDesiredOperation 抛错: ' + String((e && e.message) || e); return null; }
-    if (!dz || typeof dz.agentFrame !== 'number') { window.__b.fireErr = 'picks[1]: 拿不到游戏游标 agentFrame（' + (dz ? typeof dz.agentFrame : 'null') + '）—— ⛔ 不猜'; return null; }
+    // ⭐⭐ 缓存优先：用上一帧 step() 里取到的「已执行」agentFrame（本帧 decide 时执行还未发生）
+    var _cd = window.__b.cachedDz;
+    if (_cd && _cd.ok) { window.__b.agentFrameFromCache = (window.__b.agentFrameFromCache || 0) + 1;
+      var _fr = _cd.agentFrame, _tot = 0, _curc = null, _Lc = 0, _ic;
+      for (_ic = 0; _ic < p.length; _ic++) { _Lc = Math.max(1, window.__b.execLenOf(p[_ic])); if (_fr < _tot + _Lc) { _curc = p[_ic]; break; } _tot += _Lc; }
+      if (!_curc) { _curc = p[p.length - 1]; _Lc = Math.max(1, window.__b.execLenOf(_curc)); _tot = Math.max(0, _tot - _Lc); _fr = _tot + _Lc - 1; }
+      var _relc = Math.max(0, Math.min(_Lc - 1, _fr - _tot));
+      window.__b.lastFireDbg = { agentFrame: _cd.agentFrame, src: 'cache', nodeId: _curc.id, L: _Lc, rel: _relc };
+      return { id: _curc.id, L: _Lc, start: _tot, rel: _relc, onPath: 'cache' }; }
+    if (dz && typeof dz.agentFrame === 'number') window.__b.agentFrameFromDz = (window.__b.agentFrameFromDz || 0) + 1;
+    if (!dz || typeof dz.agentFrame !== 'number') {
+      window.__b.agentFrameMissing = (window.__b.agentFrameMissing || 0) + 1;
+      // ⭐⭐⭐ 根因修复（父代理 2026-10-18）：拿不到 agentFrame 时，**必须用 commitNode+commitFrame 算游标**。
+      //   为什么原来的"回退该节点末帧(back=0)"是错的（实测 hits 恒 0 的根因）：
+      //     · `agentExecEnsure` 新目标时把游标置为 **commitNode 段起点 + 段内已过帧**（vantage_tree.js:8691-8705）
+      //       ⟹ 游标停在 **commitNode 那一段**，不是目标节点那一段；
+      //     · 原回退把射击帧挂在 **path 末节点（=目标）** 且 rel=L-1（段末帧）
+      //       ⟹ `agentPickExecFrame` 算出的 execFrame 落在**目标段**、且是段末
+      //       ⟹ 与游标（commitNode 段、段内早期）**永远对不上** ⟹ 一枪打不着。
+      //   正解：挂到 **commitNode** 上、rel=commitFrame ⟹ execFrame = start(cmt)+commitFrame = **游标当帧**。
+      //   （随后走"全帧枚举"分支，把该节点 [0,L) 全给出，因此即使游标再走几帧也命中。）
+      window.__b.fireFallbackUsed = (window.__b.fireFallbackUsed || 0) + 1;
+      var _ft = null; try { _ft = VantageTree.getTree(); } catch (eFT) { _ft = null; }
+      var _cmt = _ft && _ft.commitNode;
+      var _cf = (_ft && typeof _ft.commitFrame === 'number') ? _ft.commitFrame : -1;
+      if (_cmt && _cf >= 0) {
+        var _Lc = Math.max(1, window.__b.execLenOf(_cmt));
+        var _relc2 = Math.max(0, Math.min(_Lc - 1, _cf));
+        var _st = 0, _ci = -1, _qi;
+        for (_qi = 0; _qi < p.length; _qi++) { if (p[_qi].id === _cmt.id) { _ci = _qi; break; } _st += Math.max(1, window.__b.execLenOf(p[_qi])); }
+        if (_ci < 0) { _st = 0; }   // commitNode 不在该路线（B 给了另一支）⟹ 段起点按 0 计（仍指向 cmt 自己的段）
+        window.__b.fireErr = 'ok: cursor from commitNode+commitFrame';
+        window.__b.lastFireDbg = { agentFrame: null, src: 'commitFrame', nodeId: _cmt.id, L: _Lc, rel: _relc2, commitFrame: _cf, commitInPath: _ci >= 0 };
+        return { id: _cmt.id, L: _Lc, start: _st, rel: _relc2, onPath: 'commit' };
+      }
+      // 真拿不到树/commitNode 时才退到旧行为（并单独计数，便于区分）
+      window.__b.fireErr = 'picks[1]: 拿不到 agentFrame 且无 commitNode ⇒ 回退末节点';
+      var _last = p[p.length - 1]; var _L = Math.max(1, window.__b.execLenOf(_last));
+      window.__b.lastFireDbg = { agentFrame: null, nodeId: _last.id, L: _L, rel: _L - 1, fallback: true };
+      return { id: _last.id, L: _L, start: 0, rel: _L - 1, onPath: 'fallbackLast' };
+    }
     var frame = dz.agentFrame, total = 0, cur = null, L = 0, i;
     for (i = 0; i < p.length; i++) {
       L = Math.max(1, window.__b.execLenOf(p[i]));
@@ -93,11 +133,46 @@
     return { id: cur.id, L: L, start: total, rel: rel, onPath: 'byFrame' };
   };
   window.__b.readonly = function () { return { lastPick: window.__b.lastPick || null, lastFire: window.__b.lastFire || null, lastRouteLen: (window.__b.lastRouteLen === undefined ? null : window.__b.lastRouteLen) }; };
+  // ⭐⭐⭐ 瞄准闸门（父代理 2026-10-18 实验，`VT_AIM_GATE=<度>`）：
+  //   动机 = 实测"开了 5 枪、弹药 5→2、但 bulletsSpawned 全打空、hits 恒 0" ⟹ 瓶颈不是能不能开枪，而是【朝哪开】。
+  //   判据 = 最近【存活】对手相对车头方向的角度 ≤ gate 度才允许开火；超了就不发 picks[1]（并计数 aimBlocked）。
+  //   ⚠️ 默认 0 = 关闭（行为不变）。selfRot 约定若反了，闸门会全拦 ⟹ 表现为 bulletsSpawned=0，届时翻符号重试。
+  window.__b.aimGateDeg = 0;
+  window.__b.setAimGate = function (d) { window.__b.aimGateDeg = (+d || 0); return window.__b.aimGateDeg; };
+  window.__b.aimOk = function () {
+    var g = window.__b.aimGateDeg | 0;
+    if (!g) return true;
+    try {
+      var G = window.__b.lastG, O = window.__b.lastOpp || [];
+      if (!G) return true;
+      var sx = +G[6], sy = +G[7], sr = +G[8];
+      if (!isFinite(sx) || !isFinite(sy) || (sx === 0 && sy === 0)) return true;   // 自车状态缺失 ⟹ 不拦
+      var best = null, bestA = null;
+      for (var i = 0; i < O.length; i++) {
+        var r = O[i]; if (!r) continue;
+        if (+r[7] !== 1) continue;                       // oAlive
+        var dx = (+r[0]) - sx, dy = (+r[1]) - sy;
+        var d2 = dx * dx + dy * dy;
+        if (best === null || d2 < best) { best = d2; bestA = Math.atan2(dy, dx); }
+      }
+      if (best === null) return true;                    // 没有对手 ⟹ 不拦
+      var da = bestA - sr;
+      while (da > Math.PI) da -= 2 * Math.PI;
+      while (da < -Math.PI) da += 2 * Math.PI;
+      var deg = Math.abs(da) * 180 / Math.PI;
+      window.__b.aimLastDeg = deg;
+      if (deg <= g) { window.__b.aimPassN = (window.__b.aimPassN || 0) + 1; return true; }
+      window.__b.aimBlocked = (window.__b.aimBlocked || 0) + 1;
+      return false;
+    } catch (eAG) { window.__b.aimErr = String((eAG && eAG.message) || eAG); return true; }
+  };
+  window.__b.setHoldTarget = function (n) { window.__b.holdTargetN = (+n || 0); return window.__b.holdTargetN; };
   window.__b.setFireBack = function (m) { window.__b.fireBack = (m === 'now') ? 'now' : 'zero'; window.__b.fireBackSet++; return window.__b.fireBack; };  window.__b.setFire = function (f) { window.__b.wantFire = !!f; return window.__b.wantFire ? 1 : 0; };
   window.__b.stats = function () {
     var IS = window.__vantageIface || {};
     return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aGrowServer: window.__b.aGrowServer||0, aServerReject: window.__b.aServerReject||0, growOkCount: window.__b.growOkCount||0, fireEmptyFallback: window.__b.fireEmptyFallback||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
-             fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlock: (window.__b.pulseBlock || 0), fbSum: window.__b.fbSum||0, fbN: window.__b.fbN||0, fb1: window.__b.fb1||0, fb24: window.__b.fb24||0, fb5: window.__b.fb5||0, pulseHeldFrames: (window.__b.pulseHeldFrames || 0), pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
+             fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireFallbackUsed: window.__b.fireFallbackUsed || 0, fireHackApplied: window.__b.fireHackApplied || 0, bTargetSrc: window.__b.bTargetSrc || null, bNoTargetAll: window.__b.bNoTargetAll || 0, fireHackErr: window.__b.fireHackErr || null, pathFallback: window.__b.pathFallback || 0, fireMasked: window.__b.fireMasked || 0, aimGateDeg: (window.__b.aimGateDeg||0), aimBlocked: (window.__b.aimBlocked||0), aimPassN: (window.__b.aimPassN||0), aimLastDeg: (window.__b.aimLastDeg===undefined?null:window.__b.aimLastDeg), aimErr: (window.__b.aimErr||null), holdTargetN: (window.__b.holdTargetN||0), holdReused: (window.__b.holdReused||0), holdAccepted: (window.__b.holdAccepted||0), aSkipEnoughLeaves: window.__b.aSkipEnoughLeaves || 0, aSkipNotThisFrame: window.__b.aSkipNotThisFrame || 0, aNoTree: window.__b.aNoTree || 0, aNoSlots: window.__b.aNoSlots || 0, aBadTarget: window.__b.aBadTarget || 0, aGrowTurns: window.__b.aGrowTurns || 0, agentFrameFromCache: window.__b.agentFrameFromCache || 0, agentFrameFromDz: window.__b.agentFrameFromDz || 0, agentFrameMissing: window.__b.agentFrameMissing || 0, bResendAfterA: window.__b.bResendAfterA || 0, bResendOk: window.__b.bResendOk || 0,
+             curLStats: (function(){ var a = window.__b.curLs || []; if (!a.length) return null; var b = a.slice().sort(function(x,y){return x-y;}); return {min:b[0], med:b[Math.floor(b.length/2)], max:b[b.length-1], n:b.length}; })(), fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlock: (window.__b.pulseBlock || 0), fbSum: window.__b.fbSum||0, fbN: window.__b.fbN||0, fb1: window.__b.fb1||0, fb24: window.__b.fb24||0, fb5: window.__b.fb5||0, pulseHeldFrames: (window.__b.pulseHeldFrames || 0), pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
              buildOK: window.__b.buildOK, buildMisses: window.__b.buildMisses,
              lastFirePick: window.__b.lastFirePick, fireBack: window.__b.fireBack, fireErr: window.__b.fireErr,
              lastTargetId: (typeof window.__b.lastTargetId === 'number' ? window.__b.lastTargetId : null),
@@ -130,6 +205,9 @@
       // ⭐⭐ D11：树满时「不能生长」⇒ **不该叫 A**（吴则只会制造 giveUpA）
       var _cap = (tree.cfg && typeof tree.cfg.maxNodes === 'number') ? tree.cfg.maxNodes : 1000;
       if (typeof tree.nodeCount === 'number' && tree.nodeCount >= _cap) { window.__b.aTreeFull = (window.__b.aTreeFull || 0) + 1; return { picks: [], memory: {} }; }
+      // ⭐⭐⭐ A 每帧成功 ⇒ vantage_tree.js:4583 每帧清空 _agentRoute ⇒ agentFrame 永远 undefined ⇒ 射击废掉
+      //    ⇒ 【只有可生长叶子不够时才调 A】picks:[] 走"本帧不生长"，不清 _agentRoute
+      // ⭐ 已删除旧的「叶子数阈值型」闸门（它排在时间闸门之前，每帧都跳过 ⇒ aGrowTurns 恒 0）
       var slots = window.__b.pendingSlots;
       if (!slots || !slots.length) { window.__b.aNoSlots = (window.__b.aNoSlots || 0) + 1; return { picks: [], memory: {} }; }
       // ⭐ 优先用【服务端 head_grow 采样的行号】
@@ -140,6 +218,9 @@
         (function rec2(nd, dep) { if (!nd || _node2 || dep > 60) return; if (nd.id === _uid) { _node2 = nd; return; } var ks2 = nd.children || []; for (var q2 = 0; q2 < ks2.length; q2++) { rec2(ks2[q2], dep + 1); if (_node2) return; } })(_tr2 && _tr2.root, 0);
         if (_node2 && typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants && VantageTreeInterface.Invariants.canGrowAt(_node2) && (!_node2.children || !_node2.children.length)) {
           window.__b.aGrowServer = (window.__b.aGrowServer || 0) + 1;
+          window.__b.forceBResend = true;
+          window.__b.growFact = { nodeId: _uid, result: 'pending', reason: 'serverPick' };
+          window.__b.pendingGrowCheck = { uid: _uid, depth: null };   // ⭐ 服务端路径也必须设（否则复查不跑 ⇒ 永远 pending）
           return { picks: [{ nodeId: _uid, back: 0 }], memory: {} };
         }
         window.__b.aServerReject = (window.__b.aServerReject || 0) + 1;
@@ -155,8 +236,10 @@
           return { picks: [], memory: {} };
         }
       } catch (eCG) { window.__b.aCanGrowErr = String((eCG && eCG.message) || eCG); }
-      window.__b.pendingGrowCheck = { uid: n.id, depth: (w.path ? w.path.length : null) };   // ⭐ 下一帧复查这个 uid 还在不在/能不能长
+      window.__b.pendingGrowCheck = { uid: n.id, depth: (w.path ? w.path.length : null) };
+      if (!window.__b.growFact) window.__b.growFact = { nodeId: n.id, result: 'pending', reason: 'submitted' };   // ⭐ 首帧就有事实可传   // ⭐ 下一帧复查这个 uid 还在不在/能不能长
       window.__b.aGrow = (window.__b.aGrow || 0) + 1;
+      window.__b.forceBResend = true;
       window.__b.lastGrow = { nodeId: n.id, depth: (w.path ? w.path.length : null) };
       return { picks: [{ nodeId: n.id, back: 0 }], memory: {} };   // ⭐ 必须带 back：校验里 `targetBack !== null` 会把 undefined 当"越界"整包拒
     } catch (e) { window.__b.aErr = String((e && e.message) || e); return null; }
@@ -177,6 +260,8 @@
         if (q2 === tree.root) { ch.reverse(); pathNodes = ch; }
         else { window.__b.why = window.__b.why || {}; window.__b.why.staleTarget = (window.__b.why.staleTarget || 0) + 1; }
       }
+      // ⭐⭐⭐ 游标兜底：pathNodes 为空时用【目标节点自身】（射击帧只需 {nodeId, back}，不需要整条路径）
+      if (n && (!pathNodes || !pathNodes.length)) { pathNodes = [n]; window.__b.pathFallback = (window.__b.pathFallback || 0) + 1; }
       // ⭐⭐ 兜底：走不通也必须给一个【合法】包（no-output 是最大掉包源）
       if (!n || n === tree.root) {
         var kk = tree.root.children || [];
@@ -197,20 +282,36 @@
       var _ammo = (typeof window.__b.gAmmo === 'number') ? window.__b.gAmmo : null;
       var _queue = (typeof window.__b.gQueue === 'number') ? window.__b.gQueue : null;
       var _blkEmpty = (_ammo !== null && _ammo <= 0 && !(_queue > 0));
-      if (window.__b.wantFire && _att === 0 && !(_blkPrev || _blkSF || _blkEmpty)) {
+      if (window.__b.fireMode === 'mask' && window.__b.wantFire) { window.__b.fireMasked = (window.__b.fireMasked || 0) + 1; }   // ⭐ VT_FIRE_MODE=mask：射击维临时屏蔽
+      // ⭐⭐ VT_FIRE_HACK（仅实验）：_agentRoute 为空时游戏走 commitNode.inputs ⇒ 直接置 fire
+      if (window.__b.fireHack && window.__b.wantFire) { try { var _th = VantageTree.getTree(); if (_th && _th.commitNode && _th.commitNode.inputs) { _th.commitNode.inputs.fire = true; window.__b.fireHackApplied = (window.__b.fireHackApplied || 0) + 1; } } catch (eFH) { window.__b.fireHackErr = String((eFH && eFH.message) || eFH); } }
+      if (window.__b.fireMode !== 'mask' && window.__b.wantFire && _att === 0 && !(_blkPrev || _blkSF || _blkEmpty) && window.__b.aimOk()) {
         // ⭐ 射击帧 = picks[1..]（出处 `交接-现状说明-2026-10-09.md:52`：(节点ID, 相对时间) 表示射击帧）
         //    nodeId = 【当前路线游标所在节点】（必须在路线上；`vantage_tree.js:4283 agentExecEnsure` 的游标起点）
         //    back   = L−1−rel ⟹ `agentPickExecFrame`（:4336）`e = start+(L−back)−1 = start+rel` = **当帧**
         //    （父代理 2026-10-17 裁定 (a)：用 L−1−rel；`VT_FIRE_BACK=zero` 保留 back=0 作对照）
         var cbf = (window.__b.fireBack === 'now') ? window.__b.cursorByFrame(tree, pathNodes) : null;   // ⭐ 精确：游戏游标帧
-        var cur = cbf || window.__b.cursor(tree, pathNodes);                                           // 兜底：commitNode 口径
+        var cur = cbf || window.__b.cursor(tree, pathNodes);
+        try { if (cur && typeof cur.L === 'number') { window.__b.curLs = window.__b.curLs || []; if (window.__b.curLs.length < 4000) window.__b.curLs.push(cur.L); } } catch (eCL) { }                                           // 兜底：commitNode 口径
         if (cur) {
+          // ⭐⭐⭐ 假设验证（VT_FIRE_FIRST=1）：只发「段首帧」back=L-1（当前游标 `_agentExecFrame` 每帧从 0 起 ⇒ 真正执行的就是首帧）
+          if (false && window.__b.fireFirst) {   // ⭐ 假设已被实测否定（7.2%），停用
+            var _Lf = cur.L | 0;
+            picks.push({ nodeId: cur.id, back: _Lf - 1 });
+            window.__b.fireSubmits++;
+            window.__b.fbSum = (window.__b.fbSum || 0) + 1; window.__b.fbN = (window.__b.fbN || 0) + 1; window.__b.fb1 = (window.__b.fb1 || 0) + 1;
+            window.__b.fireSubmittedThisFrame = true;
+            window.__b.lastFirePick = { nodeId: cur.id, backs: [_Lf - 1], L: _Lf, mode: 'firstFrame' };
+            window.__b.lastBuilt = picks; window.__b.lastTargetId = n.id; window.__b.lastPickNodeId = n.id; window.__b.lastHadFire = (picks.length > 1); window.__b.lastHadFireN = picks.length;
+            return { picks: picks, memory: {} };
+          }
           // ⭐⭐ 权威版 :1020-1050：「帧级插入，只要合法就没有上限……连续两帧 = 按住」
           //    ⇒ 直接问【节点自己】的段长 L，把段内全部合法帧都作为射击帧（不问游标）
           var _Ln = null;
           try { if (cur && typeof cur.L === 'number' && cur.L > 0) _Ln = cur.L | 0; } catch (eL1) { }
           if (!_Ln) { try { var _nL = (window.__b.nodeRows && window.__b.nodeRows[window.__b.lastPickRow]) ? null : null; } catch (eL2) { } }
-          if (_Ln && _Ln > 1) {
+          if (_Ln && _Ln > 0) {   // ⭐⭐ 全帧枚举对【所有路径】生效（包括回退路径）：不管下一帧执行第几帧都能命中
+            // ⚠️ 隔帧枚举已【撤回】（2026-10-18 实测：opBFire 243→5、bulletsSpawned 7→5，反而更差）⟹ 恢复全帧枚举。
             var _all = []; for (var _b = 0; _b < _Ln; _b++) _all.push({ back: _b, frame: _Ln - 1 - _b });
             window.__b.fireAllFrames = _Ln;
             for (var _bi2 = 0; _bi2 < _all.length; _bi2++) picks.push({ nodeId: cur.id, back: _all[_bi2].back });
@@ -219,7 +320,7 @@
             if (_all.length === 1) window.__b.fb1 = (window.__b.fb1 || 0) + 1; else if (_all.length <= 4) window.__b.fb24 = (window.__b.fb24 || 0) + 1; else window.__b.fb5 = (window.__b.fb5 || 0) + 1;
             window.__b.fireSubmittedThisFrame = true;
             window.__b.lastFirePick = { nodeId: cur.id, backs: _all.map(function (x) { return x.back; }), L: _Ln, mode: 'allFrames' };
-            window.__b.lastBuilt = picks; window.__b.lastTargetId = n.id;
+            window.__b.lastBuilt = picks; window.__b.lastTargetId = n.id; window.__b.lastPickNodeId = n.id;
             return { picks: picks, memory: {} };
           }
           var frs = [];
@@ -280,7 +381,23 @@
             window.__b.rejReasons[_k] = (window.__b.rejReasons[_k] || 0) + 1;
           }
         } catch (eRR) {}
-        try { window.__b.lastPhaseSeen = (ctx && ctx.phase) || (info && info.phase) || null; } catch (ePh) {} var ph = null; try { ph = (ctx && ctx.phase) || (info && info.phase) || null; window.__b.lastPhase = ph; } catch (e) {} if (ph === 'A') { window.__b.aCalls = (window.__b.aCalls || 0) + 1; return window.__b.buildA(); } return window.__b.build(); } };   // ⭐ 父代理裁定 (b)：A 相 return null ⟹ 不清空 _agentRoute/_agentFirePicks（依据 vantage_tree.js:4580-4585）
+        try { window.__b.lastPhaseSeen = (ctx && ctx.phase) || (info && info.phase) || null; } catch (ePh) {} var ph = null; try { ph = (ctx && ctx.phase) || (info && info.phase) || null; window.__b.lastPhase = ph; } catch (e) {} if (ph === 'A') { window.__b.aCalls = (window.__b.aCalls || 0) + 1; if (window.__b.forceBResend) { window.__b.forceBResend = false; window.__b.bResendAfterA = (window.__b.bResendAfterA || 0) + 1; } return window.__b.buildA(); }
+        var _bdec = window.__b.build();
+        // ⭐⭐ B 相合法保底：永远给一个目标（picks[0].nodeId + select），⏔t 回空 picks
+        try {
+          var _nb = (_bdec && _bdec.picks && _bdec.picks.length) ? (_bdec.picks[0].nodeId | 0) : null;
+          var _src = _nb !== null ? 'normal' : null;
+          var _tr3 = VantageTree.getTree();
+          if (_nb === null && typeof window.__b.lastGoodTarget === 'number') { _nb = window.__b.lastGoodTarget; _src = 'lastGood'; }
+          if (_nb === null && _tr3 && _tr3.commitNode) { _nb = _tr3.commitNode.id; _src = 'commitNode'; }
+          if (_nb === null && _tr3 && _tr3.root) { var _q3 = [_tr3.root]; while (_q3.length) { var _c3 = _q3.shift(); if (_c3 && _c3 !== _tr3.root) { _nb = _c3.id; _src = 'anyLeaf'; break; } var _k3 = _c3.children || []; for (var _z3 = 0; _z3 < _k3.length; _z3++) _q3.push(_k3[_z3]); } }
+          if (_nb === null) { window.__b.bNoTargetAll = (window.__b.bNoTargetAll || 0) + 1; window.__b.bTargetSrc = window.__b.bTargetSrc || {}; window.__b.bTargetSrc.none = (window.__b.bTargetSrc.none || 0) + 1; return _bdec || { picks: [], memory: {} }; }
+          window.__b.bTargetSrc = window.__b.bTargetSrc || {}; window.__b.bTargetSrc[_src] = (window.__b.bTargetSrc[_src] || 0) + 1;
+          if (_src !== 'normal') { window.__b.lastGoodTarget = _nb; }
+          var _p2 = (_bdec && _bdec.picks && _bdec.picks.length) ? _bdec.picks : [{ nodeId: _nb, back: 0 }];
+          return { picks: _p2, select: _nb, memory: (_bdec && _bdec.memory) || {} };
+        } catch (eBT) { window.__b.bTargetErr = String((eBT && eBT.message) || eBT); return _bdec || { picks: [], memory: {} }; }
+      } };   // ⭐ 父代理裁定 (b)：A 相 return null ⟹ 不清空 _agentRoute/_agentFirePicks（依据 vantage_tree.js:4580-4585）
   };
   // ⭐⭐ 奖惩 v2（2026-10-17 主人 10 条规格）：订阅 `TANK_KILLED` 事件拿 **killer/victim** 真值
   //    （⏔t 再用“对手 alive 位 1→0”推断：那会把毒雾杀也算成我杀的）
@@ -343,6 +460,7 @@
     try { mix(e.node.nodeTok || []); } catch (err) { }
     var d = (typeof ad.getDeathsCount === 'function') ? ad.getDeathsCount() : 0;
     var gArr = (e.global && Array.isArray(e.global.globalTok)) ? e.global.globalTok : null;
+    window.__b.lastG = gArr; window.__b.lastOpp = (e.global && Array.isArray(e.global.oppTok)) ? e.global.oppTok : [];   // ⭐ 供瞄准闸门用
     var nSrc = (e.nodes && Array.isArray(e.nodes.tokens)) ? e.nodes.tokens : null;
     if (!gArr || !nSrc) return JSON.stringify({ h: h >>> 0, err: 'token 段字段名不符(拒绝静默传 null)', topKeys: Object.keys(e) });
     var bSrc = (e.bullets && Array.isArray(e.bullets.tokens)) ? e.bullets.tokens : [];
@@ -360,6 +478,24 @@
       slots.reverse();
     }
     if (!window.__b.deathSubscribed) { try { if (window.__b.subscribeDeaths() === 'ok') window.__b.deathSubscribed = true; } catch (eS2) { window.__b.deathSubErr = String((eS2 && eS2.message) || eS2); } }
+    // ⭐⭐⭐ 目标保持（父代理 2026-10-18 实验，`VT_HOLD_TARGET=N` 帧）：
+    //   动机 = 实测 `targetChangedFrames` 高达 85% ⟹ 目标每帧变 ⟹ `agentExecEnsure` 每帧把游标
+    //   重置回 commitNode 段起点 ⟹ ① 射击帧的 execFrame 依赖"到目标的路径起点"，目标一换即作废
+    //   （实测 subFireFrames 37/1472 = 2.5%）② 观感"一抽一抽"（nodeId 逐帧变化率 91.4%）。
+    //   而 `agentExecEnsure` 本来就有一条「同目标 ⟹ 游标 +1 逐帧推进」分支 ⟹ **设计期待 B 常重复同一目标**。
+    //   ⚠️ 这是【实验开关】，默认 0 = 关闭，行为与之前完全一致。
+    var _freshSlots = slots;          // ⭐ A 相仍用【未保持】的新鲜目标（否则 A 永远走同一条叶路径 ⟹ 长不动，实测 nodeDelta 722→3）
+    var _holdN = (window.__b.holdTargetN | 0);
+    if (_holdN > 0) {
+      window.__b.holdLeft = (window.__b.holdLeft | 0) - 1;
+      if (window.__b.heldSlots && window.__b.holdLeft > 0) {
+        slots = window.__b.heldSlots;                       // 沿用上一次目标
+        window.__b.holdReused = (window.__b.holdReused || 0) + 1;
+      } else {
+        window.__b.heldSlots = slots; window.__b.holdLeft = _holdN;
+        window.__b.holdAccepted = (window.__b.holdAccepted || 0) + 1;
+      }
+    }
     window.__b.lastPickRow = (typeof nodeId === 'number') ? nodeId : null;   // ⭐ 只读暴露：动作行号
     // ⭐⭐ 只读复查（父代理要求）：上一帧 A 报的 uid 在这一帧
     //    还在不在树里 / 还能不能长 ⇒ 把 growAt=0 拆成两类
@@ -368,12 +504,16 @@
       try {
         var _tr = VantageTree.getTree(); var _f = null;
         (function rec(nd, dep) { if (!nd || _f || dep > 60) return; if (nd.id === _gc0.uid) { _f = nd; return; } var ks = nd.children || []; for (var q = 0; q < ks.length; q++) { rec(ks[q], dep + 1); if (_f) return; } })(_tr && _tr.root, 0);
-        if (!_f) window.__b.growRejectMissing = (window.__b.growRejectMissing || 0) + 1;
+        if (!_f) { window.__b.growRejectMissing = (window.__b.growRejectMissing || 0) + 1;
+          window.__b.growFact = { nodeId: _gc0.uid, result: 'reject', reason: 'missing' }; }
+        // ⭐ 事实直传：成功/被拒 均记成事实（供 plan 段传给 B）
         else {
           var _ok = true;
           try { _ok = !(typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants) ? true : !!VantageTreeInterface.Invariants.canGrowAt(_f); } catch (eOk) { _ok = true; }
-          if (!_ok) window.__b.growRejectNotGrowable = (window.__b.growRejectNotGrowable || 0) + 1;
-          else window.__b.growStillValid = (window.__b.growStillValid || 0) + 1;
+          if (!_ok) { window.__b.growRejectNotGrowable = (window.__b.growRejectNotGrowable || 0) + 1;
+            window.__b.growFact = { nodeId: _gc0.uid, result: 'reject', reason: 'notGrowable' }; }
+          else { window.__b.growStillValid = (window.__b.growStillValid || 0) + 1;
+            window.__b.growFact = { nodeId: _gc0.uid, result: 'ok', reason: 'grew' }; }
         }
       } catch (eGC) { window.__b.growChkErr = String((eGC && eGC.message) || eGC); }
     }
@@ -387,7 +527,7 @@
       for (var _j = 1; _j < _nn; _j++) { if (_leaf[nSrc[_j][0] | 0]) { _ok[_j] = 1; _cnt++; } }
       window.__b.growOk = _ok; window.__b.growOkCount = _cnt; window.__b.nodeRows = nSrc;
     } catch (eGO) { window.__b.growOk = null; window.__b.growOkCount = 0; window.__b.growOkErr = String((eGO && eGO.message) || eGO); }
-    window.__b.pendingSlots = slots;
+    window.__b.pendingSlots = _freshSlots;   // ⭐ 给 A 用的是新鲜目标；B 用（可能被保持的）slots
     // ⭐⭐ 脉冲开火（2026-10-17 父代理诊断）：`BulletWeapon.fire()` 的 `_triggerPulled` 是锁存
     //    ⇒ 连续帧都提交 picks[1] = 一直按扳机 = 只出第一发 ⇒ 桥强制"发一帧、松一帧"
     try { window.__b.gSelfFire = (Array.isArray(gArr) && gArr.length > 32) ? (+gArr[32] || 0) : 0; } catch (eSF) { window.__b.gSelfFire = 0; }
@@ -458,7 +598,52 @@
       } catch (eDz) { desiredErr = String((eDz && eDz.message) || eDz); }
     } catch (eS) { }
     return JSON.stringify({ h: h >>> 0, alive: d === 0, dots: e.dims.total, g: gArr, n: nSrc,
-      cur: (function () { try { var t = VantageTree.getTree(); return window.__b.cursor(t, window.__b.walk(t, window.__b.pendingSlots).path); } catch (e) { return null; } })(), stats: st, growOk: (window.__b.growOk||null), growOkCount: (window.__b.growOkCount||0), subFire: subFire, opName: opName, wep: wep, aim: aimNow, aimDeg: aimDeg,   // ⭐ wep 必须在（上一版被后续补丁覆盖丢了 ⇒ shots 测成 0）
+      cur: (function () { try { var t = VantageTree.getTree(); return window.__b.cursor(t, window.__b.walk(t, window.__b.pendingSlots).path); } catch (e) { return null; } })(), probeDz: (function () { if (!window.__b.probeDzOn) return null; if ((window.__b.probeDzN || 0) >= 3) return null;
+  try { var _dz = VantageTree.getDesiredOperation(); if (!_dz) return null; window.__b.probeDzN = (window.__b.probeDzN || 0) + 1;
+    var _t = VantageTree.getTree(); var _lpn = window.__b.lastPickNodeId; var _lpNode = null;
+    (function rc(nd, dep) { if (!nd || _lpNode || dep > 60) return; if (nd.id === _lpn) { _lpNode = nd; return; } var ks = nd.children || []; for (var q = 0; q < ks.length; q++) { rc(ks[q], dep + 1); if (_lpNode) return; } })(_t && _t.root, 0);
+    var _eq = function (x, y) { try { return JSON.stringify(x) === JSON.stringify(y); } catch (e) { return 'ERR'; } };
+    return { dz_keys: Object.keys(_dz), dz_inputs: _dz.inputs, dz_agentFrame: (typeof _dz.agentFrame === 'number' ? _dz.agentFrame : 'undefined'), dz_opName: _dz.opName || null,
+      dz_agentRoute: _dz.agentRoute ? String(JSON.stringify(_dz.agentRoute)).slice(0, 120) : null,
+      tree_agentRoute_stats: (_t && _t.stats ? _t.stats.agentRouteId : null), tree_agentFireFrames_stats: (_t && _t.stats ? _t.stats.agentFireFrames : null),
+      commitNode_id: (_t && _t.commitNode) ? _t.commitNode.id : null, commitNode_inputs: (_t && _t.commitNode) ? _t.commitNode.inputs : null,
+      lastPickNodeId: _lpn, lastPick_inputs: _lpNode ? _lpNode.inputs : null,
+      EQ_dz_vs_lastPick: _eq(_dz.inputs, _lpNode && _lpNode.inputs), EQ_dz_vs_commitNode: _eq(_dz.inputs, _t && _t.commitNode && _t.commitNode.inputs),
+      agentModeCurrentB: (function () { try { var b = window.VantageTreeInterface && VantageTreeInterface.Agents && VantageTreeInterface.Agents.current && VantageTreeInterface.Agents.current('B'); return b ? (b.name || 'noName') : 'noB'; } catch (e) { return 'ERR:' + e.message; } })(),
+      agents_current_all: (function () { try { return (VantageTreeInterface.Agents.current() || {}).name || null; } catch (e) { return 'ERR'; } })() };
+  } catch (ePD) { return { err: String((ePD && ePD.message) || ePD) }; } })(),
+matchDbg: (function () { if (!window.__b.probeMatchDbgOn) return null; window.__b.mdN = (window.__b.mdN || 0) + 1; if ((window.__b.mdN % 5) !== 0) return null;   // ⭐ 只在「策略要开火」的帧采
+  try { var IS = window.__vantageIface || {}; var dec = IS.lastDecision;
+    var _t = VantageTree.getTree();
+    return { acceptedLen: (dec && dec.picks) ? dec.picks.length : null,
+             acceptedFirst3: (dec && dec.picks) ? dec.picks.slice(0, 3).map(function (p) { return [p.nodeId, p.back]; }) : null,
+             builtLen: (window.__b.lastBuilt || []).length,
+             agentFirePicksLen_stats: _fpLen, agentRouteId_stats: _rid,
+             giveUpB: IS.giveUpB || 0, callsB: IS.callsB || 0, callsA: IS.callsA || 0, skipped: IS.skipped || '' };
+  } catch (e) { return { err: String((e && e.message) || e) }; } })(),
+             probeGate: (function () { if (!window.__b.probeGateOn) return null; window.__b.pgN = (window.__b.pgN || 0) + 1; if (window.__b.pgN % 40 !== 0) return null;
+  try { var t = VantageTree.getTree(); var pth = window.__b.walk(t, window.__b.pendingSlots || []); var cur = window.__b.cursorByFrame ? window.__b.cursorByFrame(t, window.__b.pathOf ? window.__b.pathOf(pth) : []) : null;
+    return { wantFire: !!window.__b.wantFire, att: window.__b.attCount || 0, blockedPrev: (window.__b.pulseBlock === 1 && window.__b.lastFrameSubmitted === true),
+             selfFire: window.__b.selfFire === true, curNull: !cur, curL: cur ? cur.L : null, fireSubmittedLast: !!window.__b.lastHadFire };
+  } catch (e) { return { err: String((e && e.message) || e) }; } })(),
+             probeMatch: (function () { if (!window.__b.probeMatchOn) return null; try {
+  window.__b.pmTick = (window.__b.pmTick || 0) + 1; if (window.__b.pmTick % 5 !== 0) return null;
+  var _d = VantageTree.getDesiredOperation(); if (!_d || _d.agentRoute === null || _d.agentRoute === undefined) return { skip: 'noAgentRoute', opName: _d && _d.opName };
+  var _t = VantageTree.getTree(); var _fp = [];   // ⭐ 包装对象没有 _agentFirePicks（必须读 stats）
+  var _fpLen = (_t && _t.stats && typeof _t.stats.agentFireFrames === "number") ? _t.stats.agentFireFrames : -1;
+  var _rid = (_t && _t.stats) ? _t.stats.agentRouteId : null;
+  var _ids = []; for (var _i = 0; _i < _fp.length; _i++) { var _nid = _fp[_i] && _fp[_i].nodeId; if (_ids.indexOf(_nid) < 0) _ids.push(_nid); }
+  var _has = false; for (var _j = 0; _j < _fp.length; _j++) if (_fp[_j] && _fp[_j].nodeId === _d.agentRoute) _has = true;
+  var _lp = window.__b.lastBuilt || [];
+  return { agentFrame: _d.agentFrame, agentRoute: _d.agentRoute, firePicks_len: _fp.length, firePicks_unique_ids: _ids.slice(0, 5),
+    firePicks_hasRouteTarget: _has, lastPick_n0: _lp[0] ? _lp[0].nodeId : null, lastPick_n1: _lp[1] ? _lp[1].nodeId : null,
+    lastHadFireN: window.__b.lastHadFireN || 0, lastPick_sameNode: !!(_lp[0] && _lp[1] && _lp[0].nodeId === _lp[1].nodeId), lastPick_routeEqTarget: !!(_d.agentRoute !== null && _lp[0] && _lp[0].nodeId === _d.agentRoute) };
+} catch (ePM) { return { err: String((ePM && ePM.message) || ePM) }; } })(),
+             execStill: (function () { try { var _d = VantageTree.getDesiredOperation(); if (!_d || !_d.inputs) return null; var _i = _d.inputs;
+               return !(_i.forward || _i.back || _i.left || _i.right); } catch (e) { return null; } })(),
+             execByPolicy: (function () { try { var _d = VantageTree.getDesiredOperation(); return !!(_d && typeof _d.agentFrame === 'number'); } catch (e) { return null; } })(),
+             plan: (function () { try { var _g = window.__b.growFact; if (!_g) return null; var _pi = VantageObserve.encodePlan({ leafId: _g.nodeId, stale: (_g.result === 'ok' ? 0 : 1), fires: [] }, 8); return _pi.token; } catch (eP) { window.__b.planErr = String((eP && eP.message) || eP); return null; } })(),
+             growFact: (window.__b.growFact || null), stats: st, growOk: (window.__b.growOk||null), growOkCount: (window.__b.growOkCount||0), subFire: subFire, opName: opName, wep: wep, aim: aimNow, aimDeg: aimDeg,   // ⭐ wep 必须在（上一版被后续补丁覆盖丢了 ⇒ shots 测成 0）
       ammo: window.__b.gAmmo, queueLen: window.__b.gQueue, kills: (function(){ var q = window.__b.kills || []; window.__b.kills = []; return q; })(),   // ⭐ 奖惩 v2：本帧前新增的 TANK_KILLED 事件（取完清空） wep: wep, desiredFrame: desiredFrame, desiredFire: desiredFire, desiredErr: desiredErr, wantFire: window.__b.wantFire ? 1 : 0,
       b: bSrc, nSlots: slots ? slots.length : -1, nBul: bSrc.length, bDim: (e.bullets && e.bullets.dim) || null,
       opp: (gl.oppTok || null), col: (gl.colTok || null), mine: (gl.mineTok || null) });   // ⭐ 敌人/道具信息（在 global 里）
