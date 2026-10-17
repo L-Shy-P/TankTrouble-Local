@@ -21,9 +21,16 @@
 (function (global) {
     'use strict';
 
-    var VERSION = '1.0.0-20261017';
+    var VERSION = '1.1.0-20261017';
     var SECTION_ID = 'vt-agent-rows';
     var LAIKA_TEMPLATE_ID = '6148530';
+
+    // ⭐ 配置三开关的唯一落点（父代理 2026-10-17 裁定：面板只写这三个布尔，⛔ 不调服务端）
+    //    cheat = 观测是否含作弊项 · learn = 是否记录训练样本 · mem = 记忆（2 token × 256 维 × A/B 两份）
+    var CFG = global.__vtConfig = global.__vtConfig || { cheat: true, learn: false, mem: true };
+    if (typeof CFG.cheat !== 'boolean') CFG.cheat = true;
+    if (typeof CFG.learn !== 'boolean') CFG.learn = false;
+    if (typeof CFG.mem !== 'boolean') CFG.mem = true;
 
     var S = {
         mounted: false,
@@ -32,17 +39,21 @@
         tankId: null,
         gameMode: null,
         ckpt: null,
-        cheat: true,               // 作弊开关：观测是否含作弊项（opp/col/mine）
-        learn: false,              // 学习开关：逐帧把 (obs, act, lp, v) 落盘供训练器离线学习
+        cheat: CFG.cheat,            // 作弊开关：观测是否含作弊项（opp/col/mine）
+        learn: CFG.learn,            // 学习开关：逐帧把 (obs, act, lp, v) 落盘供训练器离线学习
+        mem: CFG.mem,                // 记忆开关：2 token × 256 维 × A/B 两份（只写 __vtConfig，不调服务端）
+        lastRecordedTick: -1, lastRecordedSkipped: '',
+        lastFireSubmits: 0, lastFireNoCursor: 0, lastFireSkippedRetry: 0, lastPulseBlocked: 0, lastEmptyBlocked: 0,
         // —— 决策管线 ——
         seq: 0, ticks: 0, inflight: 0,
         prevNodeId: 0, prevFire: 0,
         served: 0, servedTotal: 0, activations: 0, errCount: 0, emptyTree: 0, skipInflight: 0,
         lat: [], errLog: [],
-        lastResp: null, lastErr: null, lastN: 0, lastCtxTime: null,
+        lastResp: null, lastErr: null, lastN: 0, lastCtxTime: null, lastObs: null,
         fireDropped: 0, skipReasons: {}, lastSkipped: '', nodeRemap: 0, lastGoodSlots: null,
         pendingPayload: null,
         learnBuf: [], learnSaved: 0, learnLines: 0, learnBytes: 0,
+        hist: [], histMax: 20000, lastTankPos: null, lastFrameEntry: null,
         session: null, server: null, compat: null,
         bridgeReady: false, lastStatusAt: 0, lastRetryAt: 0, awaitNN: false
     };
@@ -174,10 +185,17 @@
                 '<button data-act="vt-agent-load" style="cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">重载</button>' +
               '</div>' +
               '<div style="display:flex;flex-wrap:wrap;gap:3px 10px">' +
-                '<label style="cursor:pointer"><input type="checkbox" data-act="vt-agent-cheat" checked> 作弊开关（观测含作弊项）</label>' +
-                '<label style="cursor:pointer"><input type="checkbox" data-act="vt-agent-learn"> 学习开关（记录训练样本）</label>' +
+                '<label style="cursor:pointer" title="观测是否包含作弊项（opp/col/mine）；训练时是全发口径"><input type="checkbox" data-act="vt-agent-cheat"> 作弊开关</label>' +
+                '<label style="cursor:pointer" title="逐帧把 (obs,act,lp,v) 追加到 D:/vt_run/panel_learn/*.jsonl，供训练器离线学习"><input type="checkbox" data-act="vt-agent-learn"> 学习开关</label>' +
+                '<label style="cursor:pointer" title="记忆：2 token × 256 维 × A/B 两份（只写 window.__vtConfig.mem，不发请求）"><input type="checkbox" data-act="vt-agent-mem"> 记忆（2 token × 256 维 × A/B 两份）</label>' +
               '</div>' +
               '<div id="vt-agent-compat" style="color:#f38ba8"></div>' +
+              '<div id="vt-agent-frame" style="color:#cdd6f4;white-space:pre-wrap;line-height:1.4;border-top:1px dashed #45475a;padding-top:2px">逐帧操作：等待神经网络…</div>' +
+              '<div id="vt-agent-roll" style="color:#a6adc8;white-space:pre;overflow-x:auto;line-height:1.25;max-height:132px;border-top:1px dashed #45475a;padding-top:2px"></div>' +
+              '<div style="display:flex;gap:6px;align-items:center">' +
+                '<button data-act="vt-agent-export" style="cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">导出操作历史 JSONL</button>' +
+                '<span id="vt-agent-hist" style="color:#6c7086">历史 0 帧（含被拒操作）</span>' +
+              '</div>' +
               '<div id="vt-agent-stats" style="color:#a6adc8;white-space:pre-wrap;line-height:1.45"></div>' +
             '</div>';
         exp.parentNode.insertBefore(box, exp);
@@ -208,16 +226,31 @@
         var cheat = $('[data-act="vt-agent-cheat"]');
         if (cheat) cheat.addEventListener('change', function () {
             S.cheat = !!cheat.checked;
+            CFG.cheat = S.cheat;                 // ⭐ 唯一落点（父代理裁定：只写布尔）
             renderStats();
             log('作弊开关=' + S.cheat + '（关=opp/col/mine 段置零；训练时是全发口径 ⟹ 与训练分布不一致）');
         });
         var learn = $('[data-act="vt-agent-learn"]');
         if (learn) learn.addEventListener('change', function () {
             S.learn = !!learn.checked;
+            CFG.learn = S.learn;                 // ⭐ 唯一落点
             if (S.learn && !S.session) S.session = 'panel_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             renderStats();
             log('学习开关=' + S.learn + '（' + (S.learn ? '逐帧记录训练样本到 D:/vt_run/panel_learn/' + S.session + '.jsonl' : '停止记录') + '）');
         });
+        var mem = $('[data-act="vt-agent-mem"]');
+        if (mem) mem.addEventListener('change', function () {
+            S.mem = !!mem.checked;
+            CFG.mem = S.mem;                     // ⭐ 唯一落点：只写 window.__vtConfig.mem，不发请求
+            renderStats();
+            log('记忆开关=' + S.mem + '（2 token × 256 维 × A/B 两份；只写 window.__vtConfig.mem）');
+        });
+        var expBtn = $('[data-act="vt-agent-export"]');
+        if (expBtn) expBtn.addEventListener('click', function () { downloadJSONL(); });
+        // 从 __vtConfig 回填勾选状态（三个开关互不联动）
+        if (cheat) cheat.checked = !!CFG.cheat;
+        if (learn) learn.checked = !!CFG.learn;
+        if (mem) mem.checked = !!CFG.mem;
     }
 
     function defaultCkpt() {
@@ -270,6 +303,10 @@
                         if (sk !== S.lastSkipped) { S.lastSkipped = sk; S.skipReasons[sk] = (S.skipReasons[sk] || 0) + 1; }
                     }
                 } catch (eSk) {}
+                // ⭐ 逐帧操作记录（每 tick 一次，B 相之后；含被拒操作）——父代理 2026-10-17 第 2/3 件
+                if (ctx && ctx.phase === 'B') {
+                    try { recordFrame(ctx, info, out); } catch (eRf) { log('recordFrame 异常: ' + String(eRf && eRf.message || eRf)); }
+                }
                 return out;
             }
         };
@@ -409,17 +446,95 @@
         return out;
     }
 
+    /** 诊断：找出载荷里第一个"非有限数字"（服务端 torch.tensor 遇到字符串会报 invalid data type 'str'） */
+    function diagPayload(p) {
+        try {
+            var segs = p.segs || {};
+            for (var k in segs) {
+                var rows = segs[k];
+                if (!rows || !rows.length) return { seg: k, why: '空段', type: typeof rows };
+                for (var i = 0; i < rows.length; i++) {
+                    var row = rows[i];
+                    if (!row || typeof row.length !== 'number') return { seg: k, i: i, why: '行不是数组', type: typeof row, sample: JSON.stringify(rows).slice(0, 160) };
+                    for (var j = 0; j < row.length; j++) {
+                        if (typeof row[j] !== 'number' || !isFinite(row[j])) {
+                            return { seg: k, i: i, j: j, value: String(row[j]).slice(0, 40), type: typeof row[j],
+                                     rowsType: typeof rows, rowsIsArr: Array.isArray(rows), rowsLen: rows.length,
+                                     rowType: typeof row, rowIsArr: Array.isArray(row), rowLen: row.length,
+                                     sample: JSON.stringify(rows).slice(0, 160) };
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch (e) { return { why: 'diag 异常', err: String(e && e.message || e) }; }
+    }
+
+    /**
+     * 把观测段归一成"行 × 宽 的数字矩阵"。
+     * ⚠️ 实测（2026-10-17）：`__b.step()` 的某些段会给【逗号连接的字符串】
+     *    （例：`b = "45.93,26.00,17.44,-4.45,1.32,-1,3.98"`），直接喂服务端会得到
+     *    `new(): invalid data type 'str'`。这里显式拆开（⛔ 不是静默丢弃：拆不出数字就当错误）。
+     */
+    function normSeg(x, w) {
+        var rows = [];
+        if (x === null || x === undefined) return rows;
+        if (typeof x === 'string') {
+            var parts = x.indexOf(';') >= 0 ? x.split(';') : [x];
+            for (var a = 0; a < parts.length; a++) {
+                var s = parts[a];
+                if (!s) continue;
+                var arr = s.split(',').map(function (t) { return Number(t); });
+                rows.push(arr);
+            }
+            return rows;
+        }
+        if (typeof x.length !== 'number') return rows;
+        if (!x.length) return rows;
+        if (typeof x[0] === 'string') {
+            for (var b = 0; b < x.length; b++) rows.push(String(x[b]).split(',').map(function (t) { return Number(t); }));
+            return rows;
+        }
+        if (Array.isArray(x[0])) {
+            for (var c = 0; c < x.length; c++) rows.push(Array.prototype.map.call(x[c], function (t) { return Number(t); }));
+            return rows;
+        }
+        // 扁平数字数组 → 按 w 切行
+        for (var i = 0; i + w <= x.length; i += w) rows.push(Array.prototype.slice.call(x, i, i + w).map(function (t) { return Number(t); }));
+        if (!rows.length) rows.push(Array.prototype.map.call(x, function (t) { return Number(t); }));
+        return rows;
+    }
+
     function buildPayload(o) {
-        var N = (o.n || []).length;
-        var opp = S.cheat ? oppRows(o) : zeroRows(OPP_SLOTS, OPP);
-        var item = S.cheat ? itemRows(o) : zeroRows(ITEM_R, ITEM_C);
-        var bRows = (o.b && o.b.length) ? o.b : [[0, 0, 0, 0, 0, 0, 0]];
+        var nRows = normSeg(o.n, 10);
+        var N = nRows.length;
+        var oppSrc = S.cheat ? normSeg(o.opp, OPP) : [];
+        var opp = [];
+        for (var k = 0; k < OPP_SLOTS; k++) {
+            var r = (S.cheat && oppSrc[k]) ? oppSrc[k] : [];
+            var rr = [];
+            for (var j = 0; j < OPP; j++) rr.push(typeof r[j] === 'number' && isFinite(r[j]) ? r[j] : 0);
+            opp.push(rr);
+        }
+        var item = zeroRows(ITEM_R, ITEM_C);
+        if (S.cheat) {
+            var colR = normSeg(o.col, 3), mineR = normSeg(o.mine, 3);
+            for (var m = 0; m < ITEM_R; m++) {
+                var cc = colR[m] || [], mm = mineR[m] || [];
+                item[m] = [cc[0] || 0, cc[1] || 0, cc[2] || 0, mm[0] || 0, mm[1] || 0, mm[2] || 0];
+            }
+        }
+        var bRows = normSeg(o.b, 7);
+        if (!bRows.length) bRows = [[0, 0, 0, 0, 0, 0, 0]];
+        var gRows = normSeg(o.g, 38);
+        var gRow = [];
+        for (var q = 0; q < 38; q++) gRow.push((gRows[0] && typeof gRows[0][q] === 'number' && isFinite(gRows[0][q])) ? gRows[0][q] : 0);
         return {
             N: N,
             seed: (S.seq * 2654435761) >>> 0,
             ckpt: S.ckpt || defaultCkpt(),
             cheat: !!S.cheat,
-            segs: { node: o.n, opp: opp, bullet: pad(bRows, BUL_SLOTS, 7), item: item, global: [o.g] }
+            segs: { node: nRows, opp: opp, bullet: pad(bRows, BUL_SLOTS, 7), item: item, global: [gRow] }
         };
     }
 
@@ -432,6 +547,7 @@
         catch (e) { S.errCount++; S.lastErr = 'step 抛异常: ' + String(e && e.message || e); return; }
         if (!o || o.err) { S.errCount++; S.lastErr = 'step: ' + String(o && o.err || '空返回'); return; }
         S.lastN = (o.n || []).length;
+        S.lastObs = o;
         // ⭐ 策略给的 nodeId 可能在下几帧被剪枝掉（树会 prune）⟹ `step` 找不到它、nSlots=-1。
         //    这里【复用上一份 slot 路径】让 build 继续沿当前树重走（slot 重映射就是为此设计的），
         //    避免整帧 no-output（giveUpA/B）。⛔ 不静默：计数 + 面板显示。
@@ -445,12 +561,28 @@
         if (!S.lastN) { S.emptyTree++; return; }
         var payload = buildPayload(o);
         S.pendingPayload = payload;
+        S.payloadDiag = diagPayload(payload);
+        if (S.payloadDiag) {
+            // ⛔ 不把脏载荷发给服务端（否则只会拿到一句 invalid data type 'str'）；当场显形
+            S.errCount++;
+            S.lastErr = '载荷含非有限数字 ⟹ 拒绝发送: ' + JSON.stringify(S.payloadDiag);
+            return;
+        }
         S.seq++;
         S.inflight = 1;
         var t0 = nowMs();
-        fetch('/vt_policy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        var _ctrl = null, _to = null;
+        try {
+            if (typeof AbortController !== 'undefined') {
+                _ctrl = new AbortController();
+                _to = setTimeout(function () { try { _ctrl.abort(); } catch (e) {} }, 20000);   // ⛔ 不许无限挂起（静默失败）
+            }
+        } catch (eAb) {}
+        fetch('/vt_policy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+                              signal: _ctrl ? _ctrl.signal : undefined })
             .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
             .then(function (x) {
+                if (_to) { try { clearTimeout(_to); } catch (eC) {} }
                 S.inflight = 0;
                 var j = x.j || {};
                 if (j.err) {
@@ -468,6 +600,7 @@
                 S.prevFire = (j.fire === 1) ? 1 : 0;
                 S.served++;
                 S.servedTotal++;
+                if (S.served === 1 || S.served % 60 === 0) { try { refreshServerStatus(function () {}); } catch (eRs) {} }
                 S.lastResp = j;
                 var ms = (typeof j._srv_ms === 'number') ? j._srv_ms : (nowMs() - t0);
                 S.lat.push(ms);
@@ -475,9 +608,12 @@
                 if (S.learn) queueLearn(S.pendingPayload, j);
             })
             .catch(function (e) {
+                if (_to) { try { clearTimeout(_to); } catch (eC2) {} }
                 S.inflight = 0;
                 S.errCount++;
-                S.lastErr = 'fetch 失败: ' + String(e && e.message || e);
+                var aborted = String(e && e.name || '') === 'AbortError';
+                if (aborted) S.reqTimeouts = (S.reqTimeouts || 0) + 1;
+                S.lastErr = (aborted ? '⛔ 请求超时(20s，已中止) ' : 'fetch 失败: ') + String(e && e.message || e);
             });
     }
 
@@ -508,6 +644,177 @@
                 else { S.lastErr = 'learn: ' + (j && j.err); S.errCount++; }
             })
             .catch(function (e) { S.learnBuf = batch.concat(S.learnBuf); S.lastErr = 'learn fetch: ' + String(e && e.message || e); S.errCount++; });
+    }
+
+    // ============================================================
+    // 五·B、逐帧操作视图 + 操作历史 JSONL（含被拒操作）
+    //   数据源：`window.__b.readonly()`（另一代理已暴露 lastPick/lastFire/lastRouteLen）
+    //   ⛔ 读不到就写"未提供"，不编数；⛔ 被拒记录不过滤。
+    // ============================================================
+    function ro() {
+        try { return (global.__b && global.__b.readonly) ? global.__b.readonly() : null; } catch (e) { return null; }
+    }
+    function nodeRowOf(o, row) {
+        try {
+            if (!o || !o.n || row === null || row === undefined || row < 0 || row >= o.n.length) return null;
+            var r = o.n[row];
+            return { row: row, uid: (r[0] | 0), parent: (r[1] | 0), slot: (r[2] | 0), depth: (r[3] | 0) };
+        } catch (e) { return null; }
+    }
+    function opNameOf(slot) {
+        try { return (VantageSandbox.OPERATIONS[slot] || {}).name || null; } catch (e) { return null; }
+    }
+    function tankPos() {
+        try {
+            var gc = currentGc();
+            var t = gc && gc.getTank ? gc.getTank(S.tankId) : null;
+            return t ? { x: +t.getX().toFixed(2), y: +t.getY().toFixed(2) } : null;
+        } catch (e) { return null; }
+    }
+    /** 最终 inputs：取"本帧 picks[0] 目标节点"自己的 inputs（树执行路线用的就是它） */
+    function plannedInputs() {
+        try {
+            var tree = VantageTree.getTree();
+            if (!tree || !global.__b.pendingSlots || !global.__b.pendingSlots.length) return null;
+            var w = global.__b.walk(tree, global.__b.pendingSlots);
+            var n = w && w.node;
+            if (!n || !n.inputs) return null;
+            var i = n.inputs;
+            return { forward: !!i.forward, back: !!i.back, left: !!i.left, right: !!i.right, from: 'pickNode.inputs' };
+        } catch (e) { return null; }
+    }
+    function recordFrame(ctx, info, builtOut) {
+        // ⭐ 一个 tick 只记一行（树会因"帧内重试"多次调 decide，⛔ 不能把重试记成多帧）
+        if (S.lastRecordedTick === S.ticks) return;
+        S.lastRecordedTick = S.ticks;
+        var r = ro();
+        var pick = (r && r.lastPick) ? { row: r.lastPick.row, uid: r.lastPick.uid, depth: r.lastPick.depth, opName: r.lastPick.opName, source: 'readonly' } : null;
+        // ⭐ readonly 读不到（或树满/走兜底时它不写）⟹ 用【本次观测行 + 策略选中的 row】补，⛔ 不编数
+        if (!pick || pick.row === null || pick.row === undefined || pick.uid === null || pick.uid === undefined || !pick.opName) {
+            var nr = nodeRowOf(S.lastObs, S.prevNodeId);
+            if (nr) {
+                pick = { row: nr.row, uid: nr.uid, depth: nr.depth, opName: opNameOf(nr.slot) || (pick && pick.opName) || null, source: 'obsRow' };
+            } else if (!pick) {
+                pick = { row: null, uid: null, depth: null, opName: null, provided: false };
+            }
+        }
+        var st = null; try { st = global.__b.stats ? global.__b.stats() : null; } catch (e2) {}
+        // ⭐ fire 三态：policy（策略原始）/ submitted（本帧真提交了射击帧）/ blockedBy（谁拦的）
+        var fire = (r && r.lastFire) ? { policy: r.lastFire.policy, submitted: r.lastFire.submitted, blockedBy: r.lastFire.blockedBy || null } : null;
+        var dSub = st ? (st.fireSubmits - (S.lastFireSubmits || 0)) : 0;
+        var dNoCur = st ? (st.fireNoCursor - (S.lastFireNoCursor || 0)) : 0;
+        var dRetry = st ? ((st.fireSkippedRetry || 0) - (S.lastFireSkippedRetry || 0)) : 0;
+        var dPulse = st ? ((st.pulseBlocked || 0) - (S.lastPulseBlocked || 0)) : 0;
+        var dEmpty = st ? ((st.emptyBlocked || 0) - (S.lastEmptyBlocked || 0)) : 0;
+        if (st) {
+            S.lastFireSubmits = st.fireSubmits; S.lastFireNoCursor = st.fireNoCursor;
+            S.lastFireSkippedRetry = st.fireSkippedRetry || 0; S.lastPulseBlocked = st.pulseBlocked || 0; S.lastEmptyBlocked = st.emptyBlocked || 0;
+        }
+        if (!fire) {
+            fire = { policy: S.prevFire ? 1 : 0, submitted: dSub > 0 ? 1 : 0,
+                     blockedBy: dNoCur > 0 ? 'noCursor' : (dRetry > 0 ? 'retry' : (dPulse > 0 ? 'pulse' : (dEmpty > 0 ? 'empty' : null))) };
+        }
+        var rejected = [];
+        var skippedNow = '';
+        try { var iface = global.__vantageIface; skippedNow = (iface && iface.skipped) ? String(iface.skipped) : ''; } catch (e1) {}
+        // agent 级跳过：只在"本帧发生变化"时记一条（树满会连续多帧，全记会淹没历史），原始值放 skipped 字段
+        if (skippedNow && skippedNow !== S.lastRecordedSkipped) rejected.push({ type: 'agent', reason: skippedNow });
+        S.lastRecordedSkipped = skippedNow;
+        if (info && info.attempt > 1 && info.reason) rejected.push({ type: 'retry', reason: String(info.reason) });
+        if (fire.policy === 1 && fire.submitted === 0 && fire.blockedBy) rejected.push({ type: 'fire', reason: String(fire.blockedBy) });
+        if (st && st.fireErr && fire.policy === 1) rejected.push({ type: 'fire', reason: String(st.fireErr) });
+        var pos = tankPos();
+        var moved = null;
+        if (S.lastTankPos && pos) moved = +(Math.abs(pos.x - S.lastTankPos.x) + Math.abs(pos.y - S.lastTankPos.y)).toFixed(2);
+        S.lastTankPos = pos;
+        var inputs = plannedInputs();
+        if (!inputs && pick && pick.row !== null && pick.row !== undefined && S.lastObs) {
+            var nri = nodeRowOf(S.lastObs, pick.row);
+            if (nri) {
+                var opi = null; try { opi = VantageSandbox.OPERATIONS[nri.slot]; } catch (e3) {}
+                if (opi && opi.inputs) inputs = { forward: !!opi.inputs.forward, back: !!opi.inputs.back, left: !!opi.inputs.left, right: !!opi.inputs.right, from: 'OPERATIONS[slot]' };
+            }
+        }
+        var entry = {
+            f: S.ticks,
+            N: (S.lastObs && S.lastObs.n) ? S.lastObs.n.length : S.lastN,
+            pick: pick,
+            lp: (S.lastResp && typeof S.lastResp.lp === 'number') ? S.lastResp.lp : null,
+            v: (S.lastResp && typeof S.lastResp.v === 'number') ? S.lastResp.v : null,
+            fire: fire,
+            routeLen: (r && r.lastRouteLen !== undefined && r.lastRouteLen !== null) ? r.lastRouteLen : (r && r.lastPick ? r.lastPick.depth : null),
+            inputs: inputs,
+            skipped: skippedNow || null,
+            rejected: rejected,
+            moved: moved
+        };
+        S.lastFrameEntry = entry;
+        S.hist.push(entry);
+        if (S.hist.length > S.histMax) S.hist.splice(0, S.hist.length - S.histMax);
+        renderFrameView();
+        renderHistSpan();
+    }
+
+    function padStr(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
+    function renderHistSpan() {
+        var el = document.getElementById('vt-agent-hist');
+        if (el) el.textContent = '历史 ' + S.hist.length + ' 帧（含被拒操作）';
+    }
+    function show(v) { return (v === null || v === undefined) ? '未提供' : String(v); }
+
+    function renderFrameView() {
+        var box = document.getElementById('vt-agent-frame');
+        if (!box) return;
+        var e = S.lastFrameEntry;
+        if (!e) { box.textContent = '逐帧操作：等待神经网络…'; return; }
+        var p = e.pick || {}, f = e.fire || {}, i = e.inputs;
+        var lines = [];
+        lines.push('f=' + e.f + ' · N=' + show(e.N) + ' · 选中行 row=' + show(p.row) + ' → uid=' + show(p.uid) + ' · depth=' + show(p.depth) + ' · op=' + (p.opName || '未提供'));
+        lines.push('lp=' + (typeof e.lp === 'number' ? e.lp.toFixed(4) : '未提供') + ' · v=' + (typeof e.v === 'number' ? e.v.toFixed(4) : '未提供') +
+                   ' · routeLen=' + show(e.routeLen) + ' · moved=' + (e.moved === null ? '—' : e.moved));
+        lines.push('fire: 策略=' + show(f.policy) + ' · 已提交=' + show(f.submitted) + ' · 被拦=' + (f.blockedBy || '无'));
+        lines.push('最终 inputs: ' + (i ? ('fwd=' + (i.forward ? 1 : 0) + ' back=' + (i.back ? 1 : 0) + ' left=' + (i.left ? 1 : 0) + ' right=' + (i.right ? 1 : 0) + '（' + i.from + '）') : '未提供'));
+        if (e.rejected && e.rejected.length) lines.push('被拒: ' + e.rejected.map(function (x) { return x.type + ':' + x.reason; }).join(' | '));
+        box.textContent = lines.join('\n');
+        renderRolling();
+    }
+
+    function renderRolling() {
+        var box = document.getElementById('vt-agent-roll');
+        if (!box) return;
+        var rows = S.hist.slice(-60);
+        var out = [padStr('f', 6) + padStr('row', 5) + padStr('uid', 6) + padStr('op', 7) + padStr('lp', 9) + padStr('v', 9) + padStr('fire', 9) + 'inputs/moved'];
+        for (var k = 0; k < rows.length; k++) {
+            var e = rows[k], p = e.pick || {}, f = e.fire || {}, i = e.inputs;
+            var fireStr = (show(f.policy) + '/' + show(f.submitted) + '/' + (f.blockedBy || '-'));
+            var inp = i ? ('' + (i.forward ? 'F' : '-') + (i.back ? 'B' : '-') + (i.left ? 'L' : '-') + (i.right ? 'R' : '-')) : '?';
+            out.push(padStr(e.f, 6) + padStr(show(p.row), 5) + padStr(show(p.uid), 6) + padStr((p.opName || '?'), 7) +
+                     padStr(typeof e.lp === 'number' ? e.lp.toFixed(2) : '?', 9) + padStr(typeof e.v === 'number' ? e.v.toFixed(2) : '?', 9) +
+                     padStr(fireStr, 9) + inp + '/' + (e.moved === null ? '-' : e.moved));
+        }
+        box.textContent = out.join('\n');
+    }
+
+    function exportJSONL() {
+        var lines = [];
+        for (var i = 0; i < S.hist.length; i++) lines.push(JSON.stringify(S.hist[i]));
+        return lines.length ? (lines.join('\n') + '\n') : '';
+    }
+    function downloadJSONL() {
+        var text = exportJSONL();
+        try {
+            var blob = new Blob([text], { type: 'application/x-ndjson;charset=utf-8' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'vantage_ops_' + (S.session || 'panel') + '.jsonl';
+            document.body.appendChild(a);
+            a.click();
+            var href = a.href;
+            setTimeout(function () { try { URL.revokeObjectURL(href); a.remove(); } catch (e) {} }, 1000);
+            setStatus('已导出操作历史 ' + S.hist.length + ' 帧（含被拒）', 'ok');
+        } catch (e) {
+            setStatus('⛔ 导出失败: ' + String(e && e.message || e), 'bad');
+        }
     }
 
     // ============================================================
@@ -562,8 +869,12 @@
                    (Object.keys(S.skipReasons).length ? Object.keys(S.skipReasons).map(function (k) { return k + '×' + S.skipReasons[k]; }).slice(0, 4).join(' | ') : '无'));
         lines.push('学习: ' + (S.learn ? ('记录中 · 已落盘 ' + S.learnSaved + ' 帧 / 文件 ' + (S.learnLines || 0) + ' 行') : '关') +
                    (S.session && S.learnSaved ? (' · D:/vt_run/panel_learn/' + S.session + '.jsonl') : ''));
-        lines.push('作弊开关: ' + (S.cheat ? '开（观测含 opp/col/mine，训练口径）' : '⚠ 关（opp/col/mine 置零 ⟹ 与训练分布不一致）'));
+        lines.push('作弊开关: ' + (S.cheat ? '开（观测含 opp/col/mine，训练口径）' : '⚠ 关（opp/col/mine 置零 ⟹ 与训练分布不一致）') +
+                   ' · 学习: ' + (S.learn ? '开' : '关') + ' · 记忆: ' + (S.mem ? '开（2 token × 256 维 × A/B）' : '关') +
+                   '（window.__vtConfig = ' + JSON.stringify({ cheat: CFG.cheat, learn: CFG.learn, mem: CFG.mem }) + '）');
+        lines.push('操作历史: ' + S.hist.length + ' 帧（含被拒；最近 60 帧见上表，按钮可导出 JSONL）');
         if (S.lastErr) lines.push('最近错误: ' + S.lastErr);
+        if (S.payloadDiag) lines.push('载荷诊断: ' + JSON.stringify(S.payloadDiag));
         if (S.errLog.length) lines.push('错误样本: ' + S.errLog.slice(-3).join(' | '));
         box.textContent = lines.join('\n');
     }
@@ -609,6 +920,9 @@
         buildPayload: function (o) { return buildPayload(o); },   // 诊断：作弊开关对载荷的影响（单测用）
         activateNN: activateNN,
         deactivateNN: deactivateNN,
+        exportJSONL: exportJSONL,                       // 操作历史（含被拒）⟹ 一行一帧
+        history: function () { return S.hist; },
+        config: function () { return { cheat: CFG.cheat, learn: CFG.learn, mem: CFG.mem }; },
         status: function () { return { on: S.on, tankId: S.tankId, served: S.served, seq: S.seq, err: S.errCount, lastErr: S.lastErr, server: S.server, compat: S.compat }; }
     };
 
