@@ -31,7 +31,7 @@ async function bootSrv(ck){
     let ready=false;
     for(let w=0;w<1200;w++){const st=await m.eval("(()=>{var g=GameManager.getGameController();return g?g.getState():null})()");if(st===inR){ready=true;break;}await m.pump(1,{yieldMs:0});}
     if(!ready){console.log('['+arm.tag+'] ⚠️ 等不到 in round，本轮跳过');s.kill();continue;}
-    let nodeId=0,fr=0,fireF=0,spawns=0,lastBF=null,ended=false,win=null,prevState=inR;
+    let nodeId=0,fr=0,fireF=0,spawns=0,lastBF=null,ended=false,win=null,gapFrames=0;
     for(let f=0;f<CAP;f++){
       const o=JSON.parse(await m.eval('window.__b.step('+nodeId+',1)'));
       if(!o.err){const N=(o.n||[]).length;
@@ -44,14 +44,15 @@ async function bootSrv(ck){
       await m.pump(1,{yieldMs:0});
       fr++;
       const snap=await m.snapshot();
-      const bf=+(await m.eval("(()=>{try{var g=GameManager.getGameController();var r=g.getRoundState();var ws=r.weaponStates||r.weapons||[];var t=0;for(var i=0;i<ws.length;i++){var w=ws[i];var pid=String(w.playerId||w.owner||w.aiId||'');if(pid.indexOf('vantage')>=0){t+=+((w._bulletsFired!==undefined?w._bulletsFired:w.bulletsFired)||0);}}return t}catch(e){return -1}})()"))||0;   // 真发射（在飞计数，增量法）= 打不死人的核心指标
+      const bf=+(await m.eval("(()=>{try{var g=GameManager.getGameController();var r=g.getRoundState();var ws=r.weaponStates||r.weapons||[];var t=0;for(var i=0;i<ws.length;i++){var w=ws[i];var pid=String(w.playerId||w.owner||w.aiId||'');if(pid.indexOf('vantage')<0)continue;var v=w._bulletsFired;if(v===undefined&&w.fieldsJSON){try{v=JSON.parse(w.fieldsJSON)._bulletsFired}catch(e){}}t+=+(v||0);}return t}catch(e){return -1}})()"))||0;   // ⭐ 修：_bulletsFired 装在 fieldsJSON 字符串里（子代理诊断）
       if(lastBF!==null&&bf>lastBF)spawns+=bf-lastBF;
       lastBF=bf;
       const st=String(await m.eval("(()=>{var g=GameManager.getGameController();return g?g.getState():''})()")||'');
-      if(st!=='in round'){ if(st==='ended'){ended=true;} else { break; } }   // ⭐ 只有 ended 才算结束；其它状态=回合间隙⟹本回合作废
-      if(ended)break;
+      if(st==='ended'){ended=true;break;}                                  // ⭐ 只认 ended
+      if(st!=='in round'){ gapFrames++; if(gapFrames>600)break; await m.pump(1,{yieldMs:0}); continue; }   // ⭐ 回合间隙：等，不 break、不计帧
+      gapFrames=0;
     }
-    const sc=await m.eval("(()=>{var g=GameManager.getGameController();try{var s=g.getScores(),o={};for(var k in s){var x=s[k];o[String(x.getPlayerId?x.getPlayerId():x.playerId)+':'+String(x.getType?x.getType():x.type)]=x.getValue?x.getValue():x.value;}}catch(e){}return JSON.stringify(o)})()");
+    const sc=ended?(await m.eval("(()=>{var g=GameManager.getGameController();try{var s=g.getScores(),o={};for(var k in s){var x=s[k];o[String(x.getPlayerId?x.getPlayerId():x.playerId)+':'+String(x.getType?x.getType():x.type)]=x.getValue?x.getValue():x.value;}}catch(e){}return JSON.stringify(o)})()")):'{}';
     const scores=JSON.parse(sc||'{}');
     for(const k in scores){ if(k.indexOf(':1')>0&&scores[k]>0) win=(k.indexOf('vantage')===0)?1:0; }
     arm.rs.push({fr,firePct:fr?+(100*fireF/fr).toFixed(1):0,spawns,ended,win});
