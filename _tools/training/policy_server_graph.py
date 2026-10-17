@@ -194,6 +194,24 @@ for line in sys.stdin:
             _w = model.write_mem(_st, _mk)          # (1,2,256)
             _MEM[_phase] = _w[0].detach()
         _echo = _mem_rows.detach().cpu().numpy().tolist()   # 对拍：回包告诉客户端「这帧到底喂了什么」
-        print(json.dumps({"lp":lp,"v":v,"fire":fire,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
+        # ⭐⭐ A 相（生长）：用 head_grow 在「当前可行生长节点」里采 1 个（grow_ok 掩码）
+        _grow = None
+        if _phase == 'A':
+            _ok = d.get('grow_ok') or []
+            if len(_ok) != N_real: raise ValueError("grow_ok 长度 %d != N_real %d（⏔t 静默补齐）" % (len(_ok), N_real))
+            _allow = torch.tensor(_ok, device=dev).bool()
+            if int(_allow.sum().item()) < 1: raise ValueError("没有可生长节点（D11：不能生长时不应调 A）")
+            _g = _graphs.get(pick_tier(N_real), None)
+            _st, _mk = _g[1], _g[2]
+            _gs = model.grow_scores(_st, _mk)[0][:N_real].float()          # 逐 token logits → 取 node 区
+            _gm = torch.where(_allow, _gs, torch.full_like(_gs, float('-inf')))
+            _glp = torch.log_softmax(_gm, dim=-1)
+            try: _seed2 = int(d.get('seed') or 0)
+            except Exception: _seed2 = 0
+            if _seed2: torch.manual_seed(_seed2)
+            _gi = int(torch.multinomial(_glp.exp(), 1).item())
+            _p = _glp.exp(); _ent = float(-(_p * torch.where(_p > 0, _glp, torch.zeros_like(_glp))).sum())
+            _grow = {"grow_nodeId": _gi, "lp_grow": float(_glp[_gi]), "ent_grow": _ent, "grow_ok_count": int(_allow.sum().item())}
+        print(json.dumps(({"grow": _grow} if _grow else {}) | {"lp":lp,"v":v,"fire":fire,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
     except Exception as e:
         print(json.dumps({"lp":None,"v":None,"err":str(e)[:240]}),flush=True)   # ⭐ 诊断信息尽量带全（仍是一行 JSON，协议不变）

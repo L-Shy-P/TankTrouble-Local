@@ -20,6 +20,9 @@ class NetV2(nn.Module):
         #    出处：`docs/Vantage躲弹实现/01-设计理论/权威与定案/记忆槽-数据格式设计-2026-10-15.md`（K=2×256、两份=A/B）
         #    参数量：256*512 = 131,072（文档口径，含 bias 为 131,584）
         self.mem_writer = nn.Linear(D, 2*256)
+        # ⭐⭐ A 相生长头（2026-10-17）：每个 node token 一个 logit（与 node_score 同形）
+        #    ⏔t 改 forward 的 4 个返回值（另开 grow_scores() 方法）
+        self.head_grow = nn.Linear(D, 1)
     def forward(self,segs,mask):
         real=(~mask).sum(1).float().clamp(min=1).view(-1,1,1)                  # 每样本真实长度（修①配套）
         toks=[]
@@ -52,6 +55,20 @@ class NetV2(nn.Module):
             valid=(~mask).float().unsqueeze(-1)
             h=(h_all*valid).sum(1)/valid.sum(1).clamp(min=1)
             return self.mem_writer(h).view(-1,2,256).detach()
+
+    def grow_scores(self, segs, mask):
+        """⭐ A 相：返回**逐 token** 的生长 logits（形状 (B,T)）。
+        与 `forward` 同一套编码器（同 pos/同池化口径），但**不改 forward 的 4 个返回**。
+        """
+        real=(~mask).sum(1).float().clamp(min=1).view(-1,1,1)
+        toks=[]
+        for k in ("node","opp","bullet","item","global","mem"):
+            x=segs[k]; n=x.shape[1]
+            pos=torch.arange(n,device=x.device).view(1,n,1).float()/real
+            toks.append(self.proj[k](x)+self.type_emb[k]+pos)
+        xx=torch.cat(toks,1)
+        h_all=self.trunk(xx,src_key_padding_mask=mask)
+        return self.head_grow(h_all).squeeze(-1)      # (B,T)
 
 def make(B,dev):
     segs={"node":torch.randn(B,N_NODE,SEG["node"],device=dev),"opp":torch.randn(B,N_OPP,SEG["opp"],device=dev),

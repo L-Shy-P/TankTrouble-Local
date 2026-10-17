@@ -96,7 +96,7 @@
   window.__b.setFireBack = function (m) { window.__b.fireBack = (m === 'now') ? 'now' : 'zero'; window.__b.fireBackSet++; return window.__b.fireBack; };  window.__b.setFire = function (f) { window.__b.wantFire = !!f; return window.__b.wantFire ? 1 : 0; };
   window.__b.stats = function () {
     var IS = window.__vantageIface || {};
-    return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
+    return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aGrowServer: window.__b.aGrowServer||0, aServerReject: window.__b.aServerReject||0, growOkCount: window.__b.growOkCount||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
              fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
              buildOK: window.__b.buildOK, buildMisses: window.__b.buildMisses,
              lastFirePick: window.__b.lastFirePick, fireBack: window.__b.fireBack, fireErr: window.__b.fireErr,
@@ -132,6 +132,18 @@
       if (typeof tree.nodeCount === 'number' && tree.nodeCount >= _cap) { window.__b.aTreeFull = (window.__b.aTreeFull || 0) + 1; return { picks: [], memory: {} }; }
       var slots = window.__b.pendingSlots;
       if (!slots || !slots.length) { window.__b.aNoSlots = (window.__b.aNoSlots || 0) + 1; return { picks: [], memory: {} }; }
+      // ⭐ 优先用【服务端 head_grow 采样的行号】
+      var _gr = window.__b.growRow;
+      if (typeof _gr === 'number' && window.__b.nodeRows && window.__b.nodeRows[_gr]) {
+        var _uid = window.__b.nodeRows[_gr][0] | 0;
+        var _tr2 = VantageTree.getTree(); var _node2 = null;
+        (function rec2(nd, dep) { if (!nd || _node2 || dep > 60) return; if (nd.id === _uid) { _node2 = nd; return; } var ks2 = nd.children || []; for (var q2 = 0; q2 < ks2.length; q2++) { rec2(ks2[q2], dep + 1); if (_node2) return; } })(_tr2 && _tr2.root, 0);
+        if (_node2 && typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants && VantageTreeInterface.Invariants.canGrowAt(_node2) && (!_node2.children || !_node2.children.length)) {
+          window.__b.aGrowServer = (window.__b.aGrowServer || 0) + 1;
+          return { picks: [{ nodeId: _uid, back: 0 }], memory: {} };
+        }
+        window.__b.aServerReject = (window.__b.aServerReject || 0) + 1;
+      }
       var w = window.__b.walk(tree, slots);
       var n = w.node;
       if (!n || n === tree.root) { window.__b.aBadTarget = (window.__b.aBadTarget || 0) + 1; return { picks: [], memory: {} }; }
@@ -330,6 +342,16 @@
         }
       } catch (eGC) { window.__b.growChkErr = String((eGC && eGC.message) || eGC); }
     }
+    // ⭐⭐ grow_ok（A 相可生长掩码）：行 i 是叶 ⇔ 没有任何行的 parentIdx == i（根行 0 除外）
+    try {
+      // ⭐ 用【树上的真叶子】算（token 的 parentIdx 不一定是行号 ⇒ 用 uid 匹配才准）
+      var _leaf = {};
+      (function _recL(nd, dep) { if (!nd || dep > 80) return; var ks = nd.children || []; if (!ks.length) _leaf[nd.id | 0] = 1; for (var q = 0; q < ks.length; q++) _recL(ks[q], dep + 1); })(VantageTree.getTree() && VantageTree.getTree().root, 0);
+      var _nn = nSrc.length;
+      var _ok = new Array(_nn).fill(0); var _cnt = 0;
+      for (var _j = 1; _j < _nn; _j++) { if (_leaf[nSrc[_j][0] | 0]) { _ok[_j] = 1; _cnt++; } }
+      window.__b.growOk = _ok; window.__b.growOkCount = _cnt; window.__b.nodeRows = nSrc;
+    } catch (eGO) { window.__b.growOk = null; window.__b.growOkCount = 0; window.__b.growOkErr = String((eGO && eGO.message) || eGO); }
     window.__b.pendingSlots = slots;
     // ⭐⭐ 脉冲开火（2026-10-17 父代理诊断）：`BulletWeapon.fire()` 的 `_triggerPulled` 是锁存
     //    ⇒ 连续帧都提交 picks[1] = 一直按扳机 = 只出第一发 ⇒ 桥强制"发一帧、松一帧"
@@ -401,7 +423,7 @@
       } catch (eDz) { desiredErr = String((eDz && eDz.message) || eDz); }
     } catch (eS) { }
     return JSON.stringify({ h: h >>> 0, alive: d === 0, dots: e.dims.total, g: gArr, n: nSrc,
-      cur: (function () { try { var t = VantageTree.getTree(); return window.__b.cursor(t, window.__b.walk(t, window.__b.pendingSlots).path); } catch (e) { return null; } })(), stats: st, subFire: subFire, opName: opName, wep: wep, aim: aimNow, aimDeg: aimDeg,   // ⭐ wep 必须在（上一版被后续补丁覆盖丢了 ⇒ shots 测成 0）
+      cur: (function () { try { var t = VantageTree.getTree(); return window.__b.cursor(t, window.__b.walk(t, window.__b.pendingSlots).path); } catch (e) { return null; } })(), stats: st, growOk: (window.__b.growOk||null), growOkCount: (window.__b.growOkCount||0), subFire: subFire, opName: opName, wep: wep, aim: aimNow, aimDeg: aimDeg,   // ⭐ wep 必须在（上一版被后续补丁覆盖丢了 ⇒ shots 测成 0）
       ammo: window.__b.gAmmo, queueLen: window.__b.gQueue, kills: (function(){ var q = window.__b.kills || []; window.__b.kills = []; return q; })(),   // ⭐ 奖惩 v2：本帧前新增的 TANK_KILLED 事件（取完清空） wep: wep, desiredFrame: desiredFrame, desiredFire: desiredFire, desiredErr: desiredErr, wantFire: window.__b.wantFire ? 1 : 0,
       b: bSrc, nSlots: slots ? slots.length : -1, nBul: bSrc.length, bDim: (e.bullets && e.bullets.dim) || null,
       opp: (gl.oppTok || null), col: (gl.colTok || null), mine: (gl.mineTok || null) });   // ⭐ 敌人/道具信息（在 global 里）

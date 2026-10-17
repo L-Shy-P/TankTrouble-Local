@@ -144,6 +144,12 @@ def decode_frame(fr, ctx):
             "%s: act.nodeId=%d 越界（真实 N=%d）⟹ 脏数据（`P0-0`：推理侧候选集=档位大小）。"
             "出处：`今晚持续训练方案-2026-10-17.md:105-147`。⛔ 训练器拒绝吃这种帧"
             % (ctx, node_id, N))
+    # ⭐ A 相动作：act.grow = {nodeId(uid), lp_grow}（可选；缺省计数且不假造）
+    _grow = act.get("grow")
+    grow = None
+    if isinstance(_grow, dict) and "nodeId" in _grow and "lp_grow" in _grow:
+        grow = {"nodeId": _as_int(_grow["nodeId"], ctx + ".act.grow.nodeId"),
+                "lp_grow": _as_float(_grow["lp_grow"], ctx + ".act.grow.lp_grow")}
     fire = _as_int(act.get("fire", 0), ctx + ".act.fire")
     if fire not in (0, 1):
         raise BufferSchemaError("%s.act.fire=%r 非法（应为 0/1）" % (ctx, fire))
@@ -177,7 +183,7 @@ def decode_frame(fr, ctx):
         "N": N,
         "node": segs["node"], "opp": segs["opp"], "bullet": segs["bullet"],
         "item": segs["item"], "global": segs["global"], "mem": segs["mem"],
-        "act": {"nodeId": node_id, "fire": fire, "picks": picks},
+        "act": {"nodeId": node_id, "fire": fire, "picks": picks, "grow": grow},
         "lp": _as_float(fr["lp"], ctx + ".lp"),
         "v": _as_float(fr["v"], ctx + ".v"),
         # ⭐ 可选字段：**截断局**（局末帧仍 done=False）的 bootstrap 值 = 该帧之后"下一帧"的服务端 v。

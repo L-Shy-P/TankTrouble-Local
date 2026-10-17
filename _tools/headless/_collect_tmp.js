@@ -44,7 +44,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   await m.eval(SRC); console.log('SETUP '+await m.eval('window.__probe.setup()'));
   // ⭐ 开火接线（2026-10-17 派单③）：服务端返回的 fire 决定本帧要不要拼 picks[1] 射击帧
   const FIRE_BACK=process.env.VT_FIRE_BACK||'now';
-  const MEM_ENV=(process.env.VT_MEM_ON==='1');   // ⭐ 记忆开关：环境可强制开；否则读 window.__vtConfig.mem   // ⭐ 默认 now = back=L−1−rel（2026-10-17 裁定 (a)：当帧开火）
+  const MEM_ENV=(process.env.VT_MEM_ON==='1');
+  const GROW_SRC=(process.env.VT_GROW_SRC||'server');   // ⭐ A/B 开关：server=服务端 head_grow 采样；bridge=桥自己取 B 目标叶（Arm A）   // ⭐ 记忆开关：环境可强制开；否则读 window.__vtConfig.mem   // ⭐ 默认 now = back=L−1−rel（2026-10-17 裁定 (a)：当帧开火）
   await m.eval('window.__b.fireBias='+(+process.env.VT_FIRE_REL_BIAS||0)+';'); console.log('FIRE_BIAS '+(+process.env.VT_FIRE_REL_BIAS||0)+' FIRE_BACK '+await m.eval('window.__b.setFireBack('+JSON.stringify(FIRE_BACK)+')')+'（zero=父代理指定 back=0 / now=对照 back=L-1-rel）');
   await m.pump(20,{yieldMs:0});
   const inRound=await m.eval("(()=>{try{return GameModel._STATES.IN_ROUND}catch(e){return 'in round'}})()");
@@ -53,6 +54,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   // ⭐ 开火接线记账（派单③）：fire=1 帧数 / 真出现 vantage_1 子弹的帧数 / picks[1] 提交与被接受/被拒
   let firedFrames=0, fireAndBullet=0, noFireButBullet=0, picks1Submitted=0, pickExtras=0, giveUpB=0;
   let aimFrames=0, nodeIdSet=new Set();
+  let aReqOk=0, aReqBad=0, aSkipNoCand=0, growEntSee=null;   // ⭐ A 相：请求成功/失败/无候选
+  let growUidCnt=0;
   let emptyIntentFrames=0;
   const MEM_ECHO_MAX=+(process.env.VT_MEM_ECHO_MAX||260);   // ⭐ 对拍回声上限（帧）
   let memEcho=[];
@@ -64,13 +67,14 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   let vNextOk=0, vNextFail=0;   // ⭐ (A)1 截断局 v_next 补得成不成功（⏔t 不静默）
   let desiredFireFrames=0, desiredErrSeen='';
   const TRACE_FIRE=(process.env.VT_FIRE_TRACE==='1'), TRACE_N=+(process.env.VT_FIRE_TRACE_N||60);   // ⭐ 父代理 ① 只读诊断   // ⭐ 诊断：射击帧的依据游标下一帧是否还在
-  const skipReasons={}, roundFire=[];
+  const skipReasons={}, aReasons={}, roundFire=[];   // ⭐ aReasons = A 相拒绝原因分类
   for(let ep=1; ep<=ROUNDS; ep++){
     const frames=[]; let nodeId=0, done=false, won=null, f=0, prevState=null;
     const rb=JSON.parse(await m.eval('JSON.stringify(window.__b.stats())'));   // ⭐ 本轮起点（picks[1] 提交/被接受差分用）
     const firedBase=firedFrames;
     nodeIdSet=new Set(); prevGiveUpB=null;   // ⭐ 每局重置
     // ⭐ 记忆开关（每局读一次）：面板写 window.__vtConfig.mem，采集器只读
+    const _nc0=await m.eval("(()=>{try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})()");   // ⭐ A 相：本局起点节点数
     const memOn = MEM_ENV ? 1 : (await m.eval("(()=>{try{return (window.__vtConfig&&window.__vtConfig.mem)?1:0}catch(e){return 0}})()"));   // ⭐ 每局重置
     let rbOpBFire=0, wepFirst=null, wepLast=null, rbWepInc=0, rbWepDec=0, rbNumLast=null, prevWepFired=null, rbVBullet=0; let prevAlive=null;   // ⭐ 上一帧对手 alive 位（命中推断用）   // ⭐ 逐局开火/真发射对账
     const spawnBase=spawnFrames, lpBase=lpOk, lpTotBase=lpTot, oobBase=oob;   // ⭐ 逐局对账起点
@@ -89,7 +93,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
         break; }
       const o=JSON.parse(await m.eval('window.__b.step('+nodeId+',0)'));   // ⭐ 开火位在【拿到服务端回答后】再置（同一帧生效，无延迟）
       if(o.err){ console.log('STEP_ERR '+o.err); break; }
-      { const skv=(o.stats&&o.stats.skipped)?String(o.stats.skipped):''; if(skv) skipReasons[skv]=(skipReasons[skv]||0)+1; }   // ⭐ 被拒原因逐类计数（如 'B:重试超限(射击:...)'）
+      { const skv=(o.stats&&o.stats.skipped)?String(o.stats.skipped):''; if(skv){ skipReasons[skv]=(skipReasons[skv]||0)+1;
+        if(skv.indexOf('A:')===0||skv.indexOf('生长')>=0){ const key=skv.replace(/\d+/g,'N'); aReasons[key]=(aReasons[key]||0)+1; } } }   // ⭐ A 相拒绝原因分类   // ⭐ 被拒原因逐类计数（如 'B:重试超限(射击:...)'）
       if(o.subFire===true) subFireFrames++;
       if(o.desiredFire===true) desiredFireFrames++;
       if(o.desiredErr && !desiredErrSeen) { desiredErrSeen=String(o.desiredErr); }
@@ -139,11 +144,19 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       // ⭐⭐ 两端同口径（2026-10-17）：发给服务端的段 = 落进 buffer 的段（node/opp/bullet/item/global）
       //     ⛔ 少了 opp/item ⟹ 服务端看到的是补零、训练器看到真实值 ⟹ 两套输入分布（ratio 必爆）
       const oppR=oppRows(o), itemR=itemRows(o);
+      // ⭐⭐ A 相：先问服务端「在可生长节点里选 1 个」（D11：没候选就不调）
+      let growUid=null, lpGrow=null, growOkList=o.growOk||null, growOkN=o.growOkCount||0;   // ⭐ 在 step() 回包顶层
+      if(GROW_SRC==='server' && growOkN>0 && growOkList){
+        const pa=await ask(srv,{N:N,seed:(ep*100000+f+7)%2147483647,mem_on:memOn,phase:'A',round_id:ep,grow_ok:growOkList,segs:{node:o.n,opp:oppR,bullet:bRows,item:itemR,global:[o.g]}});
+        if(pa && pa.grow && typeof pa.grow.grow_nodeId==='number'){ const rw=pa.grow.grow_nodeId; if(o.n[rw]) growUid=o.n[rw][0]|0; lpGrow=pa.grow.lp_grow; await m.eval('window.__b.growRow='+rw); aReqOk++; growEntSee=(pa.grow.ent_grow!==undefined?pa.grow.ent_grow:growEntSee); }
+        else { aReqBad++; await m.eval('window.__b.growRow=null'); }
+      } else { aSkipNoCand++; await m.eval('window.__b.growRow=null'); }   // GROW_SRC=bridge 或无候选 ⇒ 桥回退到 B 目标叶
       const p=await ask(srv,{N:N,seed:ep*100000+f,mem_on:memOn,phase:'B',round_id:ep,segs:{node:o.n,opp:oppR,bullet:bRows,item:itemR,global:[o.g]}});
       lpTot++; const lpOkF=(typeof p.lp==='number'&&isFinite(p.lp)); if(lpOkF)lpOk++;
       if(!lpOkF){ badLp++; if(badLp<=3) console.log('BAD_LP ep='+ep+' f='+f+' lp='+p.lp+' err='+(p.err||'')); await m.pump(1,{yieldMs:0}); continue; }   // ⭐ 非有限 lp ⟹ 该帧不进数据（⛔ 不许静默写 0）
       if(p.err){ if(!global.__errSeen)global.__errSeen={}; if(!global.__errSeen[p.err]){global.__errSeen[p.err]=0; console.log('SRV_ERR '+p.err);} global.__errSeen[p.err]=(global.__errSeen[p.err]||0)+1; }
       if(typeof p.nodeId==='number'){ if(p.nodeId>=N||p.nodeId<0)oob++; nodeId=p.nodeId; }
+      if(growUid!==null) growUidCnt++;
       if(p.mem_echo && memEcho.length<MEM_ECHO_MAX) memEcho.push({f:f,N:N,mem:p.mem_echo});   // ⭐ 对拍用：服务端每帧到底喂了什么
       if(typeof p.nodeId==='number') nodeIdSet.add(p.nodeId);   // ⭐ 父代理判据：distinct nodeId（每局去重计数）
       // ⭐ 开火接线：服务端 fire（out[1]）⟹ 本帧 wantFire ⟹ build() 拼 picks[1] 射击帧
@@ -167,7 +180,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       if(fire===1&&curPick){ picksRec.push({nodeId:curPick.id,back:(FIRE_BACK==='now')?Math.max(0,curPick.L-1-curPick.rel):0}); }   // ⭐ picks[1]=射击帧（意图记录；真提交/被接受另用 stats 差分核对）
       frames.push({t:f,N:N,
         obs:{node:o.n,opp:oppR,bullet:pad(bRows,BUL_SLOTS,7),item:itemR,global:[o.g]},
-        act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:fire,picks:picksRec},
+        act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:fire,picks:picksRec,
+             grow:(growUid===null?null:{nodeId:growUid,lp_grow:lpGrow})},   // ⭐ ⭐ A 相动作（uid + 采样时的 lp_grow）
         lp:(lpOkF?p.lp:0),v:(typeof p.v==='number'&&isFinite(p.v)?p.v:0),
         r:{total:0.01,result:0,survive:0.01,legal:0,spawn:spawnedNow,hit:hitNow,aim:(o.aim|0),
            kill:rKill,selfkill:rSelfkill,death:rDeath,kill_storm:rKillStorm,death_storm:rDeathStorm,win:0,lose:0,legal:legalNow,   // ⭐ win/lose/legal 只在〈本局末帧〉写（本局结果/本局累计重罚）
@@ -178,7 +192,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
     buildOKEnd=re2.buildOK||0; buildMissEnd=re2.buildMisses||0; fireNoCursorEnd=re2.fireNoCursor||0; if(re2.fireErr) fireErrSeen=String(re2.fireErr);   // ⭐ 本轮终点
     const dSubmit=(re2.fireSubmits||0)-(rb.fireSubmits||0), dExtra=(re2.pickExtras||0)-(rb.pickExtras||0), dGiveUp=(re2.giveUpB||0)-(rb.giveUpB||0);
     picks1Submitted+=dSubmit; pickExtras+=dExtra; giveUpB+=dGiveUp;
-    roundFire.push({ep:ep,frames:frames.length,fired:firedFrames-firedBase,submitted:dSubmit,accepted:dExtra,giveUpB:dGiveUp,
+    const _nc1=await m.eval("(()=>{try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})()");
+    roundFire.push({ep:ep,nodeStart:_nc0,nodeEnd:_nc1,nodeDelta:(_nc0!==null&&_nc1!==null)?(_nc1-_nc0):null,frames:frames.length,fired:firedFrames-firedBase,submitted:dSubmit,accepted:dExtra,giveUpB:dGiveUp,
       opBFire:rbOpBFire, aimFrames:aimFrames, distinctNodeIds:nodeIdSet.size, wepShotsByInc:rbWepInc, wepReloadDec:rbWepDec, wepNumCap:rbNumLast, wepFiredDelta:(wepFirst!==null&&wepLast!==null)?(wepLast-wepFirst):null, wepFirst:wepFirst, wepLast:wepLast,
       vBulletSpawn:spawnFrames-spawnBase, vBulletFramesInRound:rbVBullet,
       lpFinite:(lpOk-lpBase)+'/'+(lpTot-lpTotBase), oob:oob-oobBase, win:won});   // ⭐ 逐局三数对账：_bulletsFired 增量 / opBFire / 新子弹帧
@@ -205,11 +220,16 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
     totalFrames+=frames.length;
     // 每局复位：重开一局（原版会自动开新回合）
   }
-  const _fin=JSON.parse(await m.eval('JSON.stringify(window.__b.stats())'));   // ⭐ 脉冲开火计数（父代理要求单独上报）
-  const summary={rounds:episodes.length, fireSubmitsTotal:_fin.fireSubmits||0, pulseBlocked:_fin.pulseBlocked||0, pulseBlockedByPrev:_fin.pulseBlockedByPrev||0, pulseBlockedBySelfFire:_fin.pulseBlockedBySelfFire||0,totalFrames,totalProj,vFire,truncated,lpOk,lpTot,oob,skippedNoTree,badLp,oppRowsMax:oppSeen.max,oppOver:oppSeen.over,
+  const _fin=JSON.parse(await m.eval('JSON.stringify(window.__b.stats())'));
+  const _ifc=JSON.parse(await m.eval('JSON.stringify(window.__vantageIface||{})'));   // ⭐ A 相被接受数 = _ifaceStats.growAt
+   // ⭐ 脉冲开火计数（父代理要求单独上报）
+  const summary={rounds:episodes.length, fireSubmitsTotal:_fin.fireSubmits||0,
+    aCalls:_fin.aCalls||0, aReqOk, aReqBad, aSkipNoCand, growEntSee, aGrowServer:_fin.aGrowServer||0, aServerReject:_fin.aServerReject||0, growOkCountEnd:_fin.growOkCount||0, aGrow:_fin.aGrow||0, aNotGrowable:_fin.aNotGrowable||0, aTreeFull:_fin.aTreeFull||0, growRejectMissing:_fin.growRejectMissing||0, growRejectNotGrowable:_fin.growRejectNotGrowable||0, growStillValid:_fin.growStillValid||0, growChkErr:_fin.growChkErr||null, aNotLeaf:_fin.aNotLeaf||0, aNoSlots:_fin.aNoSlots||0, aErr:_fin.aErr||null,
+    agAccepted:(_ifc.growAt||0), giveUpA:(_ifc.giveUpA||0), callsA:(_ifc.callsA||0), callsB:(_ifc.callsB||0), nodeCountEnd:_fin.nodeCount,
+    bPicks:(_ifc.picks||0), pulseBlocked:_fin.pulseBlocked||0, pulseBlockedByPrev:_fin.pulseBlockedByPrev||0, pulseBlockedBySelfFire:_fin.pulseBlockedBySelfFire||0,totalFrames,totalProj,vFire,truncated,lpOk,lpTot,oob,skippedNoTree,badLp,oppRowsMax:oppSeen.max,oppOver:oppSeen.over,
     fireMode:FIRE_BACK, fire1Frames:firedFrames, vBulletFrames:vFire, fire1AndBulletFrames:fireAndBullet, noFireButBulletFrames:noFireButBullet,
     vBulletSpawnFrames:spawnFrames, fire1ThenSpawnFrames:fire1ThenSpawn, subFireFrames:subFireFrames, lastPickSameCursor:lastPickSameCursor, lastPickCursorChanged:lastPickCursorChanged, targetChangedFrames:targetChangedFrames, targetSameFrames:targetSameFrames, opBFrames:opBFrames, opBFireFrames:opBFireFrames, opOtherFrames:opOtherFrames, desiredFireFrames:desiredFireFrames, desiredErr:desiredErrSeen, slotsNullFrames:slotsNullFrames, vNextOk:vNextOk, vNextFail:vNextFail, buildOK:buildOKEnd, buildMisses:buildMissEnd, fireNoCursor:fireNoCursorEnd, fireErr:fireErrSeen,
-    aimFramesTotal:aimFrames, distinctNodeIdsTotal:nodeIdSet.size, emptyIntentFrames, legalPen, legalExcluded, legalUnknown, legalByCls, emptyBlocked:(_fin.emptyBlocked||0), deathSubErr:(_fin.deathSubErr||null), picks1Submitted, pickExtrasAccepted:pickExtras, giveUpB, skipReasons:skipReasons, roundFire:roundFire, win:wins};
+    aimFramesTotal:aimFrames, growFramesWithAction:growUidCnt, distinctNodeIdsTotal:nodeIdSet.size, emptyIntentFrames, legalPen, legalExcluded, legalUnknown, legalByCls, emptyBlocked:(_fin.emptyBlocked||0), deathSubErr:(_fin.deathSubErr||null), picks1Submitted, pickExtrasAccepted:pickExtras, giveUpB, skipReasons:skipReasons, aReasons:aReasons, roundFire:roundFire, win:wins};
   fs.closeSync(epFd);   // ⭐ episodes.jsonl 已逐局写入
   fs.writeFileSync(OUT+'summary.json',JSON.stringify(summary,null,2));
   console.log('SUMMARY '+JSON.stringify(summary));
