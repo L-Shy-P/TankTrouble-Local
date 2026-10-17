@@ -518,8 +518,9 @@ window.addEventListener('error', function(e) {
 <!-- TT AI MODS：必须在全部游戏脚本加载后再注入，否则会被 eval 覆盖 -->
 <script src="js/ai_strength_config.js"></script>
 <script src="js/ai_tactics.js"></script>
-<script src="js/vantage_sandbox.js?v=59"></script>
-<script src="js/vantage_scoring.js?v=38"></script>
+<script src="js/vantage_tree_interface.js"></script>
+<script src="js/vantage_sandbox.js?v=81"></script>
+<script src="js/vantage_scoring.js?v=41"></script>
     <!-- 外接 AI（Hybrid）：观测构造器 + 大脑/管理器 + 模型（ES module 推理） -->
     <script src="js/external_ai_hybrid.js?v=2"></script>
     <script src="js/ai_hybrid.js?v=2"></script>
@@ -533,12 +534,14 @@ window.addEventListener('error', function(e) {
         import * as KillfieldBrain from "./external_ai/killfield/brain.js?v=3";
         window.KillfieldBrain = KillfieldBrain;
     </script>
-<script src="js/vantage_tree.js?v=160"></script>
+<script src="js/vantage_tree.js?v=201"></script>
+<script src="js/vantage_observe.js?v=199"></script>
 <script src="js/ai_dodge_debug.js"></script>
 <script src="js/ai_vantage.js?v=10"></script>
-<script src="js/vantage_rust_bridge.js?v=11"></script>
-<script src="js/vantage_testbench.js?v=118"></script>
+<script src="js/vantage_rust_bridge.js?v=17"></script>
+<script src="js/vantage_testbench.js?v=119"></script>
 <script src="js/local_patch.js?v=8"></script>
+<script src="js/vantage_fly_bridge.js"></script>
 <script src="js/training_mode.js?v=48"></script>
 <script src="js/vantage_training_bench.js?v=14"></script>
 <script>
@@ -595,5 +598,86 @@ window.addEventListener('error', function(e) {
     });
 })();
 </script>
+
+<!-- FlyWire 果蝇反射层 · 内嵌面板（F 开关 / 拖标题栏移动 / 位置记忆；只读，不影响对局） -->
+<div id="flyPanel" style="display:none;position:fixed;right:10px;bottom:10px;width:940px;height:640px;min-width:420px;min-height:300px;resize:both;overflow:hidden;z-index:99999;border:1px solid #30363d;border-radius:8px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.7);background:#0d1117">
+  <div id="flyBar" style="cursor:move;user-select:none;padding:5px 8px;background:#161b22;color:#c9d1d9;font:12px system-ui;display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <b style="white-space:nowrap">果蝇反射层</b>
+    <span style="color:#8b949e;font-size:11px;flex:1">拖动此处移动 · F 隐藏</span>
+    <button id="flyWide" style="cursor:pointer;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:1px 6px">放大</button>
+    <button id="flyClose" style="cursor:pointer;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:1px 7px">×</button>
+  </div>
+  <iframe id="flyFrame" src="flywire_debug.html?embed=1" style="width:100%;height:calc(100% - 27px);border:0;background:#0d1117"></iframe>
+</div>
+<script>
+(function(){
+  var P = document.getElementById('flyPanel');
+  var KEY = 'vantageFlyPanelRect';
+  var WIDE = {w:1280, h:800}, SMALL = {w:940, h:640};
+  var wide = false;
+
+  // 位置/尺寸记忆
+  try {
+    var r = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (r) { P.style.left=r.left+'px'; P.style.top=r.top+'px'; P.style.right='auto'; P.style.bottom='auto';
+             P.style.width=r.w+'px'; P.style.height=r.h+'px'; wide = r.w > 1000; }
+  } catch (e) {}
+
+  function save() {
+    try {
+      var b = P.getBoundingClientRect();
+      localStorage.setItem(KEY, JSON.stringify({left:Math.round(b.left),top:Math.round(b.top),w:Math.round(b.width),h:Math.round(b.height)}));
+    } catch (e) {}
+  }
+
+  function toggle(force){
+    var show = (force !== undefined) ? force : (P.style.display === 'none');
+    P.style.display = show ? 'block' : 'none';
+    if (show) { try { document.getElementById('flyFrame').contentWindow.postMessage({flyAuto:'game'}, '*'); } catch(e){} }
+  }
+
+  // 拖标题栏
+  var drag = null;
+  document.getElementById('flyBar').addEventListener('mousedown', function(e){
+    if (e.target.tagName === 'BUTTON') return;
+    var b = P.getBoundingClientRect();
+    drag = { dx: e.clientX - b.left, dy: e.clientY - b.top };
+    P.style.left = b.left + 'px'; P.style.top = b.top + 'px';
+    P.style.right = 'auto'; P.style.bottom = 'auto';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e){
+    if (!drag) return;
+    var x = Math.max(0, Math.min(window.innerWidth - 60, e.clientX - drag.dx));
+    var y = Math.max(0, Math.min(window.innerHeight - 30, e.clientY - drag.dy));
+    P.style.left = x + 'px'; P.style.top = y + 'px';
+  });
+  window.addEventListener('mouseup', function(){ if (drag) { drag = null; save(); } });
+
+  document.getElementById('flyWide').onclick = function(){
+    wide = !wide;
+    P.style.width  = (wide ? WIDE : SMALL).w + 'px';
+    P.style.height = (wide ? WIDE : SMALL).h + 'px';
+    this.textContent = wide ? '缩小' : '放大';
+    save();
+  };
+  document.getElementById('flyClose').onclick = function(){ toggle(false); };
+
+  document.addEventListener('keydown', function(e){
+    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var t = e.target || {};
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+      toggle();
+    }
+  });
+  window.__flyToggle = toggle;
+})();
+</script>
+
+
+
+<script src="js/vantage_pose_agent.js"></script>
+<script src="js/vantage_pose_debug.js"></script>
+<script src="js/vantage_agent_panel.js?v=1"></script>
 </body>
 </html>
