@@ -258,6 +258,10 @@ def build_batch(frames, idx, device):
     grow_row = torch.zeros(B, dtype=torch.int64, device=device)
     lp_grow_old = torch.zeros(B, device=device)
     grow_missing = 0
+    fire_bit = torch.zeros(B, device=device)
+    fire_valid = torch.zeros(B, device=device)
+    lp_fire_old = torch.zeros(B, device=device)
+    fire_missing = 0
     lp_old = torch.zeros(B, device=device)
     v_old = torch.zeros(B, device=device)
     rew = torch.zeros(B, device=device)
@@ -277,6 +281,14 @@ def build_batch(frames, idx, device):
             if 0 < _pp < n: isPar[_pp] = 1
         for _i in range(1, n):
             if isPar[_i] == 0: grow_ok[j, _i] = 1.0
+        _fb = (f["act"] or {}).get("fire")
+        if isinstance(_fb, (int, float)) and not isinstance(_fb, bool):
+            fire_bit[j] = 1.0 if int(_fb) == 1 else 0.0; fire_valid[j] = 1.0
+        else:
+            fire_missing += 1
+        _lpf = (f["act"] or {}).get("lp_fire")
+        if isinstance(_lpf, (int, float)):
+            lp_fire_old[j] = float(_lpf)
         g = (f["act"] or {}).get("grow")
         if isinstance(g, dict) and "lp_grow" in g:
             uid = int(g["nodeId"])
@@ -299,6 +311,7 @@ def build_batch(frames, idx, device):
             "mem": torch.from_numpy(np.stack([frames[i].get("_mem", frames[i]["mem"]) for i in idx])).to(device)}   # ⭐ mem_mode=net 时用局内重算的记忆
     return {"segs": segs, "mask": mask, "act": act, "lp_old": lp_old, "v_old": v_old,
             "grow_ok": grow_ok, "grow_row": grow_row, "lp_grow_old": lp_grow_old, "grow_missing": grow_missing,
+            "fire_bit": fire_bit, "fire_valid": fire_valid, "lp_fire_old": lp_fire_old, "fire_missing": fire_missing,
             "rew": rew, "Ns": Ns, "nmax": nmax}
 
 
@@ -307,7 +320,7 @@ def node_dist(out3, nmax):
 
     返回 (logp_nodes (B,nmax), ent (B,))
     """
-    sliced = out3[:, :nmax]
+    sliced = out3[:, 1:nmax]   # ⭐ D11：候选范围 [1,nmax)，与服务端同批对齐
     lp = torch.log_softmax(sliced, dim=-1)
     p = lp.exp()
     ent = -(p * torch.where(p > 0, lp, torch.zeros_like(lp))).sum(-1)
@@ -370,9 +383,10 @@ def forward_batch(net, b):
     if out[3].shape[1] != b["nmax"] + vb.CTX_TOKENS:
         raise AssertionError("out[3] 长度 %d != nmax(%d)+CTX(%d) —— 口径漂了" % (out[3].shape[1], b["nmax"], vb.CTX_TOKENS))
     lp_nodes, ent, p = node_dist(out[3], b["nmax"])
-    lp = lp_nodes.gather(1, b["act"].view(-1, 1)).squeeze(1)
+    lp = lp_nodes.gather(1, (b["act"] - 1).clamp(min=0).view(-1, 1)).squeeze(1)   # ⭐ act 是行号，但候选从行 1 开始 ⇒ 下标 -1
     v = out[0].view(-1)          # ⭐ out[0] = 价值头（父代理 2026-10-17 裁定）
-    return lp, v, ent, p
+    _fire_logit = out[1].view(-1).float()   # ⭐ head_fire 的 logit（第 5 个返回值，前 4 个不变）
+    return lp, v, ent, p, _fire_logit
 
 
 # ---------------------------------------------------------------- GAE / 更新
@@ -487,7 +501,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
         for s0 in range(0, n, k):
             idx = order[s0:s0 + k]
             b = build_batch(frames, idx, device)
-            lp, v, ent, p = forward_batch(net, b)
+            lp, v, ent, p, fire_logit = forward_batch(net, b)
             ratio = torch.exp(lp - b["lp_old"])
             A = torch.as_tensor(adv[idx], device=device)
             ret_t = torch.as_tensor(ret[idx], device=device)
@@ -502,7 +516,15 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             _term = torch.where(_gv > 0, lp_grow * A, torch.zeros_like(lp_grow))   # ⭐ 先置零再求和（避免 -inf×0 ⇒ NaN）
             pg_grow = -_term.sum() / _gn
             ent_grow = torch.where(_gv > 0, ent_grow_b, torch.zeros_like(ent_grow_b)).sum() / _gn
-            loss = pg + pg_grow + cfg["value_coef"] * vloss - cfg["entropy_coef"] * (ent_m + ent_grow)
+            # ⭐⭐ head_fire 梯度：逐帧 Bernoulli 的 logp × A_t
+            _pf = torch.sigmoid(fire_logit).clamp(1e-6, 1 - 1e-6)
+            _bit = b["fire_bit"].float()
+            lp_fire_new = torch.where(_bit > 0.5, torch.log(_pf), torch.log(1.0 - _pf))
+            _fv = b["fire_valid"].float()
+            _fn = _fv.sum().clamp(min=1.0)
+            pg_fire = -(torch.where(_fv > 0, lp_fire_new * A, torch.zeros_like(lp_fire_new)).sum()) / _fn
+            ent_fire = torch.where(_fv > 0, -(_pf * torch.log(_pf) + (1 - _pf) * torch.log(1 - _pf)), torch.zeros_like(_pf)).sum() / _fn
+            loss = pg + pg_grow + pg_fire + cfg["value_coef"] * vloss - cfg["entropy_coef"] * (ent_m + ent_grow + ent_fire)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), cfg["max_grad_norm"])
@@ -528,7 +550,8 @@ def ppo_update(buffer, net, opt, cfg, device, step):
                    "ratio_min": float(ratio.min().detach()),
                    "clip_frac": float(((ratio - 1.0).abs() > cfg["clip"]).float().mean().detach()),
                    "kl": kl, "gn": float(gn), "v_mean": float(v.mean().detach()), "bs": len(idx),
-                   "pg_grow": float(pg_grow.detach()), "ent_grow": float(ent_grow.detach())}
+                   "pg_grow": float(pg_grow.detach()), "ent_grow": float(ent_grow.detach()),
+                   "pg_fire": float(pg_fire.detach()), "ent_fire": float(ent_fire.detach())}
             for kk, vv in rec.items():
                 m.setdefault(kk, []).append(vv)
             # 动作分布口径自证：前 N 个 node token 的概率和 == 1
@@ -537,7 +560,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             if _maxupd > 0 and _nupd >= _maxupd: break   # ⭐ (A)2 小窗口：到上限就停
         if _maxupd > 0 and _nupd >= _maxupd: break
     out = {}
-    for kk in ("pg", "v", "ent", "ratio_mean", "clip_frac", "kl", "gn", "v_mean", "bs", "pg_grow", "ent_grow"):
+    for kk in ("pg", "v", "ent", "ratio_mean", "clip_frac", "kl", "gn", "v_mean", "bs", "pg_grow", "ent_grow", "pg_fire", "ent_fire"):
         if kk in m:
             out["grad_norm" if kk == "gn" else kk] = float(np.mean(m[kk]))
     if "ratio_max" in m:

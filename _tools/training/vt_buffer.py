@@ -150,6 +150,15 @@ def decode_frame(fr, ctx):
     if isinstance(_grow, dict) and "nodeId" in _grow and "lp_grow" in _grow:
         grow = {"nodeId": _as_int(_grow["nodeId"], ctx + ".act.grow.nodeId"),
                 "lp_grow": _as_float(_grow["lp_grow"], ctx + ".act.grow.lp_grow")}
+    _lpf = act.get("lp_fire")
+    lp_fire = None if _lpf is None else _as_float(_lpf, ctx + ".act.lp_fire")
+    _ffe = act.get("fire_ent")
+    fire_ent = None if _ffe is None else _as_float(_ffe, ctx + ".act.fire_ent")
+    _ffr = act.get("fire_frames")
+    fire_frames = None
+    if isinstance(_ffr, list):
+        fire_frames = [{"nodeId": _as_int(x.get("nodeId"), ctx + ".act.fire_frames.nodeId"),
+                        "back": _as_int(x.get("back", 0), ctx + ".act.fire_frames.back")} for x in _ffr if isinstance(x, dict)]
     fire = _as_int(act.get("fire", 0), ctx + ".act.fire")
     if fire not in (0, 1):
         raise BufferSchemaError("%s.act.fire=%r 非法（应为 0/1）" % (ctx, fire))
@@ -183,7 +192,8 @@ def decode_frame(fr, ctx):
         "N": N,
         "node": segs["node"], "opp": segs["opp"], "bullet": segs["bullet"],
         "item": segs["item"], "global": segs["global"], "mem": segs["mem"],
-        "act": {"nodeId": node_id, "fire": fire, "picks": picks, "grow": grow},
+        "act": {"nodeId": node_id, "fire": fire, "picks": picks, "grow": grow,
+                 "lp_fire": lp_fire, "fire_ent": fire_ent, "fire_frames": fire_frames},
         "lp": _as_float(fr["lp"], ctx + ".lp"),
         "v": _as_float(fr["v"], ctx + ".v"),
         # ⭐ 可选字段：**截断局**（局末帧仍 done=False）的 bootstrap 值 = 该帧之后"下一帧"的服务端 v。

@@ -2,7 +2,7 @@
 """异步 rollout 策略端【v2：四档 CUDA Graphs 版】—— 与原版并存、可用 USE_GRAPH=0 退回原路
 档表 (64/256/512/1000)：查表 = "第一个 >= 真实 N 的档"（含 1000 必须，真 N 的 p75=1000）
 """
-import os, sys, json, torch, hashlib, importlib.util, io, contextlib
+import os, sys, json, math, torch, hashlib, importlib.util, io, contextlib
 spec=importlib.util.spec_from_file_location("nv2","_tools/training/net_v2_fixed.py"); nv2=importlib.util.module_from_spec(spec)
 with contextlib.redirect_stdout(io.StringIO()): spec.loader.exec_module(nv2)
 PAYLOAD_KIND=None
@@ -158,7 +158,7 @@ for line in sys.stdin:
         elif sc.dim()!=1: raise ValueError("动作头形状异常 %s" % (tuple(sc.shape),))
         if sc.shape[0]!=tier+CTX: raise ValueError("动作头长度 %d != 档位 %d + %d（上下文 token）" % (sc.shape[0],tier,CTX))
         _t9=__import__('time').time()
-        logits=sc[:N_real].float()                            # ⭐ 候选集 = 节点区【前 N_real 个】（78 个上下文 token 不是选项）
+        logits=sc[1:N_real].float()   # ⭐ D11：动作空间 [1,N)（行 0 = no-op 移出）                            # ⭐ 候选集 = 节点区【前 N_real 个】（78 个上下文 token 不是选项）
         logp_all=torch.log_softmax(logits,dim=-1)             # ⭐ 只在真实节点上重新归一 = 对原始节点分数做 log_softmax（节点区 mask 全 False、无 -inf）⟹ lp 与该分布同口径
         # ⭐ 裁决 B（父代理 2026-10-17）：采样种子由载荷 d['seed'] 给（同 seed ⟹ 同结果、可复现）；
         #    没给 ⟹ 用 时间戳^请求计数 换着来（⛔ 不再固定 12345：那会让同观测永远同动作、探索死掉）
@@ -168,18 +168,23 @@ for line in sys.stdin:
         else:
             _REQN+=1
             torch.manual_seed((__import__('time').time_ns() ^ (_REQN*2654435761)) & 0x7fffffff)
-        idx=int(torch.multinomial(torch.exp(logp_all),1).item())
+        idx=int(torch.multinomial(torch.exp(logp_all),1).item())+1   # ⭐ 上面已去掉行 0 ⇒ 行号 +1
         _tA=__import__('time').time()
         _argidx=int(torch.argmax(logits).item())
         if _TRACE: print("T_ARGMAX ms=%.3f (对照: 仅 argmax+item, 未采用)" % ((__import__('time').time()-_tA)*1000), flush=True)
         if _TRACE: print("T_SAMPLE ms=%.3f" % ((__import__('time').time()-_t9)*1000), flush=True)
         if not (0<=idx<N_real): raise AssertionError("nodeId=%d 越界 [0,%d) —— ⛔ 显式失败、不静默截断" % (idx,N_real))
-        lp=float(logp_all[idx]); v=float(out[0].mean())       # ⭐ v=out[0]=价值头 head_node(池化h)；⛔ 语义不变
+        lp=float(logp_all[idx-1]); v=float(out[0].mean())   # ⭐ logp_all 已是 [1,N) 的分布 ⇒ 下标 -1       # ⭐ v=out[0]=价值头 head_node(池化h)；⛔ 语义不变
         # ⭐ 开火头 out[1]（2026-10-17 派单②）：语义 = "本帧要不要开火"的策略信号（B=1 ⟹ 单个 logit）
         #    ⛔ 不动 out[0]/out[3] 语义（那是已验收口径）；采集器拿 fire=1 去拼 picks[1] 射击帧
         _flog = float(out[1].view(-1)[0])
         _fprob = float(torch.sigmoid(torch.tensor(_flog)))
-        fire = 1 if _fprob > 0.5 else 0                       # ⭐ 阈值 0.5（确定性、不额外消耗采样 RNG）
+        # ⭐⭐ head_fire 真采样（Bernoulli，用载荷 seed）⇒ lp_fire / fire_ent 可得漓度
+        _fbit = int(torch.bernoulli(torch.tensor(_fprob)).item())
+        fire = _fbit
+        _p = min(max(_fprob, 1e-6), 1 - 1e-6)
+        lp_fire = float(math.log(_p) if fire == 1 else math.log(1.0 - _p))
+        fire_ent = float(-(_p * math.log(_p) + (1 - _p) * math.log(1 - _p)))                       # ⭐ 阈值 0.5（确定性、不额外消耗采样 RNG）
         _F1 += fire; _F0 += (1 - fire)
         if (not _FIRE_PRINTED) and (_F1 + _F0) >= _FIRE_DIST_AT:
             _FIRE_PRINTED = True
@@ -212,6 +217,6 @@ for line in sys.stdin:
             _gi = int(torch.multinomial(_glp.exp(), 1).item())
             _p = _glp.exp(); _ent = float(-(_p * torch.where(_p > 0, _glp, torch.zeros_like(_glp))).sum())
             _grow = {"grow_nodeId": _gi, "lp_grow": float(_glp[_gi]), "ent_grow": _ent, "grow_ok_count": int(_allow.sum().item())}
-        print(json.dumps(({"grow": _grow} if _grow else {}) | {"lp":lp,"v":v,"fire":fire,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
+        print(json.dumps(({"grow": _grow} if _grow else {}) | {"lp":lp,"v":v,"fire":fire,"lp_fire":lp_fire,"fire_ent":fire_ent,"fire_p":_fprob,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
     except Exception as e:
         print(json.dumps({"lp":None,"v":None,"err":str(e)[:240]}),flush=True)   # ⭐ 诊断信息尽量带全（仍是一行 JSON，协议不变）

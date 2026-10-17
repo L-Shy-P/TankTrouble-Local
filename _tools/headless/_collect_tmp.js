@@ -54,7 +54,9 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   // ⭐ 开火接线记账（派单③）：fire=1 帧数 / 真出现 vantage_1 子弹的帧数 / picks[1] 提交与被接受/被拒
   let firedFrames=0, fireAndBullet=0, noFireButBullet=0, picks1Submitted=0, pickExtras=0, giveUpB=0;
   let aimFrames=0, nodeIdSet=new Set();
-  let aReqOk=0, aReqBad=0, aSkipNoCand=0, growEntSee=null;   // ⭐ A 相：请求成功/失败/无候选
+  let aReqOk=0, aReqBad=0, aSkipNoCand=0, growEntSee=null;
+  let fireEntSee=null, fireLpCnt=0;
+  let skipNoAction=0;   // ⭐ N<2 无合法动作（no-op 已移出）   // ⭐ head_fire 采样参数   // ⭐ A 相：请求成功/失败/无候选
   let growUidCnt=0;
   let emptyIntentFrames=0;
   const MEM_ECHO_MAX=+(process.env.VT_MEM_ECHO_MAX||260);   // ⭐ 对拍回声上限（帧）
@@ -140,6 +142,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       if(o.nSlots===-1) slotsNullFrames++;   // ⭐ pendingSlots 空 ⟹ 桥必然 no-output
       const N=(o.n||[]).length;
       if(N<1){ skippedNoTree++; await m.pump(1,{yieldMs:0}); continue; }   // ⭐ 空树帧（回合间隙）不进数据
+      // ⭐ D11：动作空间已改为 [1,N)（移除 no-op）⇒ **N<2 时没有合法动作**，不该叫服务端
+      if(N<2){ skipNoAction++; await m.pump(1,{yieldMs:0}); continue; }
       const bRows=(o.b&&o.b.length)?o.b:[[0,0,0,0,0,0,0]];   // ⭐ 没子弹时不能发 []（服务端要求二维）
       // ⭐⭐ 两端同口径（2026-10-17）：发给服务端的段 = 落进 buffer 的段（node/opp/bullet/item/global）
       //     ⛔ 少了 opp/item ⟹ 服务端看到的是补零、训练器看到真实值 ⟹ 两套输入分布（ratio 必爆）
@@ -157,6 +161,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       if(p.err){ if(!global.__errSeen)global.__errSeen={}; if(!global.__errSeen[p.err]){global.__errSeen[p.err]=0; console.log('SRV_ERR '+p.err);} global.__errSeen[p.err]=(global.__errSeen[p.err]||0)+1; }
       if(typeof p.nodeId==='number'){ if(p.nodeId>=N||p.nodeId<0)oob++; nodeId=p.nodeId; }
       if(growUid!==null) growUidCnt++;
+      if(typeof p.fire_ent==='number') fireEntSee=p.fire_ent;
+      if(typeof p.lp_fire==='number') fireLpCnt++;
       if(p.mem_echo && memEcho.length<MEM_ECHO_MAX) memEcho.push({f:f,N:N,mem:p.mem_echo});   // ⭐ 对拍用：服务端每帧到底喂了什么
       if(typeof p.nodeId==='number') nodeIdSet.add(p.nodeId);   // ⭐ 父代理判据：distinct nodeId（每局去重计数）
       // ⭐ 开火接线：服务端 fire（out[1]）⟹ 本帧 wantFire ⟹ build() 拼 picks[1] 射击帧
@@ -181,7 +187,9 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       frames.push({t:f,N:N,
         obs:{node:o.n,opp:oppR,bullet:pad(bRows,BUL_SLOTS,7),item:itemR,global:[o.g]},
         act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:fire,picks:picksRec,
-             grow:(growUid===null?null:{nodeId:growUid,lp_grow:lpGrow})},   // ⭐ ⭐ A 相动作（uid + 采样时的 lp_grow）
+             grow:(growUid===null?null:{nodeId:growUid,lp_grow:lpGrow}),
+             lp_fire:(typeof p.lp_fire==='number'?p.lp_fire:null), fire_ent:(typeof p.fire_ent==='number'?p.fire_ent:null),
+             fire_frames:(picksRec.length>1?picksRec.slice(1):[])},   // ⭐ 射击帧清单（桥真提交的）   // ⭐ ⭐ A 相动作（uid + 采样时的 lp_grow）
         lp:(lpOkF?p.lp:0),v:(typeof p.v==='number'&&isFinite(p.v)?p.v:0),
         r:{total:0.01,result:0,survive:0.01,legal:0,spawn:spawnedNow,hit:hitNow,aim:(o.aim|0),
            kill:rKill,selfkill:rSelfkill,death:rDeath,kill_storm:rKillStorm,death_storm:rDeathStorm,win:0,lose:0,legal:legalNow,   // ⭐ win/lose/legal 只在〈本局末帧〉写（本局结果/本局累计重罚）
@@ -224,7 +232,7 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   const _ifc=JSON.parse(await m.eval('JSON.stringify(window.__vantageIface||{})'));   // ⭐ A 相被接受数 = _ifaceStats.growAt
    // ⭐ 脉冲开火计数（父代理要求单独上报）
   const summary={rounds:episodes.length, fireSubmitsTotal:_fin.fireSubmits||0,
-    aCalls:_fin.aCalls||0, aReqOk, aReqBad, aSkipNoCand, growEntSee, aGrowServer:_fin.aGrowServer||0, aServerReject:_fin.aServerReject||0, growOkCountEnd:_fin.growOkCount||0, aGrow:_fin.aGrow||0, aNotGrowable:_fin.aNotGrowable||0, aTreeFull:_fin.aTreeFull||0, growRejectMissing:_fin.growRejectMissing||0, growRejectNotGrowable:_fin.growRejectNotGrowable||0, growStillValid:_fin.growStillValid||0, growChkErr:_fin.growChkErr||null, aNotLeaf:_fin.aNotLeaf||0, aNoSlots:_fin.aNoSlots||0, aErr:_fin.aErr||null,
+    aCalls:_fin.aCalls||0, aReqOk, aReqBad, aSkipNoCand, growEntSee, fireEntSee, fireLpCnt, skipNoAction, aGrowServer:_fin.aGrowServer||0, aServerReject:_fin.aServerReject||0, growOkCountEnd:_fin.growOkCount||0, aGrow:_fin.aGrow||0, aNotGrowable:_fin.aNotGrowable||0, aTreeFull:_fin.aTreeFull||0, growRejectMissing:_fin.growRejectMissing||0, growRejectNotGrowable:_fin.growRejectNotGrowable||0, growStillValid:_fin.growStillValid||0, growChkErr:_fin.growChkErr||null, aNotLeaf:_fin.aNotLeaf||0, aNoSlots:_fin.aNoSlots||0, aErr:_fin.aErr||null,
     agAccepted:(_ifc.growAt||0), giveUpA:(_ifc.giveUpA||0), callsA:(_ifc.callsA||0), callsB:(_ifc.callsB||0), nodeCountEnd:_fin.nodeCount,
     bPicks:(_ifc.picks||0), pulseBlocked:_fin.pulseBlocked||0, pulseBlockedByPrev:_fin.pulseBlockedByPrev||0, pulseBlockedBySelfFire:_fin.pulseBlockedBySelfFire||0,totalFrames,totalProj,vFire,truncated,lpOk,lpTot,oob,skippedNoTree,badLp,oppRowsMax:oppSeen.max,oppOver:oppSeen.over,
     fireMode:FIRE_BACK, fire1Frames:firedFrames, vBulletFrames:vFire, fire1AndBulletFrames:fireAndBullet, noFireButBulletFrames:noFireButBullet,
