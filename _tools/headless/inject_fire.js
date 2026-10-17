@@ -138,6 +138,8 @@
   //   判据 = 最近【存活】对手相对车头方向的角度 ≤ gate 度才允许开火；超了就不发 picks[1]（并计数 aimBlocked）。
   //   ⚠️ 默认 0 = 关闭（行为不变）。selfRot 约定若反了，闸门会全拦 ⟹ 表现为 bulletsSpawned=0，届时翻符号重试。
   window.__b.aimGateDeg = 0;
+  window.__b.setFireRoot = function (v) { window.__b.fireRoot = (+v ? 1 : 0); return window.__b.fireRoot; };
+  window.__b.setFireSingle = function (v) { window.__b.fireSingle = (+v ? 1 : 0); return window.__b.fireSingle; };
   window.__b.setAimGate = function (d) { window.__b.aimGateDeg = (+d || 0); return window.__b.aimGateDeg; };
   window.__b.aimOk = function () {
     var g = window.__b.aimGateDeg | 0;
@@ -312,7 +314,33 @@
           if (!_Ln) { try { var _nL = (window.__b.nodeRows && window.__b.nodeRows[window.__b.lastPickRow]) ? null : null; } catch (eL2) { } }
           if (_Ln && _Ln > 0) {   // ⭐⭐ 全帧枚举对【所有路径】生效（包括回退路径）：不管下一帧执行第几帧都能命中
             // ⚠️ 隔帧枚举已【撤回】（2026-10-18 实测：opBFire 243→5、bulletsSpawned 7→5，反而更差）⟹ 恢复全帧枚举。
-            var _all = []; for (var _b = 0; _b < _Ln; _b++) _all.push({ back: _b, frame: _Ln - 1 - _b });
+            // ⭐⭐⭐ 单帧开火（父代理 2026-10-18，`VT_FIRE_SINGLE=1`）：
+            //   实测根因 —— **全帧枚举 = 把整段都设成 fire = 一直按住扳机**，
+            //   而 `BulletWeapon._triggerPulled` 是【锁存】的 ⟹ 一直按住只出 **1 发**。
+            //   而评测侧（`_g1_inject.js:159`）只发 `{nodeId:root, back:1e9}` ⟹ execFrame=0 ⟹
+            //   **只在游标回 0 的帧 fire=true** ⟹ 天然"按一帧、松一帧" ⟹ 子弹多、能打死人。
+            //   ⟹ 这里改成**只发当前游标那一帧**，让 fire 随游标推进自然交替。
+            // ⭐⭐⭐ 复刻评测写法（`VT_FIRE_ROOT=1`）：`{nodeId: root.id, back: 1e9}` ⟹ back 被 clamp 成 L-1
+            //   ⟹ execFrame = start(root)+0 = 0 ⟹ 只在"游标回 0"的帧 fire=true ⟹ 天然按/松交替。
+            //   这是【唯一还没试过】的组合，而评测用它 302 帧就打死人。
+            if (window.__b.fireRoot) {
+              var _rt2 = null; try { var _tt = VantageTree.getTree(); _rt2 = _tt && _tt.root ? _tt.root.id : null; } catch (eFR) { }
+              if (_rt2 !== null) {
+                picks.push({ nodeId: _rt2, back: 1e9 });
+                window.__b.fireSubmits++;
+                window.__b.fireSubmittedThisFrame = true;
+                window.__b.lastFirePick = { nodeId: _rt2, backs: [1e9], mode: 'rootHugeBack' };
+                window.__b.lastBuilt = picks; window.__b.lastTargetId = n.id; window.__b.lastPickNodeId = n.id;
+                return { picks: picks, memory: {} };
+              }
+            }
+            var _all = [];
+            if (window.__b.fireSingle) {
+              var _relS = (typeof cur.rel === 'number') ? cur.rel : 0;
+              _all.push({ back: _Ln - 1 - _relS, frame: _relS });
+            } else {
+              for (var _b = 0; _b < _Ln; _b++) _all.push({ back: _b, frame: _Ln - 1 - _b });
+            }
             window.__b.fireAllFrames = _Ln;
             for (var _bi2 = 0; _bi2 < _all.length; _bi2++) picks.push({ nodeId: cur.id, back: _all[_bi2].back });
             window.__b.fireSubmits++;

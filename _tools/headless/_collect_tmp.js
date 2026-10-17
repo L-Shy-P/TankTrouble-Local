@@ -52,6 +52,15 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
                       crates:(function(){var v=process.env.C_CRATES; if(v===undefined||v==='')return null; if(v==='1')return true; if(v==='0')return false; try{return JSON.parse(v);}catch(e){return null;}})(),
                       epoch:(process.env.C_EPOCH?Number(process.env.C_EPOCH):undefined), control:false}
                   : {humanIds:[],aiCount:1,vantCount:1,control:false};
+  // ⭐ 与评测同构的地图 RNG：`C_MAZE_SEED=<scene.seed>` ⟹ 用与 run_scenes_30.js 相同的 LCG 序列
+  //   （评测 mazeSeed = scene.seed*100003+7，序列长 150000，见 run_scenes_30.js:199-202）
+  const _CMS=+(process.env.C_MAZE_SEED||0);
+  if (_CMS>0) {
+    const _ms=((_CMS*100003)+7)>>>0; let _s=_ms||1; const _n=150000; const _seq=new Array(_n);
+    for (var _i=0;_i<_n;_i++){ _s=(Math.imul(_s,1664525)+1013904223)>>>0; _seq[_i]=_s/4294967296; }
+    _op.rngSeq=_seq;
+    console.log('MAZE_RNG seed='+_CMS+' mazeSeed='+_ms+' len='+_n);
+  }
   console.log('OPEN_MODE '+(_CP?('players='+_CP+' storm='+(+process.env.C_STORM||0)+' crates='+(process.env.C_CRATES||'')):'legacy aiCount=1 vantCount=1'));
   const op=await m.open(_op);
   console.log('SRV_BOOT_LINES '+await waitBoot());   // ⭐ 必须先吃完开机行（否则前几帧串包）
@@ -65,6 +74,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   await m.eval('window.__b.pulseBlock='+PULSE_BLOCK+';'); if(process.env.VT_FIRE_FIRST==='1') await m.eval('window.__b.fireFirst=1;'); if(process.env.VT_PROBE_DZ==='1') await m.eval('window.__b.probeDzOn=1;'); if(process.env.VT_PROBE_MATCH==='1') await m.eval('window.__b.probeMatchOn=1;');
   if(process.env.VT_PROBE_GATE==='1') await m.eval('window.__b.probeGateOn=1;'); if(process.env.VT_PROBE_MDBG==='1') await m.eval('window.__b.probeMatchDbgOn=1;');
   if((process.env.VT_FIRE_MODE||'')==='mask') await m.eval("window.__b.fireMode='mask';");
+  if(process.env.VT_FIRE_ROOT) console.log('FIRE_ROOT '+await m.eval('window.__b.setFireRoot('+(+process.env.VT_FIRE_ROOT||0)+')'));
+  if(process.env.VT_FIRE_SINGLE) console.log('FIRE_SINGLE '+await m.eval('window.__b.setFireSingle('+(+process.env.VT_FIRE_SINGLE||0)+')'));
   if(process.env.VT_AIM_GATE) console.log('AIM_GATE '+await m.eval('window.__b.setAimGate('+(+process.env.VT_AIM_GATE||0)+')'));
   if(process.env.VT_HOLD_TARGET) console.log('HOLD_TARGET '+await m.eval('window.__b.setHoldTarget('+(+process.env.VT_HOLD_TARGET||0)+')'));
   if(process.env.VT_FIRE_HACK==='1') await m.eval('window.__b.fireHack=1;'); console.log('PULSE_BLOCK '+PULSE_BLOCK);
