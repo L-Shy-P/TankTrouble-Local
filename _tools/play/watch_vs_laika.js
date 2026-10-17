@@ -3,22 +3,29 @@
 const fs=require('fs'),path=require('path');const {spawn}=require('child_process');
 const {Match}=require('../headless/match');
 const SRC=fs.readFileSync(path.join(__dirname,'..','headless','inject_fire.js'),'utf8');
-const ROUNDS=+process.env.W_ROUNDS||0, CAP=+process.env.W_FRAMES||999999;
+const ROUNDS=+process.env.W_ROUNDS||0, CAP=+process.env.W_FRAMES||0;   // 0 = 一直跑
+const RULES=(process.env.W_RULES||'0')==='1';   // 1 = 不注入策略，纯原生 AI 对打
 function ask(srv,o){return new Promise(r=>{srv.stdin.write(JSON.stringify(o)+'\n');srv.stdout.once('data',d=>{try{r(JSON.parse(String(d).trim()))}catch(e){r({err:'parse'})}});});}
 (async()=>{
-  const ck=process.env.VT_CKPT;
-  if(!ck||!fs.existsSync(ck)){console.log('⛔ 请给 VT_CKPT=<model_latest.pt>');process.exit(2);}
-  const srv=spawn('py',['-3.13','_tools/training/policy_server_graph.py'],{env:Object.assign({},process.env,{PYTHONIOENCODING:'utf-8'})});
-  srv.stderr.on('data',d=>{const t=String(d); if(t.indexOf('CKPT_')>=0)console.log('策略 '+t.trim().slice(0,90));});
-  await new Promise(r=>{const h=d=>{if(String(d).indexOf('WARMUP_SAMPLE')<0)return;srv.stdout.off('data',h);r();};srv.stdout.on('data',h);});
+  let srv=null;
+  if(!RULES){
+    const ck=process.env.VT_CKPT;
+    if(!ck||!fs.existsSync(ck)){console.log('⛔ 策略模式请给 VT_CKPT=<model_latest.pt>；只想看原生 AI 对打请加 W_RULES=1');process.exit(2);}
+    srv=spawn('py',['-3.13','_tools/training/policy_server_graph.py'],{env:Object.assign({},process.env,{PYTHONIOENCODING:'utf-8'})});
+    srv.stderr.on('data',d=>{const t=String(d); if(t.indexOf('CKPT_')>=0)console.log('策略 '+t.trim().slice(0,90));});
+    await new Promise(r=>{const h=d=>{if(String(d).indexOf('WARMUP_SAMPLE')<0)return;srv.stdout.off('data',h);r();};srv.stdout.on('data',h);});
+  }
   const m=new Match();
   await m.open({humanIds:[],aiCount:1,vantCount:1,control:false,headless:false});
-  await m.eval(SRC); await m.eval("window.__b.tankId='vantage_1'"); await m.eval('window.__probe.setup()');
-  console.log('窗口已打开：Vantage(策略) vs Laika —— 直接看，Ctrl+C 结束');
+  if(!RULES){ await m.eval(SRC); await m.eval("window.__b.tankId='vantage_1'"); await m.eval('window.__probe.setup()'); }
+  const sn0=await m.snapshot();
+  console.log('坦克清单 = '+JSON.stringify((sn0.tanks||[]).map(function(t){return t.id;})));
+  console.log('★ 游客皮肤那只 = vantage_1（'+(RULES?'原生规则版 Vantage':'我们的策略')+'）；Laika 皮肤那只 = 6148530');
+  console.log('窗口保持打开，按 Ctrl+C 结束');
   let nodeId=0, f=0, ep=1, lastStage='';
-  while(f<CAP){
+  while(CAP===0||f<CAP){
     if(ROUNDS&&ep>ROUNDS) break;
-    const o=JSON.parse(await m.eval('window.__b.step('+nodeId+',1)'));
+    const o=RULES?{err:'rules'}:JSON.parse(await m.eval('window.__b.step('+nodeId+',1)'));
     if(!o.err){
       const N=(o.n||[]).length;
       if(N>0){
@@ -36,5 +43,5 @@ function ask(srv,o){return new Promise(r=>{srv.stdin.write(JSON.stringify(o)+'\n
       console.log('f='+f+' 局≈'+ep+' 阶段='+st+' 坦克='+(snap.tanks||[]).length+' 子弹='+(snap.projectiles||[]).length);
     }
   }
-  await m.close(); srv.kill(); console.log('结束');
+  await m.close(); if(srv)srv.kill(); console.log('结束');
 })().catch(e=>{console.log('FATAL '+((e&&e.stack)||e));process.exit(1)});
