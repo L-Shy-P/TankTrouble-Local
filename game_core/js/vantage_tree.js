@@ -38,7 +38,7 @@
  *   25 颗弹那种重活就卡，弹位误差飙到 2.8~3.9m，预测死期算成 27 帧而真实 1 帧。
  *   修法（v137 注释里的备选方案 B）：不动既有 ABI 签名，新增全局 setter
  *   `vt_set_frame_dt(dt)`（ABI v7→v8）；Rust 侧 FRAME_DT/RESCORE_DT 由常量改成
- *   `frame_dt()` 读全局值（值域钳 [0.005,0.2]）。JS 在每次 Rust 调用前同步。
+ *   `frame_dt()` 读全局值（v163b 起值域与 JS 侧一致：钳 [0.001,1.0]）。JS 在每次 Rust 调用前同步。
  *   护栏同步放宽：不再要求精确 0.02；旧 wasm（无 setter）仍走旧回退分支。
  *   旧行为备份：`pub const FRAME_DT: f64 = 0.02;` / `Math.abs(_frameDtSec - 0.02) < 1e-9`。
  *
@@ -785,7 +785,33 @@
     /** 模块版本号——**单一来源**。录制元数据、启动日志都用它，避免各写一份导致漂移
      *  （v113 修：录制里的 treeVersion 之前是写死的 'v108'，主人 2026-09-07 那批录制
      *  更是写着 'v106'，事后无法判断是哪版树跑的）。升版只改这一处。 */
-    var TREE_VERSION = 'v160';
+    // v166：弹种语义补齐（① 霰弹撞墙/撞盾减命 ≤0.7s、② `Projectile.done()` 第三支
+    //       「最近 35ms 内 ≥5 次撞墙/撞盾接触就销毁」）+ Rust ABI v10 弹种码。
+    //       三处同改：JS track / JS 融合 / Rust（rollout.rs），对拍见
+    //       `rust/diff_shotgun_wall_lifetime.js` / `rust/diff_bounce_timeout_window.js`。
+    //       ⚠️ 版本号必须与 index.html 的 `?v=` 同步（`rust/diff_record_meta.js` 对账）。
+    // v169：**只读计数**（重锚旁路定位；不参与任何判定）——
+    //   ① `ensureThreatTracks` 的每条早退出口逐个计数；
+    //   ② 每次重锚/commit 之后只读审计 `Δ = _timeAcc − (rootAbsT + anchorOffset)`。
+    //   报告：`docs/Vantage躲弹实现/03-踩坑与待查/待查与审计/重锚旁路定位-2026-10-12.md`
+    // v170：**多 vantage AI 树时钟 N× 修正**（时间基准，非语义）——
+    //   ① 回退分支按 `gc.lastUpdate` 时间戳去重：同一游戏帧 N 个 vantage AI 各 tick 一次，
+    //      `_timeAcc` 只推进一次（训练分支 `seen === _lastSeenWorldStep` 同义，保护行未动）；
+    //   ② 回退分支的墙钟 raw 改用整数毫秒口径（`Math.floor(Date.now()) - luMs`），
+    //      消掉 headless 虚拟时钟下浮点 `Date.now()` vs 截断 `getTime()` 造成的 +2% 均值偏大。
+    var TREE_VERSION = 'v201';   // 2026-10-13 G5（§12.8/§12.31）：沙箱侧护盾 fixture 进融合世界（只改 sandbox；树无行为改动）。
+    // 上一版 v189：   // 2026-10-13 S1-毒雾：沙箱侧补「毒雾判死」（纯几何、无 Box2D；只改 sandbox，树无行为改动）。
+    // 上一版 v188：   // 2026-10-13 S1（§12.3）：沙箱侧补「子弹非正常消失」移除链（只改 sandbox；树无行为改动）。
+    // 上一版 v187：   // 2026-10-13 阶段3-5 执行层：B 路线逐帧滚动执行（游标）+ fire 解开写死 false（仅该帧，不锁存）+ 射击帧按 (nodeId,back) 落帧 + 0帧自杀检测（炮口贴墙；拒绝该射击帧）；规则版/无 B 路线原样（§5）
+    //                              （= 最长子弹寿命；horizonSec 滑块 1~15s）；
+    //                              ② 数量闸门 500→1000、允许略超；③ **树满 ⟹ 本帧不调用 A**
+    //                              （判据 canAddTreeNodes(tree,9)，在 agentSeam 调用点加门；
+    //                              仅改 tree，不碰沙箱/评分/判死）。
+    //                              上一版 v178：形状签名 + 候选体重建（只改 sandbox；树无行为改动）。
+    //                              上一版 v177：沙箱侧死亡事件采集器（**只订阅 4 个事件，
+    //                              不 wrap 任何游戏方法**；纯读、不碰树/评分/判死）—— 树只跟版本号，无行为改动。
+    //                              上一版 v176：导航表收尾 A 换图即建 + E 预算阀（只改 sandbox）；
+    //                              更早 v175：SandboxAdapter 取数层（adapter 只加 getter/字段，不改语义）。
 
     var FRAME_DT = 0.02;            // 与沙箱/评分同源（0.02s/帧）
     var _rootAbsTNow = 0;          // v118：本 tick 的 root 绝对时间（威胁坐标换算用）
@@ -798,10 +824,10 @@
     var _deathDurationRatio = 0.5;            // v80：软死节点执行时长不超过死亡帧的一半
     var _growLayersPerTick = 1;               // v80：每 tick 最多生长多少层（完整9候选）
     var _deepSelectEnabled = false;           // v81：深层选路实验开关（默认关）
-    var _maxNodes = 500;                     // v84：节点数上限，可由 testbench 滑块调整
+    var _maxNodes = 1000;                    // v179（2026-10-12 阶段2 A2 主人裁决）：500→1000；允许略超、到顶停止调用 A
     var _nodeCapEnabled = true;              // v85：节点数上限开关
     var _horizonCapEnabled = true;           // v85：时间视界上限开关
-    var _horizonSec = 8.0;                   // v91：预测时长上限（秒，1~15）
+    var _horizonSec = 10.0;                  // v179（2026-10-12 阶段2 A1 主人裁决）：8.0→10.0 秒 = 最长子弹寿命（BULLET_MAX_LIFETIME）
     var _pruneCompensateLayers = 1;          // v91：新弹剪枝后每帧额外补偿层数（0~9）
 
     var _pruneCompensateFrames = 3;
@@ -829,6 +855,8 @@
     var _killfieldWallDist = null;           // v103：每格离墙多少格（贴墙=1，越中心越大）
     var _killfieldWallMax = 1;               // v103：上面那张表的归一化上界
     var _killfieldBase = null;               // v103：基础质量（死路惩罚低 + 出口多）
+    // v173（1-2④）：追踪导弹「换目标」检测基线（见 missileTargetSignature 注释）。
+    var _lastMissileTargetSig = null;
     var _killfieldAnchorIdx = -1;            // v103：选出的“最安全地皮”格下标
     var _killfieldAnchorTile = null;          // v103：上面那块地皮的格子坐标（空场引导的目标）
     var _autoTarget = null;                   // v103：杀戮场自动寻路目标（与用户点击目标分开）
@@ -840,8 +868,6 @@
     var _frameDtCalibEnabled = true;
     // v141：只读记录实验配置，不能让录像再丢失“到底是固定1/300还是默认动态”。
     var _fixedEvalMode = false;
-    var _lastGameClock = null;  // 上一 tick 的游戏时钟（弹的 getTimeAlive）
-    var _lastGameClockId = null;
     var _lastAdapter = null;                  // v104：本帧适配器（几何威胁提前量用）
     var _lastTankState = null;                // v104：本帧坦克位置（几何威胁提前量用）
     var _speedCap = 0;                        // v128：贴墙爬行时的实测速度上限（m/s），0=不限制
@@ -1128,6 +1154,7 @@
             snap.cands.push({
                 id: c.id,
                 op: c.opName || '?',
+                deadSub: isDeadSubtree(c) ? 1 : 0,   // v161 诊断：递归真死标记
                 safety: Math.round((Number(c.subtreeBest) || 0) * 10) / 10,
                 total: Math.round((Number(c.rolloutTotal) || 0) * 10) / 10,
                 fd: c.fullDeathFrame,
@@ -1172,6 +1199,15 @@
             meta: {
                 treeVersion: TREE_VERSION,
                 frameDt: FRAME_DT,
+                // v163：校准器诊断（只记录，不参与决策）——掉帧矫正了几次、最近一次真实步长
+                frameDtMeasured: _frameDtMeasured > 0 ? Math.round(_frameDtMeasured * 100000) / 100000 : null,
+                frameDtLastAdv: _frameDtLastAdv > 0 ? Math.round(_frameDtLastAdv * 100000) / 100000 : null,
+                frameDtSwitches: _frameDtSwitches,
+                // v163：量化修正后的可见性——样本来源 / 墙钟对照值 / 交叉校验偏差
+                frameDtSampleSrc: _frameDtSampleSrc || null,
+                frameDtWallLast: _frameDtWallLast > 0 ? Math.round(_frameDtWallLast * 1000000) / 1000000 : null,
+                frameDtCrossMiss: _frameDtCrossMiss,
+                frameDtCrossMaxMs: _frameDtCrossMaxMs > 0 ? Math.round(_frameDtCrossMaxMs * 1000) / 1000 : null,
                 tNow: _timeAcc,
                 rebuilds: _rebuildCount,
                 killfieldEnabled: _killfieldEnabled,
@@ -1266,7 +1302,7 @@
         //   // tMin: 1,   ← v142：段长下限；必须不超过最短评估窗口
         // 实测语义：tMin 不会挡住 1 帧真死（fd 来自 rollout，与段长无关）。
         tMax: 30,                         // 段长上限
-        horizonSec: 8.0,                  // v31：Box2D 轨迹已验证<0.5m，恢复长视界；
+        horizonSec: 10.0,                 // v179：8.0→10.0 秒（阶段2 A1 裁决；= BULLET_MAX_LIFETIME，现成滑块 1~15s）
         pruneCompensateLayers: 1,        // v91：新弹剪枝后每帧额外补偿层数（0~9）
 
         pruneCompensateFrames: 3,
@@ -1275,7 +1311,7 @@
         // v91：补偿持续帧数（1~60）
                                           // 节点数=视界/段长×每层候选：远弹段长30帧→
                                           // 层数少；近弹段长3帧→层数多，直到 maxNodes。
-        maxNodes: 500,                    // 节点数上限（v84 起可调，默认仍 500）
+        maxNodes: 1000,                   // v179：500→1000（阶段2 A2 裁决；到顶停止调用 A，允许略超）
         nodeCapEnabled: true,             // v85：节点数上限是否生效
         horizonCapEnabled: true,          // v85：时间视界是否生效
         refineBeyondLimits: false,        // v85：达到上限后继续细化长操作
@@ -1392,6 +1428,7 @@
         n.tEndSec = 0;
         n.samples = null;         // 本段的 rollout 采样（现实对齐/渲染用）
         n.exhausted = false;      // 真死回退标记：此节点的 9 候选全部死亡，不再沿它生长
+        n.hasGrown = false;       // v180（阶段2-3 G2）：是否生长过（动态参数；随增量预测失效复位）
         n.fullDead = false;       // 完整75帧 rollout 是否死亡（即使死亡帧晚于段长）
         n.fullDeathFrame = -1;
         n.invalid = false;        // v47：结构失效（重摆穿墙/威胁局部失效剪枝）
@@ -1412,6 +1449,7 @@
     var _timeAcc = 0;        // 绝对累计时间（秒）：树图 X 轴/竖线锚点，坍缩重建均不归零
     var _lastWorldDt = FRAME_DT;   // 上一帧真实世界实际走过的秒数（v41 时间轴同源）
     var _lastSeenWorldStep = null; // v41：已消费的 RoundModel 真实步数（暂停/倒计时不前进）
+    var _lastSeenWorldClock = null; // v170：已消费的 gc.lastUpdate 时间戳（同一游戏帧只推进一次，防多 vantage AI N×）
     var _events = [];        // [{t, type:'commit'|'rebuild'|'align', info}]
     var MAX_EVENTS = 24;
 
@@ -1476,9 +1514,31 @@
         var cap = maxDeltaSec();
         if (typeof gc._ttLastWorldDt === 'number' && gc._ttLastWorldDt > 0) {
             w = gc._ttLastWorldDt;
-        } else if (typeof gc.lastUpdate === 'number') {
-            var raw = (Date.now() - gc.lastUpdate) / 1000.0;
-            if (raw > 0 && raw <= cap * 1.5) w = Math.min(raw, cap);
+        } else {
+            // v163：本 build 的 GameController.update 原文是 `this.lastUpdate = new Date()`，
+            // 旧写法 `typeof gc.lastUpdate === 'number'` 让这条墙钟回退**从未生效** ——
+            // _timeAcc 一直吃调用方传的 physicsElapsedMS（Phaser 固定 60fps），
+            // 于是 30fps 时树时钟只有世界的一半：段的 tEndSec 用真实帧长算、
+            // segmentEndDue 却比一个慢一倍的 _timeAcc ⟹ 段末/轨迹时间全错位。
+            // 读法与 calibrateFrameDt 一致：Date 取 getTime()，也兼容 number。
+            var lu = gc.lastUpdate;
+            var luMs = (lu && typeof lu.getTime === 'function') ? lu.getTime()
+                : ((typeof lu === 'number' && lu > 0) ? lu : null);
+            if (luMs !== null) {
+                // v170：**游戏帧身份 = gc.lastUpdate 的时间戳**。
+                //   同一游戏帧里 N 个 vantage AI 各 tick 一次，同一条墙钟差会被消费 N 次
+                //   （实测 vant=2：ticks/帧=2、_timeAcc 每帧 +2×dt、ratio=2.04）。
+                //   这里与训练分支的 `seen === _lastSeenWorldStep` 同义：同一时间戳只推进一次，
+                //   重复 tick 返回 0（调用方走 worldDt<=0 的 idle 早退）。保护行原样未动。
+                if (luMs === _lastSeenWorldClock) return 0;
+                _lastSeenWorldClock = luMs;
+                // v170：raw 必须与游戏自己 `new Date()` 的整数毫秒同口径。
+                //   headless 虚拟时钟的 Date.now() 是浮点、getTime() 截断，用浮点 now 会让
+                //   raw 的均值 = dt + 1/3ms（60fps 下 17.0ms、ratio 1.02）；floor 后三种样本
+                //   {16,17,17} 的均值精确 = 16.667ms。真机 Date.now() 本就是整数毫秒，floor 无影响。
+                var raw = (Math.floor(Date.now()) - luMs) / 1000.0;
+                if (raw > 0 && raw <= cap * 1.5) w = Math.min(raw, cap);
+            }
         }
         if (w !== null && w > 0 && isFinite(w)) {
             sec = Math.min(Math.max(w, 0.001), maxDeltaSec());
@@ -1521,6 +1581,37 @@
         }
         ids.sort();
         return ids.join(',');
+    }
+
+    /**
+     * v173（1-2④）：追踪导弹「换目标」签名 —— 权威版 §10.2 把「追踪导弹切换目标」
+     *   列为树的刷新触发条件第④条，但 v172 及以前**全仓没有任何实现**（实测：
+     *   `homing missile target changed` 在 vantage_tree.js 里出现 0 次）。
+     * 这里按本文件既有口径补上：只用**轻量签名**（id + 当前目标），不跑完整折线；
+     *   变了就当「需要新鲜威胁」（与"新弹"同级，见 tick 里的 needFresh）。
+     * 依据（实测《导弹制导实测-2026-10-12》§4.5）：真游戏换目标是**逐帧重算、立即生效**，
+     *   并发 `HOMING_MISSILE_TARGET_CHANGED`；导弹"开始盯我方"正是主人说的
+     *   「快打死 AI 的时候它就进树了」的那个时刻。
+     * 口径：只有 HOMING_MISSILE 才有"目标"概念；无导弹时恒为空串 ⟹ 恒不触发。
+     */
+    function homingMissileType() {
+        return (typeof Constants !== 'undefined' && Constants.WEAPON_TYPES)
+            ? Constants.WEAPON_TYPES.HOMING_MISSILE : 3;
+    }
+
+    function missileTargetSignature(projectiles) {
+        if (!projectiles || !projectiles.length) return '';
+        var t = homingMissileType();
+        var out = [];
+        for (var i = 0; i < projectiles.length; i++) {
+            var p = projectiles[i];
+            if (!p || p.id === undefined) continue;
+            if (p.type !== t) continue;         // 非导弹不参与（type 缺失 = undefined ≠ t）
+            var tgt = (p.targetId === undefined || p.targetId === null) ? 'null' : String(p.targetId);
+            out.push(p.id + '>' + tgt);
+        }
+        out.sort();
+        return out.join(',');
     }
 
     /** 保留最紧迫的 max 颗子弹：先按入圈时间，再按最近距离。 */
@@ -1763,15 +1854,31 @@
             // 旧轨迹最多只复用到 1.0s 偏移内：track 总长 480 帧=9.6s，
             // 若 shift 累积过大，最深未来查询会越界得到 null（子弹被
             // 误判为提前消失），此时必须整批重模拟。
-            if (old && old.track && old.track.length >= needFrames && shift <= 1.0) {
+            // v168：**这里必须查"复用之后锚点的累计偏移"（= 锚点年龄 Δ），不是本次间隔。**
+            // 旧写法 `shift <= 1.0` 查的是相邻两次 commit 的间隔：只要每段都短，
+            // 累计量就能无上界增长，上面的注释（防"累积过大"）形同不存在。
+            // 实测（v167，1 人操+1 Laika+2 vantage，900 帧）：单颗满窗口型弹
+            // （len=562·tdt0.0167=9.37s）Δ 涨到 20.99s，其中 343 个采样
+            // trackPosAt 返回 null（弹在树里"消失"=假绿）；Δ=9.366s 时取位仍正常、
+            // Δ=9.400s 起为 null ⇒ 边界正是覆盖长度。改成 newOffset 取界后 Δ ≤ 1.0s。
+            var newOffset = old ? (old.anchorOffset || 0) - shift : 0;
+            // v169 只读计数：这条门是本轮定位的分辨器（复用时刻 Δ = |newOffset|）。
+            var _gateDelta = Math.abs(newOffset);
+            if (_gateDelta > _reanchorDiag.perThreat.maxGateDelta) {
+                _reanchorDiag.perThreat.maxGateDelta = Math.round(_gateDelta * 1000) / 1000;
+            }
+            if (old && old.track && old.track.length >= needFrames && Math.abs(newOffset) <= 1.0) {
+                _reanchorDiag.perThreat.reuse++;
                 th.track = old.track;
                 th.trackSource = old.trackSource || 'box2d';
-                th.anchorOffset = (old.anchorOffset || 0) - shift;
+                th.anchorOffset = newOffset;
                 // v133：**必须拷 trackFrameDt**——v129 给轨迹加了自带帧长，
                 // 但复用时漏拷 → 查询端回退到全局 FRAME 算下标 → 偏大 20% →
                 // 越界/错帧 → 弹位错 → 绿橙死亡。这是 v129 之后持续问题的根源。
                 th.trackFrameDt = old.trackFrameDt;
             } else {
+                if (!old) _reanchorDiag.perThreat.noOld++;
+                else _reanchorDiag.perThreat.gateBlocked++;
                 th.track = null;
                 th.anchorOffset = 0;
                 missing = true;
@@ -1782,9 +1889,10 @@
         tree._hasOffsetThreats = false;
         tree._pendingThreats = [];
         if (missing) {
-            ensureThreatTracks(tree, adapter, threats, missingIds);
+            ensureThreatTracks(tree, adapter, threats, missingIds, 'reanchor-missing');   // v169 加标签
         }
         snapshotThreatAnchors(tree, threats, tree.rootAbsT);
+        auditThreatAnchors(tree, 'reanchor-commit');   // v169 只读计数
     }
 
     /**
@@ -1808,8 +1916,76 @@
         return Math.max(base, extra);
     }
 
-function ensureThreatTracks(tree, adapter, threats, onlyIds) {
-        if (!adapter || !adapter.simulateBulletTracks || !threats || !threats.length) return;
+    // ============================================================
+    // v169：**只读计数**（重锚旁路定位）——不参与任何判定，只 +1 / 记数字。
+    //   目的：回答《重锚旁路定位-2026-10-12》——「满窗口型 Δ>1.0 的第二条
+    //   路径」到底是哪一条。重锚门（v168）保证「每一次重锚那一刻 Δ ≤ 1.0」，
+    //   所以任何出口下审计出 over1>0，就是一条【真正绕过门的路径】。
+    //   ① `ensureThreatTracks` 每条早退出口逐个计数（含 `if (!tracks) return;`）；
+    //   ② 每次重锚/commit 之后只读审计 Δ = _timeAcc − (rootAbsT + anchorOffset)。
+    // ============================================================
+    var _reanchorDiag = {
+        ensureCalls: 0,
+        ensureByCaller: {},       // {调用方标签: 次数}
+        ensureEarlyReturn: {      // 早退出口逐个计数
+            noAdapterOrEmptyThreats: 0,   // :1848 `if (!adapter || ... || !threats.length) return;`
+            simThrow: 0,                  // try/catch：simulateBulletTracks 抛错（tracks 保持 null）
+            simNull: 0,                   // :1866 `if (!tracks) return;`（沙箱返回假值/空值）
+            perThreatIdMissing: 0         // :1876 逐弹 `if (!byId[th.id]) continue;`（该弹锚点不动）
+        },
+        perThreat: { reuse: 0, gateBlocked: 0, noOld: 0, maxGateDelta: 0 },
+        paths: {},                // {路径: {calls, threats, offNonZero, noTrack, over1, maxDelta}}
+        over1Examples: [],        // 最近 12 条「重锚/commit 之后仍有 Δ>1.0」的现场
+        probe: { rebuilds: 0, emptyThreatsEarlyReturn: 0, staleCalls: 0, maxStaleAge: 0 }
+    };
+    function _diagPath(path) {
+        var p = _reanchorDiag.paths[path];
+        if (!p) {
+            p = _reanchorDiag.paths[path] =
+                { calls: 0, threats: 0, offNonZero: 0, noTrack: 0, over1: 0, maxDelta: 0 };
+        }
+        return p;
+    }
+    /** v169 只读审计：重锚之后是否还有威胁的锚点年龄 Δ > 1.0s。 */
+    function auditThreatAnchors(tree, path) {
+        var p = _diagPath(path);
+        p.calls++;
+        var ths = (tree && tree.threats) || [];
+        var rT = (tree && tree.rootAbsT) || 0;
+        var off = 0, noTrack = 0, over = 0, maxD = 0, maxId = null, i, th;
+        for (i = 0; i < ths.length; i++) {
+            th = ths[i];
+            if (!th || th.id === undefined) continue;
+            p.threats++;
+            var o = th.anchorOffset || 0;
+            if (o !== 0) off++;
+            if (!th.track || !th.track.length) { noTrack++; continue; }
+            var d = _timeAcc - (rT + o);
+            if (d > maxD) { maxD = d; maxId = th.id; }
+            if (d > 1.0 + 1e-6) over++;
+        }
+        p.offNonZero += off;
+        p.noTrack += noTrack;
+        p.over1 += over;
+        if (maxD > p.maxDelta) p.maxDelta = Math.round(maxD * 1000) / 1000;
+        if (over > 0 && _reanchorDiag.over1Examples.length < 12) {
+            _reanchorDiag.over1Examples.push({
+                t: Math.round(_timeAcc * 1000) / 1000, path: path, over: over,
+                threats: ths.length, offNonZero: off,
+                maxDelta: Math.round(maxD * 1000) / 1000, id: maxId
+            });
+        }
+        return over;
+    }
+
+function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
+        _reanchorDiag.ensureCalls++;
+        var _tag = callerTag || 'unknown';
+        _reanchorDiag.ensureByCaller[_tag] = (_reanchorDiag.ensureByCaller[_tag] || 0) + 1;
+        if (!adapter || !adapter.simulateBulletTracks || !threats || !threats.length) {
+            _reanchorDiag.ensureEarlyReturn.noAdapterOrEmptyThreats++;   // v169 只读计数
+            return;
+        }
         // v30：track 帧数由两个参数共同决定，不硬编码任何弹种寿命：
         //   基准 = horizon + EVAL（树本轮滚动需要的最短长度）；
         //   上限 = 沙箱按当前场上各弹种真实 lifetime/timeAlive 算出的
@@ -1819,6 +1995,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // v46：onlyIds 只重模拟缺轨迹的弹；旧弹轨迹按 anchorOffset 复用。
         var needFrames = trackFramesForTree(tree);
         var tracks = null;
+        var _simThrew = false;   // v169 只读：区分"沙箱抛错"与"沙箱返回假值"两条早退
         try {
             tracks = adapter.simulateBulletTracks(needFrames, onlyIds || null);
         } catch (eTracks) {
@@ -1827,7 +2004,13 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             }
             tracks = null;
         }
-        if (!tracks) return;
+        if (!tracks) {
+            // v169 只读计数：这条早退【一个锚点都不动】（threats 原样留在 tree.threats 上）。
+            if (_simThrew) _reanchorDiag.ensureEarlyReturn.simThrow++;
+            else _reanchorDiag.ensureEarlyReturn.simNull++;
+            auditThreatAnchors(tree, 'ensureThreatTracks-null:' + _tag);
+            return;
+        }
         var byId = {}, i, t;
         for (i = 0; i < tracks.length; i++) {
             if (tracks[i] && tracks[i].id !== undefined) {
@@ -1837,7 +2020,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var count = 0;
         for (t = 0; t < threats.length; t++) {
             var th = threats[t];
-            if (!th || th.id === undefined || !byId[th.id]) continue;
+            if (!th || th.id === undefined || !byId[th.id]) {
+                if (th && th.id !== undefined) _reanchorDiag.ensureEarlyReturn.perThreatIdMissing++;   // v169 只读计数
+                continue;
+            }
             th.track = byId[th.id].frames || [];
             th.trackSource = 'box2d';
             // v129：记住这条轨迹生成时的帧长，查询下标必须用它（不能用全局 FRAME_DT）
@@ -1850,6 +2036,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         tree.diag.trackCount = count;
         tree.diag.trackFrames = needFrames;
+        auditThreatAnchors(tree, 'ensureThreatTracks-ok:' + _tag);   // v169 只读计数
     }
 
     /**
@@ -1992,6 +2179,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         tree._pendingThreats = (tree._pendingThreats || []).concat(newOnes);
         tree._hasOffsetThreats = true;   // 后续段末继续重扫，处理“远弹后来逼近”
         snapshotThreatAnchors(tree, tree.threats, tree.rootAbsT);
+        auditThreatAnchors(tree, 'attach-new-bullets');   // v169 只读计数
         pushEvent('threat', '局部追加新弹' + newOnes.length);
     }
 
@@ -2219,6 +2407,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     function nowTGlobalOf(tree) {
         var root = (tree && typeof tree.rootAbsT === 'number') ? tree.rootAbsT : 0;
         return Math.max(0, _timeAcc - root);
+    }
+
+    /** v167（S8）：把节点的 simState 复制一份并带上 nowTGlobal。
+     *  不能原地改 node.simState —— 那个对象是跨 tick 长期存活的，写进去会变成
+     *  "上一 tick 的 now"（陈旧基准），比不传更糟。 */
+    function simStateWithNow(simState, nowTGlobal) {
+        if (!simState) return simState;
+        return {
+            tank: simState.tank,
+            tGlobal: simState.tGlobal,
+            nowTGlobal: (typeof nowTGlobal === 'number' && isFinite(nowTGlobal)) ? nowTGlobal : 0
+        };
     }
 
     /** v119：威胁表并集（按 id 去重）。death 权威的视野不允许有洞。 */
@@ -2512,6 +2712,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     /** v50：把 node 的全部后代标记 invalid 并从活动树移除。 */
     function invalidateDescendants(tree, node) {
+        if (node) node.hasGrown = false;   // v180（G2 复位）：预测失效（段长被新威胁缩短）⟹ 后代作废，必须允许重长
         if (!node || !node.children.length) return 0;
         var removed = 0;
         function markInvalid(n) {
@@ -2536,6 +2737,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * v51：把 scoreRollout/scorePath 的返回值写回节点数值。
      * 实际执行帧数：fd=-1 计划；fd=1 真死保持1；fd>=2 死亡帧-1 且不超过计划。
      * 分数只累加实际执行帧；死亡帧不加分。plannedFrames 永不变。
+     *
+     * ⚠️ v181（3-0）：本函数是【规则版专用】的"物理+评分"合并写入口，
+     * **函数体一字未改**（§5：不许为了新语义改规则版路径）。新的智能体路径
+     * 走 `applyRolloutResult` → `applyRolloutPhysics`（无评分也工作）+
+     * 本函数（有评分才工作）。
      */
     function applyRolloutScore(tree, node, r) {
         if (!node || !r || !r.perFrameScores) return false;
@@ -2575,6 +2781,130 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 再移动躲开”的两步组合才有机会胜过“一步大转向”。
         node.subtreeBest = Math.max(fullRolloutTotalOf(node), maxActiveChildBest(node));
         return true;
+    }
+
+    // ============================================================
+    // v181（阶段 3-0）：拆评分的代码耦合 —— 物理应用 / 评分应用分家
+    //
+    // 背景（方针 3-0，权威版 §21.5 第一步）：`applyRolloutScore` 的守卫是**评分字段**
+    // `r.perFrameScores`；而死亡缩短 / `simState` / `tGlobal` / `fullDeathFrame` /
+    // 祖先失效这些**机械操作**全包在同一个函数里 ⟹ 一旦没有评分（智能体版的不评分
+    // 模拟通道），它直接 `return false`，节点拿不到死亡处理（静默失效）。
+    //
+    // 依据（权威版 §5）：新语义**只在 `Agents.current()` 不是规则智能体时生效**，
+    // **不许为了新语义改规则版的路径**。所以这里**分支**：
+    //   · 规则版（或智能体本帧没给出决策）→ 原样调 `applyRolloutScore`（一字不改）；
+    //   · 智能体路径（本帧真的有 A 的决策）→ 先物理应用，再（有评分才）评分应用。
+    // ============================================================
+
+    /**
+     * v181（3-0）：本帧是否走【智能体路径】的新机械通道。
+     *
+     * 判据 = 接口层存在 + 当前智能体不是规则智能体 + **本帧真的拿到了 A 的决策**
+     * （`tree._agentDecision` 非空）。最后一条不能省：验收口径要求
+     * 「`Agents.use('nn')` 但 `decide` 返回 `null` 时与规则版**逐帧一致**」
+     * ⭐ 2026-10-16 主人最高规则裁定：**智能体模式下，甲没给决策时【不退回规则版】**（本帧不生长）。（原口径 v181/3-0「decide 返回 null 时与规则版逐帧一致」与主人新裁定冲突 ⟹ 按新裁定执行；行为侧已在 v200 的 :6695/:6778 落地。）
+     */
+    /** v185（3-4）：当前是否处于"非规则智能体模式"（A/B 两次调用共用）。 */
+    function agentModeCurrent(tree, role) {
+        try {
+            if (typeof VantageTreeInterface === 'undefined' || !VantageTreeInterface.Agents) return false;
+            // v186（3-4b）：按分工槽取；默认槽是 rule 时接口层硬门返回 rule（§5）。
+            var a = VantageTreeInterface.Agents.current(role);
+            return !!(a && a.name !== 'rule');
+        } catch (eAgent) {
+            return false;
+        }
+    }
+
+    function agentPathActive(tree) {
+        // v185（3-4）：A 决策（_agentDecision）或 B 决策（_agentDecisionB）任一在场即智能体路径
+        //   ——树满时 A 不调、B 照常调（D11），此时 B 的决策也必须走智能体语义。
+        if (!tree || (!tree._agentDecision && !tree._agentDecisionB)) return false;
+        return agentModeCurrent(tree, 'A') || agentModeCurrent(tree, 'B');
+    }
+
+    /** v181（3-0）：实际执行帧数（与 `applyRolloutScore` 内联时同一口径）。 */
+    function rolloutActualFrames(tree, node, r) {
+        var planned = plannedFramesOf(node);
+        return r.dead ? safeFramesForDeath(tree, r.deathFrame, planned) : planned;
+    }
+
+    /**
+     * v181（3-0）：rollout 结果的【物理应用】—— 只吃 `samples` / `dead` / `deathFrame`。
+     *
+     * 搬走的机械操作（原 `applyRolloutScore` 前半段，逐行同序）：
+     *   死亡缩短（`segmentFrames`）· `simState.tank` / `simState.tGlobal` ·
+     *   `tEndSec` · 祖先失效（`invalidateDescendants`）·
+     *   `status` / `fullDead` / `fullDeathFrame`。
+     * **评分类字段（`perFrameScores`/`totalScore`）缺失也照常工作**（这是本步的全部目的）。
+     *
+     * 契约：`dead` + `deathFrame` 必须在（物理通道的判死结果）；`samples` 可选
+     * （缺失时只做死亡/失效簿记，不更新 `simState.tank`）。
+     * ⚠️ `fd=0` 是合法值，`safeFramesForDeath` 把 fd≤1 统一折成"只执行 1 帧"——
+     * 那是**执行帧数**、不是 fd 本身，**绝不改写 fd**。
+     */
+    function applyRolloutPhysics(tree, node, r) {
+        if (!node || !r || r.dead === undefined || r.deathFrame === undefined) return false;
+        // v183（3-2）：智能体路径**不碰 segmentFrames** —— 用独立字段 `validFrames`（§7.7 L）。
+        //   `L = 没死 ? 75 : fd−1`；`L ≤ 0` = 真死。
+        var planned = agentPlannedFramesOf(node);
+        var L = r.dead ? (r.deathFrame - 1) : planned;
+        if (!(L >= 0)) L = 0;
+        if (L < planned) {
+            recordStructure(tree, 'death-shorten',
+                'n' + (node.id || '?') + ' planned=' + planned + ' death=' + r.deathFrame + ' L=' + L);
+        }
+        node.validFrames = L;
+        node.backMax = L > 0 ? L - 1 : 0;
+        if (node.rolloutSamples && L > 0 && node.rolloutSamples[L]) {
+            var ds = node.rolloutSamples[L];
+            node.simState.tank = { x: ds.x, y: ds.y, rot: ds.rot };
+        }
+        if (typeof node.rolloutStartT === 'number') {
+            node.simState.tGlobal = node.rolloutStartT + L * FRAME_DT;
+        }
+        node.tEndSec = tree.rootAbsT + node.simState.tGlobal;
+        if (L < planned && node.children.length) invalidateDescendants(tree, node);
+        // 智能体语义（§7.7）：L≥1 ⟹ 有合法停点 = 活；L=0 ⟹ 真死。
+        node.status = L > 0 ? 'alive' : 'dead';
+        node.fullDead = !!r.dead;
+        node.fullDeathFrame = r.dead ? r.deathFrame : -1;
+        if (L <= 0) node.exhausted = true;
+        return true;
+    }
+
+    /**
+     * v183（3-2）：智能体路径的**评分字段应用** —— 只写评分字段，
+     *   ⛔ 绝不回写机械字段（`segmentFrames`/`simState`/`tGlobal`/`status`/`fullDeathFrame`/失效）。
+     *
+     * 为什么必须有它：3-0 的智能体分支原来在 `applyRolloutPhysics` 之后还调了规则版
+     * `applyRolloutScore`；只要结果带 `perFrameScores`，后者就会用 `plannedFramesOf(node)`
+     * （智能体节点上是 0/1）重算物理，把 `segmentFrames=1 / tGlobal=0.02` 写回去 ——
+     * 智能体路径又被拖回规则口径。评分语义整体重做属 3-3，本步只做"不回写机械字段"。
+     */
+    function applyRolloutScoreFields(node, r) {
+        if (!node || !r) return false;
+        if (Array.isArray(r.perFrameScores)) {
+            node.perFrameScores = r.perFrameScores.slice();
+        }
+        if (typeof r.totalScore === 'number') node.rolloutTotal = r.totalScore;
+        // `segmentScore`/`baseExt`/`subtreeBest` 的评分口径属 3-3，本步不改写。
+        return true;
+    }
+
+    /**
+     * v181（3-0）：rollout 结果的统一写入口。
+     *   · 智能体路径：物理应用（必做，§7.7 L 口径）+ 评分字段应用（只写分数）；
+     *   · 规则版：原样 `applyRolloutScore`（行为一字不改）。
+     */
+    function applyRolloutResult(tree, node, r) {
+        if (agentPathActive(tree)) {
+            var physOk = applyRolloutPhysics(tree, node, r);
+            applyRolloutScoreFields(node, r);   // ⛔ 不碰 segmentFrames（3-2）
+            return physOk;
+        }
+        return applyRolloutScore(tree, node, r);
     }
 
     /**
@@ -2716,7 +3046,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 nodes,
                 tree.threats || [],
                 treeScoringCfg(tree),
-                tree._pendingThreats || []
+                tree._pendingThreats || [],
+                // v167（S3）：Rust 的 lifeLeftSeconds 是**轨迹锚点口径**，
+                // 沙箱要用 nowTGlobal 把"现在剩余寿命"换算过去，否则该弹最后
+                // Δ=nowTGlobal-anchorOffset 秒在重评分世界里不致命（假绿）。
+                nowTGlobalOf(tree)
             );
         } catch (eRust) {
             return null;
@@ -2801,17 +3135,23 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      * Rust 新候选 = 只验证新弹得到的 deathFrame。取更早者；旧结论胜出时
      * 沿用旧 perFrameScores（长度=旧死亡帧），避免 Rust 全长分数把已截断
      * 的死亡帧分数又拉长。
+     *
+     * ⚠️ v181（3-0）：本函数是**规则版口径，函数体一字未改**（`_i3_tree_merge_fd0_guard.js`
+     * 用两参调用从源码抽出来跑，必须继续工作）。智能体路径在"连旧评分都没有"时
+     * 走 `mergePhysicalDeathOnly`（机械合并，不许被评分字段挡住）。
      */
     function mergeIncrementalRescoreDeath(c, r) {
         var oldFd = (typeof c.fullDeathFrame === 'number') ? c.fullDeathFrame : -1;
         var newFd = (r && typeof r.deathFrame === 'number') ? r.deathFrame : -1;
         var mergedFd = oldFd;
-        if (newFd > 0 && (oldFd <= 0 || newFd < oldFd)) mergedFd = newFd;
+        // 1-3 收尾（fd=0 第 4 sink）：fd=0 是合法值（同帧命中），旧 `>0` 会吞掉增量 rescore 首帧死。
+        // 与 score_paths / rescore（v172 起 `>= 0`）同口径；⛔ 不许把 fd 改写成 1。
+        if (newFd >= 0 && (oldFd < 0 || newFd < oldFd)) mergedFd = newFd;
 
         var pfs = null;
-        if (mergedFd === oldFd && oldFd > 0 && Array.isArray(c.perFrameScores)) {
+        if (mergedFd === oldFd && oldFd >= 0 && Array.isArray(c.perFrameScores)) {
             pfs = c.perFrameScores;
-        } else if (mergedFd === newFd && newFd > 0 && Array.isArray(r.perFrameScores)) {
+        } else if (mergedFd === newFd && newFd >= 0 && Array.isArray(r.perFrameScores)) {
             pfs = r.perFrameScores;
         } else if (Array.isArray(r.perFrameScores)) {
             pfs = r.perFrameScores;
@@ -2827,9 +3167,34 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             samples: r.samples,
             perFrameScores: pfs.slice(),
             totalScore: total,
-            dead: mergedFd > 0,
+            dead: mergedFd >= 0,
             deathFrame: mergedFd,
             frameCount: pfs.length,
+            rustCandidate: true,
+            rustIncremental: true
+        };
+    }
+
+    /**
+     * v181（3-0）：智能体路径的**纯物理**死亡合并 —— 只取更早的 `deathFrame`，
+     * 完全不碰评分字段（`perFrameScores:null`，让评分应用安全跳过）。
+     * 依据（权威版 §4）：「规则层过滤，不是奖励项/惩罚项/选不选」——
+     * 死亡结论是机械事实，不该因为"没有分数"而丢掉。
+     */
+    function mergePhysicalDeathOnly(c, r) {
+        if (!c || !r) return null;
+        var oldFd = (typeof c.fullDeathFrame === 'number') ? c.fullDeathFrame : -1;
+        var newFd = (typeof r.deathFrame === 'number') ? r.deathFrame : -1;
+        var mergedFd = oldFd;
+        // ⛔ fd=0 合法；不许把 fd 改写成 1（与上同口径）。
+        if (newFd >= 0 && (oldFd < 0 || newFd < oldFd)) mergedFd = newFd;
+        return {
+            samples: r.samples,
+            perFrameScores: null,
+            totalScore: 0,
+            dead: mergedFd >= 0,
+            deathFrame: mergedFd,
+            frameCount: 0,
             rustCandidate: true,
             rustIncremental: true
         };
@@ -2849,11 +3214,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             if (c.invalid || c.parent !== parent || !isActiveTreeNode(tree, c)) continue;
             var oldFd = c.fullDeathFrame;
             if (r.rustIncremental) {
+                // v181（3-0）：规则版原样（函数体一字未改）；智能体路径下若连旧评分
+                // 都没有，用纯物理合并兜底 —— 死亡是机械事实，不许被评分字段挡住。
                 r = mergeIncrementalRescoreDeath(c, r);
+                if (!r && agentPathActive(tree)) r = mergePhysicalDeathOnly(c, r);
                 if (!r) continue;
             }
             if (r.samples && r.samples.length) c.rolloutSamples = r.samples;
-            applyRolloutScore(tree, c, r);
+            // v181（3-0）：统一入口 —— 规则版原样走 applyRolloutScore，
+            // 智能体路径（本帧有 A 决策）先物理后评分（无评分也拿到死亡处理）。
+            applyRolloutResult(tree, c, r);
             c.scoreCache = null;
             c.freshSig = nodeWindowSig(adapter, c, tree.threats || []);
             // v77：Rust rescore 只产出候选死亡帧；最终执行路线会由 JS
@@ -2895,7 +3265,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             try {
                 results = VantageScoring.scorePaths(
                     adapter,
-                    parent.simState,
+                    simStateWithNow(parent.simState, nowTGlobalOf(tree)),   // v167（S8）
                     ops,
                     EVAL_FRAMES,
                     tree.threats || [],
@@ -2966,7 +3336,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         chunk,
                         threats,
                         cfg,
-                        tree._pendingThreats || []
+                        tree._pendingThreats || [],
+                        nowTGlobalOf(tree)   // v167（S3）：锚点口径换算（见 callRescoreAdapter）
                     );
                 } catch (eBatch) {
                     return null;
@@ -3028,7 +3399,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var startSample = node.rolloutSamples[0];
         var simState = {
             tank: { x: startSample.x, y: startSample.y, rot: startSample.rot },
-            tGlobal: (typeof node.rolloutStartT === 'number') ? node.rolloutStartT : 0
+            tGlobal: (typeof node.rolloutStartT === 'number') ? node.rolloutStartT : 0,
+            // v167（S8）：段中确认时节点起点在过去，必须带上"现在"的基准
+            nowTGlobal: nowTGlobalOf(tree)
         };
         var jsAdapter = Object.create(adapter);
         var fusedBatchOk = false;
@@ -3064,7 +3437,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         }
         var oldFd = node.fullDeathFrame;
         if (r.samples && r.samples.length) node.rolloutSamples = r.samples;
-        applyRolloutScore(tree, node, r);
+        // v181（3-0）：JS 融合判死确认也必须能在"没有评分"时落地（物理应用）。
+        applyRolloutResult(tree, node, r);
         tree.stats.jsConfirmCount = (tree.stats.jsConfirmCount || 0) + 1;
         if (node.fullDeathFrame > 0 && (oldFd <= 0 || node.fullDeathFrame < oldFd)) {
             tree.stats.jsConfirmEarlier = (tree.stats.jsConfirmEarlier || 0) + 1;
@@ -3221,14 +3595,18 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!node || !VantageScoring || !VantageScoring.scorePath) return;
         var r = VantageScoring.scorePath(
             adapter,
-            { tank: { x: realTankState.x, y: realTankState.y, rot: realTankState.rot }, tGlobal: tGlobal },
+            { tank: { x: realTankState.x, y: realTankState.y, rot: realTankState.rot }, tGlobal: tGlobal,
+              nowTGlobal: nowTGlobalOf(tree) },   // v167（S8）
             node.inputs,
             EVAL_FRAMES,
             tree.threats || [],
             treeScoringCfg(tree)
         );
         if (!r || !r.samples || !r.samples.length) return;
-        var segF = Math.max(1, node.segmentFrames || 0);
+        // v183（3-2）：规则版原样用 segmentFrames；智能体路径用独立 validFrames（§7.7 L）。
+        var segF = agentPathActive(tree)
+            ? agentPlannedFramesOf(node)
+            : Math.max(1, node.segmentFrames || 0);
         var endIdx = (r.dead && r.deathFrame >= 0 && r.deathFrame <= segF)
             ? r.deathFrame : Math.min(segF, r.samples.length - 1);
         var endS = r.samples[endIdx];
@@ -3240,7 +3618,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         };
         node.tEndSec = tree.rootAbsT + node.simState.tGlobal;
         // v47：先更新节点自身数值，再按不变量重算 subtreeBest，不直接覆盖。
-        applyRolloutScore(tree, node, r);
+        // v181（3-0）：智能体路径下重摆的物理状态（死亡缩短/失效）不依赖评分。
+        applyRolloutResult(tree, node, r);
     }
 
     /** v33/v34：强制提前提交后，只重摆前几段（默认3段）。
@@ -3343,7 +3722,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     /** reserve 上限：与 maxNodes 对齐，防止“保留”变成无限增长。 */
     function enforceReserveCap(tree) {
-        var cap = (tree.cfg && tree.cfg.maxNodes) ? tree.cfg.maxNodes : 500;
+        var cap = (tree.cfg && tree.cfg.maxNodes) ? tree.cfg.maxNodes : 1000;
         if (tree.reserveCount <= cap) return 0;
         var list = tree.reserve.slice();
         list.sort(function(a, b) {
@@ -3379,6 +3758,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** 结构失效：标记 invalid 并删除未来子树。 */
     function markReserveInvalid(tree, node) {
         if (!node) return;
+        node.hasGrown = false;             // v180（G2 复位）：结构性失效
         node.invalid = true;
         pushEvent('invalid', 'n' + (node.id || '?') + ' 结构失效');
         discardReserveSubtree(tree, node);
@@ -3745,9 +4125,494 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  v78：优先走 Rust vt_score_paths（adapter.simulateTankBatchScored）；
      *  任何失败/lane>0/弹簧绳/样本数不匹配都静默回退 JS scorePaths。
      *  融合世界关闭/不可用时 scorePaths 内部回退旧路径。 */
+    // ============================================================
+    // ★ 智能体接口（B2）—— 只采集，不改行为
+    //   未装载非规则智能体时：本函数立刻返回，树的行为与改造前逐帧一致。
+    //   装载后：把「在哪长 / 选哪条路」记到 tree._agentDecision，供后续消费点读取。
+    // ============================================================
+    function collectAgentNodes(tree) {
+        // 从根按层收集；防御式写法——结构不符就返回空数组，绝不影响主流程
+        var out = [];
+        try {
+            var stack = [];
+            if (tree && tree.root) stack.push(tree.root);
+            var guard = 0;
+            while (stack.length && guard++ < 4000) {
+                var n = stack.pop();
+                if (!n) continue;
+                var _t = n.simState && n.simState.tank;
+                out.push({
+                    id: n.id, parentId: n.parentId, opName: n.opName,
+                    segmentFrames: n.segmentFrames, tEndSec: n.tEndSec,
+                    fullDeathFrame: n.fullDeathFrame, invalid: !!n.invalid,
+                    exhausted: !!n.exhausted, samples: n.samples || null,
+                    // ★ 终点位姿：智能体判断"哪条路线离目标近"必需
+                    x: _t ? _t.x : null, y: _t ? _t.y : null, rot: _t ? _t.rot : null,
+                    // ── v180（阶段2-3）：**只加字段**，上面 12 个键一个都没动 ──
+                    //   观测编码器（vantage_observe.js）要的是【原始量】，派生一律在编码器里做。
+                    //   ⚠️ 绝不在这里给 tEndSec 那种【绝对时刻】（§8.3 陷阱：绝对量喂观测会溢出）。
+                    opIndex: (typeof n.opIndex === "number") ? n.opIndex : null,
+                    hasGrown: (n.hasGrown === true),
+                    depth: (typeof n.depth === "number") ? n.depth : null,
+                    tGlobal: (n.simState && typeof n.simState.tGlobal === "number") ? n.simState.tGlobal : null,
+                    fullDead: !!n.fullDead,
+                    nChildren: (n.children ? n.children.length : 0)
+                    //  ^ ⚠️ nChildren 仅供【离线自证/诊断】；⛔ 不进 token（2026-10-12 裁决已删"子节点数"）
+                });
+                if (n.children) for (var i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+            }
+        } catch (e) { return []; }
+        return out;
+    }
+
+    function buildAgentCtx(tree, adapter, simState, threats, ops, phase) {
+        phase = (phase === 'B') ? 'B' : 'A';
+        // ★ B2 修复（2026-10-07）：
+        //   原来 tank 取的是 simState.tank，而 simState === tree.root.simState，
+        //   它只在【建树 / 坍缩 / 新根】时被写，**段内不更新** → 最远是 13 帧前
+        //   （≈3.4 单位）的位姿，违反定案「保证智能体看到的永远是最新的」。
+        //   现在优先取 adapter 的【当前真实位姿】，拿不到才退回 simState。
+        //   来源：双智能体架构 §二①；子代理审查 C8。
+        var tank = null;
+        try { if (adapter && adapter.getTankState) tank = adapter.getTankState(); } catch (eTank) {}
+        if (!tank) tank = (simState && simState.tank) || null;
+        var bullets = [];
+        try {
+            for (var i = 0; i < (threats || []).length; i++) {
+                var th = threats[i];
+                if (th) bullets.push({ id: th.id, x: th.x, y: th.y,
+                                       vx: (th.path && th.path.length > 1)
+                                           ? (th.path[1].x - th.path[0].x) : 0,
+                                       vy: (th.path && th.path.length > 1)
+                                           ? (th.path[1].y - th.path[0].y) : 0 });
+            }
+        } catch (e) {}
+        return {
+            phase: phase,                                   // v185（3-4）：'A'=生长 / 'B'=路线+射击帧
+            role: (phase === 'B') ? 'route' : 'grow',
+            nodes: collectAgentNodes(tree),
+            root: tree && tree.root ? tree.root.id : null,
+            commit: tree && tree.commitNode ? tree.commitNode.id : null,
+            tank: tank ? { x: tank.x, y: tank.y, rot: tank.rot } : null,
+            bullets: bullets,
+            ops: ops,
+            time: _timeAcc,
+            slow: !!(tree && tree._growSkip),
+            memory: (tree && ((phase === 'B') ? tree._agentMemoryB : tree._agentMemoryA)) || ((tree && tree._agentMemory) || {})
+        };
+    }
+
+    /**
+     * ★ 智能体选路拦截器（B2 的最后一个消费点）
+     * 智能体在 decide() 里给了 select（节点 id）时：
+     *   该 id 出现在本次候选里、且不是真死/失效/耗尽 → 直接采用它。
+     * 否则返回 null，调用方走原规则逻辑 —— 所以规则模式与"智能体没给 select"时行为不变。
+     */
+    function agentSelectOverride(tree, children) {
+        if (typeof VantageTreeInterface === 'undefined') return null;
+        var t = tree || (typeof _tree !== 'undefined' ? _tree : null);
+        if (!t) return null;
+        // v185（3-4）：B 的路线 = picks[0].nodeId（新）或 select（旧）；再退回 A 的 select（兼容）。
+        var decB = t._agentDecisionB;
+        var id = null;
+        if (decB) id = (decB.picks && decB.picks.length) ? decB.picks[0].nodeId : decB.select;
+        if (id === undefined || id === null) id = t._agentDecision ? t._agentDecision.select : null;
+        if (id === undefined || id === null) return null;
+        // v187（3-5）：B 的目标可以是**深层节点**（路线=root→目标）⟹ 本次决策点取路线首节点。
+        var _routePath = agentRoutePathOf(t, id);
+        if (_routePath && _routePath.length) id = _routePath[0].id;
+        for (var i = 0; i < (children || []).length; i++) {
+            var c = children[i];
+            if (!c || c.id !== id) continue;
+            if (c.invalid || c.exhausted) return null;
+            if (VantageTreeInterface.Invariants.isTrueDead(c)) return null;
+            if (typeof _ifaceStats !== 'undefined') _ifaceStats.selectUsed = (_ifaceStats.selectUsed || 0) + 1;
+            if (t.stats) t.stats.agentRouteUsed = (t.stats.agentRouteUsed || 0) + 1;   // v185（3-4）诊断
+            return c;
+        }
+        return null;
+    }
+
+    /**
+     * ★ 语义层校验（树侧）：格式合法之后，检查"引用是否成立"。
+     *   接口层只管格式，因为它看不到节点集合。
+     */
+    function pickLOf(n) {
+        // v184（3-3）：Pick.back 的合法上界 L（§7.7）——**独立于 segmentFrames**。
+        //   智能体节点带 validFrames；过渡/规则节点按 fullDead/fullDeathFrame 推。
+        if (!n) return 0;
+        var v = validFramesOf(n);
+        if (v > 0) return v;
+        if (!n.fullDead) return Math.max(1, Math.round(EVAL_FRAMES));
+        return (n.fullDeathFrame >= 2) ? (n.fullDeathFrame - 1) : 0;
+    }
+
+    // ============================================================
+    // v187（阶段 3-5 · 执行层）：B 路线的**逐帧滚动执行** + 射击帧叠加
+    //   裁决①：B.picks[0]=(节点ID,back) → 目标=该节点，**路线 = root→该节点自动确定**；
+    //          执行沿路线**逐帧推进**（不是按 validFrames 整段）；
+    //          路线走完/目标变化 → 按下一帧 B 的新目标（B 每帧都出计划）。
+    //   §7.7：samples[j] = 施加 j 帧后；samples[0]=父状态；pick 目标 = samples[L−back]。
+    // ============================================================
+
+    /** v187：root→target 的节点链（含 target、不含 root）；断链/陈旧目标返回 null。 */
+    function agentRoutePathOf(tree, targetId) {
+        if (!tree || !tree.root || targetId === null || targetId === undefined) return null;
+        var target = findNodeById(tree, targetId);
+        if (!target || target === tree.root) return null;
+        var chain = [], n = target, guard = 0;
+        while (n && n !== tree.root && guard++ < 400) { chain.push(n); n = n.parent; }
+        if (n !== tree.root) return null;          // 不在本 root 下（重摆/坍缩后的陈旧目标）
+        chain.reverse();
+        return chain;
+    }
+
+    /** v187：节点执行长度 L（§7.7；智能体节点 validFrames 优先，回退按 fullDead/fd 推）。 */
+    function agentExecLenOf(n) {
+        var v = validFramesOf(n);
+        if (v > 0) return v;
+        if (!n.fullDead) return Math.max(1, Math.round(EVAL_FRAMES));
+        return (n.fullDeathFrame >= 2) ? (n.fullDeathFrame - 1) : 0;
+    }
+
+    /**
+     * v187：每帧滚动一次游标。
+     *   · 同一 `_timeAcc`（同一帧）内多次取操作 → 不重复推进；
+     *   · B 目标不变 → 游标 +1（逐帧推进）；目标变了/断链 → 重置 0（下帧走新路线）。
+     */
+    function agentExecEnsure(tree) {
+        if (!tree) return null;
+        if (tree._agentExecSyncedTick === _timeAcc && tree._agentExecPath) return tree._agentExecPath;
+        tree._agentExecSyncedTick = _timeAcc;
+        var targetId = tree._agentRoute;
+        var path = agentRoutePathOf(tree, targetId);
+        if (!path || !path.length) {
+            tree._agentExecPath = null; tree._agentExecFrame = 0; tree._agentExecTarget = null;
+            return null;
+        }
+        if (tree._agentExecTarget === targetId && tree._agentExecPath) {
+            tree._agentExecFrame = (tree._agentExecFrame || 0) + 1;   // 同目标：逐帧推进
+        } else {
+            // 新目标：游标 = **当前执行位置**（commitNode 在路径里的累计帧 + 段内已过帧）。
+            //   路线 = root→target；坦克现在在 commitNode 的段中间，执行从那里继续。
+            var startFrame = 0, cum = 0, cmt = tree.commitNode, found = false, i;
+            for (i = 0; i < path.length; i++) {
+                if (path[i] === cmt) { found = true; break; }
+                cum += Math.max(1, agentExecLenOf(path[i]));
+            }
+            if (found && cmt) {
+                var Lc = Math.max(1, agentExecLenOf(cmt));
+                var elapsedInCmt = 0;
+                if (typeof cmt.tEndSec === 'number') {
+                    elapsedInCmt = Math.round((Lc * FRAME_DT - (cmt.tEndSec - _timeAcc)) / FRAME_DT);
+                }
+                elapsedInCmt = Math.max(0, Math.min(Lc - 1, elapsedInCmt));   // 当前帧仍在段内
+                startFrame = cum + elapsedInCmt;
+            } else {
+                startFrame = 0;    // commitNode 不在该路线上 → 从路线起点开始（B 给的是另一支）
+            }
+            tree._agentExecFrame = startFrame;
+        }
+        tree._agentExecTarget = targetId;
+        tree._agentExecPath = path;
+        return path;
+    }
+
+    /**
+     * v187：pick=(nodeId, back) → 该 pick 的**执行帧号（0 基）**。
+     *   §7.7：pick 目标 = samples[L−back]（`samples[0]`=父状态）；执行帧 e 产生 samples[e+1]
+     *   ⟹ 要让目标帧带上该输入：e = start + (L − back) − 1。
+     *   例：back=L−1 → e=start（只执行 1 帧）；back=0 → e=start+L−1（节点末帧）。
+     */
+    function agentPickExecFrame(path, pick) {
+        if (!path || !pick) return -1;
+        var idx = -1, i;
+        for (i = 0; i < path.length; i++) if (path[i].id === pick.nodeId) { idx = i; break; }
+        if (idx < 0) return -1;
+        var start = 0;
+        for (i = 0; i < idx; i++) start += Math.max(1, agentExecLenOf(path[i]));
+        var L = Math.max(1, agentExecLenOf(path[idx]));
+        var back = Math.max(0, Math.min(L - 1, pick.back | 0));
+        return start + (L - back) - 1;
+    }
+
+    /** v187：当前执行帧是否要按 fire（**只在该帧**，不锁存）。 */
+    function agentFireAt(tree, path, frame) {
+        var picks = (tree && tree._agentFirePicks) || [];
+        for (var i = 0; i < picks.length; i++) {
+            if (agentPickExecFrame(path, picks[i]) === frame) return true;
+        }
+        return false;
+    }
+
+    /**
+     * v187：0 帧自杀【检测】（执行层硬约束；权威版 §五：定义=「子弹射出瞬间就命中自己」，
+     *   ⛔ **不许用"段帧号 0"**）。最小/保守判据：开火帧的**炮口点贴墙/在墙内**
+     *   （主人 canonical 例："炮管紧贴着墙壁发射"）。
+     *   ⚠️ §5.1：过滤是"能做就做"；融合世界加弹未实现（沙箱范围外）⟹ 这里做检测 + 最小过滤
+     *   = 拒绝该射击帧（B 帧内重试）。
+     */
+    function agentFireSelfHit(tree, adapter, pick) {
+        try {
+            if (!adapter || typeof adapter.checkWall !== 'function' || !pick) return false;
+            var n = findNodeById(tree, pick.nodeId);
+            if (!n || !n.rolloutSamples) return false;
+            var L = Math.max(1, agentExecLenOf(n));
+            var idx = Math.max(1, Math.min(L, L - (pick.back | 0)));   // samples[L−back]（至少 samples[1]）
+            var smp = n.rolloutSamples[idx] || n.simState.tank;
+            if (!smp) return false;
+            var consts = adapter.constants || {};
+            var off = (consts.BULLET && consts.BULLET.OFFSET && consts.BULLET.OFFSET.m) || 2.5;
+            var half = (consts.TANK && consts.TANK.HEIGHT && consts.TANK.HEIGHT.m) ? consts.TANK.HEIGHT.m / 2 : 2;
+            var d = off + half;
+            var dx = Math.sin(smp.rot || 0), dy = -Math.cos(smp.rot || 0);
+            var mx = smp.x + dx * d, my = smp.y + dy * d;
+            var eps = 0.6;
+            return !!adapter.checkWall({ x: mx - dx * eps, y: my - dy * eps },
+                                       { x: mx + dx * eps, y: my + dy * eps });
+        } catch (e) { return false; }
+    }
+
+    /** v187：B 包的射击帧逐项做 0 帧自杀检测；命中返回 reason（否则 ''）。 */
+    function agentFireSelfHitCheck(tree, adapter, clean) {
+        if (!clean || !clean.picks || clean.picks.length <= 1) return '';
+        for (var i = 1; i < clean.picks.length; i++) {
+            if (agentFireSelfHit(tree, adapter, clean.picks[i])) {
+                if (tree && tree.stats) tree.stats.agentFireSelfHitDetected = (tree.stats.agentFireSelfHitDetected || 0) + 1;
+                if (typeof _ifaceStats !== 'undefined') _ifaceStats.fireSelfHit = (_ifaceStats.fireSelfHit || 0) + 1;
+                return '0帧自杀(炮口贴墙) picks[' + i + ']';
+            }
+        }
+        return '';
+    }
+
+    function checkBundleSemantics(tree, clean, ctx) {
+        var phase = (ctx && ctx.phase === 'B') ? 'B' : 'A';
+        var illegal = [], reason = '';
+        if (phase === 'A') {
+            // v184（3-3）/ v185（3-4）· A 相：生长位置的契约 —— `picks: [{nodeId, back}]`（新，优先）/
+            //   `growAt: [nodeId]`（旧，兼容）；**一次调用只校验/消费 [0]**（每次 1 帧）。
+            //   ⚠️ 语义层必须把"非叶生长"响亮拒绝：`expandLeaf` 会拒绝非叶，而
+            //   `Invariants.canGrowAt` 只查 invalid/真死 ⟹ 旧代码在 checkBundleSemantics
+            //   放行、到 expandLeaf 静默失败（阶段 3-3 方针点名的矛盾）。
+            var targetId = null, targetBack = null, targetField = '';
+            if (clean.picks && clean.picks.length) {
+                targetId = clean.picks[0].nodeId;
+                targetBack = clean.picks[0].back;
+                targetField = 'picks[0]';
+            } else if (clean.growAt && clean.growAt.length) {
+                targetId = clean.growAt[0];
+                targetField = 'growAt[0]';
+            }
+            if (targetId !== null && targetId !== undefined) {
+                var n = findNodeById(tree, targetId);
+                if (!n) { illegal.push('生长'); reason = targetField + ' 节点编号不存在'; }
+                else if (!VantageTreeInterface.Invariants.canGrowAt(n)) {
+                    illegal.push('生长'); reason = targetField + ' 在真死/失效节点上生长';
+                } else if (n.children && n.children.length > 0) {
+                    illegal.push('生长'); reason = targetField + ' 在非叶节点上生长（expandLeaf 会拒绝）';
+                } else if (targetBack !== null) {
+                    var Lp = pickLOf(n);
+                    if (!(Lp > 0)) { illegal.push('生长'); reason = targetField + ' 真死节点（L<=0）'; }
+                    else if (!(targetBack >= 0 && targetBack < Lp)) {
+                        illegal.push('生长'); reason = targetField + ' back=' + targetBack + ' 越界 [0,' + Lp + ')';
+                    }
+                }
+            }
+        } else {
+            // v187（3-5）· B 相：
+            //   `picks[0]` = **路线目标**（任意可达节点；路线 = root→目标，自动确定 —— 裁决①）；
+            //   旧 `select` 仍按"当前决策点候选"兼容；
+            //   `picks[1..]` = 射击帧：**必须在路线上**（裁决②"不在路线上的节点不许插射击"）
+            //   且 `back∈[0,L)`（§7.7）。
+            //   `growAt` 在 B 相不消费、不校验。
+            var routeId = null, routeField = '', routeFromPicks = false;
+            if (clean.picks && clean.picks.length) { routeId = clean.picks[0].nodeId; routeField = 'picks[0]'; routeFromPicks = true; }
+            else if (clean.select !== undefined && clean.select !== null) { routeId = clean.select; routeField = 'select'; }
+            if (routeId !== null && routeId !== undefined) {
+                var rn = findNodeById(tree, routeId);
+                if (!rn) { illegal.push('选路'); reason = routeField + ' 节点编号不存在'; }
+                else if (rn.invalid || rn.exhausted || VantageTreeInterface.Invariants.isTrueDead(rn)) {
+                    illegal.push('选路'); reason = routeField + ' 真死/失效节点';
+                } else if (routeFromPicks) {
+                    if (!agentRoutePathOf(tree, routeId)) { illegal.push('选路'); reason = routeField + ' 不在本 root 的路径上'; }
+                } else {
+                    var kids = (tree.commitNode && tree.commitNode.children) || [];
+                    var hit = null;
+                    for (var j = 0; j < kids.length; j++) if (kids[j] && kids[j].id === routeId) { hit = kids[j]; break; }
+                    if (!hit) { illegal.push('选路'); reason = routeField + ' 不在当前决策点的候选里'; }
+                }
+            }
+            if (!illegal.length && clean.picks && clean.picks.length > 1) {
+                var rpath = agentRoutePathOf(tree, clean.picks[0].nodeId) || [];
+                for (var fi = 1; fi < clean.picks.length; fi++) {
+                    var fp = clean.picks[fi];
+                    var fIdx = -1;
+                    for (var pi = 0; pi < rpath.length; pi++) if (rpath[pi].id === fp.nodeId) { fIdx = pi; break; }
+                    if (fIdx < 0) { illegal.push('射击'); reason = 'picks[' + fi + '] 不在路线上'; break; }
+                    var fL = Math.max(1, agentExecLenOf(rpath[fIdx]));
+                    if (!(fp.back >= 0 && fp.back < fL)) { illegal.push('射击'); reason = 'picks[' + fi + '] back=' + fp.back + ' 越界 [0,' + fL + ')'; break; }
+                }
+            }
+        }
+        return { ok: illegal.length === 0, illegal: illegal, reason: reason };
+    }
+
+    /** 按 id 找节点（智能体给的是 id）。找不到返回 null。 */
+    function findNodeById(tree, id) {
+        if (!tree || !tree.root || id === null || id === undefined) return null;
+        var stack = [tree.root], guard = 0;
+        while (stack.length && guard++ < 4000) {
+            var n = stack.pop();
+            if (!n) continue;
+            if (n.id === id) return n;
+            if (n.children) for (var i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+        }
+        return null;
+    }
+
+    // 供面板读取的探针状态（只读展示用，不参与任何逻辑）
+    var _ifaceStats = { calls: 0, skipped: '', lastCtx: null, lastDecision: null,
+                        callsA: 0, callsB: 0, giveUpA: 0, giveUpB: 0,
+                        growAt: 0, picks: 0, pickExtras: 0, growAtExtras: 0, rejected: 0, nonRedRetarget: 0,
+                        tickSkippedFull: 0 };   // v179：树满（数量闸门）导致本帧不调 A 的次数
+    if (typeof window !== 'undefined') window.__vantageIface = _ifaceStats;
+
+    function agentSeam(tree, adapter, simState, threats, ops, phase) {
+        // v185（3-4）：同一 tick 两次调用 —— phase='A'（生长）/ 'B'（路线+射击帧）。
+        phase = (phase === 'B') ? 'B' : 'A';
+        var slot = (phase === 'B') ? '_agentDecisionB' : '_agentDecision';
+        function _clearSeamSlot() {
+            if (!tree) return;
+            tree[slot] = null;
+            if (phase === 'B') {
+                tree._agentRoute = null; tree._agentFirePicks = null;
+                tree.stats.agentRouteId = null; tree.stats.agentFireFrames = 0; tree.stats.agentFireFirstBack = null;
+                tree._agentExecPath = null; tree._agentExecFrame = 0; tree._agentExecTarget = null;   // v187
+            }
+        }
+        if (typeof VantageTreeInterface === 'undefined') { _ifaceStats.skipped = '接口未加载'; _clearSeamSlot(); return; }
+        try {
+            // ============================================================
+            // ★ 训练数据采集（v163）
+            //   只在 window.__vtCollect 打开时工作；关着时开销是一次 null 判断。
+            //   必须在「规则模式提前 return」之前——否则规则模式下采不到任何数据。
+            //   采到的就是任务的【真实输入分布】，这是"同源数据"的唯一来源。
+            // ============================================================
+            var _col = (typeof window !== 'undefined') ? window.__vtCollect : null;
+            if (_col && _col.buf && _col.buf.length < _col.max) {
+                _col.tick = (_col.tick || 0) + 1;
+                if (_col.tick % (_col.every || 1) === 0) {
+                    try {
+                        var _ts = (adapter && adapter.getTankState) ? adapter.getTankState() : null;
+                        _col.buf.push({
+                            nodes: collectAgentNodes(tree),
+                            rootId: tree && tree.root ? tree.root.id : null,
+                            commitId: (tree && tree.commitNode) ? tree.commitNode.id : null,
+                            nodeCount: tree ? tree.nodeCount : 0,
+                            tank: _ts ? { x: _ts.x, y: _ts.y, rot: _ts.rot } : null,
+                            threatCount: (threats || []).length,
+                            time: _timeAcc
+                        });
+                        _ifaceStats.collected = (_ifaceStats.collected || 0) + 1;
+                    } catch (eCol) { _ifaceStats.collectErr = String(eCol && eCol.message || eCol); }
+                }
+            }
+            // v186（3-4b）：A/B 是**两个独立注册的智能体**（生长网络 / 选路网络），
+            //   按 phase 从分工槽取；槽空则回退默认槽（单智能体/旧用法兼容）。
+            var agent = VantageTreeInterface.Agents.current(phase);
+            if (!agent || agent.name === 'rule') {
+                _ifaceStats.skipped = '规则模式';
+                _clearSeamSlot();
+                if (phase === 'A' && tree) {   // ★ 切回规则时两个槽都清，规则模式行为不变
+                    tree._agentDecisionB = null; tree._agentRoute = null; tree._agentFirePicks = null;
+                }
+                return;
+            }
+            if (agent.isReady && !agent.isReady()) { _ifaceStats.skipped = '智能体未就绪'; _clearSeamSlot(); return; }
+            var ctx = buildAgentCtx(tree, adapter, simState, threats, ops, phase);
+            // ★ 帧内重试：一包输出里只要有非法项，就在本帧重新让它输出。
+            //   非法输出【永远到不了树】——所以不需要为非法动作设计惩罚；
+            //   只记重试次数（策略爱犯错的度量）。超限则放弃本帧，走规则兜底。
+            var MAX_ATTEMPTS = 3;          // 待实测一帧预算内能跑几次再调
+            var dec = null, rej = null, why = '', used = 0;
+            for (var _at = 1; _at <= MAX_ATTEMPTS; _at++) {
+                used = _at;
+                var raw = agent.decide(ctx, _at > 1
+                    ? { attempt: _at, rejected: rej, reason: why, phase: phase } : null);
+                var bundle = VantageTreeInterface.validateBundle(raw);
+                if (!bundle.ok) { rej = bundle.illegal; why = bundle.reason; continue; }
+                var sem = checkBundleSemantics(tree, bundle.clean, ctx);
+                if (!sem.ok) { rej = sem.illegal; why = sem.reason; continue; }
+                // v187（3-5）：B 的射击帧做 0 帧自杀检测（执行层硬约束；失败 → 帧内重试）
+                if (phase === 'B') {
+                    var _fh = agentFireSelfHitCheck(tree, adapter, bundle.clean);
+                    if (_fh) { rej = ['射击']; why = _fh; continue; }
+                }
+                dec = VantageTreeInterface.validateDecision(bundle.clean);
+                break;
+            }
+            if (used > 1) _ifaceStats.retries = (_ifaceStats.retries || 0) + (used - 1);
+            if (!dec) {
+                // 重试用尽 → 放弃本相（A 放弃 = 本帧无生长指令；B 放弃 = 本帧无路线，规则兜底）
+                _ifaceStats.giveUp = (_ifaceStats.giveUp || 0) + 1;
+                if (phase === 'B') _ifaceStats.giveUpB = (_ifaceStats.giveUpB || 0) + 1;
+                else _ifaceStats.giveUpA = (_ifaceStats.giveUpA || 0) + 1;
+                _clearSeamSlot();
+                _ifaceStats.skipped = (phase === 'B' ? 'B:' : 'A:') + '重试超限(' + why + ')';
+                return;
+            }
+            tree[slot] = dec || null;
+            if (dec && dec.memory) {
+                if (phase === 'B') tree._agentMemoryB = dec.memory; else tree._agentMemoryA = dec.memory;
+                tree._agentMemory = dec.memory;
+            }
+            if (phase === 'B') {
+                var _route = (dec.picks && dec.picks.length) ? dec.picks[0].nodeId : dec.select;
+                tree._agentRoute = (_route === undefined) ? null : _route;
+                tree._agentFirePicks = (dec.picks && dec.picks.length > 1) ? dec.picks.slice(1) : [];
+                // v185（3-4）诊断（只读）：B 的路线/射击帧落位，供探针/面板读取
+                tree.stats.agentRouteId = tree._agentRoute;
+                tree.stats.agentFireFrames = tree._agentFirePicks.length;
+                tree.stats.agentFireFirstBack = tree._agentFirePicks.length ? tree._agentFirePicks[0].back : null;
+                tree._agentCtxB = ctx;
+                tree.stats.agentBCalls = (tree.stats.agentBCalls || 0) + 1;
+            } else {
+                // ★ 只有 A 真的生长了（树结构变了）才让 B 的路线失效；
+                //   「本帧不生长」不得抹掉 B 的路线；_agentFirePicks 属 B 的领地，A 一律不碰。
+                if (dec && dec.picks && dec.picks.length > 0) {
+                    tree._agentRoute = null;
+                    tree._agentFirePicks = null;
+                    tree.stats.agentRouteId = null; tree.stats.agentFireFrames = 0; tree.stats.agentFireFirstBack = null;
+                }
+                tree._agentCtx = ctx;
+                tree.stats.agentACalls = (tree.stats.agentACalls || 0) + 1;
+            }
+            _ifaceStats.calls++;
+            if (phase === 'B') _ifaceStats.callsB = (_ifaceStats.callsB || 0) + 1;
+            else _ifaceStats.callsA = (_ifaceStats.callsA || 0) + 1;
+            _ifaceStats.skipped = '';
+            _ifaceStats.lastCtx = { nodes: ctx.nodes.length, root: ctx.root,
+                                    commit: ctx.commit, bullets: ctx.bullets.length, phase: phase };
+            _ifaceStats.lastDecision = dec;
+        } catch (e) {
+            if (!agentSeam._warned) {
+                agentSeam._warned = true;
+                console.warn('[Vantage] 智能体接口异常（已回退规则版）:', e);
+            }
+            _clearSeamSlot();
+            if (typeof _ifaceStats !== 'undefined') {
+                if (phase === 'B') _ifaceStats.tickErrB = (_ifaceStats.tickErrB || 0) + 1;
+                else _ifaceStats.tickErr = (_ifaceStats.tickErr || 0) + 1;
+            }
+        }
+    }
+
     function rolloutNine(tree, adapter, simState, threats) {
         var ops = VantageSandbox.OPERATIONS;
         var cfg = treeScoringCfg(tree);
+        // v163：agentSeam 已上移到 tick 固定位置（每 tick 一次，不受生长闸门影响）。
+        // 这里不再调用，否则同一 tick 会被调两次，且用的是 leaf.simState 而非 root。
         if (adapter && typeof adapter.simulateTankBatchScored === 'function') {
             try {
                 var rollTrace = _rec.on ? [] : null;   // v122：只在开录时采轨迹，常态零开销
@@ -3791,13 +4656,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                 tree.stats.rustScoredFallbacks = (tree.stats.rustScoredFallbacks || 0) + 1;
             }
         }
+        var jsSim = simStateWithNow(simState, nowTGlobalOf(tree));   // v167（S8）
         if (VantageScoring.scorePaths) {
-            return VantageScoring.scorePaths(adapter, simState, ops,
+            return VantageScoring.scorePaths(adapter, jsSim, ops,
                 EVAL_FRAMES, threats, cfg);
         }
         var results = [];
         for (var i = 0; i < ops.length; i++) {
-            results.push(VantageScoring.scorePath(adapter, simState,
+            results.push(VantageScoring.scorePath(adapter, jsSim,
                 ops[i].inputs, EVAL_FRAMES, threats, cfg));
         }
         return results;
@@ -3806,6 +4672,47 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     /** 由单个 rollout 结果装配子节点（v4：候选初值=totalScore 恒定基线口径） */
     function buildCandidate(tree, parent, opIdx, r, probe, threats) {
         var ops = VantageSandbox.OPERATIONS;
+        // ════════════════════════════════════════════════════════════════
+        // v183（阶段 3-2）：**智能体路径** —— 节点建在死前 / 真死不建（"缺席即标记"）
+        //   权威版 §2（节点 = 一次 75 帧物理模拟的终点）、§7.7（L=75 / fd−1；L≤0=真死）、
+        //   §4（合法帧 = 死亡帧之前）、§7.3b（缺席即标记）。
+        //   ⛔ 本分支**不读/不写 `segmentFrames`/`plannedFrames`**（规则版遗产，§4.2）。
+        //   ⛔ 规则版走下面原样分支（§5：一字不改）。
+        // ════════════════════════════════════════════════════════════════
+        if (agentPathActive(tree)) {
+            var L = agentValidFramesOf(r);
+            if (L <= 0) return null;                 // ★ 真死（fd≤1）：不建节点
+            var sA = r.samples && r.samples[L];
+            if (!sA) sA = (r.samples && r.samples[r.samples.length - 1]) || parent.simState.tank;
+            var childA = createTreeNode(parent, ops[opIdx].inputs, {
+                tank: { x: sA.x, y: sA.y, rot: sA.rot },
+                tGlobal: parent.simState.tGlobal + L * FRAME_DT
+            });
+            childA.validFrames = L;                  // §7.7 L（独立新字段）
+            childA.backMax = L - 1;                  // B 的 back 上限 = L−1
+            // ⛔ 不写 childA.segmentFrames / childA.plannedFrames / childA.rolloutFrames
+            // v183：`probe.cum` 与 `r.totalScore` 都缺时落 0（3-1 的 NaN 修在这里真正走到）。
+            childA.segmentScore = (probe && probe.cum && probe.cum[opIdx])
+                ? probe.cum[opIdx][Math.min(L, probe.cum[opIdx].length - 1)]
+                : (typeof r.totalScore === 'number' ? r.totalScore : 0);
+            childA.baseExt = 0;                      // 智能体版没有"延伸基线"语义
+            childA.rolloutTotal = (typeof r.totalScore === 'number') ? r.totalScore : 0;
+            childA.perFrameScores = r.perFrameScores ? r.perFrameScores.slice() : null;
+            childA.deathAuthority = r.deathAuthority || (r.rustPhysics ? 'rust-candidate' : 'fused');
+            childA.subtreeBest = Math.max(childA.rolloutTotal, 0);   // 不调 fullRolloutTotalOf（它读 plannedFrames）
+            childA.status = 'alive';                 // L≥1 ⟹ 至少能执行 1 帧 = 合法停点
+            childA.fullDead = !!r.dead;
+            childA.fullDeathFrame = r.dead ? r.deathFrame : -1;
+            childA.tEndSec = tree.rootAbsT + childA.simState.tGlobal;
+            childA.opName = ops[opIdx].name;
+            childA.opIndex = opIdx;
+            childA.threats = threats || null;
+            childA.rolloutStartT = parent.simState.tGlobal;
+            childA.rolloutSamples = r.samples;
+            childA.rolloutDeathFrame = r.deathFrame;
+            return childA;
+        }
+        // ── 规则版：以下**逐字节原样**（§5 铁律） ──
         var segF = probe.segmentFrames;
         var childDead = r.dead && r.deathFrame >= 0 && r.deathFrame <= segF;
         var plannedEnd = segF;
@@ -3822,9 +4729,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // v51：实际执行帧数 —— v78 统一 safeFramesForDeath 口径。
         var actualFrames = r.dead ? safeFramesForDeath(tree, r.deathFrame, segF) : segF;
         child.segmentFrames = actualFrames;
-        child.segmentScore = probe.cum
+        // v182（3-1）：不评分通道的 NaN 隐患（3-0 登记）——`probe.cum` 与
+        // `r.totalScore` 都缺时必须落到 0，否则 `baseExt = 0 - undefined = NaN`
+        // 会顺着评分字段扩散。规则版两者都在 ⟹ 行为逐值不变。
+        child.segmentScore = (probe && probe.cum && probe.cum[opIdx])
             ? probe.cum[opIdx][Math.min(actualFrames, probe.cum[opIdx].length - 1)]
-            : r.totalScore;
+            : (typeof r.totalScore === 'number' ? r.totalScore : 0);
         child.baseExt = (r.totalScore || 0) - child.segmentScore;   // 恒定延伸基线
         child.rolloutTotal = (r.totalScore || 0);                 // v52：75帧全累积总分
         child.perFrameScores = r.perFrameScores ? r.perFrameScores.slice() : null; // v75
@@ -3838,6 +4748,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         // 绝对时间只用于段末调度/树图 X 轴；simState.tGlobal 保持相对值供弹道采样。
         child.tEndSec = tree.rootAbsT + childState.tGlobal;
         child.opName = ops[opIdx].name;
+        child.opIndex = opIdx;                        // v180（阶段2-3 G1）：来路槽位（0..8）——原来只存 opName，没存下标
         child.threats = threats || null;             // 节点预览/虚影渲染用
         child.rolloutStartT = parent.simState.tGlobal; // rollout 第0帧对应的弹道相对时间
         child.rolloutFrames = child.segmentFrames;   // 提交后执行帧数
@@ -3867,9 +4778,35 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         return cfg;
     }
 
-    /** v49：本段计划帧数（取不到 plannedFrames 的旧节点回退到实际帧数）。 */
+    /** v49：本段计划帧数（取不到 plannedFrames 的旧节点回退到实际帧数）。
+     *  ⚠️ v183（3-2）：这是**规则版遗产**，智能体路径**不许依赖**（权威版 §7.1/§4.2）。 */
     function plannedFramesOf(n) {
         return Math.max(1, n.plannedFrames || n.segmentFrames || 0);
+    }
+
+    /**
+     * v183（阶段 3-2）：智能体路径的节点有效长度 `L` —— **独立字段，不从 segmentFrames 借**。
+     *   权威版 §7.7：没死 → `L = 75`（= 本轮模拟帧数 `EVAL_FRAMES`）；
+     *   非真死（死在第 `fd` 帧）→ `L = fd − 1`；
+     *   **`fd ≤ 1` → `L ≤ 0` = 真死**（方针 3-2 的坑：`fd−1` 会算出 0/−1，必须走"不建"分支）。
+     */
+    function agentValidFramesOf(r) {
+        if (!r) return 0;
+        if (!r.dead || !(typeof r.deathFrame === 'number') || r.deathFrame < 0) {
+            return Math.max(1, Math.round(EVAL_FRAMES));
+        }
+        return r.deathFrame - 1;             // fd≥2 才 >0；fd=0/1 → ≤0（真死）
+    }
+
+    /** v183（3-2）：已建智能体节点的 `L`（`validFrames`）。没有 → 0（调用方按 §7.7 兜底）。 */
+    function validFramesOf(n) {
+        return (n && typeof n.validFrames === 'number' && n.validFrames > 0) ? n.validFrames : 0;
+    }
+
+    /** v183（3-2）：智能体路径的"计划长度" = `L`（没有 validFrames 的过渡节点按"没死 75"）。 */
+    function agentPlannedFramesOf(n) {
+        var v = validFramesOf(n);
+        return v > 0 ? v : Math.max(1, Math.round(EVAL_FRAMES));
     }
 
     /** v78/v80：统一“实际执行帧数”口径。
@@ -3942,6 +4879,33 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  该节点仍可从安全执行末帧继续展开下一层。 */
     function isTerminalDead(n) {
         return !!n && n.fullDeathFrame >= 0 && n.fullDeathFrame <= 1;
+    }
+
+    /**
+     * v161：**递归真死判定** —— 与主人定义逐字对齐：
+     *   「红 = 操作真死 = 1 帧就会死」；「某节点延伸出的 9 种操作全死 ⇒ 这个节点真死」。
+     * 所以一个节点真死有两条路：
+     *   ① 自身红（fd<=1）：选了就已经死，来不及再分叉；
+     *   ② 已展开，且 9 个活跃孩子**全部**真死（递归）。
+     * **没展开（无活跃孩子）⇒ 未知，不算真死**（保守，绝不因"没数据"而误杀候选项）。
+     * 注意：这不是"活路优先/一票否决"，它只回答主人定义里那个「真死」，
+     * 替代旧的「只看候选自身 fd<=1」——旧口径会把"自己 fd=2 但 9 个孩子全红"的
+     * 真死节点放行（2026-09-07 两次地雷之死的直接成因，见 docs §12.3）。
+     */
+    function isDeadSubtree(node, depth) {
+        if (!node) return false;
+        if (isTerminalDead(node)) return true;
+        var kids = node.children;
+        if (!kids || !kids.length) return false;         // 未展开 ⇒ 未知
+        if ((depth || 0) > 24) return false;             // 护栏：绝不无限递归
+        var anyActive = false;
+        for (var i = 0; i < kids.length; i++) {
+            var c = kids[i];
+            if (!c || c.invalid || c.exhausted) continue;
+            anyActive = true;
+            if (!isDeadSubtree(c, (depth || 0) + 1)) return false;
+        }
+        return anyActive;                                 // 9 种全死 ⇒ 真死
     }
 
     // ============================================================
@@ -4191,13 +5155,26 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
         ensureNonNegativeNodeCount(tree);
         if (!canAddTreeNodes(tree, results.length)) return 0;
+        // v180（阶段2-3 G2）：【生长过】置位点 —— 本节点真的展开出了子节点（9 候选已探）。
+        //   语义见权威版 §16.4 裁决①：只有【无分支】的节点才需要看它。
+        //   ⛔ 复位点只在 invalidateDescendants / markReserveInvalid（预测失效），**不在**提前死亡剪枝（tree:2667）——
+        //   那里 hasGrown 必须保持 1（"生过 + 无分支 ⟹ 真死"）。
+        leaf.hasGrown = true;
         var ecfg = effectiveExpandCfg(tree);
         tree.diag.lastEffTMin = ecfg.tMin;
         tree.diag.lastEffDt = _lastWorldDt;
-        var probe = probeSegment(results, ecfg);
+        var _agentPath = agentPathActive(tree);     // v183（3-2）：只对智能体路径生效
+        // v183（3-2）：`probeSegment` 只服务规则版（它产出的 `segmentFrames` 是规则版遗产，
+        //   §4.2）⟹ 智能体路径不调用它；评分字段走 `r.totalScore`/`r.perFrameScores`。
+        var probe = _agentPath ? null : probeSegment(results, ecfg);
         var newKids = [];
         for (var i = 0; i < results.length; i++) {
             var kid = buildCandidate(tree, leaf, i, results[i], probe, threats);
+            if (!kid) {
+                // v183（3-2）：真死（L≤0）→ **不建**；缺席就是标记（权威版 §7.3b）。
+                if (_agentPath) tree.stats.agentTrueDeadSkips = (tree.stats.agentTrueDeadSkips || 0) + 1;
+                continue;
+            }
             attachChild(tree, leaf, kid);
             // v54：新层由当前 threats 直接算出，天然 fresh；scoreCache 下一波再复用。
             kid.scoreCache = null;
@@ -4205,32 +5182,76 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             kid.dataVersion = 0;
             newKids.push(kid);
         }
-        // v69：开启 Rust 最小决策时，next 由 WASM 选择；
-        // 否则继续 v52 JS 自然比较。Rust 失败自动回退。
-        var rustPick = tryRustMinimalSelect(tree, newKids, results);
-        if (rustPick) {
-            leaf.next = rustPick.kid;
-            recordStructure(tree, 'rust-minimal-select',
-                'n' + (leaf.id || '?') + ' next→n' + (rustPick.kid.id || '?') +
-                ' seg=' + (rustPick.decision.segmentFrames || 0));
-        } else if (leaf && tree.cfg.deepSelectEnabled) {
-            // v81：深层选路实验：next 按 subtreeBest（含后代路线）选。
-            leaf.next = pickBest(newKids);
+        if (!_agentPath) {
+            // ── 规则版：以下**逐字节原样**（§5 铁律） ──
+            // v69：开启 Rust 最小决策时，next 由 WASM 选择；
+            // 否则继续 v52 JS 自然比较。Rust 失败自动回退。
+            var rustPick = tryRustMinimalSelect(tree, newKids, results);
+            if (rustPick) {
+                leaf.next = rustPick.kid;
+                recordStructure(tree, 'rust-minimal-select',
+                    'n' + (leaf.id || '?') + ' next→n' + (rustPick.kid.id || '?') +
+                    ' seg=' + (rustPick.decision.segmentFrames || 0));
+            } else if (leaf && tree.cfg.deepSelectEnabled) {
+                // v81：深层选路实验：next 按 subtreeBest（含后代路线）选。
+                leaf.next = pickBest(newKids);
+            } else {
+                // v52：最新 9 个叶子按“75 帧全累积总分”自然比较选 next；
+                // 不比较祖先历史累计，只看每个候选自己未来 75 帧的总分。
+                leaf.next = pickBestChildByRolloutTotal(newKids);
+            }
+            leaf.probe = probe;   // 段长探测结果留档（渲染/调参）
+            tree.stats.expands++;
+            return results.length;
+        }
+        // ── 智能体路径（3-2）：next 只可能在"建出来的"候选里；全真死 → 缺席即标记 ──
+        if (newKids.length === 0) {
+            leaf.next = null;
+            tree.stats.agentTrueDeadLeaves = (tree.stats.agentTrueDeadLeaves || 0) + 1;
+            recordStructure(tree, 'grow-all-truedeath', 'n' + (leaf.id || '?') + ' 9×L<=0');
         } else {
-            // v52：最新 9 个叶子按“75 帧全累积总分”自然比较选 next；
-            // 不比较祖先历史累计，只看每个候选自己未来 75 帧的总分。
             leaf.next = pickBestChildByRolloutTotal(newKids);
         }
-        leaf.probe = probe;   // 段长探测结果留档（渲染/调参）
+        leaf.probe = null;        // 智能体路径不消费 probeSegment（规则版遗产）
         tree.stats.expands++;
-        return results.length;
+        return newKids.length;
     }
 
     function expandLeaf(tree, leaf, adapter, threats) {
-        if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
+        // ★ B5 修复（2026-10-07）：原来这三个出口全是【静默失败】——
+        //   语义校验 Invariants.canGrowAt 只查 invalid + 真死，会放行"已经有子节点的节点"，
+        //   到 expandLeaf 这里才被拒 → 记一笔 expand-fail 就没了。
+        //   结果：智能体以为"长成功了"，树却没动，而且没人告诉它为什么。
+        //   现按原因分开记，并按原因反馈（重试只覆盖格式/语义非法，覆盖不到这一层）。
+        if (!leaf) {
+            recordGrowStall(tree, 'expand-null', 'no-parent');
+            return 0;
+        }
+        if (isTerminalDead(leaf)) {
+            recordGrowStall(tree, 'expand-dead', 'fd=' + leaf.fullDeathFrame);
+            return 0;
+        }
+        if (leaf.children.length > 0) {
+            // ★ 主人 2026-10-07 已把生长改成「在某一帧分叉」，
+            //   届时"有子节点的节点"要靠【时长延伸】判定合法性（新时长 > 现有时长才合法），
+            //   不再是一律拒绝。在那之前这里必须【响】，不能静默。
+            recordGrowStall(tree, 'expand-has-children',
+                'id=' + leaf.id + ' n=' + leaf.children.length);
+            if (typeof _ifaceStats !== 'undefined') {
+                _ifaceStats.expandHasChildren = (_ifaceStats.expandHasChildren || 0) + 1;
+            }
+            return 0;
+        }
         ensureNonNegativeNodeCount(tree);
-        if (!canAddTreeNodes(tree, 9)) return 0;
+        if (!canAddTreeNodes(tree, 9)) {
+            recordGrowStall(tree, 'expand-budget', 'nodeCount=' + tree.nodeCount);
+            return 0;
+        }
         var results = rolloutNine(tree, adapter, leaf.simState, threats);
+        if (!results || !results.length) {
+            recordGrowStall(tree, 'expand-rollout-empty', 'n=0');
+            return 0;
+        }
         return attachResults(tree, leaf, results, threats);
     }
 
@@ -4914,6 +5935,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      *  "怎么默认前进"）。恢复自然 argmax：无信息=静止（与自动模式
      *  一致），有威胁评分分化后接管 */
     function pickBest(children) {
+        var _ao = agentSelectOverride(null, children);   // ★ 智能体选路优先
+        if (_ao) return _ao;
         var best = null;
         var i, c;
         // v48：除非所有 active 候选都是 1 帧内必死，否则跳过 fullDeathFrame===1 的立即真死候选。
@@ -4949,7 +5972,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.exhausted || c.invalid) continue;   // 真死回退/结构失效的分支不参与 argmax
-            if (!onlyImmediateDead && isTerminalDead(c)) continue;   // v155：有非红候选时红的绝对不选
+            if (!onlyImmediateDead && isDeadSubtree(c)) continue;   // v161：真死（自身红 或 9 种全死）绝对不选
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
             // v103：空场地形引导阶段——9 个操作安全分完全一样，只有“往安全地形
             // 挪了多少”能分胜负，所以此时它优先于平局规则（含“优先静止”）。
@@ -4995,6 +6018,20 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
      */
     function enforceNonRedPrefer(tree, chosen, parent) {
         if (!chosen || !parent || !parent.children || !parent.children.length) return chosen;
+        // ★ 接口层不变量二（仅在智能体模式下接管；规则模式走下面原逻辑，一字不改）
+        //   主人 2026-10-02 定案：【不替智能体改选】——改选依据必须来自智能体。
+        //   所以这里只检查、只记录违规（供惩罚），违规后【回退规则逻辑兜底】
+        //   以保证树能继续跑。最终形态是"采样前屏蔽"，这里是兜底不是主路径。
+        if (typeof VantageTreeInterface !== 'undefined' &&
+            VantageTreeInterface.Agents.current('B').name !== 'rule') {
+            var _chk = VantageTreeInterface.Invariants.checkSelect(chosen, parent.children);
+            if (_chk.ok) return chosen;                     // 合规，放行
+            _ifaceStats.selectViolation = (_ifaceStats.selectViolation || 0) + 1;
+            recordStructure(tree, 'iface-select-violation',
+                '#' + (chosen.id || '?') + ' fd=' + chosen.fullDeathFrame +
+                ' reason=' + _chk.reason);
+            // 不 return —— 继续走下面的规则逻辑兜底
+        }
         if (!isTerminalDead(chosen)) return chosen;      // 不是红，不动
         var alt = null;
         for (var i = 0; i < parent.children.length; i++) {
@@ -5011,6 +6048,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     function pickBestChildByRolloutTotal(children, exclude) {
+        var _ao2 = agentSelectOverride(null, children);  // ★ 智能体选路优先
+        if (_ao2) return _ao2;
         var i, c;
         var anyActive = false, allTrueDead = true, anyNotDead = false;
         for (i = 0; i < children.length; i++) {
@@ -5030,7 +6069,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         for (i = 0; i < children.length; i++) {
             c = children[i];
             if (!c || c.invalid || c.exhausted || c === exclude) continue;
-            if (!allTrueDead && isTerminalDead(c)) continue;   // v155：有非红候选时红的绝对不选
+            if (!allTrueDead && isDeadSubtree(c)) continue;   // v161：真死（自身红 或 9 种全死）绝对不选
             if (anyNotDead && c.status === 'dead') continue; // 混合模式安全底线（段内死亡）
             // v103：空场地形引导阶段：安全分全平，用“地形增益 → 兜底安全分”排名。
             var rawTotal = fullRolloutTotalOf(c);
@@ -5304,8 +6343,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var take = Math.min(perTick, ops.length - slice.idx);
         if (take > 0) {
             var subOps = ops.slice(slice.idx, slice.idx + take);
+            var leafSim = simStateWithNow(slice.leaf.simState, nowTGlobalOf(tree));   // v167（S8）
             var partial = VantageScoring.scorePaths
-                ? VantageScoring.scorePaths(slice.adapter, slice.leaf.simState,
+                ? VantageScoring.scorePaths(slice.adapter, leafSim,
                     subOps, EVAL_FRAMES, slice.threats, treeScoringCfg(tree))
                 : null;
             if (partial) {
@@ -5320,7 +6360,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             } else {
                 // 极端兜底：逐个旧路径
                 for (var n = 0; n < take && slice.idx < ops.length; n++, slice.idx++) {
-                    var r = VantageScoring.scorePath(slice.adapter, slice.leaf.simState,
+                    var r = VantageScoring.scorePath(slice.adapter, leafSim,
                         ops[slice.idx].inputs, EVAL_FRAMES, slice.threats, treeScoringCfg(tree));
                     r.opIndex = slice.idx;
                     r.opName = ops[slice.idx].name;
@@ -5404,15 +6444,22 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
 
     /** v48：真死 = 所有 active 子节点都在 1 帧内死亡。 */
     function isTrueDeadNode(node) {
-        if (!node || !node.children.length) return false;
-        var anyActive = false;
-        for (var ki = 0; ki < node.children.length; ki++) {
-            var c = node.children[ki];
-            if (!c || c.exhausted || c.invalid) continue;
-            anyActive = true;
-            if (!(c.fullDeathFrame >= 0 && c.fullDeathFrame <= 1)) return false;
-        }
-        return anyActive;
+        // v162：**口径统一** —— 真死只有一套定义，就是 `isDeadSubtree`：
+        //   自身红(fd<=1)，或已展开且 9 个活跃孩子全部真死（递归）；未展开 ⇒ 未知，不算死。
+        // v162 之前这里是**单层**口径（只要求 9 个孩子各自 fd<=1），而选路过滤用的是
+        // `isDeadSubtree`（递归）⇒ 两处口径不一致，会出现「选路认为真死、回退认为不是」
+        // 或反之的裂缝。现在两处共用同一个函数，语义只有一份。
+        // 旧实现（保留作历史对照，勿删）：
+        //   if (!node || !node.children.length) return false;
+        //   var anyActive = false;
+        //   for (var ki = 0; ki < node.children.length; ki++) {
+        //       var c = node.children[ki];
+        //       if (!c || c.exhausted || c.invalid) continue;
+        //       anyActive = true;
+        //       if (!(c.fullDeathFrame >= 0 && c.fullDeathFrame <= 1)) return false;
+        //   }
+        //   return anyActive;
+        return isDeadSubtree(node);
     }
 
     /**
@@ -5578,6 +6625,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
     }
 
     function growStep(tree, adapter, threats) {
+        // v182（3-1）：只读诊断计数（探针用；不参与任何决策）——
+        // `growStepCalls` = 本函数被调用次数（用来证明"前移后真的被调到"），
+        // `growExpands` = 真正 expandLeaf/切片成功长出节点的次数。
+        tree.stats.growStepCalls = (tree.stats.growStepCalls || 0) + 1;
         if (tree._expandSlice) {
             stepExpandSlice(tree, adapter);
             return;
@@ -5609,7 +6660,76 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             recordGrowStall(tree, 'grow-skip', 'perf-gate');
             return;
         }
-        var leaf = pickGrowLeaf(tree, adapter);
+        // ★ B3/B4 修复（2026-10-07）：
+        //   B4（危险）：旧写法 `if (_ad.growAt && _ad.growAt.length)` 在 growAt 为空数组时为假
+        //     → leaf 保持 pickGrowLeaf 的结果 → **智能体的"不生长"被规则生长顶替**：
+        //       标签说"没动"，树却长了 → 训练信号直接污染。
+        //     主人 2026-10-07 定案：「不生长，也就是不用其他生长方式引起歧义。」
+        //     → 智能体模式下 growAt 一律以智能体为准；空数组 = 【本帧不生长】，含细化回退一起跳过。
+        //   B3：`growAt` 号称是节点列表，但这里只消费 [0]。
+        //   v184（阶段 3-3）：契约定为 `picks: [{nodeId, back}]`（新，优先）/`growAt`（旧，兼容），
+        //     **一次调用只消费 [0]**（每次 1 帧）；多给的**忽略**并记 extras
+        //     （预留"多帧 = 多次调用 A"，权威版 §7.5；多节点消费不再做）。
+        var _agentWantsGrow = null;   // null = 智能体没表态（走规则）；数组 = 以智能体为准
+        var _pickUsed = false;
+        if (typeof VantageTreeInterface !== 'undefined' && tree._agentDecision) {
+            var _dec = tree._agentDecision;
+            if (Object.prototype.toString.call(_dec.picks) === '[object Array]') {
+                if (_dec.picks.length) {
+                    _agentWantsGrow = [_dec.picks[0].nodeId];   // ★ 只消费 [0]
+                    _pickUsed = true;
+                } else {
+                    _agentWantsGrow = [];                        // picks: [] = 本帧不生长
+                }
+                if (_dec.picks.length > 1) {
+                    tree.stats.ifacePickExtras = (tree.stats.ifacePickExtras || 0) + (_dec.picks.length - 1);
+                    if (typeof _ifaceStats !== 'undefined') _ifaceStats.pickExtras = (_ifaceStats.pickExtras || 0) + (_dec.picks.length - 1);
+                    recordStructure(tree, 'pick-extras-ignored', 'picks=' + (_dec.picks.length - 1));
+                }
+            } else if (Object.prototype.toString.call(_dec.growAt) === '[object Array]') {
+                _agentWantsGrow = _dec.growAt;
+                if (_dec.growAt.length > 1) {
+                    tree.stats.ifaceGrowAtExtras = (tree.stats.ifaceGrowAtExtras || 0) + (_dec.growAt.length - 1);
+                    if (typeof _ifaceStats !== 'undefined') _ifaceStats.growAtExtras = (_ifaceStats.growAtExtras || 0) + (_dec.growAt.length - 1);
+                    recordStructure(tree, 'pick-extras-ignored', 'growAt=' + (_dec.growAt.length - 1));
+                }
+            }
+        }
+
+        // ★ 2026-10-16 收窄（(ii) 裁定）：只在“甲【真的被调用过】且没给出合法答案”时 ⟹ 本帧不生长；
+        //   “甲因树满/闸门【未被调用】”（tree._agentDecision 不存在）⟹ 走原有路径（树满本来就该不生长，由 grow-maxnodes 记录）。
+        var _agentWasCalled = !!(tree && tree._agentDecision);
+        var leaf = _agentWantsGrow ? null : (_agentWasCalled ? null : pickGrowLeaf(tree, adapter));
+        if (!_agentWantsGrow && _agentWasCalled && typeof recordGrowStall === 'function') {
+            recordGrowStall(tree, 'agent-silent-no-grow', 'awg=' + String(_agentWantsGrow));
+        }
+        // ★ 不变量一（前移）：真死的节点绝不能当生长父节点
+        if (leaf && typeof VantageTreeInterface !== 'undefined' &&
+            !VantageTreeInterface.Invariants.canGrowAt(leaf)) {
+            recordGrowStall(tree, 'grow-truedead-parent', 'fd=' + leaf.fullDeathFrame);
+            leaf = null;
+        }
+
+        if (_agentWantsGrow) {
+            if (_agentWantsGrow.length) {
+                // v184（3-3）：只消费 [0]（见上方 B3 说明）；**语义校验也只查 [0]**，
+                //    多给的由 growStep 忽略并记 extras ⟹ 不会因第 2 个非法触发整帧重试。
+                var _an = findNodeById(tree, _agentWantsGrow[0]);
+                if (_an && VantageTreeInterface.Invariants.canGrowAt(_an)) {
+                    leaf = _an;                       // 不限于叶节点
+                    tree.stats.ifaceGrowAt = (tree.stats.ifaceGrowAt || 0) + 1; _ifaceStats.growAt++;
+                    if (_pickUsed) { tree.stats.ifacePicks = (tree.stats.ifacePicks || 0) + 1; _ifaceStats.picks++; }
+                } else {
+                    tree.stats.ifaceGrowRejected = (tree.stats.ifaceGrowRejected || 0) + 1; _ifaceStats.rejected++;
+                }
+            } else {
+                // ★ growAt: [] = 本帧不生长（主人 2026-10-07 定案）。
+                //   绝不退回 pickGrowLeaf，也绝不放行下面的 refine 回退。
+                if (typeof _ifaceStats !== 'undefined') _ifaceStats.growNone = (_ifaceStats.growNone || 0) + 1;
+                recordGrowStall(tree, 'grow-agent-none', 'growAt=[]');
+                return;
+            }
+        }
         var leafFromRefine = false;
         if (!leaf && tree.cfg.refineBeyondLimits === true) {
             leaf = splitLongSegmentLeaf(tree, threats);
@@ -5640,6 +6760,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         if (fusedBatchReady(adapter)) {
             var layersPerTick = Math.max(1, Math.min(6,
                 Math.floor(tree.cfg.growLayersPerTick || 1)));
+            // v184（阶段 3-3）：`growTimes` 已删除 ——`§0` "操作时长"语义被抛弃；
+            //   它本来就是 `validateBundle` 白名单之外的**死字段**（树里这段永不可达）；
+            //   层数继续由 `tree.cfg.growLayersPerTick` 决定（规则/智能体一致）。
             // v91/v119：剪枝补偿 + 回退补偿（栈式叠加），叠加在正常层数上。
             // 上限 1 + 10 = 11 层/帧：高危场景连续回退时节点增长立刻跟上。
             if (tree._growBoosts && tree._growBoosts.length) {
@@ -5655,7 +6778,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
             var grown = 0;
             while (grown < layersPerTick && canAddTreeNodes(tree, 9)) {
                 // 第一次用前面已选/细化出来的 leaf；后续再重新选。
-                var growLeaf = (grown === 0) ? leaf : pickGrowLeaf(tree, adapter);
+                // ★ 2026-10-16：leaf 为 null（=甲没表态）时【不再】走评分老规则重挑
+                var growLeaf = (leaf === null) ? null : ((grown === 0) ? leaf : pickGrowLeaf(tree, adapter));
                 if (!growLeaf) {
                     if (grown === 0) {
                         recordGrowStall(tree, 'grow-no-leaf', 'tip=none');
@@ -5668,6 +6792,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                     break;
                 }
                 applyRetreatAfterExpand(tree, growLeaf, adapter);
+                tree.stats.growExpands = (tree.stats.growExpands || 0) + 1;   // v182 诊断
                 grown++;
             }
             // v88：持续细化 = 正常生长之外，每 tick 追加一次“拆长操作→展开前缀”。
@@ -5681,6 +6806,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
                         'from=' + (cRef.opName || cRef.id) + ' frames=' + cRef.segmentFrames);
                     if (expandLeaf(tree, cRef, adapter, threats)) {
                         applyRetreatAfterExpand(tree, cRef, adapter);
+                        tree.stats.growExpands = (tree.stats.growExpands || 0) + 1;   // v182 诊断
                     } else {
                         recordStructure(tree, 'expand-fail',
                             'leaf=' + (cRef.opName || cRef.id) + ' nodes=' + tree.nodeCount);
@@ -5698,6 +6824,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds) {
         var nowMs = performance.now();
         if (tree._lastGrowAt && nowMs - tree._lastGrowAt < GROW_MIN_INTERVAL_MS) return;
         if (startExpandSlice(tree, leaf, adapter, threats)) {
+            tree.stats.growExpands = (tree.stats.growExpands || 0) + 1;   // v182 诊断
             stepExpandSlice(tree, adapter);   // 本帧先切第一片
         }
     }
@@ -6010,7 +7137,8 @@ return count;
                 tree.threats = threats;
                 tree._hasOffsetThreats = false;
                 tree._pendingThreats = [];
-                ensureThreatTracks(tree, adapter, threats);
+                // v169 只读计数：hasKids===false ——「走了这条不重锚的路」（只重模拟，不重挂锚点）
+                ensureThreatTracks(tree, adapter, threats, undefined, 'commit-no-kids');
                 snapshotThreatAnchors(tree, threats, tree.rootAbsT);
             }
 
@@ -6111,7 +7239,8 @@ return count;
                 tree.rootAbsT = _timeAcc;
                 tree.threats = threats;
                 tree._pendingThreats = [];
-                ensureThreatTracks(tree, adapter, threats);
+                // v169 只读计数：真死回退/根层重选这条路也不重锚（只重模拟）
+                ensureThreatTracks(tree, adapter, threats, undefined, 'commit-true-dead-retreat');
                 snapshotThreatAnchors(tree, threats, tree.rootAbsT);
                 if (results && results.length) {
                     if (!attachResults(tree, prev, results, threats)) {
@@ -6252,7 +7381,8 @@ return count;
         tree.threats = threats;
         tree._hasOffsetThreats = false;   // 全新锚定，所有 threat 相对本根，无偏移
         tree._pendingThreats = [];
-        ensureThreatTracks(tree, adapter, threats);
+        // v169 只读计数：整树重建（fresh-root）
+        ensureThreatTracks(tree, adapter, threats, undefined, 'commit-fresh-root');
         snapshotThreatAnchors(tree, threats, tree.rootAbsT);
         tree.leaves = [root];
         tree.nodeCount = 1;
@@ -6397,7 +7527,8 @@ return count;
             if (!partial && VantageScoring.scorePaths) {
                 tree.stats.commitSliceJsBatches = (tree.stats.commitSliceJsBatches || 0) + 1;
                 partial = VantageScoring.scorePaths(slice.adapter,
-                    { tank: { x: slice.realTankState.x, y: slice.realTankState.y, rot: slice.realTankState.rot }, tGlobal: 0 },
+                    { tank: { x: slice.realTankState.x, y: slice.realTankState.y, rot: slice.realTankState.rot }, tGlobal: 0,
+                      nowTGlobal: nowTGlobalOf(tree) },
                     subOps, EVAL_FRAMES, slice.threats, treeScoringCfg(tree));
             }
             if (partial) {
@@ -6412,7 +7543,8 @@ return count;
             } else {
                 for (var n = 0; n < take && slice.idx < ops.length; n++, slice.idx++) {
                     var r = VantageScoring.scorePath(slice.adapter,
-                        { tank: { x: slice.realTankState.x, y: slice.realTankState.y, rot: slice.realTankState.rot }, tGlobal: 0 },
+                        { tank: { x: slice.realTankState.x, y: slice.realTankState.y, rot: slice.realTankState.rot }, tGlobal: 0,
+                          nowTGlobal: nowTGlobalOf(tree) },
                         ops[slice.idx].inputs, EVAL_FRAMES, slice.threats, treeScoringCfg(tree));
                     r.opIndex = slice.idx;
                     r.opName = ops[slice.idx].name;
@@ -6449,7 +7581,19 @@ return count;
     function runDiagnostics(tree, adapter, tankState) {
         var d = tree.diag;
         d.lastCheckAt = _timeAcc;
-        if (!tree.threats || !tree.threats.length) return;
+        if (!tree.threats || !tree.threats.length) {
+            // v169 只读计数：这次没有重建 anchorProbe（上一帧的会留在 d.anchorProbe 里），
+            // 而 d.lastCheckAt 已被刷新 —— 探针侧若直接算 Δ = tNow - abs0 会虚高。
+            _reanchorDiag.probe.emptyThreatsEarlyReturn++;
+            if (typeof d.anchorProbeAt === 'number' && d.anchorProbeAt < _timeAcc - 1e-9) {
+                _reanchorDiag.probe.staleCalls++;
+                var _staleAge = _timeAcc - d.anchorProbeAt;
+                if (_staleAge > _reanchorDiag.probe.maxStaleAge) {
+                    _reanchorDiag.probe.maxStaleAge = Math.round(_staleAge * 1000) / 1000;
+                }
+            }
+            return;
+        }
 
         var actual = adapter.getProjectiles ? adapter.getProjectiles() : [];
         d.projectileCount = actual.length;
@@ -6560,6 +7704,8 @@ return count;
             });
         }
         d.anchorProbe = probe;
+        d.anchorProbeAt = _timeAcc;                  // v169：这份 anchorProbe 的采样时刻
+        _reanchorDiag.probe.rebuilds++;              // v169 只读计数
         var prevMap = {};
         for (i = 0; i < probe.length; i++) {
             var pth2 = byId[probe[i].id];
@@ -6734,50 +7880,172 @@ return count;
      * @param {number} dt - 游戏帧时长（秒；ai_vantage 已把 Phaser 毫秒÷1000）
      */
     /**
-     * v124：用游戏自己的时钟校准"一帧 = 多少秒"。
-     * 只用同一个弹的 getTimeAlive() 相邻 tick 之差（换弹就重新起算），
-     * 平滑后写入 FRAME_DT，并同步给沙箱与适配器常量，保证树/沙箱/评分
-     * 三处的时间步长是同一个数。
+     * v163：用游戏自己的时钟校准“一帧 = 多少秒”（主人 2026-10-07 裁定，权威版 §7.10 G）。
+     *   · 帧率稳定 ⇒ 直接用稳定值（**不做慢平滑**）；
+     *   · |adv − FRAME| ≤ 5%×FRAME ⇒ 视作抖动，一个数都不改；
+     *   · 连续 K 帧持续偏离 ⇒ 立即切到这批样本的中位数（掉帧及时矫正）；
+     *   · **去掉旧的 [0.015, 0.03] 硬钳位**（真实帧长 > 0.03 被钳 = 往“绿死”方向错）。
+     * 校准源（§7.10 G.3）：
+     *   · 训练模式：RoundModel._ttStepCount / _ttLastStepDt（精确步数表，与 resolveWorldDt 同源）；
+     *   · 实战：**performance.now() 自分差**（亚毫秒精度；headless 虚拟时钟 / 真机浏览器都可用）。
+     *     ⚠️ v163 量化修正：不再拿 gc.lastUpdate 墙钟差分当主样本 —— Date.getTime() 只有整数毫秒，
+     *     60fps 下逐帧差在 16/17/17.33ms 间跳，4 帧中位数 = 0.01717（真值 0.016667，**+3%**）。
+     *     75 帧视界上 +3% = 多 0.038s，18m/s 的弹多飞 ≈0.68m（子弹半径 0.25m、坦克宽 3m
+     *     ⇒ 足以判反一次擦边）。
+     *     gc.lastUpdate 差分**保留为交叉校验**：两者应一致到 ±1ms；不一致要能看出来
+     *     （计数 + 首次 console.warn + exportRecord().meta 暴露）。
+     *   ⟹ 旧实现读弹的 getTimeAlive()，场上没弹就完全不校准（§7.10 C-3 漏洞）；现在没弹也校准。
+     * 同步：FRAME_DT 同时写 adapter.constants.FRAME_DT 与沙箱 _frameDtSec（树/沙箱/评分同一个数）。
      */
+    var FRAME_DT_JITTER_RATIO = 0.05;  // 抖动阈值：|adv − FRAME| ≤ 5%×FRAME ⇒ 不动
+    var FRAME_DT_SWITCH_RUN = 4;       // 连续 K 帧持续偏离即矫正（文档给 K=3~5，取 4）
+    var FRAME_DT_CROSS_TOL_SEC = 0.001; // 交叉校验容差：|perf 样本 − 墙钟样本| ≤ 1ms 算一致
+    var _frameDtRun = [];              // 当前“连续偏离”样本串（抖动/矫正后清空）
+    var _frameDtSampleKey = null;      // 已消费样本的键（步数或墙钟毫秒）——同一步不重复采样
+    var _frameDtLastAdv = 0;           // 最近一次采到的真实步长（秒，仅诊断）
+    var _frameDtSwitches = 0;          // 累计立即矫正次数（仅诊断）
+    var _frameDtLastPerfMs = null;     // v163：上次采样时刻的 performance.now()（自分差基准，跨局要清）
+    var _frameDtSampleSrc = '';        // v163：最近一次样本来源（仅诊断）
+    var _frameDtWallLast = 0;          // v163：最近一次墙钟差分样本（秒，交叉校验用，仅诊断）
+    var _frameDtCrossMiss = 0;         // v163：交叉校验不一致次数（|perf − 墙钟| > 1ms）
+    var _frameDtCrossMaxMs = 0;        // v163：交叉校验最大偏差（毫秒，仅诊断）
+    var _frameDtCrossWarned = false;   // v163：不一致时只响亮报一次（跨局要清）
+
+    function medianOfNumbers(arr) {
+        var s = arr.slice().sort(function(a, b) { return a - b; });
+        var m = s.length >> 1;
+        return (s.length % 2) ? s[m] : (s[m - 1] + s[m]) / 2;
+    }
+
+    /** performance.now() 毫秒读数；不可用返回 null（headless 虚拟时钟与真机浏览器都提供）。 */
+    function perfNowMs() {
+        try {
+            if (typeof performance !== 'undefined' && performance &&
+                typeof performance.now === 'function') {
+                var v = performance.now();
+                if (typeof v === 'number' && isFinite(v)) return v;
+            }
+        } catch (ePn) {}
+        return null;
+    }
+
+    /** 交叉校验：performance.now() 自分差 与 gc.lastUpdate 墙钟差分应一致到 ±1ms。 */
+    function crossCheckFrameDt(adv, wall) {
+        if (!(wall > 0)) return;
+        var devMs = Math.abs(adv - wall) * 1000.0;
+        if (devMs > _frameDtCrossMaxMs) _frameDtCrossMaxMs = devMs;
+        if (devMs <= FRAME_DT_CROSS_TOL_SEC * 1000.0) return;
+        _frameDtCrossMiss++;
+        if (_frameDtCrossWarned) return;
+        _frameDtCrossWarned = true;
+        try {
+            console.warn('[Vantage] 帧长校准交叉校验不一致：performance.now() 自分差=' +
+                (adv * 1000).toFixed(3) + 'ms，gc.lastUpdate 墙钟差分=' + (wall * 1000).toFixed(3) +
+                'ms，差 ' + devMs.toFixed(3) + 'ms > 1ms（两者本应一致，请查时钟来源）');
+        } catch (eW) {}
+    }
+
+    /** FRAME_DT → adapter.constants.FRAME_DT + VantageSandbox._frameDtSec（三处同一个数）。 */
+    function syncFrameDtToSandbox(adapter) {
+        try { if (adapter && adapter.constants) adapter.constants.FRAME_DT = FRAME_DT; } catch (eAc) {}
+        try {
+            if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) {
+                global.VantageSandbox.setFrameDtSec(FRAME_DT);
+            }
+        } catch (eSd) {}
+    }
+
+    /**
+     * 取一个“真实帧长”样本（秒）。null = 本 tick 没有新样本。
+     * 训练模式优先精确步数表（与 resolveWorldDt:1447-1466 同源同序）；
+     * 实战用 performance.now() 自分差（亚毫秒）；该 clock 不可用时才退回 gc.lastUpdate 墙钟差分。
+     */
+    function sampleRealFrameDt(ai) {
+        var gc = ai && ai.gameController;
+        if (!gc) return null;
+        var cap = maxDeltaSec();
+        var key = null, lastDt = null;
+        var rm = gc.roundController && gc.roundController.model;
+        if (rm && typeof rm._ttStepCount === 'number') {
+            key = 'rm:' + rm._ttStepCount;
+            lastDt = rm._ttLastStepDt;
+        } else if (typeof gc._ttWorldStepCount === 'number') {
+            key = 'gc:' + gc._ttWorldStepCount;
+            lastDt = gc._ttLastWorldDt;
+        }
+        if (key !== null) {
+            if (key === _frameDtSampleKey) return null;   // 世界没 Step 的 tick 不采样
+            _frameDtSampleKey = key;
+            if (typeof lastDt === 'number' && isFinite(lastDt) && lastDt > 0.001) {
+                _frameDtSampleSrc = 'step';
+                return Math.min(lastDt, cap);             // 与 resolveWorldDt 同口径
+            }
+            return null;
+        }
+        // 实战：GameController.update 把 new Date() 墙钟存进 lastUpdate（本 build 是 Date 对象，
+        // 旧版本/测试台可能是 number）。用 getTime() 判存在，虚拟时钟/真时钟都成立。
+        var lu = gc.lastUpdate;
+        var ms = (lu && typeof lu.getTime === 'function') ? lu.getTime()
+            : ((typeof lu === 'number' && lu > 0) ? lu : null);
+        if (ms === null) return null;
+        if (ms === _frameDtSampleKey) return null;        // 同一个 lastUpdate = 这一帧没有 update
+        _frameDtSampleKey = ms;
+
+        // 旧口径（GC 墙钟差）——v163 只当交叉校验：Date 只有整数毫秒，60fps 下逐帧差在
+        // 16/17/17.33ms 间跳；直接当样本会让稳定值偏成 0.01717（真值 0.016667，+3%）。
+        var wallRaw = (Date.now() - ms) / 1000.0;
+        var wall = (wallRaw > 0 && wallRaw <= cap * 1.5) ? Math.min(wallRaw, cap) : null;
+        if (wall !== null) _frameDtWallLast = wall;
+
+        // 主样本：performance.now() 自分差（亚毫秒）。headless 虚拟时钟下等于 __vt.dt 的浮点值
+        // （60fps = 16.6667ms，不再量化成 17.17ms）；真机下是浏览器高精度计时。
+        // 树 tick 发生在 GameController.update() 之前（同一帧、固定位置），所以相邻两次 tick 的
+        // 自分差 ≈ 游戏喂给物理的 deltaTime（探针实测见《阶段1-1b-收尾报告》§3）。
+        var pnow = perfNowMs();
+        if (pnow !== null) {
+            var prevPerf = _frameDtLastPerfMs;
+            _frameDtLastPerfMs = pnow;                    // 无论本帧样本是否被采纳，基准都要推进
+            if (prevPerf === null) return null;           // 第一帧没有自分差基线（下一帧才有）
+            var dPerf = (pnow - prevPerf) / 1000.0;
+            if (!(dPerf > 0 && dPerf <= cap * 1.5)) return null;   // 与 resolveWorldDt:1481 同口径
+            var adv = Math.min(dPerf, cap);
+            crossCheckFrameDt(adv, wall);
+            _frameDtSampleSrc = 'perf';
+            return adv;
+        }
+        if (wall === null) return null;                   // 没有 performance.now 才退回墙钟
+        _frameDtSampleSrc = 'wall(无performance.now)';
+        return wall;
+    }
+
+    /** 抖动忽略 + 连续 K 帧持续偏离 ⇒ 立即切到中位数。 */
+    function applyFrameDtSample(adv, adapter) {
+        if (!(adv > 0.001 && adv < 1.0)) return;
+        _frameDtLastAdv = adv;
+        _frameDtMeasured = adv;                 // 诊断：最近一次采到的真实帧长
+        var base = (FRAME_DT > 0) ? FRAME_DT : 0.02;
+        if (Math.abs(adv - base) <= FRAME_DT_JITTER_RATIO * base) {
+            _frameDtRun.length = 0;             // 抖动 ⇒ 帧率稳定 ⇒ 一个数都不改
+            return;
+        }
+        _frameDtRun.push(adv);
+        if (_frameDtRun.length < FRAME_DT_SWITCH_RUN) return;
+        var want = medianOfNumbers(_frameDtRun.slice(-FRAME_DT_SWITCH_RUN));
+        _frameDtRun.length = 0;
+        _frameDtMeasured = want;
+        if (Math.abs(want - FRAME_DT) < 1e-6) return;   // 中位数恰等于现值：不算一次矫正
+        FRAME_DT = want;
+        _frameDtSwitches++;
+        syncFrameDtToSandbox(adapter);
+    }
+
     function calibrateFrameDt(ai, adapter) {
         if (!_frameDtCalibEnabled) return;   // v140：调试开关，冻结 FRAME_DT=0.02
-        var g = null, gid = null;
-        // v125：**必须用真实游戏弹体**——适配器的 getProjectiles() 返回普通快照对象，
-        // 没有 getTimeAlive；带游戏时钟的是 gameController 里的真实 projectile。
-        try {
-            var gc = (ai && ai.gameController) ? ai.gameController : null;
-            var ps = gc && gc.getProjectiles ? gc.getProjectiles() : null;
-            if (!ps && adapter && adapter.getProjectiles) ps = adapter.getProjectiles();
-            for (var id in ps) {
-                if (!ps.hasOwnProperty(id)) continue;
-                var pr = ps[id];
-                if (pr && typeof pr.getTimeAlive === 'function') {
-                    var v = pr.getTimeAlive();
-                    if (typeof v === 'number' && isFinite(v) && v > 0) { g = v; gid = id; break; }
-                }
-            }
-        } catch (eCal) { g = null; }
-        if (g === null) { _lastGameClock = null; _lastGameClockId = null; return; }
-        if (gid !== _lastGameClockId || _lastGameClock === null) {
-            _lastGameClockId = gid; _lastGameClock = g; return;
-        }
-        var adv = g - _lastGameClock;
-        _lastGameClock = g;
-        if (!(adv > 0.005 && adv < 0.2)) return;
-        // v126：逐帧实测抖动很大（实测 0.011~0.030 秒），**绝不能每 tick 改帧步长**——
-        // 那会让融合世界/轨迹的步长抖动，反而制造误差（v125 实测 bulletErr 涨到 3.1 米）。
-        // 改成极慢平滑（alpha 0.02，约 50 tick 时间常数），只做"长期均值校正"，
-        // 并且限制在 [0.015, 0.03]，偏离 0.02 不到 5% 就维持常数。
-        _frameDtMeasured = (_frameDtMeasured > 0) ? (_frameDtMeasured * 0.98 + adv * 0.02) : adv;
-        if (_frameDtMeasured >= 0.015 && _frameDtMeasured <= 0.03) {
-            var want = _frameDtMeasured;
-            if (Math.abs(want - 0.02) < 0.001) want = 0.02;      // 太接近就保持常数
-            if (Math.abs(want - FRAME_DT) > 0.0005) FRAME_DT = want;
-            if (adapter.constants) adapter.constants.FRAME_DT = FRAME_DT;
-            if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) {
-                try { global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (eSd) {}
-            }
-        }
+        // 每次 tick 先对账一次：适配器常量/沙箱步长可能因换 adapter、重置等与 FRAME_DT 脱钩。
+        syncFrameDtToSandbox(adapter);
+        var adv = sampleRealFrameDt(ai);
+        if (adv === null) return;
+        applyFrameDtSample(adv, adapter);
     }
 
     function tick(ai, dt) {
@@ -6864,7 +8132,10 @@ return count;
         // training_mode 在 RoundModel.update 记录了真实 _ttLastStepDt；
         // 这里直接消费它，树图竖线才与坦克实际轨迹同轴。
         var worldDt = resolveWorldDt(ai, dt);
-        _lastWorldDt = worldDt;
+        // v170 配套（**不升版**）：重复 tick（同一游戏帧第 2 个 vantage AI）返回的 0
+        // 不是“世界走了 0 秒”，不许覆盖上一真实步长 —— effectiveExpandCfg(:4234)
+        // 与 tree.diag.lastEffDt 要拿到真值（单 vantage 时本行无行为变化）。
+        if (worldDt > 0) _lastWorldDt = worldDt;
         _timeAcc += worldDt;    // 绝对时间轴推进（跨树连续，树图竖线不归零）
         if (worldDt <= 0) {
             // 世界这一帧没有 Step（暂停/倒计时/同一真实步的重复 tick）：
@@ -6876,7 +8147,14 @@ return count;
         // 性能：新弹检测只用 projectiles 的 id 签名，不每帧跑完整折线。
         // computeThreats 只在 建树/新弹/首次提交/段末 这些需要新鲜决策时计算。
         perfEnd('sig');
-        var sig = projectileSignature(adapter.getProjectiles ? adapter.getProjectiles() : []);
+        var _projsForSig = adapter.getProjectiles ? adapter.getProjectiles() : [];
+        var sig = projectileSignature(_projsForSig);
+        // v173（1-2④）：追踪导弹换目标 → 刷新（权威版 §10.2 第④条）。
+        //   基线为 null（第一 tick）时不算"变化"：此时未建树/新弹已走 emergency 那条路。
+        var _mtSig = missileTargetSignature(_projsForSig);
+        var missileRetarget = (_lastMissileTargetSig !== null && _mtSig !== _lastMissileTargetSig);
+        _lastMissileTargetSig = _mtSig;
+        if (missileRetarget && _tree) pushEvent('threat', '导弹换目标-刷新');
         // v65：记录每一 tick 真实看到的 projectile 集合，供死亡快照区分
         // “getProjectiles 为空”还是“computeThreats 丢失了它”。
         if (_tree) {
@@ -6935,6 +8213,8 @@ return count;
         }
 
         var needFresh = !_tree || !_tree.active || emergency
+            // v173（1-2④）：换目标 = 威胁的未来轨迹变了 ⟹ 必须重做死亡检测（同"新弹"一级）
+            || missileRetarget
             || (_tree && !_tree.commitNode && !_tree._commitSlice)
             || (_tree && _tree.commitNode && !_tree._commitSlice
                 && segmentEndDue(_tree, worldDt));
@@ -6989,8 +8269,112 @@ return count;
             }
         }
 
+        // ============================================================
+        // ★ v163 接线修正：智能体决策放在 tick 最前面（每 tick 恰好一次）
+        //
+        //   修正前的两个问题：
+        //   ① agentSeam 只在 rolloutNine 里调用，而 rolloutNine 只在 expandLeaf 里调用；
+        //      但 growStep 在「节点数到上限 canAddTreeNodes」和「性能熔断 _growSkip」
+        //      时都会【提前 return】—— 树到顶后智能体再也不被调用。
+        //      这违反定案「节点数≥上限 → 不调用 A，只调用 B；停止生长不等于停止工作」。
+        //   ② 放在 growStep 之前也不够：tick 里「提交切片进行中」和「新弹 emergency」
+        //      两条路径都会在更前面 return，而这两条是常态。
+        //
+        //   现在放在 evalThreats 之后、任何 return 之前：
+        //   不受"生长被跳过"影响；树满时由 v179 的数量闸门显式跳过本帧调用。
+        //   ⚠️ v179 更新：主人裁决"达到上限直接停止调用 A" ⟹ 本处 now 有 `canAddTreeNodes(tree,9)` 门；
+        //   现架构 A/B 同一次 decide()，阶段 3 拆 B 后要把 B 调用移出门外。
+        // ============================================================
+        // ★ B1 修复（2026-10-07）：
+        //   原来 `var evalThreats` 声明在 agentSeam 调用【之后】，
+        //   var 提升后赋值尚未执行 → 传给 agentSeam 的 threats 恒为 undefined
+        //   → buildAgentCtx 里 (threats||[]) 为空 → **ctx.bullets 永远是空数组**。
+        //   对"躲弹"智能体这是致命的观测缺口。
+        //   （原注释还写着"现在放在 evalThreats 之后"，与代码正好相反。）
         // 决策/展开统一用限流后的 threats；没有新鲜需求时沿用锚定 threats。
         var evalThreats = threats || tree.threats || [];
+
+        if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickCalls = (_ifaceStats.tickCalls || 0) + 1;
+        if (typeof VantageTreeInterface !== 'undefined' && tree.root && tree.root.simState) {
+            // ★ v179（2026-10-12 阶段2 A2 主人裁决）：数量闸门 1000，**达到上限直接停止调用 A**。
+            //   判据 = !canAddTreeNodes(tree, 9)。"允许略超"：不新增"精确卡死"逻辑，沿用现有
+            //   nodeCount + count <= maxNodes 口径；一轮生长固定 9 个 ⟹ 通常停在 ≤maxNodes，
+            //   其它加节点路径允许溢出。canGrow=false 时本帧不调 seam，并清残留决策，
+            //   防止上一帧的 growAt/select 在树满时继续被消费。
+            //   ⚠️ 现架构 A/B 仍是同一次 decide()（阶段 3 才拆 A/B）：本门此刻等价于"本帧不调 seam"；
+            //   阶段 3 拆出 B 后，**B 的调用必须移出这道门**（D11：停止生长 ≠ 停止工作）。
+            if (canAddTreeNodes(tree, 9)) {
+                try {
+                    agentSeam(tree, adapter, tree.root.simState, evalThreats, VantageSandbox.OPERATIONS, 'A');
+                    if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickOk = (_ifaceStats.tickOk || 0) + 1;
+                } catch (eAg) {
+                    tree._agentDecision = null;   // 智能体出错绝不影响主流程
+                    if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickErr = (_ifaceStats.tickErr || 0) + 1;
+                }
+            } else {
+                tree._agentDecision = null;       // 树满：本帧无 A 决策，不许沿用旧决策
+                tree.stats.agentSkippedFull = (tree.stats.agentSkippedFull || 0) + 1;
+                if (typeof _ifaceStats !== 'undefined') {
+                    _ifaceStats.tickSkippedFull = (_ifaceStats.tickSkippedFull || 0) + 1;
+                    _ifaceStats.skipped = '树满(节点上限)';
+                }
+            }
+        }
+
+        // ============================================================
+        // v182（阶段 3-1）：**生长前移**（只对智能体路径；权威版 §5）
+        //
+        //   背景：`growStep` 原本是 tick 的最后一句，而它前面有 4 条"常态"提前
+        //   return（提交切片进行中 / 新弹 emergency 根层重选 / 段末坍缩 preserve
+        //   子树 / 段末 startCommitSlice）⟹ **A 在提交帧给的 `growAt` 永远无效**
+        //   （方针 3-1 的"坑"）。
+        //   §5 铁律：不许改规则版路径 ⟹ 只在 `agentPathActive(tree)`（非 rule
+        //   智能体**且本帧真的拿到 A 的决策**）时提前长；规则版仍在 tick 末尾那
+        //   一句长，**一字未改**。
+        //
+        //   例外（不前移，且都是"本来就不该长"）：
+        //     · `!adapter` / `!tankState`（上方 return）：没有世界状态，长不了；
+        //     · `_frozen`（上方 return）：方针明示的例外——树冻住了不长；
+        //     · `worldDt <= 0`（上方 return）：世界这一帧没 Step，树时间轴不前进，
+        //       生长会造"时间没走但树在长"的错轴（该分支注释就是为此写的）。
+        // ============================================================
+        var _didEarlyGrow = false;
+        if (agentPathActive(tree)) {
+            perfEnd('grow');
+            growStep(tree, adapter, tree.threats || evalThreats);
+            perfEnd('grow');
+            _didEarlyGrow = true;
+        }
+
+        // ============================================================
+        // v185（阶段 3-4）：B 之前把 A 这次生长跑完（**生长禁止切片**）
+        //   默认融合批量路径是同步的；若走了旧"跨帧展开切片"回退路径，
+        //   这里把它在本 tick 内抽干 ⟹ B 看到的是**完整**的新节点，不是半个切片。
+        //   ⚠️ 只在非规则智能体模式做（§5：规则版路径不许被碰）。
+        // ============================================================
+        if (agentModeCurrent(tree, 'B') && tree.root && tree.root.simState) {
+            var _drainGuard = 0;
+            while (tree._expandSlice && _drainGuard++ < 64) {
+                try { stepExpandSlice(tree, adapter); }
+                catch (eDrain) { recordStructure(tree, 'grow-slice-drain-err', String(eDrain && eDrain.message || eDrain)); break; }
+            }
+            if (tree._expandSlice) recordStructure(tree, 'grow-slice-unfinished', 'guard=' + _drainGuard);
+        }
+
+        // ============================================================
+        // v185（阶段 3-4）：④ B.decide —— **数量闸门之外**（D11：停止生长 ≠ 停止工作）
+        //   树满时 A 不调（上面 gate），但 B 照常调；B 的 ctx 是 A 生长之后的树。
+        //   ⚠️ 与 A 同一 tick、在 `_commitSlice`/`emergency` 提前 return 之前、同进同出。
+        //   ⚠️ threats 用调用时刻的 `evalThreats`（"A/B 只能基于它看到的"，§7.4 无新事件）。
+        // ============================================================
+        if (agentModeCurrent(tree, 'B') && tree.root && tree.root.simState) {
+            try {
+                agentSeam(tree, adapter, tree.root.simState, evalThreats, VantageSandbox.OPERATIONS, 'B');
+            } catch (eB) {
+                tree._agentDecisionB = null;
+                if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickErrB = (_ifaceStats.tickErrB || 0) + 1;
+            }
+        }
 
         // 提交切片进行中：继续推进；新弹出现则作废旧切片、用新 threats 重开。
         if (tree._commitSlice) {
@@ -7179,9 +8563,13 @@ return count;
 
         // 生长一步（金线叶端延伸 1 节；v68 恢复 v52 的正常延伸节奏）。
         // 预览链必须用 commit 时锚定的 tree.threats，不能用本 tick 新 threats。
-        perfEnd('grow');
-        growStep(tree, adapter, tree.threats || evalThreats);
-        perfEnd('grow');
+        // v182（3-1）：智能体路径已在上面"提前长"过一次 ⟹ 这里跳过，避免同一 tick
+        // 长两次（规则版 `_didEarlyGrow` 恒 false ⟹ 这一句与改造前逐字节一致）。
+        if (!_didEarlyGrow) {
+            perfEnd('grow');
+            growStep(tree, adapter, tree.threats || evalThreats);
+            perfEnd('grow');
+        }
         // v106：录制（轻量，默认只进环形缓冲；开录或死亡补录时才留档）
         try { recFrame(ai, tree, adapter, tankState); } catch (eRec) {}
         // v106：卡墙黑名单倒计时
@@ -7194,7 +8582,34 @@ return count;
 
     /** 操控消费：当前应执行的操作（commitNode 整段恒定） */
     function getDesiredOperation() {
-        if (!_tree || !_tree.active || !_tree.commitNode) return null;
+        if (!_tree || !_tree.active) return null;
+        // v187（阶段 3-5）：非规则智能体模式 + B 有路线 → **每帧滚动执行 B 路线 + 叠加射击帧**。
+        //   · 游标每帧 +1（agentExecEnsure；同帧多次调用不重复推进）；
+        //   · fire **只在该帧** true（agentFireAt），其余帧 false —— 绝不锁存；
+        //   · 规则版 / B 没给路线 → 原样返回 commitNode.inputs（§5 行为不变）。
+        if (_tree._agentRoute !== null && _tree._agentRoute !== undefined && agentModeCurrent(_tree, 'B')) {
+            var path = agentExecEnsure(_tree);
+            if (path && path.length) {
+                var frame = _tree._agentExecFrame || 0;
+                var total = 0, cur = null, i, L;
+                for (i = 0; i < path.length; i++) {
+                    L = Math.max(1, agentExecLenOf(path[i]));
+                    if (frame < total + L) { cur = path[i]; break; }
+                    total += L;
+                }
+                if (!cur) { cur = path[path.length - 1]; frame = total - 1; }   // 路线走完：保持末节点（B 下帧会给新目标）
+                var inp = cur.inputs || {};
+                var fire = agentFireAt(_tree, path, frame);
+                return {
+                    inputs: { forward: !!inp.forward, back: !!inp.back, left: !!inp.left, right: !!inp.right, fire: fire },
+                    fire: fire,
+                    opName: 'B:' + (cur.opName || '?') + (fire ? '+fire' : ''),
+                    agentFrame: frame,
+                    agentRoute: _tree._agentRoute
+                };
+            }
+        }
+        if (!_tree.commitNode) return null;
         return {
             inputs: _tree.commitNode.inputs,
             opName: '树:' + (_tree.commitNode.opName || '?')
@@ -7286,6 +8701,51 @@ return count;
             bulletTracks: _tree.diag.bulletTracks,
             stats: _tree.stats,
             perf: perfSnapshot(),
+            // v169：重锚旁路只读计数（完整导出，供探针核对"哪条出口没重锚"）
+            reanchorDiag: (function () {
+                var src = _reanchorDiag, out = {}, pk;
+                var paths = {};
+                for (pk in src.paths) {
+                    if (!src.paths.hasOwnProperty(pk)) continue;
+                    var pp = src.paths[pk];
+                    paths[pk] = {
+                        calls: pp.calls, threats: pp.threats, offNonZero: pp.offNonZero,
+                        noTrack: pp.noTrack, over1: pp.over1, maxDelta: pp.maxDelta
+                    };
+                }
+                out.ensureCalls = src.ensureCalls;
+                out.ensureByCaller = src.ensureByCaller;
+                out.ensureEarlyReturn = src.ensureEarlyReturn;
+                out.perThreat = src.perThreat;
+                out.paths = paths;
+                out.over1Examples = src.over1Examples;
+                out.probe = src.probe;
+                return out;
+            })(),
+            anchorProbeAge: (_tree.diag && typeof _tree.diag.anchorProbeAt === 'number')
+                ? Math.round((_timeAcc - _tree.diag.anchorProbeAt) * 1000) / 1000 : null,
+            // v169 只读：**live 锚点表**（探针直接读 tree.threats 的现算 Δ，不经过 anchorProbe 快照）。
+            //   Δ = _timeAcc − (rootAbsT + anchorOffset)，与 trackPosAt 的查询下标 q 同量。
+            liveAnchors: (function () {
+                var t2 = _tree, out = [], i, th, ths = (t2.threats || []), rT = t2.rootAbsT || 0;
+                for (i = 0; i < ths.length && i < 16; i++) {
+                    th = ths[i];
+                    if (!th || th.id === undefined) continue;
+                    var off = th.anchorOffset || 0;
+                    out.push({
+                        id: th.id,
+                        anchorOffset: Math.round(off * 1000) / 1000,
+                        abs0: Math.round((rT + off) * 1000) / 1000,
+                        delta: Math.round((_timeAcc - (rT + off)) * 1000) / 1000,
+                        trackLen: (th.track && th.track.length) || 0,
+                        trackDt: (th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt : FRAME_DT,
+                        hasTrack: (th.track && th.track.length) ? 1 : 0,
+                        hasPath: th.path ? 1 : 0
+                    });
+                }
+                return out;
+            })(),
+            liveProjectileCount: (typeof _tree._liveProjectileCount === 'number') ? _tree._liveProjectileCount : null,
             events: _events.slice(-MAX_EVENTS)
         };
     }
@@ -7353,6 +8813,7 @@ return count;
         _timeAcc = 0;
         _lastWorldDt = FRAME_DT;
         _lastSeenWorldStep = null;
+        _lastSeenWorldClock = null;   // v170：同一游戏帧去重键也必须清（v139 跨局纪律同款）
         // v139：帧步长校准是**跨局状态**，漏清会让上一局的 dt 带进下一局。
         // 证据（主人「运行越久 AI 越笨、刚开机更聪明」）：
         //   · FRAME_DT 被 calibrateFrameDt 改成 0.015~0.020 后**不随 reset 归零**；
@@ -7362,13 +8823,20 @@ return count;
         // 这正是铁律「新增跨帧状态必须在 reset() 清掉」（v108 清 _stuckOps 同款）。
         FRAME_DT = 0.02;
         _frameDtMeasured = 0;
-        _lastGameClock = null;
-        _lastGameClockId = null;
+        _frameDtRun.length = 0;      // v163：校准器跨局状态必须清（v139 同款纪律）
+        _frameDtSampleKey = null;
+        _frameDtLastAdv = 0;
+        _frameDtSwitches = 0;
+        _frameDtLastPerfMs = null;   // v163：performance.now 自分差基准同样不许跨局
+        _frameDtSampleSrc = '';
+        _frameDtWallLast = 0;
+        _frameDtCrossMiss = 0;
+        _frameDtCrossMaxMs = 0;
+        _frameDtCrossWarned = false;
         _speedCap = 0;
         _last2TankPos = null;
         _last2TankT = 0;
-        try { if (_lastAdapter && _lastAdapter.constants) _lastAdapter.constants.FRAME_DT = FRAME_DT; } catch (eDtRst) {}
-        try { if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (eSdRst) {}
+        syncFrameDtToSandbox(_lastAdapter);   // adapter 常量 + 沙箱步长一起对账
         _events = [];
         _moveTarget = null;   // v92：换局/重生不保留旧点击目标
         _moveTargetDirty = false;
@@ -7475,7 +8943,7 @@ return count;
     /** v91：预测时长上限（秒，1~15）。 */
     function setHorizonSec(v) {
         var n = Number(v);
-        if (!isFinite(n)) n = 8.0;
+        if (!isFinite(n)) n = 10.0;
         n = Math.round(n * 10) / 10;
         _horizonSec = Math.max(1.0, Math.min(15.0, n));
         if (_tree && _tree.cfg) _tree.cfg.horizonSec = _horizonSec;
@@ -7614,7 +9082,7 @@ return count;
     /** v84：调整活动节点数上限（100~3000）。 */
     function setMaxNodes(v) {
         var n = Math.round(Number(v));
-        if (!isFinite(n)) n = 500;
+        if (!isFinite(n)) n = 1000;
         _maxNodes = Math.max(100, Math.min(3000, n));
         if (_tree && _tree.cfg) _tree.cfg.maxNodes = _maxNodes;
         return _maxNodes;
@@ -7750,9 +9218,11 @@ return count;
         createTreeNode: createTreeNode,
         createTree: createTree,
         attachChild: attachChild,
+        collectAgentNodes: collectAgentNodes,   // v180（阶段2-3）：唯一被批准的对树【只读】逐节点入口（只采集、不改行为；⛔ 绝不走 noteDeath）
         detachChild: detachChild,
         probeSegment: probeSegment,
         expandLeaf: expandLeaf,
+        buildCandidate: buildCandidate,   // v183（3-2）：测试钩子（NaN 隐患的功能断言）
         growStep: growStep,
         pickGrowLeaf: pickGrowLeaf,
         commit: commit,
@@ -7771,9 +9241,12 @@ return count;
             _frameDtCalibEnabled = (v !== false);
             if (!_frameDtCalibEnabled) {
                 FRAME_DT = 0.02; _frameDtMeasured = 0;
-                _lastGameClock = null; _lastGameClockId = null;
-                try { if (_lastAdapter && _lastAdapter.constants) _lastAdapter.constants.FRAME_DT = FRAME_DT; } catch (e) {}
-                try { if (global.VantageSandbox && global.VantageSandbox.setFrameDtSec) global.VantageSandbox.setFrameDtSec(FRAME_DT); } catch (e) {}
+                _frameDtRun.length = 0;
+                _frameDtSampleKey = null;
+                _frameDtLastAdv = 0;
+                _frameDtLastPerfMs = null;   // v163：重开校准时重新起自分差基准
+                _frameDtSampleSrc = '';
+                syncFrameDtToSandbox(_lastAdapter);
             }
             return _frameDtCalibEnabled;
         },
@@ -7965,5 +9438,5 @@ return count;
         pickRetreatLeaf: pickRetreatLeaf
     };
 
-    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×3 帧默认，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 帧步长按游戏时钟实测校准（修时钟慢一半） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
+    console.log('[Vantage Tree] 模块已加载（段制 ' + TREE_VERSION + '：v168 重锚门语义修正（复用条件从"本次间隔 shift<=1.0"改成"复用后累计偏移 |anchorOffset|<=1.0"，即注释原意"锚点年龄≤1.0s"；修前实测 Δ 可涨到 20.99s 而轨迹只覆盖 9.37s ⇒ trackPosAt 返回 null 的假绿） + v167 时间基准补课（S8：scorePath/scorePaths 全程带 nowTGlobal；S3 配套：rescore 传 nowTGlobal；S7：段中 tGlobal≈0 不再拿"现在"弹位） + 不静默丢弹（近似摆放+响亮计数） + 补偿栈（剪枝/回退各 1 层×3 帧默认，每帧最多 11 层） + 补偿状态外供（界面 a+b=s 层数） + 权威扫描与九候选 rollout 逐帧轨迹外供（只记录）+ 每帧轨迹误差 bulletErr + 轨迹保真判别 v0/vr/drift + 帧步长按游戏时钟实测校准（修时钟慢一半） + 提交切片走 Rust（卡顿治理） + v113：录制记账（版本号单一来源+记实验开关） + v112：杀戮场等比调整 + v111：安全过滤 k + 动作成本 + 遮蔽开关 + v108：贴墙立即重选 + 清跨局状态 + 懒惰阈值全域 + v107：修安全因子/地形量级/几何威胁三个 bug + 录制器 + 动作锁定 + 卡墙黑名单 + 安全分与杀戮场分连续共存 + 懒惰倾向 + 修每帧全树重算 + 杀戮场三场梯度 + 点击全树刷新 + 混合选路 + Rust评分）');
 })(typeof window !== 'undefined' ? window : this);
