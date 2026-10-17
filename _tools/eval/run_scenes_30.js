@@ -40,6 +40,8 @@ const SRC = fs.readFileSync(path.join(__dirname, '..', 'headless', '_g1_inject.j
 const DEF_SCENES = 'D:/vt_run/eval/scenes_30.json';
 const DEF_OUT = 'D:/vt_run/eval';
 const DEF_CKPT_SEARCH = ['D:/vt_run/cyc_1/ckpt/model_latest.pt', 'D:/vt_run/ckpt/model_latest.pt', 'D:/vt_run/seed/ckpt/model_latest.pt'];
+// ⭐ 2026-10-17：评测射击开关（默认 0 = 旧口径；`--fire 1` 才发 picks[1]；⛔ 默认不变，避免口径漂移）
+const FIRE_ON = !!Number(process.env.S30_FIRE || (process.argv.indexOf('--fire') >= 0 ? (process.argv[process.argv.indexOf('--fire') + 1] || 1) : 0));
 
 const logErr = (s) => process.stderr.write(String(s) + '\n');
 const outLine = (s) => process.stdout.write(String(s) + '\n');
@@ -138,7 +140,8 @@ async function runScene(scene, srv, cap) {
     await m.eval(SRC);
     await m.eval('window.__g1.subscribe()');
     await m.eval('window.__g1.setup()');
-    await m.eval('window.__g1.setFire(0)');
+    // ⭐ 2026-10-17：射击开关（默认 0 = 原口径不变；`--fire 1` 才发 picks[1] 射击帧，用于验"打得多有没有用"）
+    await m.eval('window.__g1.setFire(' + (FIRE_ON ? 1 : 0) + ')');
     const meta = JSON.parse(await m.eval('JSON.stringify(window.__g1.meta())'));
     const vid = meta.vid;
     if (!vid) throw new Error('场上没有 VantageAIManager（meta.vid=null）');
@@ -359,7 +362,7 @@ async function runScene(scene, srv, cap) {
     try { fs.fsyncSync(fd); } catch (eFs) {}
   };
   logErr('RUN scenes=' + scenes.length + ' cap(2/4/8人)=' + cap2 + '/' + cap4 + '/' + cap8 +
-         ' 【cap 分档=无出处、待实验；--cap/--cap4/--cap8 可覆盖】 -> ' + resultsPath);
+         ' 【cap 分档=无出处、待实验；--cap/--cap4/--cap8 可覆盖】 fire=' + (FIRE_ON ? 1 : 0) + ' -> ' + resultsPath);
 
   let srv = null;
   try {
