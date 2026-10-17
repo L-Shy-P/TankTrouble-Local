@@ -66,6 +66,9 @@ function fnv1a(str) {
 const SEED_MODE = 'deterministic';
 // ⭐ 2026-10-17：`--repeat k`（每场跑 k 次取中位；k=1 为旧行为）
 const REPEAT_K = Math.max(1, Number(process.env.S30_REPEAT || (process.argv.indexOf('--repeat') >= 0 ? (process.argv[process.argv.indexOf('--repeat') + 1] || 1) : 1)));
+// ⭐ 2026-10-17（父代理指派）：请求超时 + 有限重试（【无出处、待实验】的 10s / 2 次）
+const ASK_TIMEOUT_MS = Math.max(500, Number(process.env.S30_ASK_MS || 10000));
+const ASK_RETRY = Math.max(0, Number(process.env.S30_ASK_RETRY || 2));
 function seedFor(sceneId, f) {
   const base = fnv1aHex(String(sceneId));
   return (((Math.imul(base, 1000003) >>> 0) + (f >>> 0)) >>> 0) % 2147483647;
@@ -119,7 +122,40 @@ class Srv {
       this.waiters.push((l) => { clearTimeout(t); res(l); });
     });
   }
-  async ask(o) { this.p.stdin.write(JSON.stringify(o) + '\n'); return JSON.parse(await this.line(30000)); }
+  /**
+   * ⭐ 2026-10-17（父代理指派）：**带超时 + 有限重试**的请求
+   *   · 单次超时 `ASK_TIMEOUT_MS`（默认 10000，【无出处、待实验】）
+   *   · 超时/异常最多重试 `ASK_RETRY` 次（默认 2 ⟹ 共 3 次）
+   *   · 全失败 ⟹ 抛 `err.code='ask_timeout'`，调用方把该场标 `ok:false` 并**继续下一场**（⛔ 不许整批挂死）
+   */
+  async askTO(o, stat) {
+    if (!this.stat) this.stat = { ok: 0, timeouts: 0, retries: 0, maxMs: 0, fails: 0 };
+    const st = stat || this.stat;
+    const payload = JSON.stringify(o) + '\n';
+    let lastErr = null;
+    for (let attempt = 0; attempt <= ASK_RETRY; attempt++) {
+      if (attempt > 0) { st.retries++; logErr('ASK_RETRY ' + attempt + '/' + ASK_RETRY + '（服务端可能已死）'); }
+      const t0 = Date.now();
+      try {
+        this.p.stdin.write(payload);
+        const line = await this.line(ASK_TIMEOUT_MS);
+        const dt = Date.now() - t0;
+        if (dt > st.maxMs) st.maxMs = dt;
+        st.ok++;
+        return JSON.parse(line);
+      } catch (e) {
+        const dt = Date.now() - t0;
+        if (dt > st.maxMs) st.maxMs = dt;
+        lastErr = e;
+        st.timeouts++;
+        logErr('ASK_TIMEOUT attempt=' + (attempt + 1) + '/' + (ASK_RETRY + 1) + ' ms=' + dt + ' err=' + String((e && e.message) || e).slice(0, 120));
+      }
+    }
+    st.fails++;
+    const err = new Error('ask 超时/失败（' + (ASK_RETRY + 1) + ' 次都失败）: ' + String((lastErr && lastErr.message) || lastErr).slice(0, 200));
+    err.code = 'ask_timeout';
+    throw err;
+  }
   async bootUntil(mark, maxLines) {
     for (let i = 0; i < (maxLines || 15); i++) {
       const l = await this.line(180000);
@@ -158,6 +194,8 @@ async function runScene(scene, srv, cap) {
   const aliveTrace = [];               // ⭐ 每 60 帧一行：{f,nAlive,alive[]}
   let nAliveMin = null, nAliveMax = 0, aliveTraceErr = null;
   const t0 = Date.now();
+  // ⭐ 2026-10-17：本场请求统计（超时/重试/最大耗时）—— 落进结果行
+  const askStat = { ok: 0, timeouts: 0, retries: 0, maxMs: 0, fails: 0 };
   try {
     m = new Match();
     // ⭐ 可复现：每场固定 RNG 序列（`--no-fix-rng` 关闭）⟹ 同一 scene 两次跑地图必须一致
@@ -264,8 +302,17 @@ async function runScene(scene, srv, cap) {
           }
         }
         let p = null;
-        try { p = await srv.ask({ N: o.N, seed: seedFor(scene.id, f), segs: segs }); lpTot++; }
-        catch (eA) { r.step_err = 'server: ' + String((eA && eA.message) || eA).slice(0, 300); break; }
+        try { p = await srv.askTO({ N: o.N, seed: seedFor(scene.id, f), segs: segs }, askStat); lpTot++; }
+        catch (eA) {
+          r.step_err = 'server: ' + String((eA && eA.message) || eA).slice(0, 300);
+          if (eA && eA.code === 'ask_timeout') {
+            // ⭐ 该场标 ok:false + reason，**继续跑下一场**（⛔ 不许整批挂死）；并杀掉可能已僵死的服务端
+            r.ok = false; r.reason = 'ask_timeout';
+            logErr('⛔ ASK_TIMEOUT_SCENE[' + scene.id + '] 该场放弃（ok:false reason=ask_timeout），继续下一场');
+            try { srv.p.kill(); } catch (eK) {} srv.start();
+          }
+          break;
+        }
         if (p) {
           if (p.err) { srvErr++; if (srvErr <= 2) logErr('SRV_ERR[' + scene.id + '] ' + String(p.err).slice(0, 200)); }
           else {
@@ -309,6 +356,9 @@ async function runScene(scene, srv, cap) {
     r.frames = f;
     r.frames_asked = lpTot;
     r.truncated = !ended;
+    // ⭐ 请求统计落盘（父代理要求：每场结果加 askTimeouts / askRetries / askMaxMs）
+    r.askOk = askStat.ok; r.askTimeouts = askStat.timeouts; r.askRetries = askStat.retries;
+    r.askMaxMs = askStat.maxMs; r.askFails = askStat.fails; r.askTimeoutMs = ASK_TIMEOUT_MS; r.askRetryMax = ASK_RETRY;
     // ⭐ 埋点落盘（父代理 2026-10-17）：存活轨迹 + 回合结束玩家表
     r.alive_trace = aliveTrace;
     r.alive_trace_n = aliveTrace.length;
@@ -343,8 +393,9 @@ async function runScene(scene, srv, cap) {
     } else {
       r.ok = true; r.result = 'defeat'; r.win = 0;
     }
-    if (r.lp_finite && lpTot > 0 && lpFin !== lpTot && r.win !== null) {
-      r.quality_warn = 'lp 非有限 ' + (lpTot - lpFin) + ' 帧（该帧动作用的是上一帧 nodeId）';
+    // ⭐ 超时场次强制 ok:false + reason（⛔ 不允许被上面的分类覆盖成 ok:true）
+    if (r.reason === 'ask_timeout') { r.ok = false; r.result = 'unknown'; r.win = null; }
+    if (r.lp_finite && lpTot > 0 && lpFin !== lpTot && r.win !== null) {      r.quality_warn = 'lp 非有限 ' + (lpTot - lpFin) + ' 帧（该帧动作用的是上一帧 nodeId）';
     }
   } catch (e) {
     r.err = String((e && e.stack) || e).slice(0, 1200);
