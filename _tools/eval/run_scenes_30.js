@@ -358,7 +358,8 @@ async function runScene(scene, srv, cap) {
     fs.writeSync(fd, JSON.stringify(r) + '\n');
     try { fs.fsyncSync(fd); } catch (eFs) {}
   };
-  logErr('RUN scenes=' + scenes.length + ' cap(2/4/8人)=' + cap2 + '/' + cap4 + '/' + cap8 + ' -> ' + resultsPath);
+  logErr('RUN scenes=' + scenes.length + ' cap(2/4/8人)=' + cap2 + '/' + cap4 + '/' + cap8 +
+         ' 【cap 分档=无出处、待实验；--cap/--cap4/--cap8 可覆盖】 -> ' + resultsPath);
 
   let srv = null;
   try {
