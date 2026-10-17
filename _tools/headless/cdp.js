@@ -141,10 +141,12 @@ async function launch(opts = {}) {
   const exe = opts.exe || findBrowser();
   // ★ 2026-10-11：原来在 9300~9699 随机挑端口，多 agent 并发时会连到【别人的浏览器】
   //   （基线稳定性调查 §三.8；本次 verify 也实测撞上激光代理的 9515）。改成按 PID 独占。
-  const port = opts.port || (18400 + (process.pid % 1000));
-  const userDataDir = opts.userDataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'vt-chrome-'));
+  // v(d2 2026-10-14)：端口改由 chrome 自己选（--remote-debugging-port=0），起好后从 userDataDir/DevToolsActivePort 读实际端口 ⟹ 多实例天然无冲突（旧写法 18400+pid%1000 在"同进程多实例"下必然撞）。
+  const useEphemeral = (opts.port === undefined || opts.port === 0);
+  const port = useEphemeral ? 0 : opts.port;
+  const VT_TMP = opts.tmpDir || process.env.VT_TMP_DIR || 'D:/vt_run'; let userDataDir = opts.userDataDir; if (!userDataDir) { try { var _base = path.join(VT_TMP, 'chrome'); fs.mkdirSync(_base, { recursive: true }); userDataDir = fs.mkdtempSync(path.join(_base, 'vt-chrome-')); } catch (eVT) { userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vt-chrome-')); } }
   const args = [
-    '--headless=new',
+    ...(opts.headless === false ? [] : ['--headless=new']),   // ⭐ 只有显式 headless:false 才开窗口（默认不变）
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-extensions',
@@ -166,7 +168,16 @@ async function launch(opts = {}) {
   // ★ 不用管道：某些沙箱环境下 spawn 用 stdio:'pipe' 会 EPERM
   const proc = spawn(exe, args, { stdio: ['ignore', 'ignore', 'ignore'], windowsHide: true });
   proc.on('error', () => {});
-  const info = await waitHttp(`http://127.0.0.1:${port}/json/version`, opts.timeoutMs || 25000);
+  let realPort = port;
+  if (useEphemeral) {
+    var _df = path.join(userDataDir, "DevToolsActivePort");
+    for (var _i = 0; _i < 150; _i++) {
+      try { var _raw = fs.readFileSync(_df, "utf8"); var _nl = _raw.indexOf(String.fromCharCode(10)); var _t = (_nl >= 0 ? _raw.slice(0, _nl) : _raw).trim(); if (_t) { realPort = Number(_t); break; } } catch (e) { }
+      await sleep(100);
+    }
+    if (!realPort) throw new Error("DevToolsActivePort 未出现（chrome 未起来）");
+  }
+  const info = await waitHttp(`http://127.0.0.1:${realPort}/json/version`, opts.timeoutMs || 25000);
   const ws = new WebSocket(info.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     ws.addEventListener('open', resolve, { once: true });
@@ -175,7 +186,7 @@ async function launch(opts = {}) {
   const cdp = new CDP(ws);
   cdp.proc = proc;
   cdp.userDataDir = userDataDir;
-  cdp.port = port;
+  cdp.port = realPort;
   cdp.browserInfo = info;
   await cdp.send('Target.setDiscoverTargets', { discover: true });
   return cdp;

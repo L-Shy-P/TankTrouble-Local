@@ -223,7 +223,7 @@ class Match {
     const page = opts.page || 'index.html';
     const verbose = !!opts.verbose;
     this.srv = await startPyServer({});
-    this.browser = await launch({});
+    this.browser = await launch(opts.headless === false ? { headless: false } : {});   // ⭐ 透传"显示窗口"
     const np = await this.browser.newPage('about:blank');
     this.sessionId = np.sessionId; this.targetId = np.targetId;
     const sid = this.sessionId, b = this.browser;
