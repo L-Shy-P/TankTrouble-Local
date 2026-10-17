@@ -40,8 +40,9 @@ const SRC = fs.readFileSync(path.join(__dirname, '..', 'headless', '_g1_inject.j
 const DEF_SCENES = 'D:/vt_run/eval/scenes_30.json';
 const DEF_OUT = 'D:/vt_run/eval';
 const DEF_CKPT_SEARCH = ['D:/vt_run/cyc_1/ckpt/model_latest.pt', 'D:/vt_run/ckpt/model_latest.pt', 'D:/vt_run/seed/ckpt/model_latest.pt'];
-// ⭐ 2026-10-17：评测射击开关（默认 0 = 旧口径；`--fire 1` 才发 picks[1]；⛔ 默认不变，避免口径漂移）
-const FIRE_ON = !!Number(process.env.S30_FIRE || (process.argv.indexOf('--fire') >= 0 ? (process.argv[process.argv.indexOf('--fire') + 1] || 1) : 0));
+// ⭐ 2026-10-17（父代理裁定）：评测射击开关**默认 1**（与游戏/采集路径一致）；`--fire 0` 可显式关掉。
+//   理由：采集与真游戏都开火，评测不开火 ⟹ 测的是另一个策略 ⟹ 那个数没有代表性。
+const FIRE_ON = !!Number(process.env.S30_FIRE || (process.argv.indexOf('--fire') >= 0 ? (process.argv[process.argv.indexOf('--fire') + 1] || 1) : 1));
 
 const logErr = (s) => process.stderr.write(String(s) + '\n');
 const outLine = (s) => process.stdout.write(String(s) + '\n');
