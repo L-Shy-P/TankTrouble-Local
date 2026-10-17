@@ -48,14 +48,14 @@
         seq: 0, ticks: 0, inflight: 0,
         prevNodeId: 0, prevFire: 0,
         served: 0, servedTotal: 0, activations: 0, errCount: 0, emptyTree: 0, skipInflight: 0,
-        lat: [], errLog: [],
+        lat: [], errLog: [], fireStat: { n: 0, fire1: 0, fire0: 0 },
         lastResp: null, lastErr: null, lastN: 0, lastCtxTime: null, lastObs: null,
         fireDropped: 0, skipReasons: {}, lastSkipped: '', nodeRemap: 0, lastGoodSlots: null,
         pendingPayload: null,
         learnBuf: [], learnSaved: 0, learnLines: 0, learnBytes: 0,
         hist: [], histMax: 20000, lastTankPos: null, lastFrameEntry: null,
         session: null, server: null, compat: null,
-        bridgeReady: false, lastStatusAt: 0, lastRetryAt: 0, awaitNN: false
+        bridgeReady: false, lastStatusAt: 0, lastRetryAt: 0, awaitNN: false, lastRoundState: null, roundSeq: 0
     };
 
     function nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
@@ -160,6 +160,50 @@
         box.innerHTML = html;
     }
 
+    /**
+     * ⭐ 权重指纹行（父代理 2026-10-17 第②条）：路径 + md5 + step + mem + 开火头。
+     *    数据源 `/vt_policy/status`（server.py 从策略进程 stderr 解析 `CKPT_LOADED` / `FIRE_DIST`）。
+     *    ⛔ 读不到就写"未提供"；若 `FIRE_DIST fire1=0` 一律红字"不会开枪"。
+     */
+    function renderCkptInfo() {
+        var box = document.getElementById('vt-agent-ckptinfo');
+        if (!box) return;
+        var s = S.server;
+        if (!s || !s.ok) {
+            box.style.color = '#f9e2af';
+            box.textContent = '权重: 服务端状态未取到（点「重载」重试）';
+            return;
+        }
+        var path = s.ckptPath || s.ckpt || s.defaultCkpt || '未提供';
+        var md5 = s.ckptMd5 || '未提供';
+        var step = (s.ckptStep === null || s.ckptStep === undefined) ? '未提供' : s.ckptStep;
+        var fd = s.fireDist;
+        if (!fd && S.fireStat && S.fireStat.n > 0) fd = { n: S.fireStat.n, fire1: S.fireStat.fire1, fire0: S.fireStat.fire0, source: 'panel' };
+        var fireTxt = fd ? (fd.fire1 + '/' + fd.n + ' fire1' + (fd.source === 'panel' ? '（面板统计）' : '')) : '未知（样本<200）';
+        var fireDead = !!(s.fireHeadDead || (fd && fd.n >= 30 && fd.fire1 === 0));
+        var lines = [];
+        lines.push('权重: ' + path);
+        lines.push('  md5=' + md5 + '  step=' + step + '  mem=' + (S.mem ? 'on' : 'off') + '  fire头=' + fireTxt);
+        if (s.ckptLine) lines.push('  ' + s.ckptLine);
+        if (s.ckptKeys) lines.push('  ' + s.ckptKeys);
+        if (s.ckptState && s.ckptState !== 'loaded') lines.push('⛔ 权重未加载（ckptState=' + s.ckptState + '）');
+        if (fireDead) lines.push('⛔ 当前权重开火头恒 0（不会开枪）—— 这是权重问题，不是面板问题');
+        if (s.memResetLine) lines.push('  记忆: ' + s.memResetLine + (S.mem ? '' : '  ⚠ 记忆开关=off ⟹ 服务端喂零'));
+        var bad = (s.ckptState === 'loaded' ? false : (s.ckptState ? true : false)) || fireDead;
+        box.style.color = bad ? '#f38ba8' : '#89b4fa';
+        box.textContent = lines.join('\n');
+    }
+
+    /** 记忆槽的回合 id（服务端 `round_id` 变了才清 mem；null = 不清） */
+    function roundId() {
+        try {
+            var gc = currentGc();
+            var rs = gc && gc.getRoundState ? gc.getRoundState() : null;
+            if (rs && rs.getId) return rs.getId();
+        } catch (e) {}
+        return 'panel#' + (S.roundSeq || 0);   // ⛔ 绝不返回 null（null ⟹ 服务端永远不清 mem）
+    }
+
     // ============================================================
     // 二、面板 DOM（插在既有「AI 操控」下面、实验区上面；⛔ 不重建面板）
     // ============================================================
@@ -190,6 +234,7 @@
                 '<label style="cursor:pointer" title="记忆：2 token × 256 维 × A/B 两份（只写 window.__vtConfig.mem，不发请求）"><input type="checkbox" data-act="vt-agent-mem"> 记忆（2 token × 256 维 × A/B 两份）</label>' +
               '</div>' +
               '<div id="vt-agent-compat" style="color:#f38ba8"></div>' +
+              '<div id="vt-agent-ckptinfo" style="color:#89b4fa;white-space:pre-wrap">权重: 服务端状态未取到</div>' +
               '<div id="vt-agent-frame" style="color:#cdd6f4;white-space:pre-wrap;line-height:1.4;border-top:1px dashed #45475a;padding-top:2px">逐帧操作：等待神经网络…</div>' +
               '<div id="vt-agent-roll" style="color:#a6adc8;white-space:pre;overflow-x:auto;line-height:1.25;max-height:132px;border-top:1px dashed #45475a;padding-top:2px"></div>' +
               '<div style="display:flex;gap:6px;align-items:center">' +
@@ -255,7 +300,7 @@
 
     function defaultCkpt() {
         if (S.server && S.server.defaultCkpt) return S.server.defaultCkpt;
-        return S.ckpt || 'D:/vt_run/seed/ckpt/last.pt';
+        return S.ckpt || 'D:/vt_run/smoke_mem2/ckpt/last.pt';
     }
 
     // ============================================================
@@ -418,8 +463,7 @@
     var OPP = 15, OPP_SLOTS = 8, BUL_SLOTS = 64, ITEM_R = 8, ITEM_C = 6;
 
     function zeroRows(n, w) { var out = []; for (var i = 0; i < n; i++) { var r = []; for (var j = 0; j < w; j++) r.push(0); out.push(r); } return out; }
-    function pad(rows, slot, w) {
-        var out = (rows || []).slice(0, slot);
+    function pad(rows, slot, w) {        var out = (rows || []).slice(0, slot);
         var z = []; for (var j = 0; j < w; j++) z.push(0);
         while (out.length < slot) out.push(z.slice());
         return out;
@@ -534,6 +578,8 @@
             seed: (S.seq * 2654435761) >>> 0,
             ckpt: S.ckpt || defaultCkpt(),
             cheat: !!S.cheat,
+            mem_on: S.mem ? 1 : 0,           // ⭐ 记忆开关真正下发给服务端（`policy_server_graph.py:143` d.get('mem_on')）
+            round_id: roundId(),             // ⭐ 服务端只在 round_id 变化时清 mem（`:147-149`）
             segs: { node: nRows, opp: opp, bullet: pad(bRows, BUL_SLOTS, 7), item: item, global: [gRow] }
         };
     }
@@ -600,6 +646,8 @@
                 S.prevFire = (j.fire === 1) ? 1 : 0;
                 S.served++;
                 S.servedTotal++;
+                var _fs = S.fireStat || (S.fireStat = { n: 0, fire1: 0, fire0: 0 });
+                _fs.n++; if (j.fire === 1) _fs.fire1++; else _fs.fire0++;
                 if (S.served === 1 || S.served % 60 === 0) { try { refreshServerStatus(function () {}); } catch (eRs) {} }
                 S.lastResp = j;
                 var ms = (typeof j._srv_ms === 'number') ? j._srv_ms : (nowMs() - t0);
@@ -628,13 +676,15 @@
             lp: (typeof j.lp === 'number' && isFinite(j.lp)) ? j.lp : null,
             v: (typeof j.v === 'number' && isFinite(j.v)) ? j.v : null,
             srv: { mode: j.mode || null, payload: j.payload || null },
-            r: { total: null, result: null, survive: null, legal: null, rewardUnassigned: true }
+            r: { total: null, result: null, survive: 0.01, legal: null, rewardUnassigned: true }   // survive 口径同 `_collect_tmp.js`（每帧 0.01）；result 回合结束时补
         });
-        if (S.learnBuf.length >= 8) flushLearn();
+        if (S.learnBuf.length >= 9) flushLearn(true);   // ⭐ 留最新 1 帧在缓冲里 ⟹ 回合结束能给"最后一帧"补 result
     }
-    function flushLearn() {
-        if (!S.learnBuf.length) return;
-        var batch = S.learnBuf.splice(0, S.learnBuf.length);
+    function flushLearn(keepLast) {
+        var keep = keepLast ? 1 : 0;
+        var n = S.learnBuf.length - keep;
+        if (n <= 0) return;
+        var batch = S.learnBuf.splice(0, n);
         if (!S.session) S.session = 'panel_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         fetch('/vt_learn', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                              body: JSON.stringify({ session: S.session, frames: batch }) })
@@ -644,6 +694,47 @@
                 else { S.lastErr = 'learn: ' + (j && j.err); S.errCount++; }
             })
             .catch(function (e) { S.learnBuf = batch.concat(S.learnBuf); S.lastErr = 'learn fetch: ' + String(e && e.message || e); S.errCount++; });
+    }
+
+    /**
+     * ⭐ 回合结果（父代理 2026-10-17 第③条）：胜 +1 / 负 -1 / 平 -0.25。
+     *    判据只读游戏真值：`SCORE_TYPES.VICTORY=1` 且我方 >0 → 胜；回合结束但我方坦克不在场 → 负；其余 → 平。
+     */
+    function roundOutcome() {
+        try {
+            var gc = currentGc();
+            if (!gc) return { result: null, why: 'no gc' };
+            var tanks = gc.getTanks ? gc.getTanks() : {};
+            var alive = !!(tanks && tanks[S.tankId]);
+            var scores = gc.getScores ? gc.getScores() : {};
+            var victory = 0;
+            for (var k in scores) {
+                var s = scores[k];
+                var pid = s.getPlayerId ? s.getPlayerId() : s.playerId;
+                var type = s.getType ? s.getType() : s.type;
+                var val = s.getValue ? s.getValue() : s.value;
+                if (String(pid) !== String(S.tankId)) continue;
+                if (type === 1 && typeof val === 'number' && val > 0) victory = 1;   // SCORE_TYPES.VICTORY = 1
+            }
+            if (victory) return { result: 1, why: 'victory' };
+            if (!alive) return { result: -1, why: 'dead' };
+            return { result: -0.25, why: 'draw(no victory score & alive)' };
+        } catch (e) { return { result: null, why: 'err: ' + String(e && e.message || e) }; }
+    }
+
+    /** 回合结束时给【缓冲里最后一帧】补 result/total，然后整批落盘（⛔ 不改主体奖励设计） */
+    function finalizeRoundLearning() {
+        if (!S.learnBuf.length) return;
+        var last = S.learnBuf[S.learnBuf.length - 1];
+        if (!last || !last.r) return;
+        var out = roundOutcome();
+        last.r.result = out.result;
+        last.r.survive = 0.01;
+        last.r.total = (out.result === null) ? null : +(out.result + 0.01).toFixed(4);
+        last.r.rewardAssignedBy = 'panel:roundEnd(' + out.why + ')';
+        last.r.rewardUnassigned = (out.result === null);
+        flushLearn(false);
+        log('学习样本回合收尾: result=' + out.result + '（' + out.why + '）');
     }
 
     // ============================================================
@@ -825,11 +916,16 @@
             S.server = st;
             if (S.on && st && st.ok) {
                 setStatus('神经网络已接管 ' + S.tankId + ' · 服务端 ' + (st.running ? '已加载' : '未启动') +
-                          ' · 权重 ' + (st.ckpt || st.defaultCkpt) + ' · 请求 ' + st.requests, 'ok');
+                          ' · 权重 ' + (st.ckpt || st.defaultCkpt) +
+                          (st.ckptMd5 ? (' md5=' + st.ckptMd5) : '') +
+                          (st.ckptStep !== null && st.ckptStep !== undefined ? (' step=' + st.ckptStep) : '') +
+                          ' · 请求 ' + st.requests, st.fireHeadDead ? 'bad' : 'ok');
             }
+            renderCkptInfo();
             if (cb) cb(st);
         }).catch(function (e) {
             S.server = { ok: false, err: String(e && e.message || e) };
+            renderCkptInfo();
             if (cb) cb(S.server);
         });
     }
@@ -852,7 +948,10 @@
         var lines = [];
         lines.push('状态: ' + (S.on ? '神经网络运行中' : '未运行') + ' · 坦克: ' + (S.tankId || '-') +
                    ' · 游戏模式: ' + (S.gameMode === null || S.gameMode === undefined ? '?' : S.gameMode));
-        lines.push('服务端: ' + (S.server ? ((S.server.running ? 'running' : 'idle') + ' · 权重 ' + (S.server.ckpt || S.server.defaultCkpt) + ' · 请求 ' + S.server.requests) : '未取到'));
+        lines.push('服务端: ' + (S.server ? ((S.server.running ? 'running' : 'idle') + ' · 权重 ' + (S.server.ckpt || S.server.defaultCkpt) +
+                   ' · md5=' + (S.server.ckptMd5 || '未提供') + ' · step=' + (S.server.ckptStep === null || S.server.ckptStep === undefined ? '未提供' : S.server.ckptStep) +
+                   ' · fire头=' + (S.server.fireDist ? (S.server.fireDist.fire1 + '/' + S.server.fireDist.n) : '未知') +
+                   (S.server.fireHeadDead ? ' ⛔恒0' : '') + ' · 请求 ' + S.server.requests) : '未取到'));
         lines.push('策略调用: ' + S.served + ' 次 / 请求 ' + S.seq + ' · 错误 ' + S.errCount +
                    ' · 累计 ' + S.servedTotal + ' 次 / 恢复 ' + S.activations + ' 次' +
                    ' · 服务端延迟中位 ' + (med === null ? '-' : med.toFixed(1)) + ' ms');
@@ -901,7 +1000,16 @@
                         activateNN();          // ⏸ 自动等 Vantage 回来（不静默退回规则版）
                     }
                 }
-                if (S.learn && S.learnBuf.length) flushLearn();
+                // ⭐ 回合结束检测（只读）：给学习样本最后一帧补 result（胜 +1 / 负 -1 / 平 -0.25）
+                var curRound = null;
+                try { var gcr = currentGc(); curRound = gcr ? gcr.getState() : null; } catch (eR) {}
+                if (S.lastRoundState === 'in round' && curRound !== null && curRound !== 'in round') {
+                    if (S.learn) { try { finalizeRoundLearning(); } catch (eF) { log('finalizeRoundLearning 异常: ' + String(eF && eF.message || eF)); } }
+                }
+                if (curRound === 'in round' && S.lastRoundState !== null && S.lastRoundState !== 'in round') S.roundSeq = (S.roundSeq || 0) + 1;   // 新回合 ⟹ 记忆槽清零
+                S.lastRoundState = curRound;
+                if (S.learn) flushLearn(true);          // ⭐ 留最新 1 帧
+                renderCkptInfo();
                 renderStats();
             }
         } catch (e) {

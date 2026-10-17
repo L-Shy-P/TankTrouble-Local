@@ -10,6 +10,7 @@ import threading
 import time
 import queue
 import subprocess
+import re
 from http.server import HTTPServer, ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 if sys.platform == 'win32':
@@ -36,7 +37,7 @@ _VT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VT_POLICY_SCRIPT = os.path.join(_VT_ROOT, '_tools', 'training', 'policy_server_graph.py')
 VT_BRIDGE_JS = os.path.join(_VT_ROOT, '_tools', 'headless', 'inject_fire.js')
 VT_LEARN_DIR = os.environ.get('VT_LEARN_DIR') or 'D:/vt_run/panel_learn'
-VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/seed/ckpt/last.pt'
+VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/smoke_mem2/ckpt/last.pt'   # 2026-10-17 换掉 seed/last.pt（实测其开火头恒 0：fire1=0/12）
 _VT_LEARN_LOCK = threading.Lock()
 _VT_LEARN_COUNT = {}
 
@@ -52,6 +53,14 @@ class PolicyBridge(object):
         self._logbuf = []
         self._warmup = []
         self._requests = 0
+        # ⭐ 权重指纹 / 开火头分布（父代理 2026-10-17：主人必须能分辨"策略差" vs "加载了错权重"）
+        self._ckpt_state = None      # 'loaded' | 'missing' | 'none'
+        self._ckpt_line = None       # 原样保留 `CKPT_LOADED <path> md5=<8> step=<n>`
+        self._ckpt_md5 = None
+        self._ckpt_step = None
+        self._ckpt_keys = None       # `CKPT_KEYS missing=... unexpected=...`
+        self._fire_dist = None       # {'n','fire1','fire0','thr','logit','p','raw'}
+        self._mem_reset = None       # `MEM_RESET round_id=...`（mem 真在用）
 
     def _log(self, s):
         line = '[vt_policy] ' + str(s)
@@ -73,10 +82,46 @@ class PolicyBridge(object):
         try:
             for line in proc.stderr:
                 line = line.rstrip()
-                if line:
-                    self._log(line[:400])      # ⛔ 不静默：诊断逐行回显
+                if not line:
+                    continue
+                self._parse_diag(line)
+                self._log(line[:400])      # ⛔ 不静默：诊断逐行回显
         except Exception as e:
             self._log('stderr reader 异常: %r' % (e,))
+
+    def _parse_diag(self, line):
+        """把策略进程的 stderr 诊断解析成结构化字段（供面板显示权重指纹/开火头）。"""
+        try:
+            if line.startswith('CKPT_LOADED'):
+                self._ckpt_state = 'loaded'
+                self._ckpt_line = line
+                m = re.search(r'md5=([0-9a-fA-F]+)', line)
+                self._ckpt_md5 = m.group(1) if m else None
+                m2 = re.search(r'step=([^ ]+)', line)
+                self._ckpt_step = m2.group(1) if m2 else None
+            elif line.startswith('CKPT_MISSING'):
+                self._ckpt_state = 'missing'
+                self._ckpt_line = line
+            elif line.startswith('CKPT_NONE'):
+                self._ckpt_state = 'none'
+                self._ckpt_line = line
+            elif line.startswith('CKPT_KEYS'):
+                self._ckpt_keys = line
+            elif line.startswith('FIRE_DIST'):
+                d = {'raw': line}
+                for key, pat in (('n', r'\bn=(\d+)'), ('fire1', r'fire1=(\d+)'), ('fire0', r'fire0=(\d+)'),
+                                 ('thr', r'阈值=([0-9.]+)'), ('logit', r'本例_logit=(-?[0-9.]+)'), ('p', r'本例_p=(-?[0-9.]+)')):
+                    mm = re.search(pat, line)
+                    if mm:
+                        try:
+                            d[key] = float(mm.group(1)) if key in ('thr', 'logit', 'p') else int(mm.group(1))
+                        except Exception:
+                            pass
+                self._fire_dist = d
+            elif line.startswith('MEM_RESET'):
+                self._mem_reset = line
+        except Exception as e:
+            self._log('解析诊断行失败: %r (%s)' % (e, line[:120]))
 
     def start(self, ckpt):
         self.stop()
@@ -96,6 +141,9 @@ class PolicyBridge(object):
             args.append(os.environ.get('VT_POLICY_PYVER') or '-3.13')
         args += ['-u', VT_POLICY_SCRIPT]
         self._log('启动策略进程: %s（VT_CKPT=%s）' % (' '.join(args), ckpt or '<未设 ⟹ 随机权重>'))
+        # 新进程 ⟹ 旧指纹/开火分布作废（⛔ 不许把上一个权重的诊断显示成当前权重）
+        self._ckpt_state = None; self._ckpt_line = None; self._ckpt_md5 = None; self._ckpt_step = None
+        self._ckpt_keys = None; self._fire_dist = None; self._mem_reset = None
         proc = subprocess.Popen(args, cwd=_VT_ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, env=env, text=True, encoding='utf-8',
                                 errors='replace', bufsize=1)
@@ -157,8 +205,14 @@ class PolicyBridge(object):
 
     def status(self):
         p = self._proc
+        fd = self._fire_dist or {}
+        fire_head_dead = bool(fd.get('n', 0) >= 200 and fd.get('fire1', 1) == 0)
         return {'ok': True, 'running': bool(p is not None and p.poll() is None),
                 'ckpt': self._ckpt, 'defaultCkpt': VT_DEFAULT_CKPT, 'requests': self._requests,
+                'ckptPath': self._ckpt, 'ckptState': self._ckpt_state, 'ckptLine': self._ckpt_line,
+                'ckptMd5': self._ckpt_md5, 'ckptStep': self._ckpt_step, 'ckptKeys': self._ckpt_keys,
+                'fireDist': self._fire_dist or None, 'fireHeadDead': fire_head_dead,
+                'memResetLine': self._mem_reset,
                 'script': VT_POLICY_SCRIPT, 'bridgeJs': VT_BRIDGE_JS, 'bridgeJsExists': os.path.exists(VT_BRIDGE_JS),
                 'warmup': self._warmup[-8:], 'log': self._logbuf[-8:], 'learnDir': VT_LEARN_DIR}
 
