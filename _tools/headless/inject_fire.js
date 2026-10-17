@@ -96,7 +96,8 @@
   window.__b.setFireBack = function (m) { window.__b.fireBack = (m === 'now') ? 'now' : 'zero'; window.__b.fireBackSet++; return window.__b.fireBack; };  window.__b.setFire = function (f) { window.__b.wantFire = !!f; return window.__b.wantFire ? 1 : 0; };
   window.__b.stats = function () {
     var IS = window.__vantageIface || {};
-    return { fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
+    return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
+             fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
              buildOK: window.__b.buildOK, buildMisses: window.__b.buildMisses,
              lastFirePick: window.__b.lastFirePick, fireBack: window.__b.fireBack, fireErr: window.__b.fireErr,
              lastTargetId: (typeof window.__b.lastTargetId === 'number' ? window.__b.lastTargetId : null),
@@ -120,6 +121,33 @@
       n = hit; pathNodes.push(hit);
     }
     return { node: n, path: pathNodes, firstHop: firstHop };
+  };
+  // A 相生长：在当前可行节点里选 1 个叶子生长（契约 vantage_tree.js:4390-4412：picks[0] 且必须是叶）
+  window.__b.buildA = function () {
+    try {
+      var tree = VantageTree.getTree();
+      if (!tree || !tree.root) { window.__b.aNoTree = (window.__b.aNoTree || 0) + 1; return null; }
+      // ⭐⭐ D11：树满时「不能生长」⇒ **不该叫 A**（吴则只会制造 giveUpA）
+      var _cap = (tree.cfg && typeof tree.cfg.maxNodes === 'number') ? tree.cfg.maxNodes : 1000;
+      if (typeof tree.nodeCount === 'number' && tree.nodeCount >= _cap) { window.__b.aTreeFull = (window.__b.aTreeFull || 0) + 1; return { picks: [], memory: {} }; }
+      var slots = window.__b.pendingSlots;
+      if (!slots || !slots.length) { window.__b.aNoSlots = (window.__b.aNoSlots || 0) + 1; return { picks: [], memory: {} }; }
+      var w = window.__b.walk(tree, slots);
+      var n = w.node;
+      if (!n || n === tree.root) { window.__b.aBadTarget = (window.__b.aBadTarget || 0) + 1; return { picks: [], memory: {} }; }
+      if (n.children && n.children.length) { window.__b.aNotLeaf = (window.__b.aNotLeaf || 0) + 1; return { picks: [], memory: {} }; }
+      // ⭐ 自查：不满足 canGrowAt 就别报（显式计数）
+      try {
+        if (typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants && !VantageTreeInterface.Invariants.canGrowAt(n)) {
+          window.__b.aNotGrowable = (window.__b.aNotGrowable || 0) + 1;
+          return { picks: [], memory: {} };
+        }
+      } catch (eCG) { window.__b.aCanGrowErr = String((eCG && eCG.message) || eCG); }
+      window.__b.pendingGrowCheck = { uid: n.id, depth: (w.path ? w.path.length : null) };   // ⭐ 下一帧复查这个 uid 还在不在/能不能长
+      window.__b.aGrow = (window.__b.aGrow || 0) + 1;
+      window.__b.lastGrow = { nodeId: n.id, depth: (w.path ? w.path.length : null) };
+      return { picks: [{ nodeId: n.id, back: 0 }], memory: {} };   // ⭐ 必须带 back：校验里 `targetBack !== null` 会把 undefined 当"越界"整包拒
+    } catch (e) { window.__b.aErr = String((e && e.message) || e); return null; }
   };
   window.__b.build = function () {
     try {
@@ -196,7 +224,16 @@
     } catch (e) { window.__b.buildErr = String(e && e.message || e); return null; }
   };
   window.__b.mk = function (tag) {
-    return { name: 'nnbridge' + tag, isReady: function () { return true; }, decide: function (ctx, info) { var ph = null; try { ph = (ctx && ctx.phase) || (info && info.phase) || null; window.__b.lastPhase = ph; } catch (e) {} if (ph === 'A') { window.__b.aSkips = (window.__b.aSkips || 0) + 1; return null; } return window.__b.build(); } };   // ⭐ 父代理裁定 (b)：A 相 return null ⟹ 不清空 _agentRoute/_agentFirePicks（依据 vantage_tree.js:4580-4585）
+    return { name: 'nnbridge' + tag, isReady: function () { return true; }, decide: function (ctx, info) {
+        // ⭐ 抓 A/B 相的真实拒绝原因（接口在重试时会把 reason 传进来）
+        try {
+          if (info && info.reason) {
+            window.__b.rejReasons = window.__b.rejReasons || {};
+            var _k = String((info.phase || (ctx && ctx.phase) || '?')) + ':' + String(info.reason).slice(0, 60);
+            window.__b.rejReasons[_k] = (window.__b.rejReasons[_k] || 0) + 1;
+          }
+        } catch (eRR) {}
+        try { window.__b.lastPhaseSeen = (ctx && ctx.phase) || (info && info.phase) || null; } catch (ePh) {} var ph = null; try { ph = (ctx && ctx.phase) || (info && info.phase) || null; window.__b.lastPhase = ph; } catch (e) {} if (ph === 'A') { window.__b.aCalls = (window.__b.aCalls || 0) + 1; return window.__b.buildA(); } return window.__b.build(); } };   // ⭐ 父代理裁定 (b)：A 相 return null ⟹ 不清空 _agentRoute/_agentFirePicks（依据 vantage_tree.js:4580-4585）
   };
   // ⭐⭐ 奖惩 v2（2026-10-17 主人 10 条规格）：订阅 `TANK_KILLED` 事件拿 **killer/victim** 真值
   //    （⏔t 再用“对手 alive 位 1→0”推断：那会把毒雾杀也算成我杀的）
@@ -229,6 +266,27 @@
   };
   // ⭐ step：只读观测 + 记下"意图"（目标节点的 slot 路径 + 是否开火）；真正的包在 decide() 当帧建
   window.__b.step = function (nodeId, fire) {
+    // ⭐ A 相复查（只读）：上一帧报给 A 的 uid，现在还在不在 / 还能不能长 —— 用来区分 growRejectMissing vs NotGrowable
+    try {
+      var _pgc = window.__b.pendingGrowCheck;
+      if (_pgc) {
+        var _t2 = VantageTree.getTree(), _hit = null, _st = (_t2 && _t2.root) ? [_t2.root] : [], _g = 0;
+        while (_st.length && _g++ < 6000) {
+          var _q = _st.pop(); if (!_q) continue;
+          if (_q.id === _pgc.uid) { _hit = _q; break; }
+          if (_q.children) for (var _ci = 0; _ci < _q.children.length; _ci++) if (_q.children[_ci]) _st.push(_q.children[_ci]);
+        }
+        if (!_hit) { window.__b.growGone = (window.__b.growGone || 0) + 1; }
+        else {
+          window.__b.growStillExists = (window.__b.growStillExists || 0) + 1;
+          try {
+            if (VantageTreeInterface.Invariants.canGrowAt(_hit)) window.__b.growStillGrowable = (window.__b.growStillGrowable || 0) + 1;
+            else window.__b.growExistsNotGrowable = (window.__b.growExistsNotGrowable || 0) + 1;
+          } catch (eCG2) { window.__b.growCanGrowErr = String((eCG2 && eCG2.message) || eCG2); }
+        }
+        window.__b.pendingGrowCheck = null;
+      }
+    } catch (eChk) { window.__b.growCheckErr = String((eChk && eChk.message) || eChk); }
     var gc = GameManager.getGameController();
     var ad = VantageSandbox.createAdapter(gc, window.__b.tankId || 'vantage_1');   // ⭐ 目标坦克：2 人局里没有 tank_a ⟹ 默认 vantage_1（★ 此前写死 tank_a ⟹ 观测 self 恒 0）
     var e = VantageObserve.encode({ adapter: ad, tree: VantageTree.getTree(), horizonSec: 10, K_death: 1, frameDt: 1 / 60 });
@@ -256,6 +314,22 @@
     }
     if (!window.__b.deathSubscribed) { try { if (window.__b.subscribeDeaths() === 'ok') window.__b.deathSubscribed = true; } catch (eS2) { window.__b.deathSubErr = String((eS2 && eS2.message) || eS2); } }
     window.__b.lastPickRow = (typeof nodeId === 'number') ? nodeId : null;   // ⭐ 只读暴露：动作行号
+    // ⭐⭐ 只读复查（父代理要求）：上一帧 A 报的 uid 在这一帧
+    //    还在不在树里 / 还能不能长 ⇒ 把 growAt=0 拆成两类
+    if (window.__b.pendingGrowCheck) {
+      var _gc0 = window.__b.pendingGrowCheck; window.__b.pendingGrowCheck = null;
+      try {
+        var _tr = VantageTree.getTree(); var _f = null;
+        (function rec(nd, dep) { if (!nd || _f || dep > 60) return; if (nd.id === _gc0.uid) { _f = nd; return; } var ks = nd.children || []; for (var q = 0; q < ks.length; q++) { rec(ks[q], dep + 1); if (_f) return; } })(_tr && _tr.root, 0);
+        if (!_f) window.__b.growRejectMissing = (window.__b.growRejectMissing || 0) + 1;
+        else {
+          var _ok = true;
+          try { _ok = !(typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants) ? true : !!VantageTreeInterface.Invariants.canGrowAt(_f); } catch (eOk) { _ok = true; }
+          if (!_ok) window.__b.growRejectNotGrowable = (window.__b.growRejectNotGrowable || 0) + 1;
+          else window.__b.growStillValid = (window.__b.growStillValid || 0) + 1;
+        }
+      } catch (eGC) { window.__b.growChkErr = String((eGC && eGC.message) || eGC); }
+    }
     window.__b.pendingSlots = slots;
     // ⭐⭐ 脉冲开火（2026-10-17 父代理诊断）：`BulletWeapon.fire()` 的 `_triggerPulled` 是锁存
     //    ⇒ 连续帧都提交 picks[1] = 一直按扳机 = 只出第一发 ⇒ 桥强制"发一帧、松一帧"
