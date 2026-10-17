@@ -44,6 +44,7 @@
         mem: CFG.mem,                // 记忆开关：2 token × 256 维 × A/B 两份（只写 __vtConfig，不调服务端）
         lastRecordedTick: -1, lastRecordedSkipped: '',
         lastFireSubmits: 0, lastFireNoCursor: 0, lastFireSkippedRetry: 0, lastPulseBlocked: 0, lastEmptyBlocked: 0,
+        lastFrameUiAt: 0, lastRollUiAt: 0, frameUiPending: false, lastCompatHtml: '',
         // —— 决策管线 ——
         seq: 0, ticks: 0, inflight: 0,
         prevNodeId: 0, prevFire: 0,
@@ -157,6 +158,8 @@
         if (c.reasons.length) html += '<div style="color:#f38ba8">⛔ 不兼容：' + c.reasons.join('<br>⛔ ') + '</div>';
         if (c.warns.length) html += '<div style="color:#f9e2af">⚠ ' + c.warns.join('<br>⚠ ') + '</div>';
         if (!html && c.ok) html = '<div style="color:#a6e3a1">✔ 环境兼容</div>';
+        if (html === S.lastCompatHtml) return;    // ⭐ 内容没变就不碰 DOM（防抖动/防重排）
+        S.lastCompatHtml = html;
         box.innerHTML = html;
     }
 
@@ -212,7 +215,7 @@
         if (!exp || document.getElementById(SECTION_ID)) return false;
         var box = document.createElement('div');
         box.id = SECTION_ID;
-        box.style.cssText = 'flex:0 0 auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;flex-direction:column;gap:3px';
+        box.style.cssText = 'flex:0 0 auto;padding:4px 8px;border-bottom:1px solid #45475a;display:flex;flex-direction:column;gap:3px;max-height:360px;overflow-y:auto';   // ⭐ 定高：面板外框不再随内容伸缩（防抖动），且不吃掉老实验区
         box.innerHTML =
             '<div style="text-align:center;font-weight:bold;color:#f5c2e7">智能体模式（神经网络 = 我们的 PPO 策略）</div>' +
             '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px">' +
@@ -233,17 +236,23 @@
                 '<label style="cursor:pointer" title="逐帧把 (obs,act,lp,v) 追加到 D:/vt_run/panel_learn/*.jsonl，供训练器离线学习"><input type="checkbox" data-act="vt-agent-learn"> 学习开关</label>' +
                 '<label style="cursor:pointer" title="记忆：2 token × 256 维 × A/B 两份（只写 window.__vtConfig.mem，不发请求）"><input type="checkbox" data-act="vt-agent-mem"> 记忆（2 token × 256 维 × A/B 两份）</label>' +
               '</div>' +
-              '<div id="vt-agent-compat" style="color:#f38ba8"></div>' +
-              '<div id="vt-agent-ckptinfo" style="color:#89b4fa;white-space:pre-wrap">权重: 服务端状态未取到</div>' +
-              '<div id="vt-agent-frame" style="color:#cdd6f4;white-space:pre-wrap;line-height:1.4;border-top:1px dashed #45475a;padding-top:2px">逐帧操作：等待神经网络…</div>' +
-              '<div id="vt-agent-roll" style="color:#a6adc8;white-space:pre;overflow-x:auto;line-height:1.25;max-height:132px;border-top:1px dashed #45475a;padding-top:2px"></div>' +
+              '<div id="vt-agent-compat" style="color:#f38ba8;height:34px;overflow-y:auto;white-space:pre-wrap"></div>' +
+              '<div id="vt-agent-ckptinfo" style="color:#89b4fa;white-space:pre-wrap;height:64px;overflow-y:auto">权重: 服务端状态未取到</div>' +
+              '<div id="vt-agent-frame" style="color:#cdd6f4;font-family:Consolas,monospace;font-size:11px;line-height:16px;height:52px;overflow-y:auto;overflow-x:hidden;white-space:nowrap;border-top:1px dashed #45475a;padding-top:2px">逐帧操作：等待神经网络…</div>' +
+              '<div id="vt-agent-roll" style="color:#a6adc8;font-family:Consolas,monospace;font-size:11px;line-height:16px;height:96px;overflow-y:auto;overflow-x:auto;white-space:pre;border-top:1px dashed #45475a;padding-top:2px"></div>' +
               '<div style="display:flex;gap:6px;align-items:center">' +
                 '<button data-act="vt-agent-export" style="cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">导出操作历史 JSONL</button>' +
                 '<span id="vt-agent-hist" style="color:#6c7086">历史 0 帧（含被拒操作）</span>' +
               '</div>' +
-              '<div id="vt-agent-stats" style="color:#a6adc8;white-space:pre-wrap;line-height:1.45"></div>' +
+              '<details id="vt-agent-statsBox" style="color:#a6adc8"><summary style="cursor:pointer;color:#89b4fa">状态/统计（点开）</summary><div id="vt-agent-stats" style="white-space:pre-wrap;line-height:1.45;max-height:160px;overflow-y:auto"></div></details>' +
             '</div>';
         exp.parentNode.insertBefore(box, exp);
+        // ⭐ 防挤压（不改老内容）：面板自身可滚动 + 老实验区保底高度，避免被新区压成 0
+        try {
+            var panel = document.getElementById('vt-bench-panel');
+            if (panel) panel.style.overflowY = 'auto';
+            if (exp.style.minHeight !== '140px') exp.style.minHeight = '140px';
+        } catch (eFit) {}
         bindSection();
         S.mounted = true;
         return true;
@@ -853,37 +862,86 @@
     }
     function show(v) { return (v === null || v === undefined) ? '未提供' : String(v); }
 
-    function renderFrameView() {
-        var box = document.getElementById('vt-agent-frame');
-        if (!box) return;
-        var e = S.lastFrameEntry;
-        if (!e) { box.textContent = '逐帧操作：等待神经网络…'; return; }
-        var p = e.pick || {}, f = e.fire || {}, i = e.inputs;
-        var lines = [];
-        lines.push('f=' + e.f + ' · N=' + show(e.N) + ' · 选中行 row=' + show(p.row) + ' → uid=' + show(p.uid) + ' · depth=' + show(p.depth) + ' · op=' + (p.opName || '未提供'));
-        lines.push('lp=' + (typeof e.lp === 'number' ? e.lp.toFixed(4) : '未提供') + ' · v=' + (typeof e.v === 'number' ? e.v.toFixed(4) : '未提供') +
-                   ' · routeLen=' + show(e.routeLen) + ' · moved=' + (e.moved === null ? '—' : e.moved));
-        lines.push('fire: 策略=' + show(f.policy) + ' · 已提交=' + show(f.submitted) + ' · 被拦=' + (f.blockedBy || '无'));
-        lines.push('最终 inputs: ' + (i ? ('fwd=' + (i.forward ? 1 : 0) + ' back=' + (i.back ? 1 : 0) + ' left=' + (i.left ? 1 : 0) + ' right=' + (i.right ? 1 : 0) + '（' + i.from + '）') : '未提供'));
-        if (e.rejected && e.rejected.length) lines.push('被拒: ' + e.rejected.map(function (x) { return x.type + ':' + x.reason; }).join(' | '));
-        box.textContent = lines.join('\n');
-        renderRolling();
+    /** 显示宽度（中文按 2 列算）——等宽字体下才能真正对齐 */
+    function dispWidth(str) {
+        var w = 0, t = String(str === null || str === undefined ? '' : str);
+        for (var i = 0; i < t.length; i++) {
+            var c = t.charCodeAt(i);
+            w += ((c >= 0x1100 && c <= 0x115F) || (c >= 0x2E80 && c <= 0xA4CF) || (c >= 0xAC00 && c <= 0xD7A3) ||
+                  (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFE30 && c <= 0xFE6F) || (c >= 0xFF00 && c <= 0xFF60) ||
+                  (c >= 0xFFE0 && c <= 0xFFE6)) ? 2 : 1;
+        }
+        return w;
+    }
+    /** 按【显示宽度】右侧补空格（⛔ 不用 text-align 对齐） */
+    function padCjk(str, width) {
+        var t = (str === null || str === undefined) ? '' : String(str);
+        var d = width - dispWidth(t);
+        if (d <= 0) return t;
+        return t + new Array(d + 1).join(' ');
+    }
+    function fmt(v, digits) {
+        return (typeof v === 'number' && isFinite(v)) ? v.toFixed(digits) : '未提供';
     }
 
-    function renderRolling() {
+    /**
+     * 逐帧操作视图 —— ⭐ 防抖动（主人 2026-10-17：「面板快速上下抖动，几乎不可读」）
+     *   · 容器固定高度 + 内部滚动（见 HTML 的 height:52px/overflow-y）
+     *   · 每行固定行高 16px、nowrap/ellipsis
+     *   · 等宽字体 + 每列 padCjk 固定宽度（中文按 2 列）
+     *   · 数字统一位数（lp/v 4 位、routeLen 2 位）
+     *   · 刷新节流 ≥250ms（导出仍按帧全量，⛔ 不节流）
+     *   · 只写 textContent（⛔ 不重建 innerHTML）
+     */
+    function renderFrameView(force) {
+        var box = document.getElementById('vt-agent-frame');
+        if (!box) return;
+        var now = nowMs();
+        if (!force && (now - (S.lastFrameUiAt || 0)) < 250) { S.frameUiPending = true; return; }
+        S.lastFrameUiAt = now; S.frameUiPending = false;
+        var e = S.lastFrameEntry;
+        if (!e) { box.textContent = padCjk('逐帧操作：等待神经网络…', 120); return; }
+        var p = e.pick || {}, f = e.fire || {}, i = e.inputs;
+        var line1 = padCjk('f=' + padCjk(e.f, 6) +
+                           'N=' + padCjk(show(e.N), 5) +
+                           'row=' + padCjk(show(p.row), 5) +
+                           'uid=' + padCjk(show(p.uid), 6) +
+                           'depth=' + padCjk(show(p.depth), 3) +
+                           'op=' + padCjk(p.opName || '未提供', 8) +
+                           'lp=' + padCjk(fmt(e.lp, 4), 9) +
+                           'v=' + padCjk(fmt(e.v, 4), 10) +
+                           'routeLen=' + padCjk(e.routeLen === null || e.routeLen === undefined ? '未提供' : Number(e.routeLen).toFixed(2), 6) +
+                           'fire ' + padCjk(show(f.policy) + '/' + show(f.submitted) + '/' + (f.blockedBy || '-'), 8) +
+                           'inputs ' + (i ? ((i.forward ? 'F' : '-') + (i.back ? 'B' : '-') + (i.left ? 'L' : '-') + (i.right ? 'R' : '-') + ' ' + padCjk(i.from || '', 18)) : padCjk('未提供', 22)) +
+                           'moved=' + padCjk(e.moved === null || e.moved === undefined ? '—' : Number(e.moved).toFixed(2), 6), 200);
+        var rej = (e.rejected && e.rejected.length) ? e.rejected.map(function (x) { return x.type + ':' + x.reason; }).join(' | ') : '无';
+        var line2 = padCjk('被拒: ' + rej, 200);
+        box.textContent = line1 + String.fromCharCode(10) + line2;
+        renderRolling(force);
+    }
+
+    /**
+     * 最近 60 帧滚动表：固定列宽 + 固定行高；**最新在最上面**，整块 textContent 覆写（最稳）。
+     */
+    function renderRolling(force) {
         var box = document.getElementById('vt-agent-roll');
         if (!box) return;
-        var rows = S.hist.slice(-60);
-        var out = [padStr('f', 6) + padStr('row', 5) + padStr('uid', 6) + padStr('op', 7) + padStr('lp', 9) + padStr('v', 9) + padStr('fire', 9) + 'inputs/moved'];
+        var now = nowMs();
+        if (!force && (now - (S.lastRollUiAt || 0)) < 250) return;
+        S.lastRollUiAt = now;
+        var rows = S.hist.slice(-60).reverse();   // ⭐ 新的插到顶部（视口保持不动）
+        var out = [padCjk('f', 6) + padCjk('row', 5) + padCjk('uid', 6) + padCjk('depth', 6) + padCjk('op', 8) +
+                   padCjk('lp', 9) + padCjk('v', 10) + padCjk('fire', 8) + padCjk('inputs', 7) + padCjk('moved', 6)];
         for (var k = 0; k < rows.length; k++) {
             var e = rows[k], p = e.pick || {}, f = e.fire || {}, i = e.inputs;
-            var fireStr = (show(f.policy) + '/' + show(f.submitted) + '/' + (f.blockedBy || '-'));
-            var inp = i ? ('' + (i.forward ? 'F' : '-') + (i.back ? 'B' : '-') + (i.left ? 'L' : '-') + (i.right ? 'R' : '-')) : '?';
-            out.push(padStr(e.f, 6) + padStr(show(p.row), 5) + padStr(show(p.uid), 6) + padStr((p.opName || '?'), 7) +
-                     padStr(typeof e.lp === 'number' ? e.lp.toFixed(2) : '?', 9) + padStr(typeof e.v === 'number' ? e.v.toFixed(2) : '?', 9) +
-                     padStr(fireStr, 9) + inp + '/' + (e.moved === null ? '-' : e.moved));
+            var inp = i ? ((i.forward ? 'F' : '-') + (i.back ? 'B' : '-') + (i.left ? 'L' : '-') + (i.right ? 'R' : '-')) : '?';
+            out.push(padCjk(e.f, 6) + padCjk(show(p.row), 5) + padCjk(show(p.uid), 6) + padCjk(show(p.depth), 6) +
+                     padCjk(p.opName || '?', 8) + padCjk(fmt(e.lp, 2), 9) + padCjk(fmt(e.v, 2), 10) +
+                     padCjk(show(f.policy) + '/' + show(f.submitted) + '/' + (f.blockedBy || '-'), 8) +
+                     padCjk(inp, 7) + padCjk(e.moved === null || e.moved === undefined ? '-' : Number(e.moved).toFixed(2), 6));
         }
-        box.textContent = out.join('\n');
+        box.textContent = out.join(String.fromCharCode(10));
+        box.scrollTop = 0;                         // ⭐ 视口固定在最上面（最新帧）
     }
 
     function exportJSONL() {
@@ -1009,6 +1067,7 @@
                 if (curRound === 'in round' && S.lastRoundState !== null && S.lastRoundState !== 'in round') S.roundSeq = (S.roundSeq || 0) + 1;   // 新回合 ⟹ 记忆槽清零
                 S.lastRoundState = curRound;
                 if (S.learn) flushLearn(true);          // ⭐ 留最新 1 帧
+                if (S.frameUiPending || nowMs() - (S.lastFrameUiAt || 0) >= 250) renderFrameView(true);   // 节流：补显示最后一帧
                 renderCkptInfo();
                 renderStats();
             }
