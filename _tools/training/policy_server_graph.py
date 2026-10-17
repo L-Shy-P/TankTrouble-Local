@@ -9,14 +9,25 @@ PAYLOAD_KIND=None
 USE_GRAPH = os.environ.get('USE_GRAPH','1') == '1'
 dev="cuda" if torch.cuda.is_available() else "cpu"
 print("DEV",dev,"USE_GRAPH",USE_GRAPH,flush=True)          # ⚠️ 打印当前模式（合法但不同的默认值要打印）
-model=nv2.NetV2().to(dev).eval()
+NET_SPLIT = os.environ.get('VT_NET_SPLIT','0') == '1'
+model=nv2.NetV2().to(dev).eval()                                    # B 网（选路/开火/价值）
+model_a=nv2.NetV2Small(d=128, layers=4).to(dev).eval() if NET_SPLIT else None   # ⭐ A 网 d=128,L=4（与训练器同尺寸）            # ⭐ A 网（只出 grow）：同一个类、同形状
+print("NET_SPLIT", NET_SPLIT, flush=True)   # ⭐ 合法但不同的模式必须打印
 # ⭐ 权重加载（搭车项，2026-10-17 父代理裁定）：VT_CKPT 指向的 ckpt 存在才加载；诊断一律走 stderr（⛔ 不破一问一答协议）
 _CKPT=os.environ.get('VT_CKPT','')
 if _CKPT and os.path.isfile(_CKPT):
     _ck=torch.load(_CKPT,map_location=dev,weights_only=True)      # 自己的 ckpt；weights_only=True 更安全
     if not (isinstance(_ck,dict) and 'model' in _ck):
         raise ValueError("ckpt 缺 'model' 键（实际键名 %s）—— ⛔ 不猜" % (sorted(_ck.keys()) if isinstance(_ck,dict) else type(_ck).__name__))
-    _r = model.load_state_dict(_ck['model'], strict=False)   # ⭐ 记忆头是新增的 ⇒ strict=False（老权重一位不动）
+    _ck_a = _ck.get('model_a'); _ck_b = _ck.get('model_b', _ck.get('model'))
+    if NET_SPLIT and _ck_a is not None:
+        _ra = model_a.load_state_dict(_ck_a, strict=False); _rb = model.load_state_dict(_ck_b, strict=False)
+        print("CKPT_SPLIT A_missing=%s B_missing=%s A_unexpected=%s B_unexpected=%s" % (list(_ra.missing_keys), list(_rb.missing_keys), list(_ra.unexpected_keys), list(_rb.unexpected_keys)), file=sys.stderr, flush=True)
+        _r = _rb
+    else:
+        if NET_SPLIT: print("CKPT_SINGLE_BOTH 双网模式但 ckpt 只有单份 ⇒ A/B 两边都载同一份", file=sys.stderr, flush=True)
+        _r = model.load_state_dict(_ck["model"], strict=False)
+        if NET_SPLIT: model_a.load_state_dict(_ck["model"], strict=False)   # ⭐ 记忆头是新增的 ⇒ strict=False（老权重一位不动）
     print("CKPT_KEYS missing=%s unexpected=%s" % (list(_r.missing_keys), list(_r.unexpected_keys)), file=sys.stderr, flush=True)   # ⏔t 不静默：逐条打印
     if list(_r.unexpected_keys): raise ValueError("多余键 %s ⇒ ckpt 与网络不匹配（⏔t 静默丢弃）" % list(_r.unexpected_keys))               # ⭐ 原地 copy_（不换 Parameter）：录图前加载，图指针不受影响
     print("CKPT_LOADED %s md5=%s step=%s" % (_CKPT,hashlib.md5(open(_CKPT,'rb').read()).hexdigest()[:8],_ck.get('step')),file=sys.stderr,flush=True)
@@ -34,12 +45,12 @@ _F1 = 0; _F0 = 0; _FIRE_PRINTED = False; _FIRE_DIST_AT = 200   # ⭐ 开火头�
 _TRACE = False                                             # ⭐ 插桩总开关（默认关：插桩不得破坏"一问一答"协议）
 _FIRST_PRINT = True                                        # ⭐ FIRST_SEGS 只打一次
 N_OPP = nv2.N_OPP                                          # ⭐ opp 槽行数【唯一来源】= net_v2_fixed.py:8（⛔ 不在这里另写一个数）
-CTX = N_OPP + nv2.N_BUL + nv2.N_ITM + nv2.N_GLB + nv2.N_MEM   # 上下文 token 数：opp1 时=78，opp8 时=85
-assert CTX == 85, "CTX_TOKENS=%d≠85 ⟹ 与 vt_buffer.py 的 CTX_TOKENS 漂了，别放行" % CTX
+CTX = N_OPP + nv2.N_BUL + nv2.N_ITM + nv2.N_GLB + nv2.N_MEM + nv2.N_PLAN   # ⭐ +plan1（事实直传）   # 上下文 token 数：opp1 时=78，opp8 时=85
+assert CTX == 86, "CTX_TOKENS=%d≠86 ⟹ 与 vt_buffer.py 的 CTX_TOKENS 漂了，别放行" % CTX
 print("CTX_TOKENS", CTX, "N_OPP", N_OPP, "POS_NORM", getattr(nv2, 'POS_NORM', '?'), flush=True)   # ⚠️ 常量必须开机打印（铁律二）；POS_NORM 来源 = net_v2_fixed.py:9（⛔ 不在这里另写）
 def mk(N):                                                # ⭐ 裁剪唯一入口（张量与掩码同长）
     segs={'node':torch.zeros(B,N,10,device=dev),'opp':torch.zeros(B,N_OPP,15,device=dev),'bullet':torch.zeros(B,64,7,device=dev),
-          'item':torch.zeros(B,8,6,device=dev),'global':torch.zeros(B,1,38,device=dev),'mem':torch.zeros(B,4,256,device=dev)}
+          'item':torch.zeros(B,8,6,device=dev),'global':torch.zeros(B,1,38,device=dev),'mem':torch.zeros(B,4,256,device=dev),'plan':torch.zeros(B,1,nv2.SEG['plan'],device=dev)}   # ⭐ plan 槽
     mask=torch.zeros(B,N+CTX,dtype=torch.bool,device=dev)
     assert mask.shape[1]==sum(v.shape[1] for v in segs.values()), '掩码与张量长度不一致（CTX=%d）' % CTX
     return segs,mask
@@ -198,6 +209,12 @@ for line in sys.stdin:
             _st, _mk = _g[1], _g[2]
             _w = model.write_mem(_st, _mk)          # (1,2,256)
             _MEM[_phase] = _w[0].detach()
+        global _MEM_PRINTED
+        _MEM_PRINTED = globals().get("_MEM_PRINTED", 0) + 1
+        if _MEM_PRINTED % 200 == 1:
+            print("MEM_STATE n=%d phase=%s mem_on=%d A_max=%.4f B_max=%.4f fedA_max=%.4f fedB_max=%.4f" % (
+                _MEM_PRINTED, _phase, _mem_on, float(_MEM["A"].abs().max()), float(_MEM["B"].abs().max()),
+                float(_mem_rows[:2].abs().max()), float(_mem_rows[2:].abs().max())), file=sys.stderr, flush=True)
         _echo = _mem_rows.detach().cpu().numpy().tolist()   # 对拍：回包告诉客户端「这帧到底喂了什么」
         # ⭐⭐ A 相（生长）：用 head_grow 在「当前可行生长节点」里采 1 个（grow_ok 掩码）
         # ⭐⭐ 射击帧形态（C8/D3）：对「本段可执行帧」逐帧 Bernoulli 采样（上限 K_FIRE）
@@ -211,7 +228,7 @@ for line in sys.stdin:
                     _b = int(torch.bernoulli(torch.tensor(_fprob)).item())
                     _bits.append(_b)
                     _lpf += math.log(_p) if _b == 1 else math.log(1.0 - _p)
-                    if _b == 1 and len(_kept) < _K: _kept.append({"nodeId": int(_c.get("nodeId")), "back": int(_c.get("back", 0))})
+                    _kept.append({"nodeId": int(_c.get("nodeId")), "back": int(_c.get("back", 0))})   # ⭐ 不裁剪：保留桥的全部候选（冗余兜游标不确定性）
                 _ff = {"fire_frames": _kept, "lp_fire": float(_lpf), "fire_ent": float(len(_cand) * (-(_p * math.log(_p) + (1 - _p) * math.log(1 - _p)))), "fire_ncand": len(_cand), "fire_kept": len(_kept)}
         _grow = None
         if _phase == 'A':
@@ -221,7 +238,7 @@ for line in sys.stdin:
             if int(_allow.sum().item()) < 1: raise ValueError("没有可生长节点（D11：不能生长时不应调 A）")
             _g = _graphs.get(pick_tier(N_real), None)
             _st, _mk = _g[1], _g[2]
-            _gs = model.grow_scores(_st, _mk)[0][:N_real].float()          # 逐 token logits → 取 node 区
+            _gs = (model_a if NET_SPLIT else model).grow_scores(_st, _mk)[0][:N_real].float()   # ⭐ 双网时 A 相走 model_a          # 逐 token logits → 取 node 区
             _gm = torch.where(_allow, _gs, torch.full_like(_gs, float('-inf')))
             _glp = torch.log_softmax(_gm, dim=-1)
             try: _seed2 = int(d.get('seed') or 0)

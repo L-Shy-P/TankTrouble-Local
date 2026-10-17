@@ -105,7 +105,7 @@ DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
                 w_kill=1.0, w_selfkill=-1.5, w_death=-1.0, w_death_storm=-1.5, w_kill_storm=1.0,
                 w_crate=0.05, w_draw=-0.5, w_empty_fire=-0.10,
                 w_win=3.0, w_lose=-1.0, w_legal_pen=0.05,
-                fire_ent_coef=-1.0,   # ⭐（无出处、待实验）单独给 head_fire 的熵权重；-1 = 随 entropy_coef（用于把 fire 头从饱和里拉出）   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
+                fire_ent_coef=0.1,   # ⭐【无出处、待实验】=10×entropy_coef；目的把 head_fire 从饱和（p≈0.94）拉出来   # ⭐（无出处、待实验）单独给 head_fire 的熵权重；-1 = 随 entropy_coef（用于把 fire 头从饱和里拉出）   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
                 bootstrap="error")
 
 MEM_MODE_NOTE = (
@@ -226,6 +226,14 @@ def load_net_module():
     return m
 
 
+def build_net_split(device):
+    # D8: A 网 d=128,L=4（不继承、全随机）；B 网 d=256,L=3（继承单份 ckpt）
+    nv2 = load_net_module()
+    net_b = nv2.NetV2().to(device)
+    net_a = nv2.NetV2Small(d=128, layers=4).to(device)
+    return net_a, net_b, nv2
+
+
 def build_net(device):
     nv2 = load_net_module()
     if dict(nv2.SEG) != dict(vb.SEG_DIM):
@@ -235,7 +243,7 @@ def build_net(device):
     want = (vb.CAP["opp"], vb.CAP["bullet"], vb.CAP["item"], vb.CAP["global"], vb.CAP["mem"])
     if got != want:
         raise AssertionError("段容量不一致：net=%s buffer=%s" % (got, want))
-    if vb.CTX_TOKENS != vb.CAP["opp"] + vb.CAP["bullet"] + vb.CAP["item"] + vb.CAP["global"] + vb.CAP["mem"]:
+    if vb.CTX_TOKENS != vb.CAP["opp"] + vb.CAP["bullet"] + vb.CAP["item"] + vb.CAP["global"] + vb.CAP["mem"] + vb.CAP["plan"]:   # ⭐ +plan
         raise AssertionError("%d 个上下文 token 的求和自检失败" % vb.CTX_TOKENS)
     net = nv2.NetV2().to(device)
     return net, nv2
@@ -259,6 +267,8 @@ def build_batch(frames, idx, device):
     grow_row = torch.zeros(B, dtype=torch.int64, device=device)
     lp_grow_old = torch.zeros(B, device=device)
     grow_missing = 0
+    plan_t = torch.zeros(B, vb.CAP["plan"], vb.SEG_DIM["plan"], device=device)   # ⭐ 事实直传（plan 段）
+    plan_missing = 0
     fire_bit = torch.zeros(B, device=device)
     fire_valid = torch.zeros(B, device=device)
     lp_fire_old = torch.zeros(B, device=device)
@@ -282,6 +292,11 @@ def build_batch(frames, idx, device):
             if 0 < _pp < n: isPar[_pp] = 1
         for _i in range(1, n):
             if isPar[_i] == 0: grow_ok[j, _i] = 1.0
+        _pl = f.get("plan")
+        if isinstance(_pl, list) and len(_pl) == vb.SEG_DIM["plan"]:
+            plan_t[j, 0] = torch.tensor([float(x) for x in _pl], device=device)
+        else:
+            plan_missing += 1
         _fb = (f["act"] or {}).get("fire")
         if isinstance(_fb, (int, float)) and not isinstance(_fb, bool):
             fire_bit[j] = 1.0 if int(_fb) == 1 else 0.0; fire_valid[j] = 1.0
@@ -310,7 +325,8 @@ def build_batch(frames, idx, device):
             "item": torch.from_numpy(np.stack([frames[i]["item"] for i in idx])).to(device),
             "global": torch.from_numpy(np.stack([frames[i]["global"] for i in idx])).to(device),
             "mem": torch.from_numpy(np.stack([frames[i].get("_mem", frames[i]["mem"]) for i in idx])).to(device)}   # ⭐ mem_mode=net 时用局内重算的记忆
-    return {"segs": segs, "mask": mask, "act": act, "lp_old": lp_old, "v_old": v_old,
+    segs["plan"] = plan_t
+    return {"segs": segs, "mask": mask, "act": act, "lp_old": lp_old, "v_old": v_old, "plan_missing": plan_missing,
             "grow_ok": grow_ok, "grow_row": grow_row, "lp_grow_old": lp_grow_old, "grow_missing": grow_missing,
             "fire_bit": fire_bit, "fire_valid": fire_valid, "lp_fire_old": lp_fire_old, "fire_missing": fire_missing,
             "rew": rew, "Ns": Ns, "nmax": nmax}
@@ -476,7 +492,7 @@ def prepare_targets(buffer, cfg):
     return frames, adv.astype(np.float32), ret.astype(np.float32), adv_std_raw, tails
 
 
-def ppo_update(buffer, net, opt, cfg, device, step):
+def ppo_update(buffer, net, opt, cfg, device, step, net_a=None, opt_a=None):   # ⭐ net_a/opt_a 非 None ⇒ D8 双网
     frames, adv, ret, adv_std_raw, tails = prepare_targets(buffer, cfg)
     T = len(frames)
     Ns = np.array([f["N"] for f in frames], dtype=np.int64)
@@ -511,7 +527,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             vloss = F.mse_loss(v, ret_t)
             ent_m = ent.mean()
             # ⭐⭐ A 相梯度：pg_grow = -(logp_grow(a_t) × A_t)；ent_grow = 可生长分布的熵
-            lp_grow, ent_grow_b = grow_forward(net, b)
+            lp_grow, ent_grow_b = grow_forward(net_a if net_a is not None else net, b)   # ⭐ 双网 ⇒ A 网
             _gv = ((b["grow_ok"] > 0).any(-1) & (b["grow_row"] > 0)).float()   # ⭐ 只对「有候选且有动作」的样本算梯度
             _gn = _gv.sum().clamp(min=1.0)
             _term = torch.where(_gv > 0, lp_grow * A, torch.zeros_like(lp_grow))   # ⭐ 先置零再求和（避免 -inf×0 ⇒ NaN）
@@ -540,6 +556,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
                 opt.zero_grad(set_to_none=True)
                 continue
             opt.step()
+            if net_a is not None: opt_a.step()   # ⭐ D8 双网：A 网自己 step
             _nupd += 1   # ⭐ 计数（供 max_updates 截断）
             with torch.no_grad():
                 sse += float(((v - ret_t) ** 2).sum())
@@ -605,6 +622,7 @@ def save_ckpt(path, net, opt, step, episodes, cfg, extra=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     obj = {"format": CKPT_FORMAT,
            "model": net.state_dict(),          # ⛔ 原地 load_state_dict 回填（CUDA Graph 烘焙的是指针）
+           "model_a": (extra or {}).get("model_a"),   # ⭐ D8 双网：A 网权重（单网时 None）
            "opt": opt.state_dict(),
            "step": int(step), "episodes": int(episodes),
            "rng": torch.get_rng_state().cpu(), "np_rng": np_rng_pack(),
@@ -651,6 +669,13 @@ def load_ckpt(path, net, opt, device):
             for g in opt.param_groups:
                 _ng = dict(g); _ng.update({k2: v2 for k2, v2 in _base.items() if k2 in ("lr", "betas", "eps", "weight_decay", "amsgrad")})
                 _pgs.append(_ng)
+            _drop = 0
+            for _p, _stt in list(_ns.items()):
+                for _key in ("exp_avg", "exp_avg_sq", "max_exp_avg_sq"):
+                    _v = _stt.get(_key)
+                    if _v is not None and tuple(_v.shape) != tuple(_p.shape):
+                        _ns.pop(_p); _drop += 1; break
+            if _drop: log("⭐ 丢弃 %d 项形状不匹配的旧动量（新增段导致，如 plan）" % _drop)
             opt.load_state_dict({"state": _ns, "param_groups": _pgs})
             log("⭐ 老参数动量已恢复 %d 项；mem_writer 从零开始" % len(_ns))
     if "rng" in obj:
@@ -728,7 +753,16 @@ def run_cycle(state, buffer, cfg, args, net, opt, device):
     if cfg.get("mem_mode") == "net":
         _n = precompute_mem(buffer, net, device)   # ⭐ mem_mode=net：局内按帧序重算记忆
         log("⭐ 记忆已按帧序重算：%d 帧（每局 M_0=0）" % _n)
-    res = ppo_update(buffer, net, opt, cfg, device, state["step"])
+    _net_a = state.get("net_a"); _opt_a = state.get("opt_a")
+    def _sig(m):
+        import hashlib as _h
+        _w = m.proj["node"].weight.detach().cpu().numpy()
+        return (float(_w.__abs__().sum()), _h.md5(_w.tobytes()).hexdigest()[:8])
+    _before = (_sig(net), _sig(_net_a)) if _net_a is not None else None
+    res = ppo_update(buffer, net, opt, cfg, device, state["step"], net_a=_net_a, opt_a=_opt_a)
+    if _net_a is not None:
+        _after = (_sig(net), _sig(_net_a))
+        log("⭐ 两网权重（proj.node）前 B=%s A=%s → 后 B=%s A=%s" % (_before[0], _before[1], _after[0], _after[1]))
     state["step"] += 1
     state["cycle"] += 1
     state["trained_frames"] += res["frames"]
@@ -736,7 +770,7 @@ def run_cycle(state, buffer, cfg, args, net, opt, device):
     res["samples_per_s"] = round(res["frames"] / max(res["update_s"], 1e-9), 1)
 
     ckpt = os.path.join(args.out, "ckpt", "last.pt")
-    size = save_ckpt(ckpt, net, opt, state["step"], state["episodes"], cfg)
+    size = save_ckpt(ckpt, net, opt, state["step"], state["episodes"], cfg, extra=({"model_a": state["net_a"].state_dict()} if state.get("net_a") is not None else None))
     msize = save_model_only(os.path.join(args.out, "ckpt", "model_latest.pt"), net, state["step"], cfg)
 
     line = {"kind": "cycle", "ts": time.time(), "cycle": state["cycle"], "step": state["step"],
@@ -1012,6 +1046,25 @@ def main(argv=None):
         state = {"step": int(obj["step"]) if ckpt_cfg else 0,
                  "episodes": int(obj["episodes"]) if ckpt_cfg else 0,
                  "cycle": 0, "frames": 0, "trained_frames": 0, "trained_episodes": 0}
+        # ⭐⭐ D8 双网（VT_NET_SPLIT=1）：A 网 d=128,L=4 随机起步；B 网继承单份 ckpt
+        if os.environ.get("VT_NET_SPLIT", os.environ.get("VT_NET_SPLIT", "0")) == "1" or bool(cfg.get("_net_split")):
+            net_a, _nb2, _nv2b = build_net_split(device)
+            _pa = sum(p.numel() for p in net_a.parameters())
+            log("⭐ D8 双网：A 网(d=128,L=4) 参数=%d（%.3fM）、B 网(d=256,L=3) 参数=%d" % (_pa, _pa / 1e6, nparam))
+            _ca = None
+            if resume_path:
+                try:
+                    _o = torch.load(resume_path, map_location=device, weights_only=True)
+                    _ca = _o.get("model_a")
+                except Exception as _e:
+                    _ca = None
+            if _ca is not None:
+                _ra = net_a.load_state_dict(_ca, strict=False)
+                log("⭐ CKPT_A_LOADED missing=%s unexpected=%s" % (list(_ra.missing_keys), list(_ra.unexpected_keys)))
+            else:
+                log("⭐ CKPT_A_RANDOM（A 网不继承、全随机）")
+            _opt_a = make_opt(net_a, cfg["lr"])
+            state["net_a"] = net_a; state["opt_a"] = _opt_a
         if ckpt_cfg:
             log("▶ 从 ckpt 续训：step=%d episodes=%d（超参随 ckpt 读回，⛔ 不靠命令行默认值）"
                 % (state["step"], state["episodes"]))
