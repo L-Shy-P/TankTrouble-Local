@@ -210,6 +210,10 @@
             var dup = false; for (var di = 0; di < bl.length; di++) if (bl[di].back === bk) dup = true;
             if (!dup) bl.push({ back: bk, frame: f2 });
           }   // ⭐ 单帧精确对齐（cursorByFrame 已算出 rel）
+          // ⭐⭐ 射击帧由【服务端 head_fire 采样】给出 ⇒ 直接用，桥不再枚举（回退：服务端没给就用自己的 bl）
+          if (Array.isArray(window.__b.fireFramesFromServer) && window.__b.fireFramesFromServer.length) {
+            bl = window.__b.fireFramesFromServer.map(function (x) { return { back: (x.back | 0), frame: null }; });
+          }
           for (var bi = 0; bi < bl.length; bi++) picks.push({ nodeId: cur.id, back: bl[bi].back });   // ⭐ picks[1..] = 若干射击帧（帧0 / 游标帧 / 游标帧+1）
           // ⭐ `fireBias` 只用于"rel 是否差 1 帧"的标定测量（默认 0，由 `VT_FIRE_REL_BIAS` 设）
           // （射击帧已在上面按 bl 全部 push；此处不再单独 push）

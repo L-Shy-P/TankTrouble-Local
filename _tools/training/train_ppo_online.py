@@ -104,7 +104,8 @@ DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
                 w_spawn=0.02, w_hit=0.2, w_aim=0.01, max_updates=0,
                 w_kill=1.0, w_selfkill=-1.5, w_death=-1.0, w_death_storm=-1.5, w_kill_storm=1.0,
                 w_crate=0.05, w_draw=-0.5, w_empty_fire=-0.10,
-                w_win=3.0, w_lose=-1.0, w_legal_pen=0.05,   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
+                w_win=3.0, w_lose=-1.0, w_legal_pen=0.05,
+                fire_ent_coef=-1.0,   # ⭐（无出处、待实验）单独给 head_fire 的熵权重；-1 = 随 entropy_coef（用于把 fire 头从饱和里拉出）   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
                 bootstrap="error")
 
 MEM_MODE_NOTE = (
@@ -517,6 +518,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             pg_grow = -_term.sum() / _gn
             ent_grow = torch.where(_gv > 0, ent_grow_b, torch.zeros_like(ent_grow_b)).sum() / _gn
             # ⭐⭐ head_fire 梯度：逐帧 Bernoulli 的 logp × A_t
+            _fec = cfg["entropy_coef"] if float(cfg.get("fire_ent_coef", -1.0)) < 0 else float(cfg["fire_ent_coef"])
             _pf = torch.sigmoid(fire_logit).clamp(1e-6, 1 - 1e-6)
             _bit = b["fire_bit"].float()
             lp_fire_new = torch.where(_bit > 0.5, torch.log(_pf), torch.log(1.0 - _pf))
@@ -524,7 +526,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             _fn = _fv.sum().clamp(min=1.0)
             pg_fire = -(torch.where(_fv > 0, lp_fire_new * A, torch.zeros_like(lp_fire_new)).sum()) / _fn
             ent_fire = torch.where(_fv > 0, -(_pf * torch.log(_pf) + (1 - _pf) * torch.log(1 - _pf)), torch.zeros_like(_pf)).sum() / _fn
-            loss = pg + pg_grow + pg_fire + cfg["value_coef"] * vloss - cfg["entropy_coef"] * (ent_m + ent_grow + ent_fire)
+            loss = pg + pg_grow + pg_fire + cfg["value_coef"] * vloss - cfg["entropy_coef"] * (ent_m + ent_grow) - _fec * ent_fire
             opt.zero_grad(set_to_none=True)
             loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), cfg["max_grad_norm"])

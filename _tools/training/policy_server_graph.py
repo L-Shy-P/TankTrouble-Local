@@ -200,6 +200,19 @@ for line in sys.stdin:
             _MEM[_phase] = _w[0].detach()
         _echo = _mem_rows.detach().cpu().numpy().tolist()   # 对拍：回包告诉客户端「这帧到底喂了什么」
         # ⭐⭐ A 相（生长）：用 head_grow 在「当前可行生长节点」里采 1 个（grow_ok 掩码）
+        # ⭐⭐ 射击帧形态（C8/D3）：对「本段可执行帧」逐帧 Bernoulli 采样（上限 K_FIRE）
+        _ff = None
+        if _phase == 'B':
+            _cand = d.get('fire_cand') or []
+            if _cand:
+                _K = int(d.get('fire_k', 4))
+                _bits = []; _lpf = 0.0; _kept = []
+                for _c in _cand:
+                    _b = int(torch.bernoulli(torch.tensor(_fprob)).item())
+                    _bits.append(_b)
+                    _lpf += math.log(_p) if _b == 1 else math.log(1.0 - _p)
+                    if _b == 1 and len(_kept) < _K: _kept.append({"nodeId": int(_c.get("nodeId")), "back": int(_c.get("back", 0))})
+                _ff = {"fire_frames": _kept, "lp_fire": float(_lpf), "fire_ent": float(len(_cand) * (-(_p * math.log(_p) + (1 - _p) * math.log(1 - _p)))), "fire_ncand": len(_cand), "fire_kept": len(_kept)}
         _grow = None
         if _phase == 'A':
             _ok = d.get('grow_ok') or []
@@ -217,6 +230,6 @@ for line in sys.stdin:
             _gi = int(torch.multinomial(_glp.exp(), 1).item())
             _p = _glp.exp(); _ent = float(-(_p * torch.where(_p > 0, _glp, torch.zeros_like(_glp))).sum())
             _grow = {"grow_nodeId": _gi, "lp_grow": float(_glp[_gi]), "ent_grow": _ent, "grow_ok_count": int(_allow.sum().item())}
-        print(json.dumps(({"grow": _grow} if _grow else {}) | {"lp":lp,"v":v,"fire":fire,"lp_fire":lp_fire,"fire_ent":fire_ent,"fire_p":_fprob,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
+        print(json.dumps(({"grow": _grow} if _grow else {}) | ({"fire_sel": _ff} if _ff else {}) | {"lp":lp,"v":v,"fire":fire,"lp_fire":lp_fire,"fire_ent":fire_ent,"fire_p":_fprob,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
     except Exception as e:
         print(json.dumps({"lp":None,"v":None,"err":str(e)[:240]}),flush=True)   # ⭐ 诊断信息尽量带全（仍是一行 JSON，协议不变）
