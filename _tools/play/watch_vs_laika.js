@@ -1,11 +1,12 @@
 // 实机观战：开【可见】浏览器，Vantage(策略) vs Laika，自动一局接一局
 // 用法： VT_CKPT=D:/vt_run/dist/step6/ckpt/model_latest.pt node _tools/play/watch_vs_laika.js
+const {makeAsk}=require('../headless/_policy_client');
 const fs=require('fs'),path=require('path');const {spawn}=require('child_process');
 const {Match}=require('../headless/match');
 const SRC=fs.readFileSync(path.join(__dirname,'..','headless','inject_fire.js'),'utf8');
 const ROUNDS=+process.env.W_ROUNDS||0, CAP=+process.env.W_FRAMES||0;   // 0 = 一直跑
 const RULES=(process.env.W_RULES||'0')==='1';   // 1 = 不注入策略，纯原生 AI 对打
-function ask(srv,o){return new Promise(r=>{srv.stdin.write(JSON.stringify(o)+'\n');srv.stdout.once('data',d=>{try{r(JSON.parse(String(d).trim()))}catch(e){r({err:'parse'})}});});}
+let ask=null;   // 由 makeAsk(srv) 赋值（按行缓冲，⛔ 不再 once('data')）
 (async()=>{
   let srv=null;
   if(!RULES){
@@ -14,6 +15,7 @@ function ask(srv,o){return new Promise(r=>{srv.stdin.write(JSON.stringify(o)+'\n
     srv=spawn('py',['-3.13','_tools/training/policy_server_graph.py'],{env:Object.assign({},process.env,{PYTHONIOENCODING:'utf-8'})});
     srv.stderr.on('data',d=>{const t=String(d); if(t.indexOf('CKPT_')>=0)console.log('策略 '+t.trim().slice(0,90));});
     await new Promise(r=>{const h=d=>{if(String(d).indexOf('WARMUP_SAMPLE')<0)return;srv.stdout.off('data',h);r();};srv.stdout.on('data',h);});
+  ask=makeAsk(srv);   // ⭐ 按行缓冲客户端
   }
   const m=new Match();
   await m.open({humanIds:[],aiCount:1,vantCount:1,control:false,headless:false});

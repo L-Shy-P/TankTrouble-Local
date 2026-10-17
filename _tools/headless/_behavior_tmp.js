@@ -1,14 +1,16 @@
 // 行为指标探针：合法性 / 移动流畅度 / 是否朝敌开火 / 是否躲弹
+const {makeAsk}=require('./_policy_client');
 const fs=require('fs');const {spawn}=require('child_process');const {Match}=require('./match');
 const SRC=fs.readFileSync(__dirname+'/inject_fire.js','utf8');
 const FR=+process.env.B_FRAMES||1200;
-function ask(srv,o){return new Promise(r=>{srv.stdin.write(JSON.stringify(o)+'\n');srv.stdout.once('data',d=>{try{r(JSON.parse(String(d).trim()))}catch(e){r({err:'parse'})}});});}
+let ask=null;   // 由 makeAsk(srv) 赋值（按行缓冲，⛔ 不再 once('data')）
 const ST="(()=>{var gc=GameManager.getGameController();var r=gc.getRoundState();var o={st:gc.getState(),me:null,foe:null,proj:[]};var ts=r.tankStates||[];for(var i=0;i<ts.length;i++){var t=ts[i],pid=t.playerId||t.id;var v={x:+t.x.toFixed(2),y:+t.y.toFixed(2),rot:+t.rot.toFixed(2)};if(String(pid)==='vantage_1')o.me=v;else o.foe=v;}var ps=r.projectileStates||[];for(var j=0;j<ps.length;j++){var p=ps[j];o.proj.push({o:String(p.owner||p.playerId||''),x:p.x,y:p.y,vx:p.speedX||0,vy:p.speedY||0});}return JSON.stringify(o)})()";
 (async()=>{
   const env=Object.assign({},process.env,{PYTHONIOENCODING:'utf-8'});
   const srv=spawn('py',['-3.13','_tools/training/policy_server_graph.py'],{env});
   const serr=[]; srv.stderr.on('data',d=>{const t=String(d); if(t.indexOf('CKPT_')>=0)console.log('SRV_CKPT '+t.trim().slice(0,90));});
   await new Promise(r=>{const h=d=>{if(String(d).indexOf('WARMUP_SAMPLE')<0)return;srv.stdout.off('data',h);r();};srv.stdout.on('data',h);});
+  ask=makeAsk(srv);   // ⭐ 按行缓冲客户端
   const m=new Match(); await m.open({humanIds:[],aiCount:1,vantCount:1,control:false});
   await m.eval(SRC); await m.eval("window.__b.tankId='vantage_1'"); await m.eval('window.__probe.setup()');
   await m.pump(20,{yieldMs:0});
@@ -29,8 +31,10 @@ const ST="(()=>{var gc=GameManager.getGameController();var r=gc.getRoundState();
     const N=(o.n||[]).length;
     if(N<1){ await m.pump(1,{yieldMs:0}); continue; }
     const bRows=(o.b&&o.b.length)?o.b:[[0,0,0,0,0,0,0]];
-    const p=await ask(srv,{N:N,seed:f+1,segs:{node:o.n,bullet:bRows,global:[o.g]}});
-    sub++; if(p.err)serrN++;
+    const _o15=(function(){var a=(o.opp||[]).slice(0,15); while(a.length<15)a.push(0); return a;})();
+    const _it=Array.from({length:8},function(){return [0,0,0,0,0,0];});
+    const p=await ask(srv,{N:N,seed:f+1,segs:{node:o.n,bullet:bRows,global:[o.g],opp:[_o15],item:_it}});
+    sub++; if(p.err){serrN++; if(!global.__peShown){global.__peShown=1;console.log('SRV_ERR '+JSON.stringify(p).slice(0,300));}}
     if(typeof p.nodeId==='number'){ if(p.nodeId<0||p.nodeId>=N)oob++; else {nodeId=p.nodeId; ok++;} }
     // 移动
     if(prev){ const d=Math.hypot(s.me.x-prev.x,s.me.y-prev.y); steps.push(d);
