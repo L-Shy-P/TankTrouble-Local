@@ -193,6 +193,10 @@ class Srv {
 async function runScene(scene, srv, cap) {
   const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
   let s30segs = null, s30p = null, s30n = 0;   // ⭐ S30_DUMP：本帧 segs/p + 原始帧计数
+  // ⭐ 稠密奖励用的上一帧状态（父代理 2026-10-18：终局 ±3 太稀 ⟹ 需逐帧信号）
+  let dLastFired = null, dLastKill = 0, dLastDeath = 0, dLastPose = null;
+  let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
+  let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   const r = {
     scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0,
     players: scene.players, mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: null,
@@ -209,7 +213,11 @@ async function runScene(scene, srv, cap) {
   try {
     m = new Match();
     // ⭐ 可复现：每场固定 RNG 序列（`--no-fix-rng` 关闭）⟹ 同一 scene 两次跑地图必须一致
-    const mazeSeed = ((Number(scene.seed) || 1) * 100003 + 7) >>> 0;
+    // ⭐ S30_SEED_SALT：给 scene.seed 加盐 ⟹ 同一场景出【全新地图】。
+    //   用途：① 生成训练集市多样性（同一场景多盐 = 多个不同地图的对局）
+    //        ② 训练/留出集彻底隔离（训练用盐 1000~4000，留出集用 50000）
+    const SEED_SALT = Number(process.env.S30_SEED_SALT || 0);
+    const mazeSeed = (((Number(scene.seed) || 1) + SEED_SALT) * 100003 + 7) >>> 0;
     const openOpts = { humanIds: [], players: scene.players, storm: !!scene.storm,
                    crates: scene.crates, control: false, epoch: scene.epoch };
     if (RNG_FIX) openOpts.rngSeq = lcgSeq(mazeSeed, RNG_SEQ_LEN);
@@ -338,13 +346,58 @@ async function runScene(scene, srv, cap) {
         const segs = s30segs;
         s30n++;
         const _fire = (s30p && typeof s30p.fire === 'number') ? (s30p.fire ? 1 : 0) : 0;
+        // ── 稠密奖励（逐帧真实信号，来自评测已有遥测；⛔ 不用"假设值"）
+        //    spawn : 本帧真实发射数增量（`o.wep[vid].fired` 是累计值 ⟹ 取差分）
+        //    kill  : 本帧击杀事件增量（`o.kills` 是累计数组 ⟹ 取长度/事件差分）
+        //    death : 本帧我方死亡事件增量
+        //    aim   : 最近存活对手是否在车头 ±20°（0/1）
+        let dSpawn = 0, dKill = 0, dDeath = 0, dAim = 0;
+        try {
+          const _vid2 = o.vid;
+          const _w = o.wep && o.wep[_vid2];
+          if (_w && typeof _w.fired === 'number') {
+            if (dLastFired !== null && _w.fired > dLastFired) dSpawn = _w.fired - dLastFired;
+            dLastFired = _w.fired;
+          }
+          // ⚠️ 实测 `o.kills` 在"我方获胜但 killsN=0"时抓不到事件 ⟹ 改用【存活玩家集合变化】判死
+          //   （与 `alive_trace` 同源：`gc.getTanks()` 的 id 集合）
+          const _ids = o.pl ? Object.keys(o.pl) : [];
+          const _meAlive = (_ids.indexOf(_vid2) >= 0) ? 1 : 0;
+          const _oppAlive = _ids.filter(function (k) { return k !== _vid2; }).length;
+          if (dPrevAlive !== null) {
+            if (dPrevAlive.me === 1 && _meAlive === 0) dDeath = 1;
+            if (_oppAlive < dPrevAlive.opp) dKill = dPrevAlive.opp - _oppAlive;
+          }
+          dPrevAlive = { me: _meAlive, opp: _oppAlive };
+          // aim：用双方位姿算角差
+          const _me = o.pl && o.pl[_vid2];
+          const _op = o.pl ? Object.keys(o.pl).filter(function (k) { return k !== _vid2; }).map(function (k) { return o.pl[k]; }) : [];
+          if (_me && _op.length) {
+            let bi = -1, bd = Infinity;
+            for (let qi = 0; qi < _op.length; qi++) {
+              const _q = _op[qi]; if (!_q) continue;
+              const dd = (_q.x - _me.x) * (_q.x - _me.x) + (_q.y - _me.y) * (_q.y - _me.y);
+              if (dd < bd) { bd = dd; bi = qi; }
+            }
+            if (bi >= 0) {
+              const _t2 = _op[bi];
+              let da = Math.atan2(_t2.y - _me.y, _t2.x - _me.x) - (_me.rot || 0);
+              while (da > Math.PI) da -= 2 * Math.PI;
+              while (da < -Math.PI) da += 2 * Math.PI;
+              if (Math.abs(da) * 180 / Math.PI <= 20) dAim = 1;
+            }
+          }
+        } catch (eDense) { }
+        s30dense = { spawn: dSpawn, kill: dKill, death: dDeath, aim: dAim };
         dumpFrames.push({
           t: f, N: o.N, obs: segs,
           act: { nodeId: nodeId, fire: _fire, picks: [{ nodeId: nodeId, back: 0 }] },
           lp: (s30p && typeof s30p.lp === 'number' && isFinite(s30p.lp)) ? s30p.lp : null,
           v: (s30p && typeof s30p.v === 'number' && isFinite(s30p.v)) ? s30p.v : null,
           execByPolicy: true, execStill: (o.sub ? (!o.sub.f && !o.sub.b && !o.sub.l && !o.sub.r) : null),
-          r: { total: 0, result: 0, survive: 1, legal: 0 }, done: false
+          r: { total: 0, result: 0, survive: 1, legal: 0,
+               spawn: s30dense.spawn, kill: s30dense.kill, death: s30dense.death, aim: s30dense.aim,
+               selfkill: 0, kill_storm: 0, death_storm: 0 }, done: false
         });
         // 滚动裁剪：只保留最后 DUMP_MAX 帧（0=不裁）
         if (DUMP_MAX > 0 && dumpFrames.length > DUMP_MAX * 2) dumpFrames.splice(0, dumpFrames.length - DUMP_MAX);
