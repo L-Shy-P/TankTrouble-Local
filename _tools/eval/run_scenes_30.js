@@ -61,6 +61,20 @@ function fnv1a(str) {
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return ('00000000' + h.toString(16)).slice(-8);
 }
+// ⭐ 2026-10-17（父代理裁定）：**策略采样种子确定性派生** seed = f(scene_id, frameIndex)
+//   ⛔ 不用 Date.now()/全局递增/Math.random()；同一 scene + 同一帧 ⟹ 永远同一个 seed ⟹ 采样可复现
+const SEED_MODE = 'deterministic';
+// ⭐ 2026-10-17：`--repeat k`（每场跑 k 次取中位；k=1 为旧行为）
+const REPEAT_K = Math.max(1, Number(process.env.S30_REPEAT || (process.argv.indexOf('--repeat') >= 0 ? (process.argv[process.argv.indexOf('--repeat') + 1] || 1) : 1)));
+function seedFor(sceneId, f) {
+  const base = fnv1aHex(String(sceneId));
+  return (((Math.imul(base, 1000003) >>> 0) + (f >>> 0)) >>> 0) % 2147483647;
+}
+function fnv1aHex(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
 
 const logErr = (s) => process.stderr.write(String(s) + '\n');
 const outLine = (s) => process.stdout.write(String(s) + '\n');
@@ -154,6 +168,9 @@ async function runScene(scene, srv, cap) {
     await m.open(openOpts);
     r.mazeSeed = RNG_FIX ? mazeSeed : null;
     r.rngSeqLen = RNG_FIX ? RNG_SEQ_LEN : 0;
+    // ⭐ 策略采样种子：确定性派生（同一 scene 同一帧 ⟹ 同一 seed）；记录前 5 个便于核对
+    r.seedMode = SEED_MODE;
+    r.seedSample = [0, 1, 2, 3, 4].map((k) => seedFor(scene.id, k));
     const boot = m.bootstrap || {};
     r.ai_ids = boot.aiIds || [];
     r.vantage_id = (boot.vantageIds || [])[0] || null;
@@ -247,7 +264,7 @@ async function runScene(scene, srv, cap) {
           }
         }
         let p = null;
-        try { p = await srv.ask({ N: o.N, seed: (scene.seed * 100000 + f + 1) % 2147483647, segs: segs }); lpTot++; }
+        try { p = await srv.ask({ N: o.N, seed: seedFor(scene.id, f), segs: segs }); lpTot++; }
         catch (eA) { r.step_err = 'server: ' + String((eA && eA.message) || eA).slice(0, 300); break; }
         if (p) {
           if (p.err) { srvErr++; if (srvErr <= 2) logErr('SRV_ERR[' + scene.id + '] ' + String(p.err).slice(0, 200)); }
@@ -444,7 +461,9 @@ async function runScene(scene, srv, cap) {
     try { fs.fsyncSync(fd); } catch (eFs) {}
   };
   logErr('RUN scenes=' + scenes.length + ' cap(2/4/8人)=' + cap2 + '/' + cap4 + '/' + cap8 +
-         ' 【cap 分档=无出处、待实验；--cap/--cap4/--cap8 可覆盖】 fire=' + (FIRE_ON ? 1 : 0) + ' -> ' + resultsPath);
+         ' 【cap 分档=无出处、待实验；--cap/--cap4/--cap8 可覆盖】 fire=' + (FIRE_ON ? 1 : 0) +
+         ' seedMode=' + SEED_MODE + (scenes.length ? (' seedSample=' + JSON.stringify([0, 1, 2, 3, 4].map((k) => seedFor(scenes[0].id, k)))) : '') +
+         ' rngFix=' + (RNG_FIX ? ('on(len=' + RNG_SEQ_LEN + ')') : 'off') + ' -> ' + resultsPath);
 
   let srv = null;
   try {
@@ -469,6 +488,29 @@ async function runScene(scene, srv, cap) {
         const capUsed = capFor(scene.players);
         r = await runScene(scene, srv, capUsed);
         r.cap = capUsed;   // ⭐ 记下本场实际用的 cap（分档可追溯）
+        // ⭐ 2026-10-17（父代理裁定 ③）：`--repeat k` 每场跑 k 次，取**中位数**作该场成绩
+        //   （因为即使地图固定 + seed 确定性，`frames` 仍可能差几十帧；k 次取中位把残余抖动平均掉，代价机时 ×k）
+        if (REPEAT_K > 1) {
+          const runs = [r];
+          for (let k = 2; k <= REPEAT_K; k++) {
+            logErr('REPEAT ' + (k + '/' + REPEAT_K) + ' ' + scene.id);
+            try { runs.push(await runScene(scene, srv, capUsed)); } catch (eR) { logErr('REPEAT_ERR ' + scene.id + ': ' + String((eR && eR.message) || eR).slice(0, 200)); }
+          }
+          const winsArr = runs.map((x) => (x.win === 1 ? 1 : (x.win === 0 ? 0 : null)));
+          const decided = winsArr.filter((v) => v !== null);
+          const sumW = decided.reduce((a, b) => a + b, 0);
+          const majWin = decided.length ? (sumW * 2 > decided.length ? 1 : (sumW * 2 < decided.length ? 0 : null)) : null;
+          const fr = runs.map((x) => x.frames).filter((v) => typeof v === 'number').sort((a, b) => a - b);
+          const medFrames = fr.length ? fr[Math.floor((fr.length - 1) / 2)] : r.frames;
+          const medRun = runs.find((x) => x.frames === medFrames) || r;
+          r = Object.assign({}, medRun, {
+            repeatK: REPEAT_K, repeatWins: winsArr, repeatFrames: runs.map((x) => x.frames),
+            win: majWin, result: medRun.result, frames: medFrames,
+            mazeHashes: Array.from(new Set(runs.map((x) => x.mazeHash))),
+            repeatAllSame4: runs.every((x) => x.mazeHash === runs[0].mazeHash && x.frames === runs[0].frames && x.result === runs[0].result && x.winner === runs[0].winner)
+          });
+          logErr('REPEAT_SUM ' + scene.id + ' wins=' + JSON.stringify(winsArr) + ' frames=' + JSON.stringify(runs.map((x) => x.frames)) + ' allSame4=' + r.repeatAllSame4);
+        }
       } catch (e) {
         r = { scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0, players: scene.players,
               mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: String((e && e.stack) || e).slice(0, 1200) };
