@@ -54,6 +54,9 @@ EXTRA_DEFAULTS = OrderedDict([
     ("w_speed", 0.5),               # 【无出处、待主人拍】速通奖励上限
     ("w_fast_death", -0.5),         # 【无出处、待主人拍】"死得太快"惩罚（对称负值）
     ("speed_delta_frames", 60.0),   # 出处：父代理 `2026-10-17` 派单「时限 Δ=60 帧」
+    # ⭐ 稠密项（`still`/`progress` 由另一代理加进本文件；`progress` 的取数一直是空的 ⟹ `2026-10-18` 由本代理补齐）
+    ("w_progress", 0.02),           # 【无出处、待主人拍】靠近对手的稠密奖励
+    ("progress_clamp", 1.0),        # 【无出处、待主人拍】单帧"靠近量"上界。**单位=米**（实测靠近帧 |Δ| p50=0.107 p95=0.270 p99=0.331 max=11.16 ⟹ 1.0≈3×p99；11087 帧里只有 1 帧触顶）
     # 道具奖励随训练轮次线性衰减到 0：0 = 不衰减（缺省）。
     #   ⚠️ 衰减**已实现并可验算**（见 selftest 的 `crate_decay` 用例），但训练器当前**没有把轮次传进来**
     #      ⟹ 缺省 0（不衰减），并在 `stats()` 里计 `crate_decay_unavailable_frames`（⛔ 不假装已接衰减）。
@@ -81,6 +84,9 @@ WEIGHT_SRC = OrderedDict([
     ("w_aim",           ("cfg", "【无出处、待主人拍】父代理裁定 (B-2) 瞄准奖励（桥侧算，离散）")),
     ("w_speed",         ("EXTRA", "【无出处、待主人拍】主人 10 条第 10 条（速通）⟹ 值在 EXTRA_DEFAULTS")),
     ("w_fast_death",    ("EXTRA", "【无出处、待主人拍】速通的对称项（父代理派单 ② 表）⟹ 值在 EXTRA_DEFAULTS")),
+    ("w_still",         ("cfg", "【无出处、待拍】父文件 DEFAULTS:111；本帧执行 inputs 全 false ⇒ 惩罚（离散计数，不是势函数）")),
+    ("w_progress",      ("EXTRA", "【无出处、待主人拍】父代理 2026-10-18 派单：靠近最近对手的稠密奖励 ⟹ 值在 EXTRA_DEFAULTS")),
+    ("progress_clamp",  ("EXTRA", "【无出处、待主人拍】单帧靠近量上界（米）；依据=实测 |Δdist| 分布（见 EXTRA_DEFAULTS 注释）")),
 ])
 
 INFERRED = OrderedDict([
@@ -91,6 +97,9 @@ INFERRED = OrderedDict([
     ("hit_nonlethal", "`hit - kill`（依据 `_collect_tmp.js:111` `rKill++; hitNow++;` ⟹ hit ⊇ kill）"),
     ("speed",        "`T_kill` = 击杀帧 − 最近一次真发射帧（⚠️起点口径为推断）；`T_min` 需采集侧提供"),
     ("fast_death",   "`T_death` = 我方死亡帧 − 最近一次对手开火帧（`oFire==1`）；`T_min'` 需采集侧提供"),
+    ("progress",     "`distNear` 由本文件从 `obs.global[6]/[7]`（自车）与 `obs.opp[:,0]/[1]`（只认 `alive==1`、跳过全 0 空槽）自己算；"
+                     "`Δdist = 上一帧 − 本帧`，只奖靠近；**单位=米**（两段同用 `vantage_observe.js` 的 `norm` 开关 ⟹ 同单位）"),
+    ("still",        "本帧 `execStill`（采集器 `_collect_tmp.js:230` 由「执行的 inputs 全 false」判定）"),
 ])
 
 # 报告/验算用的固定求和顺序：⛔ 不许改成 set/dict 的任意顺序（浮点加法不结合，顺序会改末位）
@@ -103,6 +112,9 @@ SUMMARY_EVERY = 5000      # 【无出处、工程默认】stderr 摘要的打印
 
 STATS = Counter()         # 进程内计数（`⛔ 不静默`：这些都是"本项为什么是 0 / 为什么是推断"的证据）
 _ANNOUNCED = set()
+# ⭐ `progress` 需要"上一帧到最近对手的距离"。**按局隔离**：`_ST.reset()`（t==0 / 帧号倒序 / 新局）会清它，
+#    帧里出现 `done=True` 也会清（⛔ 跨局不算差分）。键只用两个，避免一个"看不见的大字典"。
+_PREV = {"t": None, "dist": None}
 
 
 def reset_stats():
@@ -185,6 +197,8 @@ class _EpiState(object):
         self.last_fire_t = None
         self.last_spawn_t = None
         self.last_opp_fire_t = None
+        _PREV["t"] = None          # ⭐ 局边界 ⟹ 清掉"上一帧到对手的距离"（`progress` 不跨局差分）
+        _PREV["dist"] = None
 
     def begin(self, t):
         if self.t_prev is None:
@@ -426,6 +440,115 @@ def _fast_death_part(f, st, r, cfg):
 
 
 # ---------------------------------------------------------------- 主入口
+# ---------------------------------------------------------------- 稠密项 `progress`（取数在本文件内算）
+def _dist_near(f):
+    """"当前帧到我方最近**存活**对手"的距离（米；若采集器开了 `norm` 则自车与对手**同被**归一化）。
+
+    【为什么在训练侧算】父代理 `2026-10-18` 派单：采集器**从不提供** `distNear`
+      （`grep distNear` 在 `_collect_tmp.js` / `vt_buffer.py` 里 **0 命中**）⟹ 旧的 `f.get("distNear")`
+      恒 `None` ⟹ `progress` 恒 `0`（实测：11087 帧里帧自带 `distNear` 的 = **0** 帧）。
+
+    【数据来源 / 口径出处】
+      · 自车位置：`obs.global`（`(1,38)`）里 **`selfX=索引6`、`selfY=索引7`**
+        —— `game_core/js/vantage_observe.js` `GLOBAL_FIELDS` 前段顺序
+           `mapW,mapH,symmetric,stormOn,crateMask,maxPlayers,selfX,selfY,...`
+      · 对手位置：`obs.opp`（`(8,15)`）里 **`ox=0`/`oy=1`/`oAlive=7`** —— 同文件 `OPP_FIELDS`
+      · **空槽判据**：`_tools/headless/_collect_tmp.js:17` `oppRows()` 对 `b>=nb` 的槽**推 15 个 0**
+        ⟹ **全零行 = 空槽**；死人行不是全零（`vantage_observe.js:382-387` 推的是全 `-1` 且 `ph[7]=0`）
+        ⟹ 两者**可区分**（所以"x==0 且 y==0"这个更粗的判据不需要，也不采用）。
+      · **只认 `alive==1`**：死人行的坐标是哨兵 `-1`，算进去就是假距离。
+    返回 `(dist, n_alive, why)`；算不出来时 `dist=None` 且 `why` ∈ {`no_self`,`no_opp`,`units`}（**不在这里计数**）。
+    """
+    glb = _glb(f)
+    rows = _real_opp_rows(_opp(f))
+    sx, sy = float(glb[G_SELFX]), float(glb[G_SELFY])
+    # ⭐⭐ 自车位置**取不到**的哨兵：`sx==sy==0`。
+    #   出处：`vantage_observe.js:341-342` `num(ts && ts.x, 0)` ⟹ `ts`（坦克状态）为 null 时写 0；
+    #        同一段的自车其余维在那种帧上是哨兵（`wpnType=-1`/`ammoLeft=-1`）。
+    #   实测证据（`D:/vt_run/fb6/episodes.jsonl` 前 2 局 2367 帧）：`self==(0,0)` 的 **480/480 帧**
+    #        都同时满足 `wpnType==-1` 且 `ammoLeft==-1`（(wpnType,ammoLeft) 只出现过 (-1,-1) 一种组合）
+    #        ⟹ (0,0) 不是"贴在地图角上"，是**状态缺失** ⟹ ⛔ 不许拿它当坐标算距离。
+    if sx == 0.0 and sy == 0.0:
+        _say("progress_no_self",
+             "自车位置=(0,0)（哨兵：坦克状态取不到，wpnType/ammoLeft 同时为 -1）⟹ `progress` 当帧不给（⛔ 不猜）")
+        return None, 0, "no_self"
+    best, n_alive, far = None, 0, False
+    for row in rows:
+        if float(row[OPP_ALIVE]) != 1.0:
+            continue
+        ox, oy = float(row[0]), float(row[1])
+        n_alive += 1
+        if abs(ox) > 1.5 or abs(oy) > 1.5:
+            far = True
+        d = math.hypot(ox - sx, oy - sy)
+        best = d if best is None else min(best, d)
+    # 单位自查：两段都受 `vantage_observe.js` 的 `norm` 开关控制 ⟹ 必须同单位。
+    #   ① 自车在 [0,1]（=归一化）而对手 >1.5（=米）⟹ **确定**混了 ⟹ ⛔ 不算（计数）
+    #   ② 自车在米制（>1.5）而最近距离 ≤1.5 ⟹ **可疑**（正常地图对角线远大于 3m）⟹ 只计数、不丢值
+    self_norm = max(abs(sx), abs(sy)) <= 1.000001
+    if best is None:
+        return None, 0, "no_opp"          # 有行、但没有 `alive==1` 的对手
+    if self_norm and far:
+        return None, n_alive, "units"      # 一边像比例、一边像米 ⟹ ⛔ 不算
+    if (not self_norm) and best <= 1.5:
+        STATS["progress_dist_small"] += 1  # 可疑但不丢值（只计数）
+    return best, n_alive, None
+
+
+def _progress_part(f, cfg):
+    """`progress` = `clamp(上一帧 distNear − 本帧 distNear, 0, progress_clamp)`（**只奖靠近，不罚远离**）。
+
+    ⚠️ 上界 `progress_clamp` **单位=米**，缺省 `1.0`（【无出处、待主人拍】）。
+       依据=真数据实测（`D:/vt_run/fb6/episodes.jsonl` 前 8 局 / 11087 帧）：
+       |Δdist| p50=0.000 p95=0.247；**只有"靠近"的帧** |Δ| p50=0.107 p95=0.270 p99=0.331 max=11.159
+       ⟹ `1.0 m` ≈ 3×p99，**11087 帧里只有 1 帧触顶**（那是"最近对手被换人/复活"的跳变，不是真移动）
+       ⟹ 选 `1.0` 合理；真正被截断的比例 = 1/11087 = **0.009%**，且每次触顶都计 `progress_clamped`。
+    """
+    t = int(f["t"])
+    clamp = float(cfg.get("progress_clamp", EXTRA_DEFAULTS["progress_clamp"]))
+    if not (clamp > 0.0) or not math.isfinite(clamp):
+        raise AssertionError("[rewards] progress_clamp=%r 非法（必须 >0）" % (clamp,))
+    # ⭐⭐ 自车位置**取不到**的哨兵先在这里拦一道（`sx==sy==0`）—— 这样奖励路径上
+    #    `progress_no_self` 只被计一次（`_dist_near()` 里同样的判断只是给"直接调用它的调试脚本"兜底）。
+    #    出处：`vantage_observe.js:341-342` `num(ts && ts.x, 0)`；实测证据见 `_dist_near()` docstring。
+    _g = _glb(f)
+    if float(_g[G_SELFX]) == 0.0 and float(_g[G_SELFY]) == 0.0:
+        _say("progress_no_self",
+             "自车位置=(0,0) 哨兵（坦克状态取不到：同帧 wpnType/ammoLeft 也都是 -1）⟹ `progress` 当帧不给（⛔ 不猜）")
+        _PREV["t"], _PREV["dist"] = t, None
+        return 0.0
+
+    d, _n, why = _dist_near(f)
+    if d is None:
+        # ⭐ 四种"这帧没有 progress"的理由**各自计数**（⛔ 不合并成一个看不清的 0）
+        if why == "no_opp":
+            STATS["progress_no_opp"] += 1          # 一个存活对手都没有
+        elif why == "no_self":
+            _say("progress_no_self",
+                 "自车位置=(0,0) 哨兵（坦克状态取不到：同帧 wpnType/ammoLeft 也都是 -1）⟹ `progress` 当帧不给")
+        else:
+            _say("progress_units_mismatch",
+                 "自车坐标与对手坐标不同单位（一边像比例 [0,1]、一边像米）⟹ `progress` 当帧不给（⛔ 不猜单位）")
+        _PREV["t"], _PREV["dist"] = t, None
+        return 0.0
+    prev_t, prev_d = _PREV["t"], _PREV["dist"]
+    _PREV["t"], _PREV["dist"] = t, d
+    if prev_d is None or prev_t is None:
+        STATS["progress_no_prev"] += 1        # 局首帧（或对手刚复活）⟹ 没有可比的上一点
+        return 0.0
+    if t != prev_t + 1:
+        STATS["progress_frame_gap"] += 1      # 跳帧/乱序 ⟹ 差分无意义（⛔ 不静默跨帧相减）
+        return 0.0
+    dd = float(prev_d) - float(d)
+    if dd > clamp:
+        STATS["progress_clamped"] += 1
+    prog = max(0.0, min(clamp, dd))
+    if prog > 0.0:
+        STATS["progress_frames"] += 1
+        STATS["progress_sum"] = STATS.get("progress_sum", 0.0) + prog
+    return prog
+
+
 def explain(f, cfg):
     """把一帧拆成【逐项：(原始量, 权重, 贡献)】。`reward_of` 就是按 `ITEMS` 顺序把贡献加起来。
 
@@ -577,17 +700,13 @@ def explain(f, cfg):
     parts["still"] = (_still, float(w("w_still", 0.01)), -float(w("w_still", 0.01)) * _still)
     if _still > 0.0:
         STATS["still_frames"] += 1
-    # progress：与最近对手距离的减少量（只奖励靠近）
-    _d = f.get("distNear")
-    _dp = f.get("_distPrev")
-    _prog = 0.0
-    if _d is not None and _dp is not None:
-        _dd = float(_dp) - float(_d)
-        _prog = max(0.0, min(1.0, _dd))
-        if _prog > 0.0:
-            STATS["progress_frames"] += 1
-            STATS["progress_sum"] = STATS.get("progress_sum", 0.0) + _prog
-    parts["progress"] = (_prog, float(w("w_progress", 0.02)), float(w("w_progress", 0.02)) * _prog)
+    # progress：与最近对手距离的减少量（只奖励靠近）—— 取数在 `_progress_part()` 里从 `obs` 自己算（采集器不提供）
+    _prog = _progress_part(f, cfg)
+    parts["progress"] = (_prog, float(w("w_progress", EXTRA_DEFAULTS["w_progress"])),
+                         float(w("w_progress", EXTRA_DEFAULTS["w_progress"])) * _prog)
+    if bool(f.get("done")):          # ⭐ 局末 ⟹ 断链（下一局第一帧绝不跨局相减）
+        _PREV["t"] = None
+        _PREV["dist"] = None
 
     total = 0.0
     for k in ITEMS:                       # ⭐ 固定顺序求和（浮点加法不结合，顺序变了末位就变）

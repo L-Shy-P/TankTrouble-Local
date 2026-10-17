@@ -384,6 +384,61 @@ def main():
     say("  幂等复跑逐位相等 = %s" % (rew2 == rew,))
     assert rew2 == rew
 
+    # ============================================================ ⑩ 稠密项 progress（从 obs 自己算）
+    say("== ⑩ progress：`distNear` 在训练侧从 obs 算出来（采集器不提供）==")
+    # 对手固定 (20,10)；自车 10→10.5 ⟹ dist 10 → 9.5 ⟹ Δ=0.5（可精确表示）⟹ prog=0.5 ⟹ 0.02*0.5=0.01
+    ep = [mk_frame(0, {}, g=mk_global(selfx=10.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=False),
+          mk_frame(1, {}, g=mk_global(selfx=10.5, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=True)]
+    got = run_episode(ep, cfg, "progress")
+    check("ep9020 t=0 局首帧（无上一帧）", got[0][0], {"progress": 0.02 * 0.0})
+    v = check("ep9020 t=1 靠近 0.5m", got[1][0], {"progress": 0.02 * 0.5})
+    assert v == 0.01 and RW.stats().get("progress_no_prev", 0) == 1
+    say("  distNear 手算: t=0 |(20,10)-(10,10)|=10.0  t=1 |(20,10)-(10.5,10)|=9.5  Δ=0.5 ⟹ prog=%r"
+        % (got[1][0]["progress"][0],))
+    # 远离不罚：dist 10 → 12（Δ=-2）⟹ prog=0
+    ep = [mk_frame(0, {}, g=mk_global(selfx=10.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=False),
+          mk_frame(1, {}, g=mk_global(selfx=8.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=True)]
+    v = run_episode(ep, cfg, "progress_away")[1][1]
+    check("ep9021 远离 2m ⟹ 0（只奖靠近）", run_episode(ep, cfg, "progress_away")[1][0], {"progress": 0.02 * 0.0})
+    assert v == 0.0
+    # 触顶：dist 10 → 8（Δ=2 > clamp=1）⟹ prog=1.0 ⟹ 0.02，且计 progress_clamped
+    ep = [mk_frame(0, {}, g=mk_global(selfx=10.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=False),
+          mk_frame(1, {}, g=mk_global(selfx=12.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=True)]
+    got = run_episode(ep, cfg, "progress_clamp")
+    v = check("ep9022 靠近 2m ⟹ clamp 到 1.0", got[1][0], {"progress": 0.02 * 1.0})
+    assert v == 0.02 and RW.stats().get("progress_clamped", 0) == 1
+    # 无存活对手 ⟹ prog=0 且计 progress_no_opp
+    ep = [mk_frame(0, {}, g=mk_global(selfx=10.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 0.0),)), done=True)]
+    v = run_episode(ep, cfg, "progress_noopp")[0][1]
+    check("ep9023 没有存活对手 ⟹ 0", run_episode(ep, cfg, "progress_noopp")[0][0], {"progress": 0.02 * 0.0})
+    assert v == 0.0 and RW.stats().get("progress_no_opp", 0) == 1
+    # 局边界重置：A(t=0,1) 之后紧接着 B(t=0,1) ⟹ B 的第一帧不得与 A 的末帧相减
+    epA = [mk_frame(0, {}, g=mk_global(selfx=10.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=False),
+           mk_frame(1, {}, g=mk_global(selfx=10.5, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=True)]
+    epB = [mk_frame(0, {}, g=mk_global(selfx=30.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=False),
+           mk_frame(1, {}, g=mk_global(selfx=29.5, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=True)]
+    RW.reset_stats()
+    RW._ST.reset()
+    a0 = RW.explain(epA[0], cfg)[1]
+    a1 = RW.explain(epA[1], cfg)[1]
+    b0 = RW.explain(epB[0], cfg)[1]
+    b1 = RW.explain(epB[1], cfg)[1]
+    say("  局A t=0/1 = %r/%r   局B t=0/1 = %r/%r" % (a0, a1, b0, b1))
+    check("ep9024 局B t=0（跨局不算差分）", RW.explain(epB[0], cfg)[0], {"progress": 0.02 * 0.0})
+    assert b0 == 0.0 and a1 == 0.01
+    # B 的 t=1 用的是 B 自己的 t=0（dist 10 → 9.5）⟹ 0.01；若跨局相减会得到 (10-9.5)=0.5 也行，
+    #   所以用"B 的 t=0 距离与 A 的末帧距离不同"来区分：这里 A 末帧 dist=9.5、B t=0 dist=10.0
+    #   ⟹ 若真跨局相减则 B t=1 的 Δ = 9.5-9.5 = 0；正确实现 Δ = 10.0-9.5 = 0.5
+    check("ep9024 局B t=1（用 B 自己的上一帧）", RW.explain(epB[1], cfg)[0], {"progress": 0.02 * 0.5})
+    assert b1 == 0.01, "局边界没清干净：b1=%r（应 0.01）" % (b1,)
+    # 跳帧（t: 0 → 2）⟹ 差分无意义 ⟹ 0 且计数
+    ep = [mk_frame(0, {}, g=mk_global(selfx=10.0, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=False),
+          mk_frame(2, {}, g=mk_global(selfx=10.5, selfy=10.0), opp=mk_opp(((20.0, 10.0, 1.0),)), done=True)]
+    v = run_episode(ep, cfg, "progress_gap")[1][1]
+    check("ep9025 跳帧 t=0→2 ⟹ 0", run_episode(ep, cfg, "progress_gap")[1][0], {"progress": 0.02 * 0.0})
+    assert v == 0.0 and RW.stats().get("progress_frame_gap", 0) == 1
+    say("")
+
     RW.log_summary(prefix="收尾")
     say("")
     say("ALL_OK")
