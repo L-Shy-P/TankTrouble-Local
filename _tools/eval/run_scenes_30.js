@@ -69,6 +69,10 @@ const SEED_MODE = 'deterministic';
 //   动机：采集器（inject_fire.js）那条路 22000 帧零死亡 ⟹ 训练数据没有 win/lose/kill/death；
 //        而评测路径（_g1_inject.js）同场景 302 帧就 victory ⟹ **必须从评测路径采数据**。
 const DUMP_DIR = process.env.S30_DUMP || null;
+// ⭐ S30_DUMP_MAX：每局只保留【最后 N 帧】（滚动缓冲）。
+//   原因：节点 token 表随树增长（N 可达 1000 × 10 维）⟹ 全量导出实测 22 局就 3.5G，直接把磁盘写满。
+//   取舍：胜负信号在末帧，GAE 从末帧往回传 ⟹ 保留末段即可（默认 400 帧）。
+const DUMP_MAX = Math.max(0, Number(process.env.S30_DUMP_MAX || 400));
 const REPEAT_K = Math.max(1, Number(process.env.S30_REPEAT || (process.argv.indexOf('--repeat') >= 0 ? (process.argv[process.argv.indexOf('--repeat') + 1] || 1) : 1)));
 // ⭐ 2026-10-17（父代理指派）：请求超时 + 有限重试（【无出处、待实验】的 10s / 2 次）
 const ASK_TIMEOUT_MS = Math.max(500, Number(process.env.S30_ASK_MS || 10000));
@@ -188,7 +192,7 @@ class Srv {
 /* ---------------- 单场景 ---------------- */
 async function runScene(scene, srv, cap) {
   const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
-  let s30segs = null, s30p = null;   // ⭐ S30_DUMP：本帧 segs/p（块内 let 出不来 ⟹ 提到函数作用域）
+  let s30segs = null, s30p = null, s30n = 0;   // ⭐ S30_DUMP：本帧 segs/p + 原始帧计数
   const r = {
     scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0,
     players: scene.players, mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: null,
@@ -332,6 +336,7 @@ async function runScene(scene, srv, cap) {
       // ⭐ S30_DUMP：每帧落一条（obs 直接用已过 SEGS.validateSegs 的 segs ⟹ 与服务端同源）
       if (DUMP_DIR && s30segs && o && o.N) {
         const segs = s30segs;
+        s30n++;
         const _fire = (s30p && typeof s30p.fire === 'number') ? (s30p.fire ? 1 : 0) : 0;
         dumpFrames.push({
           t: f, N: o.N, obs: segs,
@@ -341,6 +346,8 @@ async function runScene(scene, srv, cap) {
           execByPolicy: true, execStill: (o.sub ? (!o.sub.f && !o.sub.b && !o.sub.l && !o.sub.r) : null),
           r: { total: 0, result: 0, survive: 1, legal: 0 }, done: false
         });
+        // 滚动裁剪：只保留最后 DUMP_MAX 帧（0=不裁）
+        if (DUMP_MAX > 0 && dumpFrames.length > DUMP_MAX * 2) dumpFrames.splice(0, dumpFrames.length - DUMP_MAX);
       }
       if (f % 30 === 0) {
         const ss = await m.stormState();
@@ -420,6 +427,7 @@ async function runScene(scene, srv, cap) {
         const fsd = require('fs');
         fsd.mkdirSync(DUMP_DIR, { recursive: true });
         const term = (r.win === 1) ? 3.0 : (r.win === 0 ? -1.0 : 0.0);
+        // 终局帧之前若曾裁剪，t 仍严格递增（保留的是尾部连续段）⟹ 合规
         dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
                                                  survive: 1, legal: 0,
                                                  win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
@@ -432,8 +440,8 @@ async function runScene(scene, srv, cap) {
           frames: dumpFrames, win: r.win
         };
         fsd.appendFileSync(DUMP_DIR + '/episodes.jsonl', JSON.stringify(epObj) + String.fromCharCode(10));
-        r.dump_frames = dumpFrames.length; r.dump_win = r.win;
-        logErr('DUMP_OK[' + scene.id + '] frames=' + dumpFrames.length + ' win=' + r.win);
+        r.dump_frames = dumpFrames.length; r.dump_win = r.win; r.dump_raw = s30n;
+        logErr('DUMP_OK[' + scene.id + '] frames=' + dumpFrames.length + '/' + s30n + ' win=' + r.win);
       } catch (eD) { r.dump_err = String((eD && eD.message) || eD).slice(0, 200); logErr('DUMP_ERR ' + r.dump_err); }
     }
     // ⭐ 超时场次强制 ok:false + reason（⛔ 不允许被上面的分类覆盖成 ok:true）
