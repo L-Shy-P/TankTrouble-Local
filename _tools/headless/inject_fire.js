@@ -96,8 +96,8 @@
   window.__b.setFireBack = function (m) { window.__b.fireBack = (m === 'now') ? 'now' : 'zero'; window.__b.fireBackSet++; return window.__b.fireBack; };  window.__b.setFire = function (f) { window.__b.wantFire = !!f; return window.__b.wantFire ? 1 : 0; };
   window.__b.stats = function () {
     var IS = window.__vantageIface || {};
-    return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aGrowServer: window.__b.aGrowServer||0, aServerReject: window.__b.aServerReject||0, growOkCount: window.__b.growOkCount||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
-             fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
+    return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aGrowServer: window.__b.aGrowServer||0, aServerReject: window.__b.aServerReject||0, growOkCount: window.__b.growOkCount||0, fireEmptyFallback: window.__b.fireEmptyFallback||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
+             fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlock: (window.__b.pulseBlock || 0), fbSum: window.__b.fbSum||0, fbN: window.__b.fbN||0, fb1: window.__b.fb1||0, fb24: window.__b.fb24||0, fb5: window.__b.fb5||0, pulseHeldFrames: (window.__b.pulseHeldFrames || 0), pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
              buildOK: window.__b.buildOK, buildMisses: window.__b.buildMisses,
              lastFirePick: window.__b.lastFirePick, fireBack: window.__b.fireBack, fireErr: window.__b.fireErr,
              lastTargetId: (typeof window.__b.lastTargetId === 'number' ? window.__b.lastTargetId : null),
@@ -189,7 +189,10 @@
       }
       var picks = [{ nodeId: n.id, back: 0 }];
       var _att = (window.__b.fireAttempts = (window.__b.fireAttempts || 0) + 1) - 1;   // 第 0 次才是首次
-      var _blkPrev = (window.__b.lastFrameSubmitted === true), _blkSF = (window.__b.selfFire === true);
+      // ⭐⭐ 权威版 2026-10-07：【连续帧 = 按住】是设计要求；pulse 默认**只记录不拦截**（VT_PULSE_BLOCK=1 才拦）
+      var _prevSub = (window.__b.lastFrameSubmitted === true);
+      var _blkPrev = (window.__b.pulseBlock === 1) && _prevSub;
+      var _blkSF = (window.__b.selfFire === true);
       // ⭐⭐ 空射抑制（主人听到了空射音效）：`ammoLeft`=globalTok[15]、`queueLen`=globalTok[35]，两者都没子弹就不扣扳机
       var _ammo = (typeof window.__b.gAmmo === 'number') ? window.__b.gAmmo : null;
       var _queue = (typeof window.__b.gQueue === 'number') ? window.__b.gQueue : null;
@@ -202,7 +205,27 @@
         var cbf = (window.__b.fireBack === 'now') ? window.__b.cursorByFrame(tree, pathNodes) : null;   // ⭐ 精确：游戏游标帧
         var cur = cbf || window.__b.cursor(tree, pathNodes);                                           // 兜底：commitNode 口径
         if (cur) {
-          var frs = []; if (cbf) { frs.push(cbf.rel); frs.push(cbf.rel + 1); frs.push(cbf.rel - 1); } frs.push(0); if (typeof cur.rel === 'number') frs.push(cur.rel);   // ⭐ 候选执行帧：精确帧/±1（同目标游标逐帧+1）/新路线帧0/tNow 估值
+          // ⭐⭐ 权威版 :1020-1050：「帧级插入，只要合法就没有上限……连续两帧 = 按住」
+          //    ⇒ 直接问【节点自己】的段长 L，把段内全部合法帧都作为射击帧（不问游标）
+          var _Ln = null;
+          try { if (cur && typeof cur.L === 'number' && cur.L > 0) _Ln = cur.L | 0; } catch (eL1) { }
+          if (!_Ln) { try { var _nL = (window.__b.nodeRows && window.__b.nodeRows[window.__b.lastPickRow]) ? null : null; } catch (eL2) { } }
+          if (_Ln && _Ln > 1) {
+            var _all = []; for (var _b = 0; _b < _Ln; _b++) _all.push({ back: _b, frame: _Ln - 1 - _b });
+            window.__b.fireAllFrames = _Ln;
+            for (var _bi2 = 0; _bi2 < _all.length; _bi2++) picks.push({ nodeId: cur.id, back: _all[_bi2].back });
+            window.__b.fireSubmits++;
+            window.__b.fbSum = (window.__b.fbSum || 0) + _all.length; window.__b.fbN = (window.__b.fbN || 0) + 1;
+            if (_all.length === 1) window.__b.fb1 = (window.__b.fb1 || 0) + 1; else if (_all.length <= 4) window.__b.fb24 = (window.__b.fb24 || 0) + 1; else window.__b.fb5 = (window.__b.fb5 || 0) + 1;
+            window.__b.fireSubmittedThisFrame = true;
+            window.__b.lastFirePick = { nodeId: cur.id, backs: _all.map(function (x) { return x.back; }), L: _Ln, mode: 'allFrames' };
+            window.__b.lastBuilt = picks; window.__b.lastTargetId = n.id;
+            return { picks: picks, memory: {} };
+          }
+          var frs = [];
+          if (cbf) { frs.push(cbf.rel); frs.push(cbf.rel + 1); frs.push(cbf.rel - 1); }
+          frs.push(0); if (typeof cur.rel === 'number') { frs.push(cur.rel); frs.push(cur.rel + 1); frs.push(cur.rel - 1); }
+          if (!cbf) { frs.push(1); frs.push(Math.floor(cur.L / 2)); frs.push(cur.L - 2); frs.push(cur.L - 1); }   // ⭐ 无游标时的锚点候选（恢复冗余兜底）   // ⭐ 候选执行帧：精确帧/±1（同目标游标逐帧+1）/新路线帧0/tNow 估值
           var bl = [];
           for (var fi = 0; fi < frs.length; fi++) {
             var f2 = Math.max(0, Math.min(cur.L - 1, (frs[fi] | 0) + (window.__b.fireBias | 0)));
@@ -211,19 +234,27 @@
             if (!dup) bl.push({ back: bk, frame: f2 });
           }   // ⭐ 单帧精确对齐（cursorByFrame 已算出 rel）
           // ⭐⭐ 射击帧由【服务端 head_fire 采样】给出 ⇒ 直接用，桥不再枚举（回退：服务端没给就用自己的 bl）
+          // ⭐⭐ 两级门（父代理批准）：服务端 fire_frames 优先；若策略要开火但采样出空 ⇒ 回退桥候选帧并计数
           if (Array.isArray(window.__b.fireFramesFromServer) && window.__b.fireFramesFromServer.length) {
-            bl = window.__b.fireFramesFromServer.map(function (x) { return { back: (x.back | 0), frame: null }; });
+            // ⭐⭐ 合并独立（不覆盖）：服务端选的帧优先，但保留桥的 rel/±1/0 冗余兜底
+            // ⭐⭐ 服务端只做【过滤】，**桥的候选集为准**（⏔t 合并 ⇒ 上一帧回来的列表会滚雪球到 72 条）
+            var _keep = {}; for (var _i2 = 0; _i2 < window.__b.fireFramesFromServer.length; _i2++) _keep[window.__b.fireFramesFromServer[_i2].back | 0] = 1;
+            var _filt = []; for (var _j2 = 0; _j2 < bl.length; _j2++) if (_keep[bl[_j2].back]) _filt.push(bl[_j2]);
+            if (_filt.length) bl = _filt; else { window.__b.fireEmptyFallback = (window.__b.fireEmptyFallback || 0) + 1; }
           }
           for (var bi = 0; bi < bl.length; bi++) picks.push({ nodeId: cur.id, back: bl[bi].back });   // ⭐ picks[1..] = 若干射击帧（帧0 / 游标帧 / 游标帧+1）
           // ⭐ `fireBias` 只用于"rel 是否差 1 帧"的标定测量（默认 0，由 `VT_FIRE_REL_BIAS` 设）
           // （射击帧已在上面按 bl 全部 push；此处不再单独 push）
           window.__b.fireSubmits++;
+          { var _nb = picks.length - 1; if (_nb > 0) { window.__b.fbSum = (window.__b.fbSum || 0) + _nb; window.__b.fbN = (window.__b.fbN || 0) + 1;
+              if (_nb === 1) window.__b.fb1 = (window.__b.fb1 || 0) + 1; else if (_nb <= 4) window.__b.fb24 = (window.__b.fb24 || 0) + 1; else window.__b.fb5 = (window.__b.fb5 || 0) + 1; } }   // ⭐ 真实拼包条数
           window.__b.fireSubmittedThisFrame = true;   // ⭐ 本帧真提交了射击帧 ⇒ 下一帧要松扳机
           window.__b.lastFirePick = { nodeId: cur.id, backs: bl.map(function (x) { return x.back; }), frames: bl.map(function (x) { return x.frame; }), L: cur.L, rel: cur.rel, mode: window.__b.fireBack, onPath: cur.onPath, dbg: window.__b.lastFireDbg || null };
         } else { window.__b.fireNoCursor++; }
       } else if (window.__b.wantFire && _att === 0 && (_blkPrev || _blkSF)) {   // ⭐ 脉冲拦下（松扳机帧）
         window.__b.pulseBlocked = (window.__b.pulseBlocked || 0) + 1;
         if (_blkPrev) window.__b.pulseBlockedByPrev = (window.__b.pulseBlockedByPrev || 0) + 1;
+        if (_prevSub && window.__b.pulseBlock === 1) window.__b.pulseHeldFrames = (window.__b.pulseHeldFrames || 0) + 1;
         if (_blkSF) window.__b.pulseBlockedBySelfFire = (window.__b.pulseBlockedBySelfFire || 0) + 1;
         if (_blkEmpty) { window.__b.emptyBlocked = (window.__b.emptyBlocked || 0) + 1; window.__b.lastEmptyFire = 1; }   // ⭐ 空射被栏（单独计数）
       } else if (window.__b.wantFire && _att > 0) { window.__b.fireSkippedRetry = (window.__b.fireSkippedRetry || 0) + 1;   // ⭐ 重试时只发 picks[0]：`炮口贴墙 picks[1]` 会整包被拒（实测 596/600）
