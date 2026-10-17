@@ -197,6 +197,7 @@ async function runScene(scene, srv, cap) {
   let dLastFired = null, dLastKill = 0, dLastDeath = 0, dLastPose = null;
   let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
+  let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
   const r = {
     scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0,
     players: scene.players, mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: null,
@@ -418,6 +419,14 @@ async function runScene(scene, srv, cap) {
           if (arr.length > nAliveMax) nAliveMax = arr.length;
         } catch (eAT) { if (!aliveTraceErr) aliveTraceErr = String((eAT && eAT.message) || eAT).slice(0, 200); }
       }
+      // ⭐⭐⭐ 开火决策改为【策略驱动】(父代理 2026-10-18)：
+      //   原来 `setFire(FIRE_ON)` 只在开场设一次 ⟹ 开火是常量、不是策略输出
+      //   ⟹ 训练数据里 `act.fire` 永远是同一个值 ⟹ 火头没有任何梯度。
+      //   现在每帧把服务端返回的 `p.fire` 写进去 ⟹ 下一帧 `__g1.step()` 拼包时用它。
+      if (FIRE_ON && s30p && typeof s30p.fire === 'number') {
+        try { await m.eval('window.__g1.setFire(' + (s30p.fire ? 1 : 0) + ')'); } catch (eFS) {}
+        if (s30p.fire) fireOnFrames++;
+      }
       await m.pump(1, { yieldMs: 0 });
     }
 
@@ -456,6 +465,7 @@ async function runScene(scene, srv, cap) {
     r.nodeid_oob = oob;
     r.server_errors = srvErr;
     r.lp_finite = lpFin + '/' + lpTot;
+    r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
     r.opp_rows_max = oppBlocksSeen;
     r.opp_over = oppOver;
