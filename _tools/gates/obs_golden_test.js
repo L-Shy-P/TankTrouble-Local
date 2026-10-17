@@ -69,7 +69,7 @@ function loadObserve(opts) {
 // ── 假 adapter（只实现编码器真会调的读取口；没有的一律不实现）────────────
 function makeAdapter(over) {
     var base = {
-        getMaze: function () { return { getWidth: function () { return 8; }, getHeight: function () { return 5; } }; }, // 8×5 格 ×10m = 80×40 m
+        getMaze: function () { return { getWidth: function () { return 8; }, getHeight: function () { return 5; } }; }, // 8×5 格 ×10 m/格 = 宽 80 m × 高 **50 m**（⚠️ 不是 40：5×10=50）
         getMatchConfig: function () { return { symmetric: true, storm: 1, crateTypes: [], maxActivePlayerCount: 2 }; },
         getTankState: function () { return null; },
         getAiId: function () { return 'vantage_1'; },
@@ -192,10 +192,27 @@ function groupStorm() {
     var r0 = encodeStormWith(null, {});
     eq('storm 无风暴退化值', show(r0.storm.token), show([0, 0, 0, 0, 0, -1]));
 
-    // ── 2.4 normalize=true：÷ 世界宽/高（80×40 m；出处 vantage_observe.js 文件头"归一化按地图物理尺寸"）──
+    // ── 2.4 normalize=true：÷ 世界宽/高。⚠️ 世界尺寸必须从 `enc.mapSize` 取，
+    //        不许手写：8 格×10=80 宽、5 格×10=**50** 高（此处曾被误写成 40，已改）
     var rn = encodeStormWith(makeStormZone({ seq: [2], corners: CORNERS_A }), { normalize: true });
-    var EXPECT_N = [1, SAFE_A.eL / 80, SAFE_A.eR / 80, SAFE_A.eT / 40, SAFE_A.eB / 40, 1];
-    eq('storm normalize=true（÷80/÷40）', show(rn.storm.token), show(EXPECT_N));
+    eq('storm normalize=true 用的世界尺寸 = mapSizeOf(8×5 格 @10m)', show([rn.enc.mapSize.w, rn.enc.mapSize.h]), show([80, 50]));
+    var WORLD_W = rn.enc.mapSize.w, WORLD_H = rn.enc.mapSize.h;
+    var EXPECT_N = [1, SAFE_A.eL / WORLD_W, SAFE_A.eR / WORLD_W, SAFE_A.eT / WORLD_H, SAFE_A.eB / WORLD_H, 1];
+    eq('storm normalize=true（÷80/÷50）', show(rn.storm.token), show(EXPECT_N));
+
+    // ── 2.4b ★ 真机日志向量（`_tools/headless/_i4_probe_spec_1_4d.log:9` 的 corners **原样**）──
+    //        安全区应是 [stormEndLeft=0, stormStartRight=110] × [stormEndTop=0, stormStartBottom=50]（= 满场）
+    var CORNERS_REAL = { stormStartRight: 110, stormEndRight: 110.4, stormStartBottom: 50, stormEndBottom: 50.4,
+                         stormStartLeft: -0.4, stormEndLeft: 0, stormStartTop: -0.4, stormEndTop: 0 };
+    var rReal = encodeStormWith(makeStormZone({ seq: [2], corners: CORNERS_REAL }), {});
+    eq('storm 真机日志向量（[1, stormEndLeft=0, stormStartRight=110, stormEndTop=0, stormStartBottom=50, 1=左]）',
+        show(rReal.storm.token), show([1, 0, 110, 0, 50, 1]));
+
+    // ── 2.4c 兼容兜底不许被破坏（父代理裁定：「可以留，但不许挡住数字分支」）──
+    var rMin = encodeStormWith(makeStormZone({ seq: [2], corners: { minX: 5, maxX: 45, minY: 6, maxY: 26 } }), {});
+    eq('storm 兜底①minX/maxX 形状仍可解析', show(rMin.storm.token), show([1, 5, 45, 6, 26, 1]));
+    var rPts = encodeStormWith(makeStormZone({ seq: [2], corners: [{ x: 3, y: 4 }, { x: 23, y: 34 }] }), {});
+    eq('storm 兜底②{x,y} 点对象仍可解析（取 bbox）', show(rPts.storm.token), show([1, 3, 23, 4, 34, 1]));
 
     // ── 2.5 nextDir 全 4 个游戏 side 的映射表（逐条打印：一眼看出错位）──────
     //     游戏 side（出处见文件头）= 0:右 1:下 2:左 3:上
