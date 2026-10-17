@@ -34,6 +34,8 @@ try {
 } catch (e) {}
 
 const { Match } = require('../headless/match');
+// ⭐ 2026-10-17：观测→segs 共享模块（评测/采集/面板应共用；本轮只接了评测侧）
+const SEGS = require('../headless/_segs.js');
 
 const REPO = path.resolve(__dirname, '..', '..');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'headless', '_g1_inject.js'), 'utf8');
@@ -160,8 +162,28 @@ async function runScene(scene, srv, cap) {
         //   ⚠️ 历史：opp 槽还只有 1 行时，多对手会被服务端以"段 opp 超容量"拒绝（实测 8 人局 lp_finite 0/2999）。
         //   => 现在：逐 15 维切成最多 8 行、其余补零、**送全量**（⛔ 不再只取 nearestAlive 1 行）
         //      记 `opp_input/opp_rows_max/opp_over`；>8 个对手 ⟹ 显式计数（⛔ 不静默截断）。
-        let segs = o.segs;
-        if (segs && Array.isArray(segs.opp) && segs.opp.length && Array.isArray(segs.opp[0])) {
+        // ⭐ 2026-10-17（父代理指派）：统一走 `_tools/headless/_segs.js`（⛔ 本文件不再自己展开 opp）
+        let segs = null, _segStats = null;
+        try {
+          const built = SEGS.buildSegs({
+            n: o.segs.node,
+            opp: (o.segs.opp && o.segs.opp[0]) || [],
+            b: o.segs.bullet, item: o.segs.item,
+            g: (o.segs.global && o.segs.global[0]) || []
+          });
+          const vio = SEGS.validateSegs(built.segs);
+          if (!vio.ok) { r.step_err = 'segs 形状不合法（⛔ 拒绝发送）: ' + vio.errors.slice(0, 4).join('; '); break; }
+          segs = built.segs; _segStats = built.stats;
+          const nBlocks = _segStats.oppBlocks;
+          if (nBlocks > oppBlocksSeen) oppBlocksSeen = nBlocks;
+          if (_segStats.oppOver > 0) { oppOver++; if (oppOver <= 3) logErr('⚠️ OPP_OVER[' + scene.id + '] ' + nBlocks + ' 个对手 > 槽位 8（显式计数、不静默截断）'); }
+          if (nBlocks > 1) oppMultiFrames++; else oppNativeFrames++;
+          if (nBlocks > 1 && !warnedOpp) {
+            warnedOpp = true;
+            logErr('⭐ OPP_FULL[' + scene.id + '] oppTok=' + (((o.segs.opp && o.segs.opp[0]) || []).length) + '（' + nBlocks + ' 个对手） -> 共享模块 _segs.js 切片 + 补零');
+          }
+        } catch (eSg) { r.step_err = 'buildSegs 异常: ' + String((eSg && eSg.message) || eSg).slice(0, 300); break; }
+        if (false) {   // ⛔ 旧的内联 opp 展开已由 _segs.js 取代（2026-10-17）；保留空壳仅为减少本次 diff，下一轮删掉
           const opp = segs.opp[0];
           const PER = 15;
           {   // ⭐ 无论几个对手都【送满 8 行】（1 个对手 = 1 行真 + 7 行零）
@@ -301,6 +323,24 @@ async function runScene(scene, srv, cap) {
   const ckptMd5 = md5file(ckpt);
   logErr('SCENES ' + scenesPath + ' md5=' + md5file(scenesPath));
   logErr('CKPT ' + ckpt + ' md5=' + ckptMd5);
+
+  // ⭐ 2026-10-17（父代理指派）：开跑前**强制**口径校验（黄金样例对拍）——
+  //    任一断言不过 ⟹ 退出码非 0 ⟹ 这里直接退出，⛔ 不跑局、不报分。
+  {
+    const { spawnSync } = require('child_process');
+    const pfPath = path.join(__dirname, 'preflight_parity.js');
+    logErr('PREFLIGHT ' + pfPath);
+    const pf = spawnSync(process.execPath, [pfPath], {
+      cwd: REPO, encoding: 'utf8', env: Object.assign({}, process.env, { VT_CKPT: ckpt })
+    });
+    if (pf.stdout) process.stderr.write(pf.stdout);
+    if (pf.stderr) process.stderr.write(pf.stderr);
+    if (pf.status !== 0) {
+      logErr('⛔ 口径校验未通过（preflight_parity 退出码 ' + pf.status + '）⟹ 拒绝开跑（⛔ 不跑局、不报分）');
+      process.exit(3);
+    }
+    logErr('PREFLIGHT_OK（段清单 / 每段 rows×width / 补零位置 / 服务端 nodeId·fire·lp 全一致）');
+  }
 
   const list = JSON.parse(fs.readFileSync(scenesPath, 'utf8'));
   let scenes = list.scenes;
