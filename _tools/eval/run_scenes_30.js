@@ -120,6 +120,8 @@ async function runScene(scene, srv, cap) {
   let lpTot = 0, lpFin = 0, oob = 0, srvErr = 0, nSamples = 0, stormFrames = 0, cratesMax = 0;
   let oppNativeFrames = 0, oppBlocksSeen = 0, oppMultiFrames = 0, oppOver = 0;   // ⭐ oppMultiFrames=多对手帧数、oppOver=对手数>8 的帧数（显式计数）
   let warnedOpp = false;
+  const aliveTrace = [];               // ⭐ 每 60 帧一行：{f,nAlive,alive[]}
+  let nAliveMin = null, nAliveMax = 0, aliveTraceErr = null;
   const t0 = Date.now();
   try {
     m = new Match();
@@ -194,6 +196,16 @@ async function runScene(scene, srv, cap) {
         if (ss && ss.nStorm > 0) stormFrames++;
         if (ss && ss.nCrates > cratesMax) cratesMax = ss.nCrates;
       }
+      // ⭐ 2026-10-17 埋点（父代理指派）：每 60 帧记一行存活快照 ⟹ 判 H2（多 bot 僵持）/ H3（我方活着但杀不动）
+      if (f % 60 === 0) {
+        try {
+          const al = await m.eval(`(() => { var gc = GameManager.getGameController(); var t = gc && gc.getTanks ? gc.getTanks() : {}; return Object.keys(t || {}); })()`);
+          const arr = Array.isArray(al) ? al : [];
+          aliveTrace.push({ f: f, nAlive: arr.length, alive: arr });
+          if (nAliveMin === null || arr.length < nAliveMin) nAliveMin = arr.length;
+          if (arr.length > nAliveMax) nAliveMax = arr.length;
+        } catch (eAT) { if (!aliveTraceErr) aliveTraceErr = String((eAT && eAT.message) || eAT).slice(0, 200); }
+      }
       await m.pump(1, { yieldMs: 0 });
     }
 
@@ -213,6 +225,17 @@ async function runScene(scene, srv, cap) {
     r.frames = f;
     r.frames_asked = lpTot;
     r.truncated = !ended;
+    // ⭐ 埋点落盘（父代理 2026-10-17）：存活轨迹 + 回合结束玩家表
+    r.alive_trace = aliveTrace;
+    r.alive_trace_n = aliveTrace.length;
+    r.nAlive_first = aliveTrace.length ? aliveTrace[0].nAlive : null;
+    r.nAlive_last = aliveTrace.length ? aliveTrace[aliveTrace.length - 1].nAlive : null;
+    r.nAlive_min = nAliveMin;
+    r.nAlive_max = nAliveMax;
+    r.nAlive_dropped = (aliveTrace.length > 1) ? (aliveTrace.some((e, i) => i > 0 && e.nAlive < aliveTrace[i - 1].nAlive)) : false;
+    r.alive_trace_err = aliveTraceErr;
+    r.roundEnded = re ? { evt: re.evt || null, playerIds: Array.isArray(re.playerIds) ? re.playerIds : null,
+                          scores: Array.isArray(re.scores) ? re.scores : null } : null;
     r.crates_max = cratesMax;
     r.storm_zone_samples = stormFrames + '/' + nSamples;
     r.nodeid_oob = oob;
@@ -255,8 +278,15 @@ async function runScene(scene, srv, cap) {
 (async () => {
   const scenesPath = arg('scenes', DEF_SCENES);
   const outDir = arg('out', DEF_OUT);
-  const cap = Number(arg('cap', process.env.S30_CAP || 3600));
-  if (!(cap >= 3000)) { logErr('⛔ --cap 必须 ≥3000（G1 实测一整局 2844 帧）；收到 ' + cap); process.exit(2); }
+  const cap2 = Number(arg('cap', process.env.S30_CAP || 3000));
+  // ⭐ 2026-10-17（父代理指派，**待实验口径**）：cap 按人数分档 —— 2 人 3000 · 4 人 6000 · 8 人 6000
+  //    ⚠️ 这三个数是【无出处、待实验】：只为验证 H1（cap 太紧）；⛔ 不是定稿口径。
+  const cap4 = Number(arg('cap4', process.env.S30_CAP4 || 6000));
+  const cap8 = Number(arg('cap8', process.env.S30_CAP8 || 6000));
+  for (const nmv of [['--cap(2人)', cap2], ['--cap4', cap4], ['--cap8', cap8]]) {
+    if (!(nmv[1] >= 3000)) { logErr('⛔ ' + nmv[0] + ' 必须 ≥3000（G1 实测一整局 2844 帧）；收到 ' + nmv[1]); process.exit(2); }
+  }
+  const capFor = (players) => (Number(players) >= 8 ? cap8 : (Number(players) >= 4 ? cap4 : cap2));
   fs.mkdirSync(outDir, { recursive: true });
 
   const ckpt = process.env.VT_CKPT || DEF_CKPT_SEARCH.find((p) => { try { return fs.existsSync(p); } catch (e) { return false; } });
@@ -272,14 +302,63 @@ async function runScene(scene, srv, cap) {
   let scenes = list.scenes;
   const only = arg('only', null);
   if (only) scenes = scenes.filter((s) => s.id.indexOf(only) >= 0);
+  // ⭐ 2026-10-17：`--ids a,b,c` 只跑指定 scene_id（⛔ 不静默丢：给了不存在的 id 直接报错）
+  const idsArg = arg('ids', null);
+  if (idsArg) {
+    const want = String(idsArg).split(',').map((s) => s.trim()).filter(Boolean);
+    const have = new Set(list.scenes.map((s) => s.id));
+    const bad = want.filter((w) => !have.has(w));
+    if (bad.length) { logErr('⛔ --ids 里有不存在的场景：' + bad.join(',') ); process.exit(2); }
+    scenes = scenes.filter((s) => want.indexOf(s.id) >= 0);
+    logErr('IDS want=' + want.length + ' matched=' + scenes.length);
+  }
   if (arg('scene', null)) scenes = [JSON.parse(arg('scene', null))];
   if (!scenes.length) { logErr('⛔ 没有要跑的场景（--only 过滤太狠？）'); process.exit(2); }
 
   const oneShot = !!arg('scene', null);
   const ts = Math.floor(Date.now() / 1000);
-  const resultsPath = path.join(outDir, 'results_' + (oneShot ? 'one' : '30') + '_' + ts + '.jsonl');
-  const results = fs.createWriteStream(resultsPath, { flags: 'a' });
-  logErr('RUN scenes=' + scenes.length + ' cap=' + cap + ' -> ' + resultsPath);
+  let resultsPath = path.join(outDir, 'results_' + (oneShot ? 'one' : '30') + '_' + ts + '.jsonl');
+  // ⭐ 2026-10-17 断点续跑（父代理指派）：
+  //   `--resume <results.jsonl>` ⟹ 只跳过 ok:true 的场景（ok:false 会重跑），结果追加回同一个文件；
+  //   并用 ckpt_md5 拦"混权重"（⛔ 静默混权重会让分数失真）。
+  const resumePath = arg('resume', null);
+  let resumedLines = 0;
+  if (resumePath) {
+    if (!fs.existsSync(resumePath)) { logErr('⛔ --resume 文件不存在: ' + resumePath); process.exit(2); }
+    const lines = fs.readFileSync(resumePath, 'utf8').split('\n').filter(Boolean);
+    const doneIds = {};
+    const md5s = {};
+    for (const ln of lines) {
+      let e;
+      try { e = JSON.parse(ln); } catch (err) { logErr('⛔ --resume 里有坏行（拒绝猜）: ' + String(ln).slice(0, 140)); process.exit(2); }
+      if (!e || !e.scene_id) { logErr('⛔ --resume 有一行缺 scene_id（拒绝猜）: ' + String(ln).slice(0, 140)); process.exit(2); }
+      if (e.ckpt_md5) md5s[e.ckpt_md5] = (md5s[e.ckpt_md5] || 0) + 1;
+      if (e.ok === true) doneIds[e.scene_id] = true;      // ⭐ timeout 也算"完成"，不重跑
+    }
+    const foreign = Object.keys(md5s).filter((m) => m !== ckptMd5);
+    if (foreign.length && !flag('allow-ckpt-mix')) {
+      logErr('⛔ --resume 的 ckpt_md5 与当前不一致：文件里=' + foreign.join(',') + ' 当前=' + ckptMd5 +
+             ' ⟹ 拒绝混权重（确要混用请显式加 --allow-ckpt-mix）');
+      process.exit(2);
+    }
+    resultsPath = resumePath;
+    resumedLines = lines.length;
+    const before = scenes.length;
+    scenes = scenes.filter((s) => !doneIds[s.id]);
+    logErr('RESUME ' + resumePath + ' lines=' + resumedLines + ' done=' + Object.keys(doneIds).length +
+           ' ⟹ skip=' + (before - scenes.length) + ' run=' + scenes.length);
+    if (!scenes.length) {
+      logErr('RESUME_ALL_DONE 没有待跑场景（文件: ' + resultsPath + '）');
+      process.exit(0);
+    }
+  }
+  // ⭐ 每场【同步追加 + fsync】⟹ 进程被杀也不会丢已完成场次（原来 WriteStream 会攒）
+  const fd = fs.openSync(resultsPath, 'a');
+  const writeRow = (r) => {
+    fs.writeSync(fd, JSON.stringify(r) + '\n');
+    try { fs.fsyncSync(fd); } catch (eFs) {}
+  };
+  logErr('RUN scenes=' + scenes.length + ' cap(2/4/8人)=' + cap2 + '/' + cap4 + '/' + cap8 + ' -> ' + resultsPath);
 
   let srv = null;
   try {
@@ -301,13 +380,15 @@ async function runScene(scene, srv, cap) {
       let r;
       try {
         await srv.ensureReady();
-        r = await runScene(scene, srv, cap);
+        const capUsed = capFor(scene.players);
+        r = await runScene(scene, srv, capUsed);
+        r.cap = capUsed;   // ⭐ 记下本场实际用的 cap（分档可追溯）
       } catch (e) {
         r = { scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0, players: scene.players,
               mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: String((e && e.stack) || e).slice(0, 1200) };
       }
       r.ckpt = ckpt; r.ckpt_md5 = ckptMd5;
-      results.write(JSON.stringify(r) + '\n');
+      writeRow(r);
       outLine(JSON.stringify(r));
       if (r.ok) nOk++; else nErr++;
       winList.push(r.win);
@@ -316,7 +397,7 @@ async function runScene(scene, srv, cap) {
              (r.err ? ' err=' + String(r.err).split('\n')[0].slice(0, 160) : ''));
     }
   } finally {
-    results.end();
+    try { fs.closeSync(fd); } catch (eC) {}
     try { await srv.close(); } catch (e) {}
   }
   logErr('SUMMARY scenes=' + scenes.length + ' ok=' + nOk + ' err=' + nErr + ' win=' +
