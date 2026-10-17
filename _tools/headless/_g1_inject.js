@@ -154,10 +154,23 @@
     if (nodeId !== null && nodeId !== undefined && nodeId >= 0) {
       var picks = [{ nodeId: nodeId, back: 0 }];              // picks[0] = 路线目标（A 相位=生长位置）
       if (G.fire) {
-        // picks[1..] = 射击帧。树按 `path[i].id === pick.nodeId` 定位执行帧 ⟹ 必须给【路线上真实存在的节点 id】。
-        // 给【根】节点 + back 超大（被钳到 L-1）⟹ 执行帧 = 0 = 路线首帧。
-        var rt = null; try { var _t = VantageTree.getTree(); rt = _t && _t.root ? _t.root.id : null; } catch (eR) { }
-        if (rt !== null && rt !== undefined) picks.push({ nodeId: rt, back: 1e9 });
+        // ⭐⭐⭐ 父代理 2026-10-18 根因修复：原实现只发 `{nodeId: root, back: 1e9}`
+        //   ⟹ `agentPickExecFrame` 把 back 钳到 L-1 ⟹ execFrame = start(root)+0 = **0**
+        //   ⟹ 只有"游标恰好=0"时命中 ⟹ **实测 50 局 ammoLeft 恒 5 ⟹ 一枪未放**（60~70% 的胜率全是熬到对手自爆）。
+        //   正解：射击帧要覆盖【commitNode 这一整段】——`agentExecEnsure` 新目标时把游标置为
+        //        commitNode 段起点 + 段内已过帧 ⟹ 游标必在 commitNode 段内 ⟹ 覆盖该段 [0,L) 必命中。
+        try {
+          var _t = VantageTree.getTree();
+          var _cmt = _t && _t.commitNode ? _t.commitNode : null;
+          if (_cmt && typeof _cmt.id === 'number' && _cmt.id >= 0) {
+            var _L = 1;
+            if (typeof _cmt.segmentFrames === 'number' && _cmt.segmentFrames > 0) _L = _cmt.segmentFrames | 0;
+            else if (typeof _cmt.tEndSec === 'number' && typeof _cmt.tStartSec === 'number')
+              _L = Math.max(1, Math.round((_cmt.tEndSec - _cmt.tStartSec) / 0.02));
+            for (var _b = 0; _b < _L; _b++) picks.push({ nodeId: _cmt.id, back: _b });
+            G.firePicksN = (G.firePicksN || 0) + _L; G.fireCommitId = _cmt.id; G.fireCommitL = _L;
+          }
+        } catch (eR) { G.fireErr = String((eR && eR.message) || eR); }
       }
       G.bundleA = { picks: picks, memory: {} };
       G.bundleB = G.bundleA;
