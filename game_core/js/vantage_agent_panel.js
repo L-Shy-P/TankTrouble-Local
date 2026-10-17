@@ -45,6 +45,7 @@
         lastRecordedTick: -1, lastRecordedSkipped: '',
         lastFireSubmits: 0, lastFireNoCursor: 0, lastFireSkippedRetry: 0, lastPulseBlocked: 0, lastEmptyBlocked: 0,
         lastFrameUiAt: 0, lastRollUiAt: 0, frameUiPending: false, lastCompatHtml: '',
+        aReasons: {}, bReasons: {}, lastGiveUpA: 0, lastGiveUpB: 0,
         // —— 决策管线 ——
         seq: 0, ticks: 0, inflight: 0,
         prevNodeId: 0, prevFire: 0,
@@ -240,6 +241,7 @@
               '<div id="vt-agent-ckptinfo" style="color:#89b4fa;white-space:pre-wrap;height:64px;overflow-y:auto">权重: 服务端状态未取到</div>' +
               '<div id="vt-agent-frame" style="color:#cdd6f4;font-family:Consolas,monospace;font-size:11px;line-height:16px;height:52px;overflow-y:auto;overflow-x:hidden;white-space:nowrap;border-top:1px dashed #45475a;padding-top:2px">逐帧操作：等待神经网络…</div>' +
               '<div id="vt-agent-roll" style="color:#a6adc8;font-family:Consolas,monospace;font-size:11px;line-height:16px;height:96px;overflow-y:auto;overflow-x:auto;white-space:pre;border-top:1px dashed #45475a;padding-top:2px"></div>' +
+              '<div id="vt-agent-ab" style="color:#cba6f7;font-family:Consolas,monospace;font-size:11px;line-height:16px;height:68px;overflow-y:auto;overflow-x:hidden;white-space:nowrap;border-top:1px dashed #45475a;padding-top:2px">A相: 未提供</div>' +
               '<div style="display:flex;gap:6px;align-items:center">' +
                 '<button data-act="vt-agent-export" style="cursor:pointer;background:#45475a;color:#cdd6f4;border:1px solid #6c7086;border-radius:4px;padding:1px 6px;font:inherit">导出操作历史 JSONL</button>' +
                 '<span id="vt-agent-hist" style="color:#6c7086">历史 0 帧（含被拒操作）</span>' +
@@ -820,6 +822,18 @@
         // agent 级跳过：只在"本帧发生变化"时记一条（树满会连续多帧，全记会淹没历史），原始值放 skipped 字段
         if (skippedNow && skippedNow !== S.lastRecordedSkipped) rejected.push({ type: 'agent', reason: skippedNow });
         S.lastRecordedSkipped = skippedNow;
+        // ⭐ A/B 相"放弃"按原因计数（用 giveUpA/B 的增量归属到本帧的 skipped，⛔ 不靠字符串变化猜）
+        try {
+            var isf2 = global.__vantageIface;
+            if (isf2) {
+                var ga = (isf2.giveUpA || 0) - (S.lastGiveUpA || 0);
+                if (ga > 0) { var ra = shortReason(skippedNow || 'unknown'); S.aReasons[ra] = (S.aReasons[ra] || 0) + ga; }
+                S.lastGiveUpA = isf2.giveUpA || 0;
+                var gb = (isf2.giveUpB || 0) - (S.lastGiveUpB || 0);
+                if (gb > 0) { var rb = shortReason(skippedNow || 'unknown'); S.bReasons[rb] = (S.bReasons[rb] || 0) + gb; }
+                S.lastGiveUpB = isf2.giveUpB || 0;
+            }
+        } catch (eAB) {}
         if (info && info.attempt > 1 && info.reason) rejected.push({ type: 'retry', reason: String(info.reason) });
         if (fire.policy === 1 && fire.submitted === 0 && fire.blockedBy) rejected.push({ type: 'fire', reason: String(fire.blockedBy) });
         if (st && st.fireErr && fire.policy === 1) rejected.push({ type: 'fire', reason: String(st.fireErr) });
@@ -944,8 +958,61 @@
         box.scrollTop = 0;                         // ⭐ 视口固定在最上面（最新帧）
     }
 
-    function exportJSONL() {
-        var lines = [];
+    // ============================================================
+    // 五·C、A/B 相指标（只读；父代理 2026-10-17：让主人能"看见 A 相在工作"）
+    //   数据源：`window.__vantageIface`（callsA/callsB/giveUpA/giveUpB/growAt/pickExtras）
+    //           + `window.__b.stats()`（aGrow/aNoSlots/aNotLeaf/nodeCount）+ `VantageTree.getTree().cfg.maxNodes`
+    //   ⚠️ 读不到一律写"未提供"，⛔ 不编数字
+    //   ⭐ callsA>0 但 growAt==0 ⟹ 整块变红："A 相在跑但生长没生效"
+    // ============================================================
+    function shortReason(r) {
+        var s = String(r === null || r === undefined ? '' : r);
+        s = s.replace(/^[AB]:/, '').replace(/^重试超限\(/, '').replace(/\)$/, '');
+        return s.slice(0, 16) || '?';
+    }
+    function reasonsText(map) {
+        var ks = Object.keys(map || {});
+        if (!ks.length) return '';
+        ks.sort(function (a, b) { return (map[b] || 0) - (map[a] || 0); });
+        return ks.slice(0, 2).map(function (k) { return '(' + shortReason(k) + '×' + map[k] + ')'; }).join(' ');
+    }
+    function abStats() {
+        var isf = null; try { isf = global.__vantageIface || null; } catch (e) {}
+        var b = null; try { b = (global.__b && global.__b.stats) ? global.__b.stats() : null; } catch (e2) {}
+        var tree = null; try { tree = VantageTree.getTree ? VantageTree.getTree() : null; } catch (e3) {}
+        function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : null; }
+        var out = {
+            callsA: isf ? num(isf.callsA) : null, callsB: isf ? num(isf.callsB) : null,
+            giveUpA: isf ? num(isf.giveUpA) : null, giveUpB: isf ? num(isf.giveUpB) : null,
+            growAt: isf ? num(isf.growAt) : null, pickExtras: isf ? num(isf.pickExtras) : null,
+            aGrow: b ? num(b.aGrow) : null, aNoSlots: b ? num(b.aNoSlots) : null, aNotLeaf: b ? num(b.aNotLeaf) : null,
+            nodeCount: (tree && num(tree.nodeCount) !== null) ? tree.nodeCount : (b ? num(b.nodeCount) : null),
+            maxNodes: (tree && tree.cfg && num(tree.cfg.maxNodes) !== null) ? tree.cfg.maxNodes : null
+        };
+        // ⭐ 口径（2026-10-17 核对 vantage_tree.js:4560/4589）：`callsA/callsB` **只在成功时 +1**，
+        //    失败走 giveUpA/giveUpB ⟹ 调用总数 = calls + giveUp；接受 = calls。
+        out.A_total = (out.callsA !== null && out.giveUpA !== null) ? (out.callsA + out.giveUpA) : null;
+        out.B_total = (out.callsB !== null && out.giveUpB !== null) ? (out.callsB + out.giveUpB) : null;
+        out.A_acc = out.callsA;
+        out.B_acc = out.callsB;
+        out.grow = (out.growAt !== null) ? out.growAt : out.aGrow;
+        out.aRunningNoGrow = !!(out.callsA !== null && out.callsA > 0 && (out.grow === null || out.grow === 0));
+        return out;
+    }
+    function renderAB() {
+        var box = document.getElementById('vt-agent-ab');
+        if (!box) return;
+        var s = abStats();
+        function f(v) { return (v === null || v === undefined) ? '未提供' : String(v); }
+        var line1 = 'A相: 调用 ' + padCjk(f(s.A_total), 6) + ' 接受 ' + padCjk(f(s.A_acc), 6) + ' 生长 ' + padCjk(f(s.grow), 6) + ' 放弃 ' + padCjk(f(s.giveUpA), 5) + reasonsText(S.aReasons);
+        var line2 = 'B相: 调用 ' + padCjk(f(s.B_total), 6) + ' 接受 ' + padCjk(f(s.B_acc), 6) + ' 放弃 ' + padCjk(f(s.giveUpB), 5) + ' ' + reasonsText(S.bReasons) + '  fire接受 ' + f(s.pickExtras);
+        var line3 = '树: ' + padCjk(f(s.nodeCount), 6) + ' 节点  上限 ' + f(s.maxNodes) + '  A无slots ' + f(s.aNoSlots) + '  A非叶 ' + f(s.aNotLeaf);
+        box.style.color = s.aRunningNoGrow ? '#f38ba8' : '#cba6f7';
+        box.textContent = line1 + String.fromCharCode(10) + line2 + String.fromCharCode(10) + line3 +
+            (s.aRunningNoGrow ? (String.fromCharCode(10) + '⛔ A 相在跑但生长没生效（callsA=' + f(s.callsA) + ' 生长=' + f(s.grow) + '）') : '');
+    }
+
+    function exportJSONL() {        var lines = [];
         for (var i = 0; i < S.hist.length; i++) lines.push(JSON.stringify(S.hist[i]));
         return lines.length ? (lines.join('\n') + '\n') : '';
     }
@@ -1068,6 +1135,7 @@
                 S.lastRoundState = curRound;
                 if (S.learn) flushLearn(true);          // ⭐ 留最新 1 帧
                 if (S.frameUiPending || nowMs() - (S.lastFrameUiAt || 0) >= 250) renderFrameView(true);   // 节流：补显示最后一帧
+                renderAB();                                                                               // A/B 相指标（只读，跟着 poll 2Hz 刷）
                 renderCkptInfo();
                 renderStats();
             }
@@ -1088,6 +1156,8 @@
         activateNN: activateNN,
         deactivateNN: deactivateNN,
         exportJSONL: exportJSONL,                       // 操作历史（含被拒）⟹ 一行一帧
+        abStats: abStats,                               // A/B 相指标（只读；探针用）
+        renderAB: function () { renderAB(); return document.getElementById('vt-agent-ab') ? document.getElementById('vt-agent-ab').textContent : null; },
         history: function () { return S.hist; },
         config: function () { return { cheat: CFG.cheat, learn: CFG.learn, mem: CFG.mem }; },
         status: function () { return { on: S.on, tankId: S.tankId, served: S.served, seq: S.seq, err: S.errCount, lastErr: S.lastErr, server: S.server, compat: S.compat }; }
