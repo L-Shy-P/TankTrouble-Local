@@ -74,7 +74,8 @@ function medianIQR(diffs) {
 const f1 = (v) => (v === null || v === undefined) ? '–' : (Math.round(v * 10) / 10).toString();
 
 /* ---------- 一致性字段：必须两边相同才能配对 ---------- */
-const CONSIST_KEYS = ['seed', 'players', 'mapW', 'mapH', 'storm', 'crates_on', 'ckpt_md5', 'cap'].filter((k) => ignoreFields.indexOf(k) < 0);
+// ⭐ 2026-10-17：配对键 = `scene_id` **+ `mazeHash`**（同一 scene 但地图不同 ⟹ 不是同一场景，⛔ 不可配对）
+const CONSIST_KEYS = ['seed', 'mazeHash', 'mapW', 'mapH', 'players', 'storm', 'crates_on', 'ckpt_md5', 'cap'].filter((k) => ignoreFields.indexOf(k) < 0);
 
 function pairUp(A, B) {
   const idxB = new Map(B.map((r) => [r.scene_id, r]));
@@ -140,6 +141,14 @@ for (let i = 0; i < files.length; i++) {
     if (droppedDetail.length) for (const d of droppedDetail.slice(0, 5)) console.log('   ✘ 剔除 ' + d.scene_id + '（' + d.field + ': ' + JSON.stringify(d.A) + ' vs ' + JSON.stringify(d.B) + '）');
     if (missing.length) console.log('   ℹ️ 只在一边出现的场景: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? ' …' : ''));
     if (!('seed' in (A[0] || {}))) console.log('   ⚠️ 结果里没有 `seed` 字段（本工具无法证明同 seed；建议 runner 落 seed）');
+    // ⭐ 2026-10-17：没有 mazeHash ⟹ **不可配对**（不同地图 = 不同场景），直接拒绝
+    if (ignoreFields.indexOf('mazeHash') < 0 && (!('mazeHash' in (A[0] || {})) || !('mazeHash' in (B[0] || {})))) {
+      console.log('\n⛔ 不可配对：结果里没有 `mazeHash`（= 无法证明两次跑的是同一张地图）');
+      console.log('   请用带固定 RNG 的新 runner 重跑（默认已开；`--no-fix-rng` 会关掉），或显式 `--ignore mazeHash` 承担风险。');
+      allOut.push({ A: files[i], B: files[j], n_pairs: 0, error: 'NO_MAZEHASH' });
+      process.exitCode = 2;
+      continue;
+    }
 
     const rec = { A: files[i], B: files[j], n_pairs: pairs.length, dropped: dropped, missing: missing.length, metrics: [] };
     if (pairs.length < minPairs) {
@@ -181,4 +190,4 @@ if (jsonOut) {
   console.log('\nWROTE ' + jsonOut);
 }
 const anyShort = allOut.some((r) => r.n_pairs < minPairs);
-process.exitCode = anyShort ? 1 : 0;
+if (process.exitCode !== 2) process.exitCode = anyShort ? 1 : 0;   // ⛔ 不可配对(2) 不能被覆盖

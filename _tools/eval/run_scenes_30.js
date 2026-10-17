@@ -45,6 +45,22 @@ const DEF_CKPT_SEARCH = ['D:/vt_run/cyc_1/ckpt/model_latest.pt', 'D:/vt_run/ckpt
 // ⭐ 2026-10-17（父代理裁定）：评测射击开关**默认 1**（与游戏/采集路径一致）；`--fire 0` 可显式关掉。
 //   理由：采集与真游戏都开火，评测不开火 ⟹ 测的是另一个策略 ⟹ 那个数没有代表性。
 const FIRE_ON = !!Number(process.env.S30_FIRE || (process.argv.indexOf('--fire') >= 0 ? (process.argv[process.argv.indexOf('--fire') + 1] || 1) : 1));
+// ⭐ 2026-10-17（父代理指派）：**可复现** —— 每场给固定 RNG 序列（LCG 生成），经 `m.open({rngSeq})`
+//   在页面第一条脚本之前接管 `Math.random`（见 match.js:245-252）⟹ 地图/道具/Laika AI 全部可复现。
+//   `--no-fix-rng` 可关（回到旧行为：地图每次随机）。
+const RNG_FIX = !(process.argv.indexOf('--no-fix-rng') >= 0);
+const RNG_SEQ_LEN = Number(process.env.S30_RNG_LEN || 150000);
+function lcgSeq(seed, n) {
+  let s = (seed >>> 0) || 1;
+  const a = new Array(n);
+  for (let i = 0; i < n; i++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; a[i] = s / 4294967296; }
+  return a;
+}
+function fnv1a(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return ('00000000' + h.toString(16)).slice(-8);
+}
 
 const logErr = (s) => process.stderr.write(String(s) + '\n');
 const outLine = (s) => process.stdout.write(String(s) + '\n');
@@ -130,8 +146,14 @@ async function runScene(scene, srv, cap) {
   const t0 = Date.now();
   try {
     m = new Match();
-    await m.open({ humanIds: [], players: scene.players, storm: !!scene.storm,
-                   crates: scene.crates, control: false, epoch: scene.epoch });
+    // ⭐ 可复现：每场固定 RNG 序列（`--no-fix-rng` 关闭）⟹ 同一 scene 两次跑地图必须一致
+    const mazeSeed = ((Number(scene.seed) || 1) * 100003 + 7) >>> 0;
+    const openOpts = { humanIds: [], players: scene.players, storm: !!scene.storm,
+                   crates: scene.crates, control: false, epoch: scene.epoch };
+    if (RNG_FIX) openOpts.rngSeq = lcgSeq(mazeSeed, RNG_SEQ_LEN);
+    await m.open(openOpts);
+    r.mazeSeed = RNG_FIX ? mazeSeed : null;
+    r.rngSeqLen = RNG_FIX ? RNG_SEQ_LEN : 0;
     const boot = m.bootstrap || {};
     r.ai_ids = boot.aiIds || [];
     r.vantage_id = (boot.vantageIds || [])[0] || null;
@@ -139,6 +161,25 @@ async function runScene(scene, srv, cap) {
     r.storm_spawn = m.stormSpawn || null;
     const maze = await m.maze();
     r.mapW = maze.width; r.mapH = maze.height;
+    // ⭐ mazeHash：对迷宫网格做稳定 hash（同一 scene 两次跑必须相同 ⟹ 可复现的硬证据）
+    try {
+      const sig = await m.eval(`(() => {
+        var gc = GameManager.getGameController(); var mz = gc ? gc.getMaze() : null;
+        if (!mz) return null;
+        var t = null;
+        try { t = mz.getTiles ? mz.getTiles() : ((mz.data && mz.data.tiles) || mz.tiles || null); } catch (e) {}
+        var s = 'W' + mz.width + 'H' + mz.height + '|';
+        if (t && t.length) {
+          for (var y = 0; y < t.length; y++) {
+            var row = t[y];
+            if (row && row.length !== undefined) { for (var x = 0; x < row.length; x++) { var c = row[x]; s += (c && c.type !== undefined) ? c.type : (typeof c === 'number' ? c : '#'); } s += '/'; }
+            else s += String(row) + '/';
+          }
+        } else { s += JSON.stringify(mz.reachable || null) + JSON.stringify(mz.tankPositions || null); }
+        return { sig: s, w: mz.width, h: mz.height };
+      })()`);
+      if (sig && sig.sig) { r.mazeSigLen = sig.sig.length; r.mazeHash = fnv1a(sig.sig); }
+    } catch (eMH) { r.mazeHash = null; r.mazeHashErr = String((eMH && eMH.message) || eMH).slice(0, 200); }
 
     await m.eval(SRC);
     await m.eval('window.__g1.subscribe()');
