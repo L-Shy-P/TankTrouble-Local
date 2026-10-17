@@ -1,0 +1,78 @@
+{
+ "checks": {
+  "self_pass": true,
+  "const_offset_pass": true,
+  "step_fail": true,
+  "single_fail": true,
+  "missing_fail": true
+ },
+ "res": {
+  "self": {
+   "ok": true,
+   "rngMismatch": 0,
+   "rngBootOffset": 0,
+   "rngOffsetFrames": 0,
+   "hidden": 0,
+   "hiddenObs": 0,
+   "pose": 0,
+   "proj": 0,
+   "drive": 0,
+   "examples": []
+  },
+  "const_plus1": {
+   "ok": true,
+   "rngMismatch": 0,
+   "rngBootOffset": 1,
+   "rngOffsetFrames": 1200,
+   "hidden": 0,
+   "hiddenObs": 0,
+   "pose": 0,
+   "proj": 0,
+   "drive": 0,
+   "examples": []
+  },
+  "step_600": {
+   "ok": false,
+   "rngMismatch": 600,
+   "rngBootOffset": 0,
+   "rngOffsetFrames": 0,
+   "hidden": 0,
+   "hiddenObs": 0,
+   "pose": 0,
+   "proj": 0,
+   "drive": 0,
+   "examples": [
+    "帧600: 随机数消费计数 A=15528 B=15527",
+    "帧601: 随机数消费计数 A=15530 B=15529"
+   ]
+  },
+  "single_300": {
+   "ok": false,
+   "rngMismatch": 1,
+   "rngBootOffset": 0,
+   "rngOffsetFrames": 0,
+   "hidden": 0,
+   "hiddenObs": 0,
+   "pose": 0,
+   "proj": 0,
+   "drive": 0,
+   "examples": [
+    "帧300: 随机数消费计数 A=8552 B=8551"
+   ]
+  },
+  "missing_300": {
+   "ok": false,
+   "rngMismatch": 1,
+   "rngBootOffset": 0,
+   "rngOffsetFrames": 0,
+   "hidden": 0,
+   "hiddenObs": 0,
+   "pose": 0,
+   "proj": 0,
+   "drive": 0,
+   "examples": [
+    "帧300: 随机数消费计数 A=undefined B=8551"
+   ]
+  }
+ }
+}

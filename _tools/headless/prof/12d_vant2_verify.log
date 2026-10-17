@@ -1,5 +1,0 @@
-VERIFY PASS
-  baseline=prof/_multiai_vant2_baseline.jsonl treeVersion=v171 treeMd5(录制时)=6502b8d35136116ed3ba29e332fff83f
-  treeMd5(现在)=3e3136e17baf648a1acefdb7216ca54c  frames=600  rngLen=8609 replayOverflow=0 aiControl={"tree":true,"enabled":true,"ver":"v173"}
-  epoch(录制/现在)=1791728126459 / 1791728126459  bootFrames(录制/现在)=300 / 300  menuFrames(录制/现在)=24 / 24
-  不一致帧数=0/600  分歧字段={}

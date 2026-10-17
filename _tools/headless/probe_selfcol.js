@@ -1,0 +1,15 @@
+const fs=require('fs');const {Match}=require('./match');
+const SRC=fs.readFileSync(__dirname+'/inject_selfcol.js','utf8');
+(async()=>{const t0=Date.now();const m=new Match();
+ await m.open({humanIds:['tank_a'],aiCount:2,vantCount:1});
+ await m.clearControl(); await m.eval(SRC); console.log('START '+String(await m.eval('window.__sc.start()')).slice(0,20));
+ const t1=Date.now(); await m.pump(600,{yieldMs:0}); const t2=Date.now();
+ const ref=JSON.parse(await m.eval('window.__sc.ref(0)'));
+ const tail=JSON.parse(await m.eval('JSON.stringify(window.__sc.buf.slice(-3))'));
+ console.log('SELFCOL n='+ref.n+' buf='+ref.buf+' seg='+ref.seg+' aSamples='+ref.a+' err='+String(ref.err));
+ console.log('PUMPS 600 frames wall_ms='+(t2-t1)+'  per_frame_ms='+((t2-t1)/600).toFixed(2));
+ console.log('TAIL '+JSON.stringify(tail).slice(0,200));
+ const out='D:/vt_run/datasets/selfcol_600.jsonl';
+ fs.writeFileSync(out, JSON.parse(await m.eval('JSON.stringify(window.__sc.buf)')).map(r=>JSON.stringify(r)).join('\n')+'\n');
+ console.log('WROTE '+out+' bytes='+fs.statSync(out).size);
+ await m.close();})();

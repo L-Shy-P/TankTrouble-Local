@@ -118,7 +118,7 @@ async function runScene(scene, srv, cap) {
   };
   let m = null, f = 0, nodeId = 0, ended = false;
   let lpTot = 0, lpFin = 0, oob = 0, srvErr = 0, nSamples = 0, stormFrames = 0, cratesMax = 0;
-  let oppAdaptFrames = 0, oppNativeFrames = 0, oppBlocksSeen = 0;
+  let oppNativeFrames = 0, oppBlocksSeen = 0, oppMultiFrames = 0, oppOver = 0;   // ⭐ oppMultiFrames=多对手帧数、oppOver=对手数>8 的帧数（显式计数）
   let warnedOpp = false;
   const t0 = Date.now();
   try {
@@ -148,41 +148,34 @@ async function runScene(scene, srv, cap) {
       if (o.err) { r.step_err = String(o.err).slice(0, 400); break; }
       if (f > 5 && o.state && o.state !== inRound) { ended = true; break; }
       if (o.N >= 1) {
-        // ⚠️ 【多对手适配，显式记名、非静默】：
+        // ⭐ 【多对手：送全量】（2026-10-17 派单①）：
         //   `vantage_observe.js` 的 oppTok 是【每个对手 15 维】拼起来的（1v1=15，4人=45，8人=105；
-        //   OPP_FIELDS=[ox,oy,orot,oFwd,...,oAlive(7),...]），而 `net_v2_fixed` 的 opp 槽只有 (1,15)
-        //   ⟹ 多对手时服务端会以"段 opp 超容量"拒绝每一条请求（实测 8 人局 lp_finite 0/2999）。
-        //   => 本跑局器显式取【离自车最近的存活对手】那一个 15 维块喂给网络，并在每局结果里
-        //      记 `opp_input/opp_adapt`；⛔ 这不是权威观测口径，4/8 人的胜率必须带这个警告读。
+        //   OPP_FIELDS=[ox,oy,orot,oFwd,...,oAlive(7),...]），而 `net_v2_fixed` 的 opp 槽是 (8,15)（派单① 已扩口）
+        //   ⚠️ 历史：opp 槽还只有 1 行时，多对手会被服务端以"段 opp 超容量"拒绝（实测 8 人局 lp_finite 0/2999）。
+        //   => 现在：逐 15 维切成最多 8 行、其余补零、**送全量**（⛔ 不再只取 nearestAlive 1 行）
+        //      记 `opp_input/opp_rows_max/opp_over`；>8 个对手 ⟹ 显式计数（⛔ 不静默截断）。
         let segs = o.segs;
         if (segs && Array.isArray(segs.opp) && segs.opp.length && Array.isArray(segs.opp[0])) {
           const opp = segs.opp[0];
           const PER = 15;
-          if (opp.length > PER) {
+          {   // ⭐ 无论几个对手都【送满 8 行】（1 个对手 = 1 行真 + 7 行零）
+            const SLOTS = 8;                     // ⭐ 与服务端 mk() 的 opp 槽 (B,8,15) 同源
             const nBlocks = Math.floor(opp.length / PER);
+            if (nBlocks * PER !== opp.length) throw new Error('oppTok 长度 ' + opp.length + ' 不是 15 的整数倍 —— 拒绝猜块边界');
             if (nBlocks > oppBlocksSeen) oppBlocksSeen = nBlocks;
-            const g0 = (segs.global && segs.global[0]) ? segs.global[0] : null;
-            const sx = (g0 && typeof g0[6] === 'number') ? g0[6] : null;   // GLOBAL_FIELDS: 6=selfX, 7=selfY
-            const sy = (g0 && typeof g0[7] === 'number') ? g0[7] : null;
-            let best = -1, bestD = Infinity;
-            for (let b = 0; b < nBlocks; b++) {
-              const blk = opp.slice(b * PER, (b + 1) * PER);
-              if ((blk[7] | 0) <= 0) continue;                           // 死者块跳过
-              let d = b;
-              if (sx !== null && sy !== null && typeof blk[0] === 'number' && typeof blk[1] === 'number') {
-                const dx = blk[0] - sx, dy = blk[1] - sy; d = dx * dx + dy * dy;
-              }
-              if (d < bestD) { bestD = d; best = b; }
+            if (nBlocks > SLOTS) { oppOver++; if (oppOver <= 3) logErr('⚠️ OPP_OVER[' + scene.id + '] ' + nBlocks + ' 个对手 > 槽位 ' + SLOTS + '（显式计数、不静默截断）'); }
+            const eight = [];
+            for (let b = 0; b < SLOTS; b++) {
+              eight.push(b < nBlocks ? opp.slice(b * PER, (b + 1) * PER) : new Array(PER).fill(0));
             }
-            if (best < 0) best = 0;
-            segs = Object.assign({}, segs, { opp: [opp.slice(best * PER, (best + 1) * PER)] });
-            oppAdaptFrames++;
-            if (!warnedOpp) {
+            segs = Object.assign({}, segs, { opp: eight });
+            if (nBlocks > 1) oppMultiFrames++; else oppNativeFrames++;
+            if (nBlocks > 1 && !warnedOpp) {
               warnedOpp = true;
-              logErr('⚠️ OPP_ADAPT[' + scene.id + '] oppTok=' + opp.length + '（' + nBlocks + ' 个对手）' +
-                     ' -> 只喂 nearestAlive 1×15；网络 opp 槽只有 (1,15)（非权威口径，4/8 人胜率需带此警告）');
+              logErr('⭐ OPP_FULL[' + scene.id + '] oppTok=' + opp.length + '（' + nBlocks + ' 个对手）'
+                     + ' -> 送 8 行（全量切片 + 补零）；opp 槽 = (8,15)');
             }
-          } else oppNativeFrames++;
+          }
         }
         let p = null;
         try { p = await srv.ask({ N: o.N, seed: (scene.seed * 100000 + f + 1) % 2147483647, segs: segs }); lpTot++; }
@@ -225,8 +218,11 @@ async function runScene(scene, srv, cap) {
     r.nodeid_oob = oob;
     r.server_errors = srvErr;
     r.lp_finite = lpFin + '/' + lpTot;
-    r.opp_input = oppAdaptFrames > 0 ? ('nearestAlive(' + oppBlocksSeen + '->1)') : 'native(1)';
-    r.opp_adapted_frames = oppAdaptFrames;
+    r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
+    r.opp_rows_max = oppBlocksSeen;
+    r.opp_over = oppOver;
+    r.opp_multi_frames = oppMultiFrames;
+    r.opp_adapted_frames = 0;   // ⭐ 已停用：不再做 nearestAlive 裁剪（派单①）⟹ 恒 0，保留字段名兼容旧解析
     r.opp_native_frames = oppNativeFrames;
     r.step_err = r.step_err || null;
     if (r.step_err && !ended) {

@@ -1,9 +1,0 @@
-准备状态: state=counting down tank_a存在=true（泵了 0 帧）
-① 倒计时内 teleport 抛错: YES
-   错误信息 = teleport 被 setTankState 拒绝：游戏状态=counting down（非 IN_ROUND 或玩家未激活时它会 return false）。先 await match.waitForRound()（open() 默认已经等过）
-   前后位姿 before={"x":5,"y":35,"rot":1.5295800986091042} after={"x":5,"y":35,"rot":1.5295800986091042}
-   直调 setTankState 真实返回值 = {"ret":false,"gcState":"counting down","hasTank":true}
-waitForRound: 泵 120 帧 → in round；轨迹=0帧→counting down
-② IN_ROUND 后 teleport 返回值 = undefined（undefined = 游戏 API 成功路径没有 return）
-   读回 {"x":55,"y":25,"rot":1} vs 期望 {"x":55,"y":25,"rot":1} → 逐字段一致: YES
-lastTeleport = {"gcState":"in round","ret":null,"hasRet":false,"before":{"x":5,"y":35,"rot":1.5295800986091042},"gcStateAfter":"in round","after":{"x":55,"y":25,"rot":1}}

@@ -93,6 +93,7 @@ function checkLossless(file, rec) {
       ' 坦克位姿不一致=' + c.poseMismatch + ' (最大差 ' + c.maxPoseDiff + ')' +
       ' 子弹位姿不一致=' + c.projMismatch +
       ' 回合状态不一致=' + c.stateMismatch + ' 随机数消费不一致=' + c.rngMismatch +
+      ' boot偏移(仅信息)=' + c.rngBootOffset + '(' + c.rngOffsetFrames + '帧)' +
       ' 决定性隐藏不一致=' + c.hiddenMismatch + ' 观测性不一致(仅信息)=' + c.hiddenObsMismatch +
       ' 时间不一致=' + c.timeMismatch + ' (最大差 ' + c.maxTimeDiff + 'ms)');
     if (c.examples.length) console.log('  例子: ' + c.examples.join(' ; '));
@@ -105,11 +106,13 @@ function checkLossless(file, rec) {
   console.log('  opName(含fire)不一致=' + cmp.opMismatch + ' 坦克位姿不一致=' + cmp.poseMismatch +
     ' (最大差 ' + cmp.maxPoseDiff + ') 子弹位姿不一致=' + cmp.projMismatch +
     ' 回合状态不一致=' + cmp.stateMismatch + ' 随机数消费不一致=' + cmp.rngMismatch +
+    ' boot偏移(仅信息)=' + cmp.rngBootOffset + '(' + cmp.rngOffsetFrames + '帧)' +
     ' 决定性隐藏不一致=' + cmp.hiddenMismatch + ' 观测性不一致(仅信息)=' + cmp.hiddenObsMismatch +
     ' 实际输入不一致=' + cmp.driveMismatch +
     ' 时间不一致=' + cmp.timeMismatch + ' (最大差 ' + cmp.maxTimeDiff + 'ms)');
   if (cmp.examples.length) console.log('  例子: ' + cmp.examples.join(' ; '));
   if (cmp.obsExamples && cmp.obsExamples.length) console.log('  观测性例子(不计 FAIL): ' + cmp.obsExamples.join(' ; '));
+  if (cmp.rngOffsetExamples && cmp.rngOffsetExamples.length) console.log('  boot偏移例子(不计 FAIL): ' + cmp.rngOffsetExamples.join(' ; '));
   if (!cmp.ok) ok = false;   // ★ 硬化：录制→回放不可复现 = 硬 FAIL
 
   fs.writeFileSync(file.replace(/[.]jsonl$/, '') + '.verify.json', JSON.stringify({

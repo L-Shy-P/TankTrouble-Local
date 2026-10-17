@@ -10,10 +10,10 @@ def load(p,n):
 fx=load('_tools/training/net_v2_fixed.py','fx'); dev='cuda'; net=fx.NetV2().to(dev).eval()
 TIERS=(64,256,512,1008)   # ⭐ 主人裁定(2026-10-16)：最高档 1008（1000 停止生长、但 999 节点时生长 +9）
 def mk(B,N):
-    segs={'node':torch.randn(B,N,10,device=dev),'opp':torch.randn(B,1,15,device=dev),'bullet':torch.randn(B,64,7,device=dev),
+    segs={'node':torch.randn(B,N,10,device=dev),'opp':torch.randn(B,8,15,device=dev),'bullet':torch.randn(B,64,7,device=dev),
           'item':torch.randn(B,8,6,device=dev),'global':torch.randn(B,1,38,device=dev),'mem':torch.randn(B,4,256,device=dev)}
-    mask=torch.zeros(B,N+78,dtype=torch.bool,device=dev)
-    assert mask.shape[1]==segs['node'].shape[1]+78, '掩码与张量长度不一致'
+    mask=torch.zeros(B,N+85,dtype=torch.bool,device=dev)
+    assert mask.shape[1]==segs['node'].shape[1]+85, '掩码与张量长度不一致（opp 1→8 ⟹ 上下文 78→85）'
     return segs,mask
 print('MEM_BEFORE %.1f MB'%(torch.cuda.memory_allocated()/1e6))
 for N in TIERS:

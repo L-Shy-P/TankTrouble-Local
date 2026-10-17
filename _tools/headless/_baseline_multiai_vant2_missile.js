@@ -224,7 +224,15 @@ async function runEpisode(opts) {
   const frames = num('frames', 600);
   const vant = num('vant', 2), ai = num('ai', 1);
   const out = str('out', path.join(__dirname, 'prof', '_multiai_vant2_baseline.jsonl'));
-  const base = str('baseline', out);
+  // ★ 2026-10-13：verify 的**默认基线**指向当前口径（testbench v104：maxNodes=1000/nodeCap=true/
+  //   horizonSec=10/refineBeyond=false，tree v179 录制）。
+  //   旧基线 `_multiai_vant2_missile.jsonl`（旧 DEFAULT_EXP 时代）**并存保留**，
+  //   它是"换回旧 testbench ⟹ 0/600 PASS"这条 A/B 因果证明的证据，勿删；
+  //   要用旧基线请显式 `--baseline _tools/headless/prof/_multiai_vant2_missile.jsonl`。
+  //   同目录 `_multiai_vant2_missile.BASELINE-NOTE.md` 写清了两者对应关系。
+  //   ⚠️ record 模式的 `--out` 默认仍是 `_multiai_vant2_baseline.jsonl`（非本脚本产物）；
+  //      重录本场景必须显式给 `--out .../_multiai_vant2_missile_v179.jsonl --missile-frames 60,120,180`。
+  const base = str('baseline', path.join(__dirname, 'prof', '_multiai_vant2_missile_v179.jsonl'));
   const eps = 1e-12;
   const missileFrame = num('missile-frame', 0);   // 0 = 不注入（保持旧行为）
   const missileFrames = str('missile-frames', '').split(',').map((x) => Number(x)).filter((x) => x > 0);

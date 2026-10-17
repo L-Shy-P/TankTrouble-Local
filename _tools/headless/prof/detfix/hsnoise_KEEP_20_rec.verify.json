@@ -16,19 +16,28 @@
     "label": "原始录制 vs 回放#1",
     "framesA": 1200,
     "framesB": 1200,
-    "ok": true,
+    "ok": false,
     "opMismatch": 0,
     "poseMismatch": 0,
     "projMismatch": 0,
     "stateMismatch": 0,
     "rngMismatch": 0,
+    "rngBootOffset": 0,
+    "rngOffsetFrames": 0,
+    "rngOffsetExamples": [],
     "timeMismatch": 0,
-    "hiddenMismatch": 0,
+    "hiddenMismatch": 1200,
     "hiddenObsMismatch": 0,
     "driveMismatch": 0,
     "maxPoseDiff": 0,
     "maxTimeDiff": 0,
-    "examples": [],
+    "examples": [
+      "帧0: 决定性隐藏状态 A={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,5,0,2.017],[\"tank_b\",-1,5,0,2.017]],\"col\":0,\"rnd\":[0.35416493588127196,0.010332215810194612,0.47806936991401017,256812],\"ai\": B={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive=2.017,_triggerPulled=false\"],[\"tank_b\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive",
+      "帧1: 决定性隐藏状态 A={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,5,0,2.033],[\"tank_b\",-1,5,0,2.033]],\"col\":0,\"rnd\":[0.35416493588127196,0.010332215810194612,0.47806936991401017,256812],\"ai\": B={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive=2.033,_triggerPulled=false\"],[\"tank_b\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive",
+      "帧2: 决定性隐藏状态 A={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,5,0,2.05],[\"tank_b\",-1,5,0,2.05]],\"col\":0,\"rnd\":[0.35416493588127196,0.010332215810194612,0.47806936991401017,256812],\"ai\":0, B={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive=2.05,_triggerPulled=false\"],[\"tank_b\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive=",
+      "帧3: 决定性隐藏状态 A={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,5,0,2.067],[\"tank_b\",-1,5,0,2.067]],\"col\":0,\"rnd\":[0.35416493588127196,0.010332215810194612,0.47806936991401017,256812],\"ai\": B={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive=2.067,_triggerPulled=false\"],[\"tank_b\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive",
+      "帧4: 决定性隐藏状态 A={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,5,0,2.083],[\"tank_b\",-1,5,0,2.083]],\"col\":0,\"rnd\":[0.35416493588127196,0.010332215810194612,0.47806936991401017,256812],\"ai\": B={\"rc\":\"rc-fd27-6\",\"th\":1,\"wpn\":[[\"tank_a\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive=2.083,_triggerPulled=false\"],[\"tank_b\",-1,\"_bulletsFired=0,_numBullets=5,_timeAlive"
+    ],
     "obsExamples": []
   },
   "perRun": [
@@ -81,5 +90,5 @@
       "chunks": 25
     }
   ],
-  "ok": true
+  "ok": false
 }

@@ -1,0 +1,17 @@
+const {execSync}=require('child_process');const {Match}=require('./match');
+const gpu=()=>{try{return execSync('nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits',{encoding:'utf8'}).trim()}catch(e){return 'n/a'}};
+(async()=>{const m=new Match();
+ await m.open({humanIds:['tank_a'],aiCount:2,vantCount:1});
+ await m.clearControl();
+ const t=async(tag)=>{const g0=gpu();const t0=Date.now();await m.pump(120,{yieldMs:0});const ms=Date.now()-t0;
+  console.log(tag+' 帧耗时='+(ms/120).toFixed(2)+'ms/帧  GPU(起)='+g0+'  GPU(末)='+gpu());return ms;};
+ await t('BASE   ');
+ await m.eval(`(function(){try{var cs=document.querySelectorAll('canvas');for(var i=0;i<cs.length;i++){cs[i].style.display='none';}return 1;}catch(e){return 0;}})()`);
+ await t('DISPLAY_NONE');
+ await m.eval(`(function(){try{var cs=document.querySelectorAll('canvas');for(var i=0;i<cs.length;i++){cs[i].style.display='none';cs[i].width=1;cs[i].height=1;}return 1;}catch(e){return 0;}})()`);
+ await t('1x1_NONE');
+ await m.eval(`(function(){try{var cs=document.querySelectorAll('canvas');for(var i=0;i<cs.length;i++){cs[i].remove();}return document.querySelectorAll('canvas').length;}catch(e){return -1;}})()`);
+ await t('REMOVED ');
+ const g=JSON.parse(await m.eval(`(function(){var gc=GameManager.getGame();return JSON.stringify({canvases:document.querySelectorAll('canvas').length,renderer:gc.renderer.type,w:gc.canvas&&gc.canvas.width,h:gc.canvas&&gc.canvas.height});})()`));
+ console.log('AFTER '+JSON.stringify(g));
+ await m.close();})();

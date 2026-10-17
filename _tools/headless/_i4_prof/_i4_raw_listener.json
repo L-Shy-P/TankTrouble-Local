@@ -1,0 +1,104 @@
+{
+ "fingerprints": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-12T13:16:01.302Z",
+   "bytes": 252467,
+   "md5": "8cfbe563b372fd21c54281eb7cb7642d"
+  },
+  {
+   "file": "game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js",
+   "mtime": "2026-06-13T17:38:28.229Z",
+   "bytes": 55406,
+   "md5": "1c7bcaba8381d40aa591f5abacb8d96e"
+  },
+  {
+   "file": "game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js",
+   "mtime": "2026-06-13T12:22:43.984Z",
+   "bytes": 24449,
+   "md5": "a2bf42171d586f54e5e5fac5779424e4"
+  }
+ ],
+ "minimal": {
+  "added": true,
+  "listenersOnGC": 4,
+  "hasRoundController": true,
+  "modelListeners": 6
+ },
+ "setup": {
+  "seq0": 0,
+  "cell": {
+   "x": 7,
+   "y": 2
+  },
+  "world": [
+   75,
+   25
+  ],
+  "zoneType": 3,
+  "isPhysical": false,
+  "ZONE_TYPES": {
+   "SPAWN": 0,
+   "HILL": 1,
+   "BASE": 2,
+   "STORM": 3
+  }
+ },
+ "deadAt": 106,
+ "rawCount": {
+  "n": 3,
+  "evs": [
+   "gc-da3b-0",
+   "gc-da3b-0",
+   "gc-da3b-0"
+  ]
+ },
+ "rec": {
+  "n": 1,
+  "rec": {
+   "seq": 1,
+   "victimPlayerId": "tank_b",
+   "killerPlayerId": null,
+   "experience": null,
+   "deadlyId": null,
+   "deadlyType": null,
+   "x": 75,
+   "y": 25,
+   "rot": 0,
+   "poseSrc": "tankCache",
+   "bodyX": 75,
+   "bodyY": 25,
+   "bodyRot": 0,
+   "src": "TANK_DESTROYED",
+   "cause": "storm",
+   "contactX": 76.49999999999999,
+   "contactY": 23,
+   "contactNx": -0.9999999999999999,
+   "contactNy": 0,
+   "contactSrc": "zoneCollision",
+   "deadlyX": null,
+   "deadlyY": null,
+   "deadlyVx": null,
+   "deadlyVy": null,
+   "pairedEvents": [
+    "TANK_DESTROYED"
+   ],
+   "tWallMs": 4149.999999999986
+  },
+  "status": {
+   "installed": true,
+   "installedOn": "GameController.addRoundEventListener",
+   "subCount": 1,
+   "deaths": 1,
+   "lastRound": 0,
+   "overflow": 0,
+   "errors": 0,
+   "errorList": [],
+   "throws": 0,
+   "wrapped": false
+  },
+  "listenersOnGC": 4,
+  "modelListeners": 6
+ },
+ "pageErrors": []
+}

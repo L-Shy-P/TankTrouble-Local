@@ -1,0 +1,34 @@
+{
+ "steps": [
+  {
+   "name": "A_real_weapon_fields",
+   "raw": "{\"playerId\":\"tank_a\",\"active\":{\"id\":\"bw-b9cc-8\",\"playerId\":\"tank_a\",\"type\":-1,\"fields\":{\"_numBullets\":5,\"_triggerPulled\":false,\"_bulletsFired\":0,\"_timeAlive\":2.049999999999997}},\"default\":{\"id\":\"bw-b9cc-8\",\"playerId\":\"tank_a\",\"type\":-1,\"fields\":{\"_numBullets\":5,\"_triggerPulled\":false,\"_bulletsFired\":0,\"_timeAlive\":2.049999999999997}},\"queued\":[]}",
+   "consts": "{\"SHOTGUN_RELOAD_TIME\":1,\"GATLING_GUN_FIRE_RATE\":0.12,\"BULLET\":-1,\"MAX_WEAPON_QUEUE\":3,\"MAX_CRATES\":3}"
+  },
+  {
+   "name": "A_token_tail10",
+   "tail": "[-1,-1,-1,-1,0,-1,-1,0,-1,1]"
+  },
+  {
+   "name": "B_opp_row15_beforeShield",
+   "row": "[5.794673823096142,14.93291971313596,1.486583613359759,1,0,0,0,1,0,0,-1,5,1,-1,-1]",
+   "tanks": "[\"6148530\",\"tank_a\"]"
+  },
+  {
+   "name": "B_opp_shield",
+   "opp": "\"6148530\"",
+   "upgradeId": "g7-b9cc-9",
+   "raw": "{\"lifetime\":null,\"weakened\":false}",
+   "row": "[6.589347646192284,14.865839426271918,1.486583613359759,1,0,0,0,1,0,4,-1,5,1,null,0]"
+  },
+  {
+   "name": "C_rng_purity_realgame",
+   "raw": "{\"rngCallsInsideEncode\":0}"
+  },
+  {
+   "name": "D_fp_crosscheck",
+   "raw": "{\"tok_len\":38,\"baseDim\":38,\"tok_wpnCool\":-1,\"tok_queue0Type\":-1,\"raw_q0type\":null,\"tok_queueLen\":0,\"raw_queueLen\":0,\"tok_wpnDefaultType\":-1,\"raw_defaultType\":-1,\"suspicious_empty\":[-1,-1,-1,-1,0,-1,-1,0,-1,1]}"
+  }
+ ],
+ "errors": []
+}

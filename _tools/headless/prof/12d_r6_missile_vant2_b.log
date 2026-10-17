@@ -1,3 +1,0 @@
-RECORD OK {"file":"prof/_multiai_vant2_missile.jsonl","rngFile":"prof/_multiai_vant2_missile.rng.json","metaFile":"prof/_multiai_vant2_missile.meta.json","frames":600,"treeVersion":"v174","treeMd5":"7bd5910d7fd02a19894313698a1d1f2b","rngLen":8205,"rngOverflow":0,"aiControl":{"tree":true,"enabled":true,"ver":"v174"},"wallMs":14693}
-  MISSILE-INJECT {"ok":true,"id":"probe_base_missile","type":3,"tgt":null,"x":11,"y":5,"t":8033.33333333339}
-  MISSILE-FINAL  {"t":17033.333333333143,"missileCount":0,"missiles":[],"treeVersion":"v174","abiVersion":12}

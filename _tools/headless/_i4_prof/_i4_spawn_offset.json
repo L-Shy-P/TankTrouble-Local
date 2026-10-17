@@ -1,0 +1,1339 @@
+{
+ "startedAt": "2026-10-12T14:28:44.339Z",
+ "fingerprints": [
+  {
+   "file": "game_core/js/b714588dc4621fe104113111ba90b1a7.js",
+   "mtime": "2026-06-13T17:38:28.247Z",
+   "bytes": 58771,
+   "md5": "97cadb8a67a443a9eb2f51ebc7d12916"
+  },
+  {
+   "file": "game_core/js/418577fd210ad079ea3d1e5e04050fe0.js",
+   "mtime": "2026-06-13T17:38:28.228Z",
+   "bytes": 84517,
+   "md5": "7ecd83bb84f80beac5e1df8f4fe85f48"
+  },
+  {
+   "file": "game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js",
+   "mtime": "2026-06-13T17:38:28.229Z",
+   "bytes": 55406,
+   "md5": "1c7bcaba8381d40aa591f5abacb8d96e"
+  },
+  {
+   "file": "game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js",
+   "mtime": "2026-06-13T12:22:43.984Z",
+   "bytes": 24449,
+   "md5": "a2bf42171d586f54e5e5fac5779424e4"
+  },
+  {
+   "file": "game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js",
+   "mtime": "2026-06-13T17:38:28.240Z",
+   "bytes": 51385,
+   "md5": "5183078f57653d2189c8517dd227a01b"
+  },
+  {
+   "file": "game_core/js/local_patch.js",
+   "mtime": "2026-09-18T05:36:19.320Z",
+   "bytes": 101523,
+   "md5": "0af5cc37e6f66751b2c4dc06025df55a"
+  },
+  {
+   "file": "game_core/js/ai_tactics.js",
+   "mtime": "2026-08-27T13:57:01.772Z",
+   "bytes": 231357,
+   "md5": "dece5d071709392b62b81ad6099614c8"
+  },
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-12T13:16:01.302Z",
+   "bytes": 252467,
+   "md5": "8cfbe563b372fd21c54281eb7cb7642d"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "mtime": "2026-10-12T13:09:04.401Z",
+   "bytes": 478831,
+   "md5": "3683bcad0fbcfd077ba26e87270b8e82"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "mtime": "2026-10-12T11:23:33.984Z",
+   "bytes": 29120,
+   "md5": "b7c5ce158730819614b599fb1510d65b"
+  }
+ ],
+ "weaponConsts": {
+  "BULLET": {
+   "off": 2.5,
+   "r": 0.25,
+   "t": {
+    "W": 0.7,
+    "H": 1.4,
+    "OY": -2
+   }
+  },
+  "LASER": {
+   "off": 2.5,
+   "r": 0,
+   "t": {
+    "W": null,
+    "H": null,
+    "OY": null
+   }
+  },
+  "DOUBLE_BARREL": {
+   "off": 2.25,
+   "r": 0.25,
+   "t": {
+    "W": 1.6,
+    "H": 1.1,
+    "OY": -1.75
+   }
+  },
+  "SHOTGUN": {
+   "off": 2.45,
+   "r": 0.1,
+   "t": {
+    "W": 1.4,
+    "H": 1.35,
+    "OY": -1.95
+   }
+  },
+  "HOMING_MISSILE": {
+   "off": 2.5,
+   "r": 0.2,
+   "t": {
+    "W": 0.3,
+    "H": 1.4,
+    "OY": -1.95
+   }
+  },
+  "GATLING_GUN": {
+   "off": 3,
+   "r": 0.1,
+   "t": {
+    "W": 1.4,
+    "H": 1.35,
+    "OY": -1.95
+   }
+  },
+  "MINE": {
+   "off": -1.45,
+   "r": 0.8,
+   "t": null
+  },
+  "TANK": {
+   "W": 3,
+   "H": 4
+  },
+  "WEAPON_TYPES": {
+   "BULLET": -1,
+   "LASER": 0,
+   "DOUBLE_BARREL": 1,
+   "SHOTGUN": 2,
+   "HOMING_MISSILE": 3,
+   "MINE": 4,
+   "GATLING_GUN": 5
+  },
+  "COLLECTIBLE_TYPES": {
+   "CRATE_LASER": 0,
+   "CRATE_DOUBLE_BARREL": 1,
+   "CRATE_SHOTGUN": 2,
+   "CRATE_HOMING_MISSILE": 3,
+   "CRATE_MINE": 4,
+   "CRATE_GATLING_GUN": 5,
+   "WEAPON_CRATE_COUNT": 6,
+   "CRATE_SHIELD": 6,
+   "CRATE_AIMER": 7,
+   "CRATE_SPEED_BOOST": 8,
+   "UPGRADE_CRATE_COUNT": 9,
+   "CRATE_COUNT": 9,
+   "GOLD": 9,
+   "DIAMOND": 10,
+   "FLAG": 11,
+   "COLLECTIBLE_TO_UPGRADE_OFFSET": -4
+  }
+ },
+ "analytic": {
+  "BULLET": {
+   "off": 2.5,
+   "r": 0.25,
+   "tip": 2.7,
+   "overlapBoxDist": 0,
+   "overlap": true,
+   "deepest": 0.25,
+   "box": [
+    [
+     -0.35,
+     -2.7
+    ],
+    [
+     0.35,
+     -2.7
+    ],
+    [
+     0.35,
+     -1.3
+    ],
+    [
+     -0.35,
+     -1.3
+    ]
+   ]
+  },
+  "LASER": {
+   "off": 2.5,
+   "r": 0,
+   "tip": 0,
+   "overlapBoxDist": 2.5,
+   "overlap": false,
+   "deepest": -2.5,
+   "box": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  "DOUBLE_BARREL": {
+   "off": 2.25,
+   "r": 0.25,
+   "tip": 2.3,
+   "overlapBoxDist": 0,
+   "overlap": true,
+   "deepest": 0.25,
+   "box": [
+    [
+     -0.8,
+     -2.3
+    ],
+    [
+     0.8,
+     -2.3
+    ],
+    [
+     0.8,
+     -1.2
+    ],
+    [
+     -0.8,
+     -1.2
+    ]
+   ]
+  },
+  "SHOTGUN": {
+   "off": 2.45,
+   "r": 0.1,
+   "tip": 2.625,
+   "overlapBoxDist": 0,
+   "overlap": true,
+   "deepest": 0.1,
+   "box": [
+    [
+     -0.7,
+     -2.625
+    ],
+    [
+     0.7,
+     -2.625
+    ],
+    [
+     0.7,
+     -1.275
+    ],
+    [
+     -0.7,
+     -1.275
+    ]
+   ]
+  },
+  "HOMING_MISSILE": {
+   "off": 2.5,
+   "r": 0.2,
+   "tip": 2.65,
+   "overlapBoxDist": 0,
+   "overlap": true,
+   "deepest": 0.2,
+   "box": [
+    [
+     -0.15,
+     -2.65
+    ],
+    [
+     0.15,
+     -2.65
+    ],
+    [
+     0.15,
+     -1.25
+    ],
+    [
+     -0.15,
+     -1.25
+    ]
+   ]
+  },
+  "GATLING_GUN": {
+   "off": 3,
+   "r": 0.1,
+   "tip": 2.625,
+   "overlapBoxDist": 0.375,
+   "overlap": false,
+   "deepest": -0.275,
+   "box": [
+    [
+     -0.7,
+     -2.625
+    ],
+    [
+     0.7,
+     -2.625
+    ],
+    [
+     0.7,
+     -1.275
+    ],
+    [
+     -0.7,
+     -1.275
+    ]
+   ]
+  }
+ },
+ "empirical": {
+  "BULLET(默认)": {
+   "tank": "tank_a",
+   "pose": {
+    "x": 25,
+    "y": 35,
+    "rot": 0
+   },
+   "fixtures": [
+    {
+     "ut": "turret",
+     "cat": 1,
+     "mask": 119,
+     "r": 0.005,
+     "v": [
+      [
+       25.35,
+       33.7
+      ],
+      [
+       24.65,
+       33.7
+      ],
+      [
+       24.65,
+       32.3
+      ],
+      [
+       25.35,
+       32.3
+      ]
+     ]
+    },
+    {
+     "ut": "base",
+     "cat": 1,
+     "mask": 127,
+     "r": 0.005,
+     "v": [
+      [
+       23.5,
+       33
+      ],
+      [
+       26.5,
+       33
+      ],
+      [
+       26.5,
+       37
+      ],
+      [
+       23.5,
+       37
+      ]
+     ]
+    }
+   ],
+   "fire": {
+    "id": "b-9804-12",
+    "type": -1,
+    "x": 25,
+    "y": 32.5,
+    "vx": 0,
+    "vy": -18,
+    "sp": 18,
+    "tx": 25,
+    "ty": 35,
+    "rot": 0,
+    "deadly": false,
+    "timeAlive": 0,
+    "d": 2.5
+   },
+   "contactsSameFrame": [
+    {
+     "projId": "b-9804-12",
+     "owner": "tank_a",
+     "touching": false,
+     "bx": 25,
+     "by": 32.5,
+     "d": 2.5,
+     "fixtureUt": "turret"
+    }
+   ],
+   "contactsAfter1Step": [
+    {
+     "projId": "b-9804-12",
+     "owner": "tank_a",
+     "touching": false,
+     "bx": 25,
+     "by": 32.194,
+     "d": 2.806,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "b-9804-12",
+     "owner": "tank_a",
+     "touching": true,
+     "bx": 25,
+     "by": 32.194,
+     "d": 2.806,
+     "fixtureUt": "turret"
+    }
+   ],
+   "geom": {
+    "localBullet": [
+     0,
+     -2.5
+    ],
+    "localTurret": [
+     [
+      0.35,
+      -1.3
+     ],
+     [
+      -0.35,
+      -1.3
+     ],
+     [
+      -0.35,
+      -2.7
+     ],
+     [
+      0.35,
+      -2.7
+     ]
+    ],
+    "overlap": {
+     "dist": 0,
+     "overlap": true,
+     "deepest": 0.25,
+     "box": [
+      -0.35,
+      -2.7,
+      0.35,
+      -1.3
+     ]
+    },
+    "tipLocalY": -2.7
+   }
+  },
+  "SHOTGUN(箱 type=2)": {
+   "tank": "tank_b",
+   "pose": {
+    "x": 55,
+    "y": 35,
+    "rot": 0
+   },
+   "fixtures": [
+    {
+     "ut": "turret",
+     "cat": 1,
+     "mask": 119,
+     "r": 0.005,
+     "v": [
+      [
+       55.7,
+       33.725
+      ],
+      [
+       54.3,
+       33.725
+      ],
+      [
+       54.3,
+       32.375
+      ],
+      [
+       55.7,
+       32.375
+      ]
+     ]
+    },
+    {
+     "ut": "base",
+     "cat": 1,
+     "mask": 127,
+     "r": 0.005,
+     "v": [
+      [
+       53.5,
+       33
+      ],
+      [
+       56.5,
+       33
+      ],
+      [
+       56.5,
+       37
+      ],
+      [
+       53.5,
+       37
+      ]
+     ]
+    }
+   ],
+   "fire": {
+    "id": "sg-9804-15",
+    "type": 2,
+    "x": 55.0671,
+    "y": 32.5508,
+    "vx": 0.544,
+    "vy": -30.6612,
+    "sp": 30.666,
+    "tx": 55,
+    "ty": 35,
+    "rot": 0,
+    "deadly": false,
+    "timeAlive": 0,
+    "d": 2.4501
+   },
+   "contactsSameFrame": [
+    {
+     "projId": "sg-9804-34",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.5183,
+     "by": 32.5984,
+     "d": 2.4569,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-33",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.8987,
+     "by": 32.5518,
+     "d": 2.4503,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-32",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.4408,
+     "by": 32.6064,
+     "d": 2.458,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-31",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.7949,
+     "by": 32.5575,
+     "d": 2.4511,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-30",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.8079,
+     "by": 32.5566,
+     "d": 2.4509,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-29",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.9169,
+     "by": 32.5512,
+     "d": 2.4502,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-28",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.4909,
+     "by": 32.5934,
+     "d": 2.4562,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-27",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.09,
+     "by": 32.5514,
+     "d": 2.4502,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-26",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.4837,
+     "by": 32.5921,
+     "d": 2.456,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-25",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.6159,
+     "by": 32.5765,
+     "d": 2.4538,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-24",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.221,
+     "by": 32.5587,
+     "d": 2.4512,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-23",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.569,
+     "by": 32.5834,
+     "d": 2.4547,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-22",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.5498,
+     "by": 32.5865,
+     "d": 2.4552,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-21",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.3489,
+     "by": 32.5718,
+     "d": 2.4531,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-20",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.4116,
+     "by": 32.5804,
+     "d": 2.4543,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-19",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.5252,
+     "by": 32.5906,
+     "d": 2.4558,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-18",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.306,
+     "by": 32.5668,
+     "d": 2.4524,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-17",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.528,
+     "by": 32.6003,
+     "d": 2.4571,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-16",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.8501,
+     "by": 32.554,
+     "d": 2.4506,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-15",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.0671,
+     "by": 32.5508,
+     "d": 2.4501,
+     "fixtureUt": "turret"
+    }
+   ],
+   "contactsAfter1Step": [
+    {
+     "projId": "sg-9804-15",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.0764,
+     "by": 32.0296,
+     "d": 2.9714,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-16",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.8271,
+     "by": 31.9734,
+     "d": 3.0315,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-17",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.6101,
+     "by": 32.0191,
+     "d": 3.0427,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-18",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.3483,
+     "by": 32.0455,
+     "d": 2.975,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-19",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.4582,
+     "by": 32.0615,
+     "d": 2.9881,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-20",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.4737,
+     "by": 32.0132,
+     "d": 3.0242,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-21",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.3983,
+     "by": 32.0388,
+     "d": 2.9878,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-22",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.484,
+     "by": 32.0382,
+     "d": 3.0064,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-23",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.5012,
+     "by": 31.9931,
+     "d": 3.048,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-24",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.2512,
+     "by": 32.0426,
+     "d": 2.968,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-25",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.558,
+     "by": 32.0103,
+     "d": 3.0222,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-26",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.5568,
+     "by": 32.026,
+     "d": 3.0257,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-27",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.1036,
+     "by": 31.9793,
+     "d": 3.0225,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-28",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.5619,
+     "by": 32.0515,
+     "d": 3.0015,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-29",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.9049,
+     "by": 32.0059,
+     "d": 2.9956,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-30",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.7799,
+     "by": 32.0058,
+     "d": 3.0023,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-31",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.7634,
+     "by": 31.977,
+     "d": 3.0322,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-32",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.3619,
+     "by": 32.0796,
+     "d": 2.9893,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-33",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 54.8835,
+     "by": 31.9841,
+     "d": 3.0181,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-34",
+     "owner": "tank_b",
+     "touching": false,
+     "bx": 55.5918,
+     "by": 32.068,
+     "d": 2.9911,
+     "fixtureUt": "base"
+    },
+    {
+     "projId": "sg-9804-34",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.5918,
+     "by": 32.068,
+     "d": 2.9911,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-33",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.8835,
+     "by": 31.9841,
+     "d": 3.0181,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-32",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.3619,
+     "by": 32.0796,
+     "d": 2.9893,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-31",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.7634,
+     "by": 31.977,
+     "d": 3.0322,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-30",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.7799,
+     "by": 32.0058,
+     "d": 3.0023,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-29",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.9049,
+     "by": 32.0059,
+     "d": 2.9956,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-28",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.5619,
+     "by": 32.0515,
+     "d": 3.0015,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-27",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.1036,
+     "by": 31.9793,
+     "d": 3.0225,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-26",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.5568,
+     "by": 32.026,
+     "d": 3.0257,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-25",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.558,
+     "by": 32.0103,
+     "d": 3.0222,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-24",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.2512,
+     "by": 32.0426,
+     "d": 2.968,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-23",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.5012,
+     "by": 31.9931,
+     "d": 3.048,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-22",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.484,
+     "by": 32.0382,
+     "d": 3.0064,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-21",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.3983,
+     "by": 32.0388,
+     "d": 2.9878,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-20",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.4737,
+     "by": 32.0132,
+     "d": 3.0242,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-19",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.4582,
+     "by": 32.0615,
+     "d": 2.9881,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-18",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.3483,
+     "by": 32.0455,
+     "d": 2.975,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-17",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.6101,
+     "by": 32.0191,
+     "d": 3.0427,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-16",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 54.8271,
+     "by": 31.9734,
+     "d": 3.0315,
+     "fixtureUt": "turret"
+    },
+    {
+     "projId": "sg-9804-15",
+     "owner": "tank_b",
+     "touching": true,
+     "bx": 55.0764,
+     "by": 32.0296,
+     "d": 2.9714,
+     "fixtureUt": "turret"
+    }
+   ],
+   "geom": {
+    "localBullet": [
+     0.0671,
+     -2.4492
+    ],
+    "localTurret": [
+     [
+      0.7,
+      -1.275
+     ],
+     [
+      -0.7,
+      -1.275
+     ],
+     [
+      -0.7,
+      -2.625
+     ],
+     [
+      0.7,
+      -2.625
+     ]
+    ],
+    "overlap": {
+     "dist": 0,
+     "overlap": true,
+     "deepest": 0.1,
+     "box": [
+      -0.7,
+      -2.625,
+      0.7,
+      -1.275
+     ]
+    },
+    "tipLocalY": -2.625
+   }
+  },
+  "HOMING_MISSILE(箱 type=3)": {
+   "tank": "tank_c",
+   "pose": {
+    "x": 25,
+    "y": 35,
+    "rot": 0
+   },
+   "fixtures": [
+    {
+     "ut": "turret",
+     "cat": 1,
+     "mask": 119,
+     "r": 0.005,
+     "v": [
+      [
+       23.5996,
+       33.7614
+      ],
+      [
+       23.3,
+       33.7774
+      ],
+      [
+       23.2519,
+       32.8787
+      ],
+      [
+       23.3749,
+       32.3714
+      ],
+      [
+       23.5514,
+       32.8627
+      ]
+     ]
+    },
+    {
+     "ut": "base",
+     "cat": 1,
+     "mask": 127,
+     "r": 0.005,
+     "v": [
+      [
+       21.9118,
+       33.1006
+      ],
+      [
+       24.9075,
+       32.9403
+      ],
+      [
+       25.1214,
+       36.9346
+      ],
+      [
+       22.1256,
+       37.0949
+      ]
+     ]
+    }
+   ],
+   "fire": {
+    "id": "hm-9804-37",
+    "type": 3,
+    "x": 23.383,
+    "y": 32.5212,
+    "vx": -0.9622,
+    "vy": -17.9743,
+    "sp": 18,
+    "tx": 23.5166,
+    "ty": 35.0176,
+    "rot": -0.0535,
+    "deadly": false,
+    "timeAlive": 0,
+    "d": 2.5
+   },
+   "contactsSameFrame": [
+    {
+     "projId": "hm-9804-37",
+     "owner": "tank_c",
+     "touching": false,
+     "bx": 23.383,
+     "by": 32.5212,
+     "d": 2.5,
+     "fixtureUt": "base"
+    }
+   ],
+   "contactsAfter1Step": [
+    {
+     "projId": "hm-9804-37",
+     "owner": "tank_c",
+     "touching": false,
+     "bx": 23.3676,
+     "by": 32.2336,
+     "d": 2.788,
+     "fixtureUt": "base"
+    }
+   ],
+   "geom": {
+    "localBullet": [
+     0.0001,
+     -2.5
+    ],
+    "localTurret": [
+     [
+      0.1501,
+      -1.25
+     ],
+     [
+      -0.15,
+      -1.25
+     ],
+     [
+      -0.1499,
+      -2.15
+     ],
+     [
+      0,
+      -2.65
+     ],
+     [
+      0.15,
+      -2.15
+     ]
+    ],
+    "overlap": {
+     "dist": 0,
+     "overlap": true,
+     "deepest": 0.2,
+     "box": [
+      -0.15,
+      -2.65,
+      0.1501,
+      -1.25
+     ]
+    },
+    "tipLocalY": -2.65
+   }
+  }
+ },
+ "pageErrorsGeom": [],
+ "impact": {
+  "frames": 9600,
+  "samples": [],
+  "aiReady": {
+   "ai": true,
+   "tanks": [
+    "6148530",
+    "tank_a"
+   ]
+  },
+  "framesTotal": 9600,
+  "currentRoundN": 1,
+  "status": {
+   "installed": true,
+   "installedOn": "GameController.addRoundEventListener",
+   "subCount": 1,
+   "deaths": 1,
+   "lastRound": 1,
+   "overflow": 0,
+   "errors": 0,
+   "errorList": [],
+   "throws": 0,
+   "wrapped": false
+  },
+  "list": [
+   {
+    "victim": "tank_a",
+    "killer": "6148530",
+    "src": "TANK_KILLED",
+    "cause": "projectile",
+    "deadlyType": -1,
+    "exp": 0,
+    "x": 35,
+    "y": 25,
+    "contact": [
+     32.80381606142324,
+     25.358939928394598
+    ],
+    "paired": [
+     "TANK_KILLED"
+    ]
+   },
+   {
+    "victim": "tank_a",
+    "killer": "6148530",
+    "src": "TANK_KILLED",
+    "cause": "projectile",
+    "deadlyType": -1,
+    "exp": 0,
+    "x": 25,
+    "y": 5,
+    "contact": [
+     26.166296110738806,
+     6.688481933368695
+    ],
+    "paired": [
+     "TANK_KILLED"
+    ]
+   },
+   {
+    "victim": "tank_a",
+    "killer": "6148530",
+    "src": "TANK_KILLED",
+    "cause": "projectile",
+    "deadlyType": -1,
+    "exp": 0,
+    "x": 25,
+    "y": 45,
+    "contact": [
+     26.289018267699067,
+     45.77961163062936
+    ],
+    "paired": [
+     "TANK_KILLED"
+    ]
+   }
+  ],
+  "summary": {
+   "deaths": 3,
+   "killEvents": 3,
+   "selfKills": 0,
+   "selfKillRateOfKills": 0,
+   "byCause": {
+    "projectile": 3
+   },
+   "selfKillExp": []
+  }
+ },
+ "pageErrorsImpact": []
+}

@@ -1,0 +1,22 @@
+{
+ "steps": [
+  {
+   "name": "1_tanks",
+   "tanks": "[\"6148530\",\"tank_a\"]"
+  },
+  {
+   "name": "2_opp_before",
+   "raw": "{\"oppLen\":15,\"oppIds\":[\"6148530\"],\"alive\":1,\"mismatch\":0,\"oppTok\":[5,15,4.586423265422731,0,0,1,0,1,0,0,-1,5,1,-1,-1]}"
+  },
+  {
+   "name": "3_shield_real_fields",
+   "upgradeId": "g8-9bbb-9",
+   "raw": "{\"id\":\"g8-9bbb-9\",\"type\":2,\"fields\":{\"_lifetime\":null,\"_weakened\":false},\"hasOwnField_lifetime\":true,\"getField_lifetime\":null,\"getField_life\":null,\"getField_timeLeft\":null,\"getField_spawnTime\":null}"
+  },
+  {
+   "name": "4_opp_after",
+   "raw": "{\"oppLen\":15,\"mismatch\":0,\"oppTok\":[5,15,4.336423265422731,0,0,1,0,1,0,0,-1,5,1,-1,-1],\"suspect\":0}"
+  }
+ ],
+ "errors": []
+}

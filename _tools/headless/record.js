@@ -307,9 +307,28 @@ async function replayEpisode(rec, opts = {}) {
 function compareFrames(A, B, label) {
   const out = { label, framesA: A.length, framesB: B.length, ok: true,
                 opMismatch: 0, poseMismatch: 0, projMismatch: 0, stateMismatch: 0,
-                rngMismatch: 0, timeMismatch: 0, hiddenMismatch: 0, hiddenObsMismatch: 0, driveMismatch: 0,
+                rngMismatch: 0, rngBootOffset: 0, rngOffsetFrames: 0, rngOffsetExamples: [],
+                timeMismatch: 0, hiddenMismatch: 0, hiddenObsMismatch: 0, driveMismatch: 0,
                 maxPoseDiff: 0, maxTimeDiff: 0, examples: [], obsExamples: [] };
   const N = Math.min(A.length, B.length);
+  // ★ 2026-10-12 boot 阶段 RNG flaky：把「恒定偏移」和「局内漂移」分开。
+  //   record 与 replay 是两个页面实例；录制起点之前（boot/资产/页面初始化）有些
+  //   真实事件驱动的 Math.random 消费者（DOM/资产时序相关），两边的调用次数可能
+  //   整局恒定差 1（实测 A=4420/B=4419 从帧 0 起 1200 帧，siteOverflow=0、
+  //   其余 10 个计数器全 0）。
+  //   这不是局内漂移：per-site 分流下每个调用点拿自己的序列，游戏状态逐帧相同。
+  //   真正要抓的是「差值在录制过程中发生变化」——那才是真回归。
+  //   零录制格式改动：只改对拍语义；旧录制同样适用。
+  let rnBaseDiff = null, rnConst = true;
+  for (let i = 0; i < N; i++) {
+    const a = A[i], b = B[i];
+    if (typeof a.rn !== 'number' || typeof b.rn !== 'number') continue;
+    const d = a.rn - b.rn;
+    if (rnBaseDiff === null) rnBaseDiff = d;
+    else if (d !== rnBaseDiff) { rnConst = false; break; }
+  }
+  const bootOffset = (rnConst && rnBaseDiff !== null && rnBaseDiff !== 0) ? rnBaseDiff : 0;
+  out.rngBootOffset = bootOffset;
   const ex = (s) => { if (out.examples.length < 5) out.examples.push(s); };
   const exObs = (s) => { if (out.obsExamples.length < 5) out.obsExamples.push(s); };
   // ★ 决定性部分：v4 起 hs 已只含决定性字段；老录制（v≤3）的 hs 里混着观测性字段，
@@ -356,8 +375,18 @@ function compareFrames(A, B, label) {
       ex('帧' + i + ': 相对虚拟时间 A=' + a.t + ' B=' + b.t);
     }
     if (a.rn !== b.rn) {
-      out.rngMismatch++; out.ok = false;
-      ex(`帧${i}: 随机数消费计数 A=${a.rn} B=${b.rn}`);
+      const bothNum = (typeof a.rn === 'number' && typeof b.rn === 'number');
+      if (bootOffset !== 0 && bothNum) {
+        // 恒定偏移 = 录制起点之前的 boot 差异：记信息，不判 FAIL
+        out.rngOffsetFrames++;
+        if (out.rngOffsetExamples.length < 3) {
+          out.rngOffsetExamples.push(`帧${i}: A=${a.rn} B=${b.rn}（恒定差 ${bootOffset}，判为 boot 偏移）`);
+        }
+      } else {
+        // 局内漂移（差值变化 / 一侧缺失）= 真回归，硬 FAIL
+        out.rngMismatch++; out.ok = false;
+        ex(`帧${i}: 随机数消费计数 A=${a.rn} B=${b.rn}`);
+      }
     }
     // ★ 本帧实际施加的输入（v3）：这是"录制的事实"，必须逐帧一致；
     //   ⚠️ 两边都有 drive 才比：v≤2 的旧录制没这个字段，按 OR 会比出 200 条

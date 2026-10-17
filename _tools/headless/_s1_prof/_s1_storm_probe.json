@@ -1,0 +1,885 @@
+{
+ "startedAt": "2026-10-13T15:33:10.053Z",
+ "fingerprints": [
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-13T15:09:18.258Z",
+   "bytes": 329958,
+   "md5": "e8e775253e0c764206bba582ae484e89"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "mtime": "2026-10-13T15:24:14.979Z",
+   "bytes": 523626,
+   "md5": "7710380ca430b37037c180c01d6011c3"
+  },
+  {
+   "file": "game_core/index.html",
+   "mtime": "2026-10-13T15:24:14.983Z",
+   "bytes": 34094,
+   "md5": "f9d763359d6bf4e0b0d777c099ca06b2"
+  },
+  {
+   "file": "game_core/rust/diff_tree_low_eval_frames.js",
+   "mtime": "2026-10-13T15:24:14.985Z",
+   "bytes": 2770,
+   "md5": "18bf66259bc86eca83dad8399a5e90d7"
+  },
+  {
+   "file": "game_core/js/b714588dc4621fe104113111ba90b1a7.js",
+   "mtime": "2026-06-13T17:38:28.247Z",
+   "bytes": 58771,
+   "md5": "97cadb8a67a443a9eb2f51ebc7d12916"
+  },
+  {
+   "file": "game_core/js/7b2ed8ad3598d7321f8f3d2b04b1eac8.js",
+   "mtime": "2026-06-13T17:38:28.240Z",
+   "bytes": 51385,
+   "md5": "5183078f57653d2189c8517dd227a01b"
+  },
+  {
+   "file": "game_core/js/54518faa8d672020d7af8ed7c353bc1b.js",
+   "mtime": "2026-06-13T17:38:28.231Z",
+   "bytes": 61876,
+   "md5": "bd4736542c88b42fb7dfd1ff08c0dc72"
+  },
+  {
+   "file": "game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js",
+   "mtime": "2026-06-13T17:38:28.229Z",
+   "bytes": 55406,
+   "md5": "1c7bcaba8381d40aa591f5abacb8d96e"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "mtime": "2026-10-12T11:23:33.984Z",
+   "bytes": 29120,
+   "md5": "b7c5ce158730819614b599fb1510d65b"
+  }
+ ],
+ "version": "v190",
+ "measuredDt": {
+  "dt": 0.016666666666666514,
+  "t0": 2533.3333333333326,
+  "t1": 3533.3333333333235
+ },
+ "frameDtDefault": 0.02,
+ "noPush": {
+  "auditRect0": null,
+  "beforeFd": -1,
+  "afterFd": -1,
+  "oracleFd": -1,
+  "samplesIdentical": true,
+  "gameDriftWithStorm": 0,
+  "poseMatchGame": true,
+  "sbFirst": [
+   55,
+   35
+  ],
+  "gsFirst": [
+   55,
+   35
+  ],
+  "sbLast": [
+   55,
+   35
+  ],
+  "gsLast": [
+   55,
+   35
+  ]
+ },
+ "s1Interact": {
+  "stormFd": 1,
+  "stormOv": 10001.7
+ },
+ "s1Chain": {
+  "dead": true,
+  "deathFrame": 50,
+  "released": false
+ },
+ "A_natural": {
+  "forced": false,
+  "dtUsed": 0.016666666666666514,
+  "N": 900,
+  "seq": [
+   2,
+   1,
+   2,
+   0,
+   2,
+   3,
+   2,
+   1
+  ],
+  "picks": {
+   "P1": {
+    "x": 5,
+    "y": 5,
+    "cell": {
+     "x": 0,
+     "y": 0
+    }
+   },
+   "P3": {
+    "x": 5,
+    "y": 45,
+    "cell": {
+     "x": 0,
+     "y": 4
+    }
+   },
+   "P2": {
+    "x": 75,
+    "y": 5,
+    "cell": {
+     "x": 7,
+     "y": 0
+    }
+   }
+  },
+  "rows": [
+   {
+    "id": "tank_b",
+    "cell": {
+     "x": 0,
+     "y": 0
+    },
+    "placed": {
+     "x": 5,
+     "y": 5,
+     "rot": 0
+    },
+    "joint": {
+     "geomFd": 405,
+     "geomOv": 0.000667,
+     "sbFd": 405,
+     "sbDead": true,
+     "sbStorm": true,
+     "n": 901,
+     "sFull": {
+      "t": 9.983,
+      "side": -1,
+      "r": 0,
+      "b": 0,
+      "l": 0,
+      "tp": 0,
+      "seq": [
+       2,
+       1,
+       2,
+       0,
+       2,
+       3,
+       2,
+       1,
+       1,
+       0,
+       2,
+       0
+      ],
+      "tb": {
+       "minX": 0,
+       "minY": 0,
+       "maxX": 7,
+       "maxY": 4
+      },
+      "TILE": 10,
+      "WALL": 0.8,
+      "GROW": 5,
+      "CYCLE": 10
+     },
+     "state": {
+      "t": 9.983,
+      "side": -1,
+      "r": 0,
+      "b": 0,
+      "l": 0,
+      "tp": 0
+     },
+     "rect0": {
+      "R": 80,
+      "B": 50,
+      "L": 0,
+      "T": 0
+     },
+     "oracleFd": 405
+    },
+    "gameFdRaw": 406,
+    "gameFdAdj": 406,
+    "deltaAdj": -1
+   },
+   {
+    "id": "tank_c",
+    "cell": {
+     "x": 7,
+     "y": 0
+    },
+    "placed": {
+     "x": 75,
+     "y": 5,
+     "rot": 0
+    },
+    "joint": {
+     "geomFd": -1,
+     "geomOv": null,
+     "sbFd": -1,
+     "sbDead": false,
+     "sbStorm": false,
+     "n": 901,
+     "sFull": {
+      "t": 9.983,
+      "side": -1,
+      "r": 0,
+      "b": 0,
+      "l": 0,
+      "tp": 0,
+      "seq": [
+       2,
+       1,
+       2,
+       0,
+       2,
+       3,
+       2,
+       1,
+       1,
+       0,
+       2,
+       0
+      ],
+      "tb": {
+       "minX": 0,
+       "minY": 0,
+       "maxX": 7,
+       "maxY": 4
+      },
+      "TILE": 10,
+      "WALL": 0.8,
+      "GROW": 5,
+      "CYCLE": 10
+     },
+     "state": {
+      "t": 9.983,
+      "side": -1,
+      "r": 0,
+      "b": 0,
+      "l": 0,
+      "tp": 0
+     },
+     "rect0": {
+      "R": 80,
+      "B": 50,
+      "L": 0,
+      "T": 0
+     },
+     "oracleFd": -1
+    },
+    "gameFdRaw": -1,
+    "gameFdAdj": -1,
+    "deltaAdj": null
+   },
+   {
+    "id": "tank_a",
+    "cell": {
+     "x": 0,
+     "y": 4
+    },
+    "placed": {
+     "x": 5,
+     "y": 45,
+     "rot": 0
+    },
+    "joint": {
+     "geomFd": 405,
+     "geomOv": 0.000667,
+     "sbFd": 405,
+     "sbDead": true,
+     "sbStorm": true,
+     "n": 901,
+     "sFull": {
+      "t": 9.983,
+      "side": -1,
+      "r": 0,
+      "b": 0,
+      "l": 0,
+      "tp": 0,
+      "seq": [
+       2,
+       1,
+       2,
+       0,
+       2,
+       3,
+       2,
+       1,
+       1,
+       0,
+       2,
+       0
+      ],
+      "tb": {
+       "minX": 0,
+       "minY": 0,
+       "maxX": 7,
+       "maxY": 4
+      },
+      "TILE": 10,
+      "WALL": 0.8,
+      "GROW": 5,
+      "CYCLE": 10
+     },
+     "state": {
+      "t": 9.983,
+      "side": -1,
+      "r": 0,
+      "b": 0,
+      "l": 0,
+      "tp": 0
+     },
+     "rect0": {
+      "R": 80,
+      "B": 50,
+      "L": 0,
+      "T": 0
+     },
+     "oracleFd": 405
+    },
+    "gameFdRaw": 405,
+    "gameFdAdj": 405,
+    "deltaAdj": 0
+   }
+  ],
+  "uncalibrated": {
+   "geomFd": 338,
+   "geomOv": 0.014,
+   "sbFd": 338,
+   "sbDead": true,
+   "sbStorm": true,
+   "n": 901,
+   "sFull": {
+    "t": 9.983,
+    "side": -1,
+    "r": 0,
+    "b": 0,
+    "l": 0,
+    "tp": 0,
+    "seq": [
+     2,
+     1,
+     2,
+     0,
+     2,
+     3,
+     2,
+     1,
+     1,
+     0,
+     2,
+     0
+    ],
+    "tb": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 7,
+     "maxY": 4
+    },
+    "TILE": 10,
+    "WALL": 0.8,
+    "GROW": 5,
+    "CYCLE": 10
+   },
+   "state": {
+    "t": 9.983,
+    "side": -1,
+    "r": 0,
+    "b": 0,
+    "l": 0,
+    "tp": 0
+   },
+   "rect0": {
+    "R": 80,
+    "B": 50,
+    "L": 0,
+    "T": 0
+   },
+   "oracleFd": 338
+  },
+  "slip": 0,
+  "obsState": {
+   "t": 9.983,
+   "side": -1,
+   "r": 0,
+   "b": 0,
+   "l": 0,
+   "tp": 0
+  },
+  "jointState": {
+   "t": 9.983,
+   "side": -1,
+   "r": 0,
+   "b": 0,
+   "l": 0,
+   "tp": 0
+  },
+  "gameDead": {
+   "tank_a": 405,
+   "tank_b": 406,
+   "tank_c": -1
+  },
+  "roundEndedAt": -1,
+  "deaths": [
+   {
+    "v": "tank_a",
+    "src": "TANK_DESTROYED",
+    "cause": "storm",
+    "x": 5,
+    "y": 45,
+    "cx": 3.500000000000011,
+    "cy": 47
+   },
+   {
+    "v": "tank_b",
+    "src": "TANK_DESTROYED",
+    "cause": "storm",
+    "x": 5,
+    "y": 5,
+    "cx": 3.5170000000000106,
+    "cy": 7
+   }
+  ]
+ },
+ "B_forced": {
+  "forced": true,
+  "dtUsed": 0.016666666666666514,
+  "N": 220,
+  "seq": [
+   2,
+   2,
+   3,
+   2,
+   3,
+   0,
+   1,
+   3
+  ],
+  "forceApplied": {
+   "side": -1,
+   "t": 5
+  },
+  "picks": {
+   "P1": {
+    "x": 5,
+    "y": 5,
+    "cell": {
+     "x": 0,
+     "y": 0
+    }
+   },
+   "P3": {
+    "x": 5,
+    "y": 45,
+    "cell": {
+     "x": 0,
+     "y": 4
+    }
+   },
+   "P2": {
+    "x": 85,
+    "y": 5,
+    "cell": {
+     "x": 8,
+     "y": 0
+    }
+   }
+  },
+  "rows": [
+   {
+    "id": "tank_b",
+    "cell": {
+     "x": 0,
+     "y": 0
+    },
+    "placed": {
+     "x": 5,
+     "y": 5,
+     "rot": 0
+    },
+    "joint": {
+     "geomFd": 104,
+     "geomOv": 0.001333,
+     "sbFd": 104,
+     "sbDead": true,
+     "sbStorm": true,
+     "n": 221,
+     "sFull": {
+      "t": 4.965999999999999,
+      "side": 2,
+      "r": 0,
+      "b": 0,
+      "l": 1,
+      "tp": 0,
+      "seq": [
+       2,
+       2,
+       3,
+       2,
+       3,
+       0,
+       1,
+       3,
+       0,
+       0,
+       0,
+       2,
+       3
+      ],
+      "tb": {
+       "minX": 0,
+       "minY": 0,
+       "maxX": 8,
+       "maxY": 4
+      },
+      "TILE": 10,
+      "WALL": 0.8,
+      "GROW": 5,
+      "CYCLE": 10
+     },
+     "state": {
+      "t": 4.965999999999999,
+      "side": 2,
+      "r": 0,
+      "b": 0,
+      "l": 1,
+      "tp": 0
+     },
+     "rect0": {
+      "R": 90,
+      "B": 50,
+      "L": 0.06800000000000139,
+      "T": 0
+     },
+     "oracleFd": 104
+    },
+    "gameFdRaw": 105,
+    "gameFdAdj": 105,
+    "deltaAdj": -1
+   },
+   {
+    "id": "tank_c",
+    "cell": {
+     "x": 8,
+     "y": 0
+    },
+    "placed": {
+     "x": 85,
+     "y": 5,
+     "rot": 0
+    },
+    "joint": {
+     "geomFd": -1,
+     "geomOv": null,
+     "sbFd": -1,
+     "sbDead": false,
+     "sbStorm": false,
+     "n": 221,
+     "sFull": {
+      "t": 4.965999999999999,
+      "side": 2,
+      "r": 0,
+      "b": 0,
+      "l": 1,
+      "tp": 0,
+      "seq": [
+       2,
+       2,
+       3,
+       2,
+       3,
+       0,
+       1,
+       3,
+       0,
+       0,
+       0,
+       2,
+       3
+      ],
+      "tb": {
+       "minX": 0,
+       "minY": 0,
+       "maxX": 8,
+       "maxY": 4
+      },
+      "TILE": 10,
+      "WALL": 0.8,
+      "GROW": 5,
+      "CYCLE": 10
+     },
+     "state": {
+      "t": 4.965999999999999,
+      "side": 2,
+      "r": 0,
+      "b": 0,
+      "l": 1,
+      "tp": 0
+     },
+     "rect0": {
+      "R": 90,
+      "B": 50,
+      "L": 0.06800000000000139,
+      "T": 0
+     },
+     "oracleFd": -1
+    },
+    "gameFdRaw": -1,
+    "gameFdAdj": -1,
+    "deltaAdj": null
+   },
+   {
+    "id": "tank_a",
+    "cell": {
+     "x": 0,
+     "y": 4
+    },
+    "placed": {
+     "x": 5,
+     "y": 45,
+     "rot": 0
+    },
+    "joint": {
+     "geomFd": 104,
+     "geomOv": 0.001333,
+     "sbFd": 104,
+     "sbDead": true,
+     "sbStorm": true,
+     "n": 221,
+     "sFull": {
+      "t": 4.965999999999999,
+      "side": 2,
+      "r": 0,
+      "b": 0,
+      "l": 1,
+      "tp": 0,
+      "seq": [
+       2,
+       2,
+       3,
+       2,
+       3,
+       0,
+       1,
+       3,
+       0,
+       0,
+       0,
+       2,
+       3
+      ],
+      "tb": {
+       "minX": 0,
+       "minY": 0,
+       "maxX": 8,
+       "maxY": 4
+      },
+      "TILE": 10,
+      "WALL": 0.8,
+      "GROW": 5,
+      "CYCLE": 10
+     },
+     "state": {
+      "t": 4.965999999999999,
+      "side": 2,
+      "r": 0,
+      "b": 0,
+      "l": 1,
+      "tp": 0
+     },
+     "rect0": {
+      "R": 90,
+      "B": 50,
+      "L": 0.06800000000000139,
+      "T": 0
+     },
+     "oracleFd": 104
+    },
+    "gameFdRaw": 104,
+    "gameFdAdj": 104,
+    "deltaAdj": 0
+   }
+  ],
+  "slip": 0,
+  "obsState": {
+   "t": 4.965999999999999,
+   "side": 2,
+   "r": 0,
+   "b": 0,
+   "l": 1,
+   "tp": 0
+  },
+  "jointState": {
+   "t": 4.965999999999999,
+   "side": 2,
+   "r": 0,
+   "b": 0,
+   "l": 1,
+   "tp": 0
+  },
+  "gameDead": {
+   "tank_a": 104,
+   "tank_b": 105,
+   "tank_c": -1
+  },
+  "roundEndedAt": -1,
+  "deaths": [
+   {
+    "v": "tank_a",
+    "src": "TANK_DESTROYED",
+    "cause": "storm",
+    "x": 5,
+    "y": 45,
+    "cx": 3.5000000000000115,
+    "cy": 47
+   },
+   {
+    "v": "tank_b",
+    "src": "TANK_DESTROYED",
+    "cause": "storm",
+    "x": 5,
+    "y": 5,
+    "cx": 3.5170000000000115,
+    "cy": 7
+   }
+  ]
+ },
+ "matrix": {
+  "fp": 0,
+  "fn": 0,
+  "frameMismatch": 5,
+  "frameMismatchLater": 0,
+  "frameMismatchEarlier": 5,
+  "n": 66,
+  "sample": [
+   {
+    "st": "t0",
+    "cell": {
+     "x": 0,
+     "y": 2
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 0,
+     "y": 3
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 1,
+     "y": 0
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 1,
+     "y": 1
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 1,
+     "y": 2
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 2,
+     "y": 0
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 2,
+     "y": 2
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 2,
+     "y": 3
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 3,
+     "y": 0
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 3,
+     "y": 1
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 4,
+     "y": 0
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   },
+   {
+    "st": "t0",
+    "cell": {
+     "x": 4,
+     "y": 1
+    },
+    "sb": -1,
+    "geom": -1,
+    "oracle": -1
+   }
+  ]
+ },
+ "fails": []
+}

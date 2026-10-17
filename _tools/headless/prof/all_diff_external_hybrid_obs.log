@@ -1,2 +1,0 @@
-[Vantage 外接AI] Hybrid 观测构造器已加载（P1：地图/自身/对手/子弹槽/阶段/历史；射线·导航·瞄准·威胁待 P2，dodge 先验待 P3）
-diff_external_hybrid_obs PASS：观测 1028 维布局/左右手/历史/dodge 全部对上；策略动作=16（前进=true 后退=false 左=false 右=true 开火=false）；单帧成本：观测 0.097ms + 推理 1.02ms = 1.12ms

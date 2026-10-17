@@ -1,0 +1,18 @@
+const fs=require('fs');const {Match}=require('./match');
+const SRC=fs.readFileSync(__dirname+'/inject_sarl.js','utf8');
+(async()=>{const m=new Match();
+ await m.open({humanIds:['tank_a'],aiCount:2,vantCount:1});
+ await m.clearControl(); await m.eval(SRC);
+ console.log('SETUP '+String(await m.eval('window.__probe.setup()')).slice(0,120));
+ await m.eval('window.__probe.start()');
+ await m.pump(600,{yieldMs:0});
+ const buf=JSON.parse(await m.eval('JSON.stringify(window.__q.buf)'));
+ const noNet=await m.eval('String(window.__q.noNet)');
+ const out='D:/vt_run/datasets/sarl_600.jsonl';
+ fs.writeFileSync(out, buf.map(r=>JSON.stringify(r)).join('\n')+'\n');
+ const sz=fs.statSync(out).size;
+ const withA=buf.filter(r=>r.a).length, withLp=buf.filter(r=>r.lp!==null).length, withV=buf.filter(r=>r.v!==null).length;
+ console.log('SARL rows='+buf.length+' hasA='+withA+' hasLp='+withLp+' hasV='+withV+' noNetCalls='+noNet);
+ console.log('BYTES total='+sz+' perFrame='+(sz/buf.length).toFixed(1));
+ console.log('SAMPLE '+JSON.stringify(buf.slice(-2)).slice(0,300));
+ await m.close();})();

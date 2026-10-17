@@ -1,0 +1,266 @@
+{
+ "startedAt": "2026-10-13T15:33:01.657Z",
+ "steps": [
+  {
+   "name": "FP1_normal_destroyed",
+   "bulletId": "s1b-7d98-12",
+   "vanished": [
+    "s1b-7d98-12"
+   ],
+   "abnormal": [],
+   "normalHit": [
+    "s1b-7d98-12"
+   ],
+   "normalTimeout": [],
+   "heuristicNormal": []
+  },
+  {
+   "name": "FP2_normal_timeout",
+   "bulletId": "s1b-7d98-13",
+   "bulletGone": true,
+   "pumpedFrames": 600,
+   "lastInfo": {
+    "id": "s1b-7d98-13",
+    "type": -1,
+    "owner": "tank_a",
+    "age": 8.033000000000046,
+    "life": 10
+   },
+   "vanished": [
+    "s1b-7d98-13"
+   ],
+   "abnormal": [],
+   "normalTimeout": [
+    "s1b-7d98-13"
+   ],
+   "normalHit": [],
+   "heuristicNormal": []
+  },
+  {
+   "name": "A_baseline_dead",
+   "bulletId": "s1b-7d98-16",
+   "dead": true,
+   "deathFrame": 0,
+   "causes": [
+    {
+     "frame": 0,
+     "bulletId": "s1b-7d98-16",
+     "src": "geometry"
+    },
+    {
+     "frame": 0,
+     "bulletId": "s1b-7d98-16",
+     "src": "contact"
+    }
+   ],
+   "causeSeq": 1,
+   "slotsInRound": [
+    "s1b-7d98-16"
+   ]
+  },
+  {
+   "name": "B_abnormal_removed",
+   "bulletGone": true,
+   "batchRemoval": {
+    "vanished": 1,
+    "abnormal": [
+     "s1b-7d98-16"
+    ],
+    "normalTimeout": 0,
+    "normalHit": 0,
+    "heuristicNormal": 0,
+    "retiredSlots": 1,
+    "ledgerInstalled": true
+   },
+   "removedSoFar": [
+    {
+     "class": "abnormalExit",
+     "t": 12716.666666666562,
+     "owner": "tank_b",
+     "type": -1,
+     "lifeLeftAtLastSight": 9.967,
+     "id": "s1b-7d98-16"
+    }
+   ],
+   "slot": {
+    "pid": "s1b-7d98-16",
+    "inThisRound": false,
+    "active": false,
+    "bodyActive": false,
+    "retired": true,
+    "hasProjObj": false
+   },
+   "deadInThatBatch": false,
+   "fdInThatBatch": -1
+  },
+  {
+   "name": "C_release_monotone",
+   "released": 1,
+   "moved": 0,
+   "kept": 0,
+   "unattributed": 0,
+   "monotoneOk": true,
+   "usedOwnCauses": true,
+   "before": {
+    "dead": true,
+    "deathFrame": 0
+   },
+   "after": {
+    "dead": false,
+    "deathFrame": -1,
+    "released": true
+   }
+  },
+  {
+   "name": "F_two_killers",
+   "early": "s1b-7d98-17",
+   "late": "s1b-7d98-18",
+   "unrelated": "s1b-7d98-19",
+   "dead": true,
+   "fd": 0,
+   "causes": [
+    {
+     "frame": 0,
+     "bulletId": "s1b-7d98-17",
+     "src": "geometry"
+    },
+    {
+     "frame": 0,
+     "bulletId": "s1b-7d98-17",
+     "src": "contact"
+    }
+   ],
+   "slotsInRound": [
+    "s1b-7d98-17",
+    "s1b-7d98-18",
+    "s1b-7d98-19"
+   ],
+   "batchPlacements": [
+    {
+     "pid": "s1b-7d98-17",
+     "active": true,
+     "src": "real",
+     "x": 14.63,
+     "y": 22.2,
+     "vx": 1,
+     "vy": 0
+    },
+    {
+     "pid": "s1b-7d98-18",
+     "active": true,
+     "src": "real",
+     "x": 15,
+     "y": 21.43,
+     "vx": 0,
+     "vy": 1
+    },
+    {
+     "pid": "s1b-7d98-19",
+     "active": true,
+     "src": "real",
+     "x": -5,
+     "y": 11,
+     "vx": 0,
+     "vy": 0
+    }
+   ],
+   "f2info": {
+    "age": 0.034,
+    "life": 10,
+    "vx": 0,
+    "vy": 1
+   }
+  },
+  {
+   "name": "G_remove_early_monotone",
+   "before": {
+    "dead": true,
+    "deathFrame": 0
+   },
+   "after": {
+    "dead": false,
+    "deathFrame": -1,
+    "released": true
+   },
+   "moved": 0,
+   "kept": 0,
+   "released": 1,
+   "monotoneOk": true
+  },
+  {
+   "name": "H_remove_unrelated_noop",
+   "before": {
+    "dead": true,
+    "deathFrame": 0
+   },
+   "after": {
+    "dead": true,
+    "deathFrame": 0,
+    "released": false
+   },
+   "moved": 0,
+   "kept": 1,
+   "released": 0,
+   "monotoneOk": true
+  },
+  {
+   "name": "I_remove_both_released",
+   "before": {
+    "dead": true,
+    "deathFrame": 0
+   },
+   "after": {
+    "dead": false,
+    "deathFrame": -1,
+    "released": true
+   },
+   "released": 1,
+   "monotoneOk": true
+  },
+  {
+   "name": "J_cumulative",
+   "seenTotal": 6,
+   "vanishedTotal": 3,
+   "normalTimeout": 1,
+   "normalHit": 1,
+   "normalHeuristic": 0,
+   "abnormalExit": 1,
+   "abnormalNoEvent": 0,
+   "roundResets": 0,
+   "errors": 0
+  }
+ ],
+ "errors": [],
+ "pose": {
+  "x": 15,
+  "y": 25,
+  "rot": 0,
+  "bx": 15,
+  "by": 22.2
+ },
+ "bulletLifetime": 10,
+ "lifetimeFrames": 500,
+ "cumulative": {
+  "stats": {
+   "seenTotal": 6,
+   "vanishedTotal": 3,
+   "normalTimeout": 1,
+   "normalHit": 1,
+   "normalHeuristic": 0,
+   "abnormalExit": 1,
+   "abnormalNoEvent": 0,
+   "roundResets": 0,
+   "errors": 0
+  },
+  "removed": [
+   {
+    "class": "abnormalExit",
+    "t": 12716.666666666562,
+    "owner": "tank_b",
+    "type": -1,
+    "lifeLeftAtLastSight": 9.967,
+    "id": "s1b-7d98-16"
+   }
+  ]
+ }
+}

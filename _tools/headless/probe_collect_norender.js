@@ -1,0 +1,18 @@
+const fs=require('fs');const {Match}=require('./match');
+const SRC=fs.readFileSync(__dirname+'/inject_selfcol.js','utf8');
+const FR=Number(process.env.FRAMES||600);
+(async()=>{const m=new Match();
+ await m.open({humanIds:['tank_a'],aiCount:2,vantCount:1});
+ await m.clearControl();
+ const shrink=await m.eval(`(function(){try{var cs=document.querySelectorAll('canvas');for(var i=0;i<cs.length;i++){cs[i].style.display='none';cs[i].width=1;cs[i].height=1;}return 'shrunk:'+document.querySelectorAll('canvas').length;}catch(e){return 'err';}})()`);
+ await m.eval(SRC); await m.eval('window.__sc.start()');
+ const t0=Date.now(); await m.pump(FR,{yieldMs:0}); const ms=Date.now()-t0;
+ const n=await m.eval('String(window.__sc.n)'), buf=await m.eval('String(window.__sc.buf.length)');
+ const seg=await m.eval('String(window.__sc.seg)'), a=await m.eval('String(window.__sc.aSamples.length)');
+ const rows=JSON.parse(await m.eval('JSON.stringify(window.__sc.buf)'));
+ const out='D:/vt_run/datasets/nr_'+FR+'.jsonl'; fs.writeFileSync(out,rows.map(r=>JSON.stringify(r)).join('\n')+'\n');
+ console.log('SHRINK '+String(shrink).slice(0,30));
+ console.log('NR frames='+FR+' wall_ms='+ms+' perFrame_ms='+(ms/FR).toFixed(2)+' ⟹ 一局(3158)='+(ms/FR*3158/1000).toFixed(1)+'s');
+ console.log('BUF n='+n+' buf='+buf+' 丢帧='+(Number(n)!==Number(buf))+' seg='+seg+' aSamples='+a+' bytes='+fs.statSync(out).size);
+ console.log('SAMPLE '+JSON.stringify(rows.slice(-1)).slice(0,150));
+ await m.close();})();

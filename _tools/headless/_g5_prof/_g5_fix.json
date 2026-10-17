@@ -1,0 +1,136 @@
+{
+ "startedAt": "2026-10-13T15:26:45.060Z",
+ "steps": [
+  {
+   "name": "F0_quadrants_initial",
+   "tank_a": {
+    "realShield": true,
+    "spawnShield": false,
+    "realFx": [
+     {
+      "type": 2,
+      "r": 4.3,
+      "cat": 32,
+      "mask": 101
+     }
+    ],
+    "sbShield": true,
+    "sbR": 4.3
+   },
+   "tank_c": {
+    "realShield": false,
+    "spawnShield": false,
+    "realFx": [],
+    "sbShield": false,
+    "sbR": null
+   },
+   "quadrants": {
+    "tp": 6,
+    "fp": 0,
+    "tn": 7,
+    "fn": 0
+   }
+  },
+  {
+   "name": "F1_quadrants_after",
+   "quadrants": {
+    "tp": 6,
+    "fp": 0,
+    "tn": 7,
+    "fn": 0
+   }
+  },
+  {
+   "name": "F2_spawn_shield_confusion",
+   "grantedType": 1,
+   "tank_c": {
+    "realShield": false,
+    "spawnShield": true,
+    "realFx": [
+     {
+      "type": 1,
+      "r": 4.3,
+      "cat": 32,
+      "mask": 101
+     }
+    ],
+    "sbShield": false,
+    "sbR": null
+   },
+   "quadrants": {
+    "tp": 6,
+    "fp": 0,
+    "tn": 7,
+    "fn": 0
+   },
+   "detectorSaysNoShield": true,
+   "realBodyHasSpawnShieldFixture": true
+  },
+  {
+   "name": "B_oblique_mirror_fixed",
+   "err": "no bounce",
+   "bullet": "g5f-b92b-14",
+   "oblique": {
+    "x": 17.816829376715344,
+    "y": 19.702314442846436,
+    "cx": 15,
+    "cy": 25,
+    "R": 6,
+    "deg": 28
+   }
+  },
+  {
+   "name": "C1_wall_suicide",
+   "wallPose": {
+    "x": 15,
+    "y": 22.7,
+    "rot": 0,
+    "wallDist": 2.7,
+    "tile": [
+     1,
+     2
+    ]
+   },
+   "hadShield": true,
+   "bullet": "g5f-b92b-15",
+   "tankAt": {
+    "x": 15,
+    "y": 23.104014108808723,
+    "rot": 0
+   },
+   "died": true,
+   "deathFrame": 0
+  },
+  {
+   "name": "E_lifetime_fixed",
+   "skipped": "tank_a dead"
+  }
+ ],
+ "errors": [],
+ "pose": {
+  "x": 15,
+  "y": 25,
+  "rot": 0
+ },
+ "version": {
+  "sandbox": 0.02
+ },
+ "oblique": {
+  "x": 17.816829376715344,
+  "y": 19.702314442846436,
+  "cx": 15,
+  "cy": 25,
+  "R": 6,
+  "deg": 28
+ },
+ "wallPose": {
+  "x": 15,
+  "y": 22.7,
+  "rot": 0,
+  "wallDist": 2.7,
+  "tile": [
+   1,
+   2
+  ]
+ }
+}

@@ -1,3 +1,0 @@
-[Testbench] Vantage 调试工作台 v103 已加载：T 开面板（运行中=性能测试）P 暂停后自动 9 操作
-diff_panel_risk PASS (panel builds; killfield weight 0~400% default 100%; laziness slider default 0; red = dangerous values only; v102: k/actionCost/occlusion red when off-default; v103: red beats grey + panel fits the viewport and is vertically centred)
-[Testbench] 时间钩挂载失败（600 次重试）：GameController=false UIGameState=false

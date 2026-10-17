@@ -1,0 +1,196 @@
+{
+ "samples": [
+  {
+   "f": 0,
+   "v": {
+    "rawFields": {
+     "_weakened": false
+    },
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 10,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 20,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 30,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 40,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 50,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 60,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 70,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 80,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 90,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 100,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 110,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 120,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 130,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 140,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  },
+  {
+   "f": 150,
+   "v": {
+    "rawFields": {
+     "_lifetime": null,
+     "_weakened": false
+    },
+    "getField_lifetime": null,
+    "getField_weakened": false,
+    "hasBody": false
+   }
+  }
+ ],
+ "errors": [],
+ "upgradeId": "g9-bc9f-9"
+}

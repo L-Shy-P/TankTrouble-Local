@@ -1,0 +1,1143 @@
+{
+ "startedAt": "2026-10-13T15:32:47.308Z",
+ "graze": 2.8,
+ "rows": [
+  {
+   "weapon": "BULLET(默认)",
+   "key": "BULLET",
+   "inject": {
+    "note": "默认武器（不注入）"
+   },
+   "realTurret": {
+    "polys": [
+     [
+      {
+       "x": 0.35,
+       "y": -1.3
+      },
+      {
+       "x": -0.35,
+       "y": -1.3
+      },
+      {
+       "x": -0.35,
+       "y": -2.7
+      },
+      {
+       "x": 0.35,
+       "y": -2.7
+      }
+     ]
+    ],
+    "fx": [
+     "turret",
+     "base"
+    ],
+    "type": -1,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:BULLET|s:0",
+    "name": "BULLET",
+    "launched": false,
+    "legacy": false,
+    "tip": 2.7,
+    "polys": [
+     [
+      {
+       "x": 0.35,
+       "y": -1.3
+      },
+      {
+       "x": -0.35,
+       "y": -1.3
+      },
+      {
+       "x": -0.35,
+       "y": -2.7
+      },
+      {
+       "x": 0.35,
+       "y": -2.7
+      }
+     ]
+    ]
+   },
+   "newDead": true,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": true,
+   "sweepOld60": true,
+   "sig": "w:BULLET|s:0",
+   "realTip": 2.7,
+   "sbTip": 2.7,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     4,
+     4
+    ],
+    "max": 0
+   },
+   "realTurretType": -1,
+   "realTurretCount": 1,
+   "sandboxPolyCount": 1,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "turret",
+     "n": 4
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  },
+  {
+   "weapon": "DOUBLE_BARREL",
+   "key": "DOUBLE_BARREL",
+   "inject": {
+    "id": "dbw-d16d-12",
+    "type": 1,
+    "activeType": 1,
+    "turretFx": 1
+   },
+   "realTurret": {
+    "polys": [
+     [
+      {
+       "x": 0.8,
+       "y": -1.2
+      },
+      {
+       "x": -0.8,
+       "y": -1.2
+      },
+      {
+       "x": -0.8,
+       "y": -2.3
+      },
+      {
+       "x": 0.8,
+       "y": -2.3
+      }
+     ]
+    ],
+    "fx": [
+     "turret",
+     "base"
+    ],
+    "type": 1,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:DOUBLE_BARREL|s:0",
+    "name": "DOUBLE_BARREL",
+    "launched": false,
+    "legacy": false,
+    "tip": 2.3,
+    "polys": [
+     [
+      {
+       "x": 0.8,
+       "y": -1.2
+      },
+      {
+       "x": -0.8,
+       "y": -1.2
+      },
+      {
+       "x": -0.8,
+       "y": -2.3
+      },
+      {
+       "x": 0.8,
+       "y": -2.3
+      }
+     ]
+    ]
+   },
+   "newDead": false,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": false,
+   "sweepOld60": true,
+   "sig": "w:DOUBLE_BARREL|s:0",
+   "realTip": 2.3,
+   "sbTip": 2.3,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     4,
+     4
+    ],
+    "max": 0
+   },
+   "realTurretType": 1,
+   "realTurretCount": 1,
+   "sandboxPolyCount": 1,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "turret",
+     "n": 4
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  },
+  {
+   "weapon": "SHOTGUN",
+   "key": "SHOTGUN",
+   "inject": {
+    "id": "sw-d16d-13",
+    "type": 2,
+    "activeType": 2,
+    "turretFx": 1
+   },
+   "realTurret": {
+    "polys": [
+     [
+      {
+       "x": 0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -2.625
+      },
+      {
+       "x": 0.7,
+       "y": -2.625
+      }
+     ]
+    ],
+    "fx": [
+     "turret",
+     "base"
+    ],
+    "type": 2,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:SHOTGUN|s:0",
+    "name": "SHOTGUN",
+    "launched": false,
+    "legacy": false,
+    "tip": 2.625,
+    "polys": [
+     [
+      {
+       "x": 0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -2.625
+      },
+      {
+       "x": 0.7,
+       "y": -2.625
+      }
+     ]
+    ]
+   },
+   "newDead": true,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": true,
+   "sweepOld60": true,
+   "sig": "w:SHOTGUN|s:0",
+   "realTip": 2.625,
+   "sbTip": 2.625,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     4,
+     4
+    ],
+    "max": 0
+   },
+   "realTurretType": 2,
+   "realTurretCount": 1,
+   "sandboxPolyCount": 1,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "turret",
+     "n": 4
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  },
+  {
+   "weapon": "GATLING_GUN",
+   "key": "GATLING_GUN",
+   "inject": {
+    "id": "ggw-d16d-14",
+    "type": 5,
+    "activeType": 5,
+    "turretFx": 1
+   },
+   "realTurret": {
+    "polys": [
+     [
+      {
+       "x": 0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -2.625
+      },
+      {
+       "x": 0.7,
+       "y": -2.625
+      }
+     ]
+    ],
+    "fx": [
+     "turret",
+     "base"
+    ],
+    "type": 5,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:GATLING_GUN|s:0",
+    "name": "GATLING_GUN",
+    "launched": false,
+    "legacy": false,
+    "tip": 2.625,
+    "polys": [
+     [
+      {
+       "x": 0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -1.275
+      },
+      {
+       "x": -0.7,
+       "y": -2.625
+      },
+      {
+       "x": 0.7,
+       "y": -2.625
+      }
+     ]
+    ]
+   },
+   "newDead": true,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": true,
+   "sweepOld60": true,
+   "sig": "w:GATLING_GUN|s:0",
+   "realTip": 2.625,
+   "sbTip": 2.625,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     4,
+     4
+    ],
+    "max": 0
+   },
+   "realTurretType": 5,
+   "realTurretCount": 1,
+   "sandboxPolyCount": 1,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "turret",
+     "n": 4
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  },
+  {
+   "weapon": "LASER",
+   "key": "LASER",
+   "inject": {
+    "id": "lw-d16d-15",
+    "type": 0,
+    "activeType": 0,
+    "turretFx": 2
+   },
+   "realTurret": {
+    "polys": [
+     [
+      {
+       "x": 0.05,
+       "y": -1.3
+      },
+      {
+       "x": -0.05,
+       "y": -1.3
+      },
+      {
+       "x": -0.05,
+       "y": -2.7
+      },
+      {
+       "x": 0.05,
+       "y": -2.7
+      }
+     ],
+     [
+      {
+       "x": 1,
+       "y": -1.6
+      },
+      {
+       "x": -1,
+       "y": -1.6
+      },
+      {
+       "x": -1,
+       "y": -2.1
+      },
+      {
+       "x": 1,
+       "y": -2.1
+      }
+     ]
+    ],
+    "fx": [
+     "turret",
+     "turret",
+     "base"
+    ],
+    "type": 0,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:LASER|s:0",
+    "name": "LASER",
+    "launched": false,
+    "legacy": false,
+    "tip": 2.7,
+    "polys": [
+     [
+      {
+       "x": 1,
+       "y": -1.6
+      },
+      {
+       "x": -1,
+       "y": -1.6
+      },
+      {
+       "x": -1,
+       "y": -2.1
+      },
+      {
+       "x": 1,
+       "y": -2.1
+      }
+     ],
+     [
+      {
+       "x": 0.05,
+       "y": -1.3
+      },
+      {
+       "x": -0.05,
+       "y": -1.3
+      },
+      {
+       "x": -0.05,
+       "y": -2.7
+      },
+      {
+       "x": 0.05,
+       "y": -2.7
+      }
+     ]
+    ]
+   },
+   "newDead": true,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": true,
+   "sweepOld60": true,
+   "sig": "w:LASER|s:0",
+   "realTip": 2.7,
+   "sbTip": 2.7,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     8,
+     8
+    ],
+    "max": 0
+   },
+   "realTurretType": 0,
+   "realTurretCount": 2,
+   "sandboxPolyCount": 2,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "turret",
+     "n": 4
+    },
+    {
+     "type": "turret",
+     "n": 4
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  },
+  {
+   "weapon": "HOMING_MISSILE",
+   "key": "HOMING_MISSILE",
+   "inject": {
+    "id": "hmw-d16d-16",
+    "type": 3,
+    "activeType": 3,
+    "turretFx": 1
+   },
+   "realTurret": {
+    "polys": [
+     [
+      {
+       "x": 0.15,
+       "y": -1.25
+      },
+      {
+       "x": -0.15,
+       "y": -1.25
+      },
+      {
+       "x": -0.15,
+       "y": -2.15
+      },
+      {
+       "x": 0,
+       "y": -2.65
+      },
+      {
+       "x": 0.15,
+       "y": -2.15
+      }
+     ]
+    ],
+    "fx": [
+     "turret",
+     "base"
+    ],
+    "type": 3,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:HOMING_MISSILE|s:0",
+    "name": "HOMING_MISSILE",
+    "launched": false,
+    "legacy": false,
+    "tip": 2.65,
+    "polys": [
+     [
+      {
+       "x": 0.15,
+       "y": -1.25
+      },
+      {
+       "x": -0.15,
+       "y": -1.25
+      },
+      {
+       "x": -0.15,
+       "y": -2.15
+      },
+      {
+       "x": 0,
+       "y": -2.65
+      },
+      {
+       "x": 0.15,
+       "y": -2.15
+      }
+     ]
+    ]
+   },
+   "newDead": true,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": true,
+   "sweepOld60": true,
+   "sig": "w:HOMING_MISSILE|s:0",
+   "realTip": 2.65,
+   "sbTip": 2.65,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     5,
+     5
+    ],
+    "max": 0
+   },
+   "realTurretType": 3,
+   "realTurretCount": 1,
+   "sandboxPolyCount": 1,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "fusedSensor",
+     "n": 5
+    },
+    {
+     "type": "turret",
+     "n": 5
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  },
+  {
+   "weapon": "MINE",
+   "key": "MINE",
+   "inject": {
+    "id": "mw-d16d-17",
+    "type": 4,
+    "activeType": 4,
+    "turretFx": 0
+   },
+   "realTurret": {
+    "polys": [],
+    "fx": [
+     "base"
+    ],
+    "type": 4,
+    "launched": false,
+    "pos": {
+     "x": 15,
+     "y": 25
+    },
+    "ang": 0
+   },
+   "sbShape": {
+    "sig": "w:MINE|s:0",
+    "name": "MINE",
+    "launched": false,
+    "legacy": false,
+    "tip": 2,
+    "polys": []
+   },
+   "newDead": false,
+   "oldDead": true,
+   "sweepNew": false,
+   "sweepOld": false,
+   "sweepNew60": false,
+   "sweepOld60": true,
+   "sig": "w:MINE|s:0",
+   "realTip": 2,
+   "sbTip": 2,
+   "oldTip": 2.7,
+   "vertexDiff": {
+    "n": [
+     0,
+     0
+    ],
+    "max": 0
+   },
+   "realTurretType": 4,
+   "realTurretCount": 0,
+   "sandboxPolyCount": 0,
+   "fusedLocalPolys": [
+    {
+     "type": "fusedSensor",
+     "n": 4
+    },
+    {
+     "type": "base",
+     "n": 4
+    }
+   ]
+  }
+ ],
+ "realGame": [
+  {
+   "victim": "tank_a",
+   "owner": "tank_b",
+   "kind": "DOUBLE_BARREL",
+   "expect": "live",
+   "inj": {
+    "id": "dbw-d16d-49",
+    "type": 1,
+    "activeType": 1,
+    "turretFx": 1
+   },
+   "activeType": 1,
+   "turretFx": 1,
+   "projBefore": 24,
+   "realTip": 2.3,
+   "realPolys": 1,
+   "died": false,
+   "deathFrame": -1,
+   "deadAtSec": null,
+   "verdict": "PASS"
+  },
+  {
+   "victim": "tank_c",
+   "owner": "tank_b",
+   "kind": "MINE",
+   "expect": "live",
+   "inj": {
+    "id": "mw-d16d-51",
+    "type": 4,
+    "activeType": 4,
+    "turretFx": 0
+   },
+   "activeType": 4,
+   "turretFx": 0,
+   "projBefore": 2,
+   "realTip": 2,
+   "realPolys": 0,
+   "died": false,
+   "deathFrame": -1,
+   "deadAtSec": null,
+   "verdict": "PASS"
+  },
+  {
+   "victim": "tank_b",
+   "owner": "tank_a",
+   "kind": "SHOTGUN",
+   "expect": "dead",
+   "inj": {
+    "id": "sw-d16d-53",
+    "type": 2,
+    "activeType": 2,
+    "turretFx": 1
+   },
+   "activeType": 2,
+   "turretFx": 1,
+   "projBefore": 2,
+   "realTip": 2.625,
+   "realPolys": 1,
+   "died": true,
+   "deathFrame": 0,
+   "deadAtSec": 0,
+   "verdict": "PASS"
+  }
+ ],
+ "errors": [],
+ "constants": {
+  "WEAPON_TYPES": {
+   "BULLET": -1,
+   "LASER": 0,
+   "DOUBLE_BARREL": 1,
+   "SHOTGUN": 2,
+   "HOMING_MISSILE": 3,
+   "MINE": 4,
+   "GATLING_GUN": 5
+  },
+  "OFFSET": {
+   "BULLET": 2.5,
+   "LASER": 2.5,
+   "DOUBLE_BARREL": 2.25,
+   "SHOTGUN": 2.45,
+   "GATLING_GUN": 3,
+   "HOMING_MISSILE": 2.5,
+   "MINE": -1.45
+  },
+  "RADIUS": {
+   "BULLET": 0.25,
+   "LASER": 0,
+   "DOUBLE_BARREL": 0.25,
+   "SHOTGUN": 0.1,
+   "GATLING_GUN": 0.1,
+   "HOMING_MISSILE": 0.2,
+   "MINE": 0.8
+  },
+  "TURRET": {
+   "BULLET": {
+    "raw": {
+     "WIDTH": 0.7,
+     "HEIGHT": 1.4,
+     "OFFSET_X": 0,
+     "OFFSET_Y": -2
+    }
+   },
+   "LASER": {
+    "raw": {
+     "ANTENNA_WIDTH": 0.1,
+     "ANTENNA_HEIGHT": 1.4,
+     "ANTENNA_OFFSET_X": 0,
+     "ANTENNA_OFFSET_Y": -2,
+     "DISH_WIDTH": 2,
+     "DISH_HEIGHT": 0.5,
+     "DISH_OFFSET_X": 0,
+     "DISH_OFFSET_Y": -1.85
+    }
+   },
+   "DOUBLE_BARREL": {
+    "raw": {
+     "WIDTH": 1.6,
+     "HEIGHT": 1.1,
+     "OFFSET_X": 0,
+     "OFFSET_Y": -1.75
+    }
+   },
+   "SHOTGUN": {
+    "raw": {
+     "WIDTH": 1.4,
+     "HEIGHT": 1.35,
+     "OFFSET_X": 0,
+     "OFFSET_Y": -1.95
+    }
+   },
+   "MISSILE": {
+    "raw": {
+     "WIDTH": 0.3,
+     "CENTER_HEIGHT": 1.4,
+     "SIDE_HEIGHT": 0.4,
+     "OFFSET_X": 0,
+     "OFFSET_Y": -1.95
+    }
+   },
+   "GATLING_GUN": {
+    "raw": {
+     "WIDTH": 1.4,
+     "HEIGHT": 1.35,
+     "OFFSET_X": 0,
+     "OFFSET_Y": -1.95
+    }
+   }
+  }
+ },
+ "pose": {
+  "x": 15,
+  "y": 25,
+  "rot": 0,
+  "bx": 15,
+  "by": 22.2
+ },
+ "muzzle": [
+  {
+   "weapon": "BULLET(默认)",
+   "key": "BULLET",
+   "pid": "tank_b",
+   "activeType": -1,
+   "injectedType": null,
+   "offsetConst": 2.5,
+   "radiusConst": 0.25,
+   "fireErr": null,
+   "measuredSpawnD": 2.5,
+   "spawnSrc": "pullTrigger 实测",
+   "spawnDUsed": 2.5,
+   "preTip": 2.7,
+   "preSig": "w:BULLET|s:0",
+   "prePolyCount": 1,
+   "postTip": 2.7,
+   "postSig": "w:BULLET|s:0",
+   "postPolyCount": 1,
+   "centerInsideTurret": true,
+   "sandboxSelfDeadConst": true,
+   "sandboxSelfDead": true
+  },
+  {
+   "weapon": "DOUBLE_BARREL",
+   "key": "DOUBLE_BARREL",
+   "pid": "tank_b",
+   "activeType": 1,
+   "injectedType": 1,
+   "offsetConst": 2.25,
+   "radiusConst": 0.25,
+   "fireErr": null,
+   "measuredSpawnD": 2.294558781116753,
+   "spawnSrc": "pullTrigger 实测",
+   "spawnDUsed": 2.294558781116753,
+   "preTip": 2.3,
+   "preSig": "w:DOUBLE_BARREL|s:0",
+   "prePolyCount": 1,
+   "postTip": 2.3,
+   "postSig": "w:DOUBLE_BARREL|s:0",
+   "postPolyCount": 1,
+   "centerInsideTurret": true,
+   "sandboxSelfDeadConst": true,
+   "sandboxSelfDead": true
+  },
+  {
+   "weapon": "SHOTGUN",
+   "key": "SHOTGUN",
+   "pid": "tank_b",
+   "activeType": 2,
+   "injectedType": 2,
+   "offsetConst": 2.45,
+   "radiusConst": 0.1,
+   "fireErr": null,
+   "measuredSpawnD": null,
+   "spawnSrc": "Constants.OFFSET",
+   "spawnDUsed": 2.45,
+   "preTip": 2.625,
+   "preSig": "w:SHOTGUN|s:0",
+   "prePolyCount": 1,
+   "postTip": 2.625,
+   "postSig": "w:SHOTGUN|s:0",
+   "postPolyCount": 1,
+   "centerInsideTurret": true,
+   "sandboxSelfDeadConst": true,
+   "sandboxSelfDead": null
+  },
+  {
+   "weapon": "GATLING_GUN",
+   "key": "GATLING_GUN",
+   "pid": "tank_b",
+   "activeType": 5,
+   "injectedType": 5,
+   "offsetConst": 3,
+   "radiusConst": 0.1,
+   "fireErr": null,
+   "measuredSpawnD": null,
+   "spawnSrc": "Constants.OFFSET",
+   "spawnDUsed": 3,
+   "preTip": 2.625,
+   "preSig": "w:GATLING_GUN|s:0",
+   "prePolyCount": 1,
+   "postTip": 2.625,
+   "postSig": "w:GATLING_GUN|s:0",
+   "postPolyCount": 1,
+   "centerInsideTurret": false,
+   "sandboxSelfDeadConst": false,
+   "sandboxSelfDead": null
+  },
+  {
+   "weapon": "LASER",
+   "key": "LASER",
+   "pid": "tank_b",
+   "activeType": 0,
+   "injectedType": 0,
+   "offsetConst": 2.5,
+   "radiusConst": 0,
+   "fireErr": null,
+   "measuredSpawnD": 2.5,
+   "spawnSrc": "pullTrigger 实测",
+   "spawnDUsed": 2.5,
+   "preTip": 2.7,
+   "preSig": "w:LASER|s:0",
+   "prePolyCount": 2,
+   "postTip": 2.7,
+   "postSig": "w:LASER|s:0",
+   "postPolyCount": 2,
+   "centerInsideTurret": true,
+   "sandboxSelfDeadConst": true,
+   "sandboxSelfDead": true
+  },
+  {
+   "weapon": "HOMING_MISSILE",
+   "key": "HOMING_MISSILE",
+   "pid": "tank_b",
+   "activeType": 3,
+   "injectedType": 3,
+   "offsetConst": 2.5,
+   "radiusConst": 0.2,
+   "fireErr": null,
+   "measuredSpawnD": 2.5,
+   "spawnSrc": "pullTrigger 实测",
+   "spawnDUsed": 2.5,
+   "preTip": 2.65,
+   "preSig": "w:HOMING_MISSILE|s:0",
+   "prePolyCount": 1,
+   "postTip": 2,
+   "postSig": "w:HOMING_MISSILE:launched|s:0",
+   "postPolyCount": 0,
+   "centerInsideTurret": true,
+   "sandboxSelfDeadConst": true,
+   "sandboxSelfDead": true
+  },
+  {
+   "weapon": "MINE",
+   "key": "MINE",
+   "pid": "tank_b",
+   "activeType": 4,
+   "injectedType": 4,
+   "offsetConst": -1.45,
+   "radiusConst": 0.8,
+   "fireErr": null,
+   "measuredSpawnD": null,
+   "spawnSrc": "Constants.OFFSET",
+   "spawnDUsed": -1.45,
+   "preTip": 2,
+   "preSig": "w:MINE|s:0",
+   "prePolyCount": 0,
+   "postTip": 2,
+   "postSig": "w:MINE|s:0",
+   "postPolyCount": 0,
+   "centerInsideTurret": null,
+   "sandboxSelfDeadConst": null,
+   "sandboxSelfDead": null
+  }
+ ],
+ "realGameSummary": {
+  "doubleBarrel": {
+   "victim": "tank_a",
+   "owner": "tank_b",
+   "kind": "DOUBLE_BARREL",
+   "expect": "live",
+   "inj": {
+    "id": "dbw-d16d-49",
+    "type": 1,
+    "activeType": 1,
+    "turretFx": 1
+   },
+   "activeType": 1,
+   "turretFx": 1,
+   "projBefore": 24,
+   "realTip": 2.3,
+   "realPolys": 1,
+   "died": false,
+   "deathFrame": -1,
+   "deadAtSec": null,
+   "verdict": "PASS"
+  },
+  "mine": {
+   "victim": "tank_c",
+   "owner": "tank_b",
+   "kind": "MINE",
+   "expect": "live",
+   "inj": {
+    "id": "mw-d16d-51",
+    "type": 4,
+    "activeType": 4,
+    "turretFx": 0
+   },
+   "activeType": 4,
+   "turretFx": 0,
+   "projBefore": 2,
+   "realTip": 2,
+   "realPolys": 0,
+   "died": false,
+   "deathFrame": -1,
+   "deadAtSec": null,
+   "verdict": "PASS"
+  },
+  "shotgun": {
+   "victim": "tank_b",
+   "owner": "tank_a",
+   "kind": "SHOTGUN",
+   "expect": "dead",
+   "inj": {
+    "id": "sw-d16d-53",
+    "type": 2,
+    "activeType": 2,
+    "turretFx": 1
+   },
+   "activeType": 2,
+   "turretFx": 1,
+   "projBefore": 2,
+   "realTip": 2.625,
+   "realPolys": 1,
+   "died": true,
+   "deathFrame": 0,
+   "deadAtSec": 0,
+   "verdict": "PASS"
+  }
+ }
+}

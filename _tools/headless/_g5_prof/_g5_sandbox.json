@@ -1,0 +1,175 @@
+{
+ "steps": [
+  {
+   "name": "A1_frame0",
+   "realVy": 6,
+   "sandbox": {
+    "bounce": 0,
+    "slots": [
+     {
+      "pid": "g5s-ef53-13",
+      "rule": "bounce-allowed",
+      "allows": true,
+      "hit": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "A1_frame39",
+   "realVy": 6,
+   "sandbox": {
+    "bounce": 31,
+    "slots": [
+     {
+      "pid": "g5s-ef53-13",
+      "rule": "bounce-allowed",
+      "allows": true,
+      "hit": 31
+     }
+    ]
+   }
+  },
+  {
+   "name": "A1_bounce_summary",
+   "bullet": "g5s-ef53-13",
+   "lastReal": {
+    "x": 15,
+    "y": 19.90000000000001,
+    "vx": 0,
+    "vy": 6,
+    "speed": 6
+   },
+   "sandbox": {
+    "bounce": 32,
+    "stops": 0,
+    "own": 0,
+    "slots": [
+     {
+      "pid": "g5s-ef53-13",
+      "rule": "bounce-allowed",
+      "allows": true,
+      "hit": 32
+     }
+    ],
+    "shield": {
+     "has": true,
+     "r": 4.3,
+     "x": 15,
+     "y": 25.000000178836046,
+     "categoryBits": 32,
+     "maskBits": 101,
+     "maskHasMaze": false
+    }
+   }
+  },
+  {
+   "name": "A3_own_pass",
+   "bullet": "g5s-ef53-14",
+   "sandbox": {
+    "own": 1,
+    "slots": [
+     {
+      "pid": "g5s-ef53-13",
+      "rule": "bounce-allowed",
+      "allows": true,
+      "hit": 33
+     },
+     {
+      "pid": "g5s-ef53-14",
+      "rule": "own-pass-through",
+      "allows": false,
+      "hit": 4
+     }
+    ]
+   }
+  },
+  {
+   "name": "A2_frame0",
+   "real": {
+    "x": 15,
+    "y": 17,
+    "vx": 0,
+    "vy": 18,
+    "speed": 18
+   },
+   "sandbox": {
+    "stops": 0,
+    "slots": [
+     {
+      "pid": "g5s-ef53-13",
+      "rule": "bounce-allowed",
+      "allows": true,
+      "hit": 33
+     },
+     {
+      "pid": "g5s-ef53-14",
+      "rule": "own-pass-through",
+      "allows": false,
+      "hit": 4
+     },
+     {
+      "pid": "g5s-ef53-15",
+      "rule": "shrapnel-stop",
+      "allows": false,
+      "hit": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "A2_shrapnel_summary",
+   "bullet": "g5s-ef53-15",
+   "before": {
+    "y": 17,
+    "speed": 18
+   },
+   "after": {
+    "y": 20.90600000000001,
+    "speed": 0
+   },
+   "sandbox": {
+    "bounce": 37,
+    "stops": 8,
+    "own": 17,
+    "slots": [
+     {
+      "pid": "g5s-ef53-13",
+      "rule": "bounce-allowed",
+      "allows": true,
+      "hit": 33
+     },
+     {
+      "pid": "g5s-ef53-14",
+      "rule": "own-pass-through",
+      "allows": false,
+      "hit": 4
+     }
+    ],
+    "shield": {
+     "has": true,
+     "r": 4.3,
+     "x": 15,
+     "y": 25.000000298060076,
+     "categoryBits": 32,
+     "maskBits": 101,
+     "maskHasMaze": false
+    }
+   }
+  }
+ ],
+ "errors": [],
+ "pose": {
+  "x": 15,
+  "y": 25,
+  "rot": 0
+ },
+ "finalStats": {
+  "built": 9,
+  "torn": 0,
+  "bounceContacts": 37,
+  "shrapnelStops": 8,
+  "ownPassThrough": 17,
+  "madeDeadlyByShield": 37
+ }
+}

@@ -5,7 +5,7 @@
  *
  * 关键设计：训练时【策略跑在 Node/Python 侧】，靠 CDP 驱动浏览器。
  *   - 不需要在 JS 里实现 Transformer（部署时再导出）
- *   - 每个决策段（13 帧）才需要一次往返，CDP 单次 ~1-3ms，完全负担得起
+ *   - 一次 pump 可推进多帧；本脚本按 PUMP_CHUNK 分批，减少 CDP 往返
  *   - 奖励直接来自迷宫的 getDistancesFromPosition（免费的距离场）
  *
  * 用法：node _tools/headless/stage1_env.js [--episodes 5]
@@ -29,7 +29,7 @@ function arg(n, d) { const i = process.argv.indexOf('--' + n); return i < 0 ? d 
 
 (async () => {
   const EPISODES = arg('episodes', 5);
-  const SEG = arg('seg', 13);
+  const PUMP_CHUNK = arg('seg', 13);   // ⚠️ 无主人出处：这只是"一次 pump 多少帧"的脚本参数，与"决策粒度"无关
   const t0 = Date.now();
   const T = () => ((Date.now() - t0) / 1000).toFixed(1) + 's';
 
@@ -92,7 +92,7 @@ function arg(n, d) { const i = process.argv.indexOf('--' + n); return i < 0 ? d 
         const op = 1 + Math.floor(Math.random() * 8);   // 不用「静止」
         const o = OPS[op];
         await m.setControl({ fwd: !!o.fwd, back: !!o.back, left: !!o.left, right: !!o.right });
-        await m.pump(SEG, { yieldMs: 0 });
+        await m.pump(PUMP_CHUNK, { yieldMs: 0 });
         await m.clearControl();
         const now = await m.myTank();
         if (!now) break;

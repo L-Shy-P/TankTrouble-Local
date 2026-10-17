@@ -1,0 +1,18 @@
+const {Match}=require('./match');
+const ENC=`(function(){var e=VantageObserve.encode({adapter:VantageSandbox.createAdapter(GameManager.getGameController(),'tank_a'),tree:null,horizonSec:10,K_death:1,frameDt:1/60});
+ return JSON.stringify({t:e.dims.total,g:e.global.globalTok.length});})()`;
+const FR=Number(process.env.FRAMES||600);
+(async()=>{let t0=Date.now();const A=new Match();
+ await A.open({humanIds:['tank_a'],aiCount:2,vantCount:0,rng:'record',rngMode:'record'});
+ await A.clearControl();
+ await A.pump(FR,{yieldMs:0}); const encA=await A.eval(ENC); const recMs=Date.now()-t0;
+ const sites=await A.eval('JSON.stringify(window.__vtRng.dumpSites())');
+ const seq=await A.eval('JSON.stringify(window.__vtRng.dump())'); await A.close();
+ const t1=Date.now(); const B=new Match();
+ await B.open({humanIds:['tank_a'],aiCount:2,vantCount:0,rngSites:JSON.parse(sites),rngSeq:JSON.parse(seq)});
+ await B.clearControl();
+ await B.pump(FR,{yieldMs:0}); const encB=await B.eval(ENC); const repMs=Date.now()-t1; await B.close();
+ console.log('BATCH '+FR+' frames: recMs='+recMs+' (incl open) replayMs='+repMs+' (incl open)');
+ console.log('ENC_SAME '+(String(encA)===String(encB))+'  '+String(encB).slice(0,80));
+ console.log('PER_ROUND_3158f_est_s '+(repMs/(FR)*3158/1000).toFixed(1));
+})();

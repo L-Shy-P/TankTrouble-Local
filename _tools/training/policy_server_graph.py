@@ -16,23 +16,32 @@ if _CKPT and os.path.isfile(_CKPT):
     _ck=torch.load(_CKPT,map_location=dev,weights_only=True)      # 自己的 ckpt；weights_only=True 更安全
     if not (isinstance(_ck,dict) and 'model' in _ck):
         raise ValueError("ckpt 缺 'model' 键（实际键名 %s）—— ⛔ 不猜" % (sorted(_ck.keys()) if isinstance(_ck,dict) else type(_ck).__name__))
-    model.load_state_dict(_ck['model'],strict=True)               # ⭐ 原地 copy_（不换 Parameter）：录图前加载，图指针不受影响
+    _r = model.load_state_dict(_ck['model'], strict=False)   # ⭐ 记忆头是新增的 ⇒ strict=False（老权重一位不动）
+    print("CKPT_KEYS missing=%s unexpected=%s" % (list(_r.missing_keys), list(_r.unexpected_keys)), file=sys.stderr, flush=True)   # ⏔t 不静默：逐条打印
+    if list(_r.unexpected_keys): raise ValueError("多余键 %s ⇒ ckpt 与网络不匹配（⏔t 静默丢弃）" % list(_r.unexpected_keys))               # ⭐ 原地 copy_（不换 Parameter）：录图前加载，图指针不受影响
     print("CKPT_LOADED %s md5=%s step=%s" % (_CKPT,hashlib.md5(open(_CKPT,'rb').read()).hexdigest()[:8],_ck.get('step')),file=sys.stderr,flush=True)
 elif _CKPT:
     print("CKPT_MISSING %s -> 保持随机初始化（⛔ 非静默；要加载请检查路径）" % _CKPT,file=sys.stderr,flush=True)
 else:
     print("CKPT_NONE（未设 VT_CKPT ⟹ 随机初始化权重）",file=sys.stderr,flush=True)
+_MEM = {'A': None, 'B': None}   # ⭐ 记忆槽 v1：A/B 各 2×256（合计 4×256 = 现有 mem 槽）
+_MEM_ROUND = None               # ⭐ 回合 id：变化 ⇒ 两份都清零（⏔t 跳局残留）
 TIERS=(64,256,512,1008)   # ⭐ 主人裁定(2026-10-16)：最高档 1008（1000 停止生长、但 999 节点时生长 +9 ⟹ 理论最大 1008）
 B=1
 _MK = {}                                                   # ⭐ 首请求分段计时容器（插桩用、稳态不受影响）
 _REQN = 0                                                  # ⭐ 请求计数：载荷没给 seed 时配合时间戳生成"换着来"的采样种子（⛔ 不再固定 12345）
+_F1 = 0; _F0 = 0; _FIRE_PRINTED = False; _FIRE_DIST_AT = 200   # ⭐ 开火头取值分布的核对计数（stderr 打一次；⛔ 不进 stdout 协议）
 _TRACE = False                                             # ⭐ 插桩总开关（默认关：插桩不得破坏"一问一答"协议）
 _FIRST_PRINT = True                                        # ⭐ FIRST_SEGS 只打一次
+N_OPP = nv2.N_OPP                                          # ⭐ opp 槽行数【唯一来源】= net_v2_fixed.py:8（⛔ 不在这里另写一个数）
+CTX = N_OPP + nv2.N_BUL + nv2.N_ITM + nv2.N_GLB + nv2.N_MEM   # 上下文 token 数：opp1 时=78，opp8 时=85
+assert CTX == 85, "CTX_TOKENS=%d≠85 ⟹ 与 vt_buffer.py 的 CTX_TOKENS 漂了，别放行" % CTX
+print("CTX_TOKENS", CTX, "N_OPP", N_OPP, "POS_NORM", getattr(nv2, 'POS_NORM', '?'), flush=True)   # ⚠️ 常量必须开机打印（铁律二）；POS_NORM 来源 = net_v2_fixed.py:9（⛔ 不在这里另写）
 def mk(N):                                                # ⭐ 裁剪唯一入口（张量与掩码同长）
-    segs={'node':torch.zeros(B,N,10,device=dev),'opp':torch.zeros(B,1,15,device=dev),'bullet':torch.zeros(B,64,7,device=dev),
+    segs={'node':torch.zeros(B,N,10,device=dev),'opp':torch.zeros(B,N_OPP,15,device=dev),'bullet':torch.zeros(B,64,7,device=dev),
           'item':torch.zeros(B,8,6,device=dev),'global':torch.zeros(B,1,38,device=dev),'mem':torch.zeros(B,4,256,device=dev)}
-    mask=torch.zeros(B,N+78,dtype=torch.bool,device=dev)
-    assert mask.shape[1]==segs['node'].shape[1]+78, '掩码与张量长度不一致'
+    mask=torch.zeros(B,N+CTX,dtype=torch.bool,device=dev)
+    assert mask.shape[1]==sum(v.shape[1] for v in segs.values()), '掩码与张量长度不一致（CTX=%d）' % CTX
     return segs,mask
 _graphs={}
 def pick_tier(N):
@@ -82,8 +91,10 @@ def forward(obs):
     if USE_GRAPH:
         g,static,mask,out=get_graph(N)
         mask.zero_()                                             # ⭐ 掩码语义（出处 net_v2_fixed.py:26 的 src_key_padding_mask 与 :30 的 masked_fill）：True=填充/无效
-        mask[0,N:mask.shape[1]-78]=True                          # ⭐ 只标【节点区】[N_real,tier) 填充位；opp/bullet/item/global/mem 这 78 个上下文 token 永远是信息、不屏蔽
+        mask[0,N:mask.shape[1]-CTX]=True                          # ⭐ 只标【节点区】[N_real,tier) 填充位；opp/bullet/item/global/mem 这 CTX 个上下文 token 永远是信息、不屏蔽
         _t8=__import__('time').time()
+        for _k in static: static[_k].zero_()                      # ⭐ 各段每次请求先清零：载荷给几行就写几行、其余补零
+        #    （图槽复用 ⟹ 不清零会残留上一请求的 opp/bullet/item 行；训练侧是补零 ⟹ 不清零就变"两套输入分布"）
         for k,v in obs['segs'].items():                   # ⭐ 原地 copy_（别新建张量）
             _t7=__import__('time').time()
             src=torch.tensor(v,device=dev)   # ⭐ 图路（计时点）
@@ -100,7 +111,7 @@ def forward(obs):
         return out,N,t                                             # ⭐ 回传真实 N/档位：主循环只从这里取（避免两处各自推导）
     else:                                                 # ⭐ 退回原路：直接前向（张量每次新建）
         segs,mask=mk(t)
-        mask[0,N:mask.shape[1]-78]=True                       # ⭐ 同图路：只标节点区填充位（True=填充/无效）
+        mask[0,N:mask.shape[1]-CTX]=True                       # ⭐ 同图路：只标节点区填充位（True=填充/无效）
         for k,v in obs['segs'].items():
             src=torch.tensor(v,device=dev)
             if src.dim()!=2: raise ValueError("段 %s 必须是二维 (行,宽)，实际 %s" % (k,tuple(src.shape)))
@@ -114,7 +125,7 @@ for _t in TIERS:
 torch.cuda.synchronize()
 print("WARMUP_DONE ms=%d tiers_ready=%d" % ((__import__('time').time()-_t0)*1000, len(_graphs)), flush=True)
 _tf=__import__('time').time()
-_w,_,_=forward({'N':TIERS[0],'segs':{'node':[[0.0]*10]*TIERS[0],'opp':[[0.0]*15],'bullet':[[0.0]*6]*64,'item':[[0.0]*6]*8,'global':[[0.0]*38],'mem':[[0.0]*256]*4}})
+_w,_,_=forward({'N':TIERS[0],'segs':{'node':[[0.0]*10]*TIERS[0],'opp':[[0.0]*15]*N_OPP,'bullet':[[0.0]*6]*64,'item':[[0.0]*6]*8,'global':[[0.0]*38],'mem':[[0.0]*256]*4}})
 torch.cuda.synchronize()
 print("WARMUP_FWD ms=%d n_out=%d" % ((__import__('time').time()-_tf)*1000, len(_w)), flush=True)
 _ws=torch.randn(64,device=dev); _wl=torch.log_softmax(_ws,dim=-1)
@@ -128,12 +139,24 @@ for line in sys.stdin:
         _t6=__import__('time').time()
         d=json.loads(line)
         if _TRACE: print("T_LOADS ms=%.3f" % ((__import__('time').time()-_t6)*1000), flush=True)
+        # ⭐⭐ 记忆递推（按设计文档 记忆槽-数据格式设计-2026-10-15 §四）
+        _mem_on = int(d.get('mem_on', 0) or 0)
+        _phase = str(d.get('phase', 'B'))
+        if _phase not in ('A', 'B'): raise ValueError("phase 只能是 A/B，实际 %r" % (_phase,))
+        _rid = d.get('round_id', None)
+        if _rid is not None and _rid != _MEM_ROUND:
+            _MEM_ROUND = _rid
+            _MEM['A'] = torch.zeros(2, 256, device=dev); _MEM['B'] = torch.zeros(2, 256, device=dev)
+            print("MEM_RESET round_id=%s" % (_rid,), file=sys.stderr, flush=True)
+        if _MEM['A'] is None: _MEM['A'] = torch.zeros(2, 256, device=dev); _MEM['B'] = torch.zeros(2, 256, device=dev)
+        _mem_rows = torch.cat([_MEM['A'], _MEM['B']], 0) if _mem_on else torch.zeros(4, 256, device=dev)   # ① mem_on=0 ⇒ 喂零
+        d.setdefault('segs', {})['mem'] = _mem_rows.detach().cpu().tolist()
         out,N_real,tier=forward(d)                             # ⭐ forward 回传 (out, 真实N, 档位)
         assert len(out)==4, "期望 4 个输出 v/fire/fail/logp_all、实际 %d" % len(out)
         sc=out[3]                                             # ⭐ out=(v=head_node(池化h), fire, fail, logp_all)
         if sc.dim()==2: sc=sc[0]                              # ⭐ B=1 ⟹ (T,)；旧代码 gp.dim()>2 对 (1,T) 不成立 ⟹ 曾把 gp[:1]=整条 token 序列当候选
         elif sc.dim()!=1: raise ValueError("动作头形状异常 %s" % (tuple(sc.shape),))
-        if sc.shape[0]!=tier+78: raise ValueError("动作头长度 %d != 档位 %d + 78" % (sc.shape[0],tier))
+        if sc.shape[0]!=tier+CTX: raise ValueError("动作头长度 %d != 档位 %d + %d（上下文 token）" % (sc.shape[0],tier,CTX))
         _t9=__import__('time').time()
         logits=sc[:N_real].float()                            # ⭐ 候选集 = 节点区【前 N_real 个】（78 个上下文 token 不是选项）
         logp_all=torch.log_softmax(logits,dim=-1)             # ⭐ 只在真实节点上重新归一 = 对原始节点分数做 log_softmax（节点区 mask 全 False、无 -inf）⟹ lp 与该分布同口径
@@ -151,7 +174,26 @@ for line in sys.stdin:
         if _TRACE: print("T_ARGMAX ms=%.3f (对照: 仅 argmax+item, 未采用)" % ((__import__('time').time()-_tA)*1000), flush=True)
         if _TRACE: print("T_SAMPLE ms=%.3f" % ((__import__('time').time()-_t9)*1000), flush=True)
         if not (0<=idx<N_real): raise AssertionError("nodeId=%d 越界 [0,%d) —— ⛔ 显式失败、不静默截断" % (idx,N_real))
-        lp=float(logp_all[idx]); v=float(out[0].mean())       # ⭐ v=out[0]=价值头 head_node(池化h)
-        print(json.dumps({"lp":lp,"v":v,"nodeId":idx,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
+        lp=float(logp_all[idx]); v=float(out[0].mean())       # ⭐ v=out[0]=价值头 head_node(池化h)；⛔ 语义不变
+        # ⭐ 开火头 out[1]（2026-10-17 派单②）：语义 = "本帧要不要开火"的策略信号（B=1 ⟹ 单个 logit）
+        #    ⛔ 不动 out[0]/out[3] 语义（那是已验收口径）；采集器拿 fire=1 去拼 picks[1] 射击帧
+        _flog = float(out[1].view(-1)[0])
+        _fprob = float(torch.sigmoid(torch.tensor(_flog)))
+        fire = 1 if _fprob > 0.5 else 0                       # ⭐ 阈值 0.5（确定性、不额外消耗采样 RNG）
+        _F1 += fire; _F0 += (1 - fire)
+        if (not _FIRE_PRINTED) and (_F1 + _F0) >= _FIRE_DIST_AT:
+            _FIRE_PRINTED = True
+            print("FIRE_DIST n=%d fire1=%d(%.1f%%) fire0=%d 阈值=0.5 本例_logit=%.4f 本例_p=%.4f"
+                  % (_F1 + _F0, _F1, 100.0 * _F1 / max(1, _F1 + _F0), _F0, _flog, _fprob),
+                  file=sys.stderr, flush=True)
+        # ⭐⭐ 写回自己那一份（只在 mem_on=1 时推进；⏔t 隐式推进）
+        if _mem_on:
+            _g = _graphs.get(pick_tier(N_real), None)
+            if _g is None: raise ValueError('记忆写头：拿不到对应档位的图槽')
+            _st, _mk = _g[1], _g[2]
+            _w = model.write_mem(_st, _mk)          # (1,2,256)
+            _MEM[_phase] = _w[0].detach()
+        _echo = _mem_rows.detach().cpu().numpy().tolist()   # 对拍：回包告诉客户端「这帧到底喂了什么」
+        print(json.dumps({"lp":lp,"v":v,"fire":fire,"nodeId":idx,"mem_echo":_echo,"mode":("graph" if USE_GRAPH else "direct"),"payload":PAYLOAD_KIND}),flush=True)
     except Exception as e:
         print(json.dumps({"lp":None,"v":None,"err":str(e)[:240]}),flush=True)   # ⭐ 诊断信息尽量带全（仍是一行 JSON，协议不变）

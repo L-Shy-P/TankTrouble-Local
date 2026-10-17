@@ -1,7 +1,0 @@
-case=trainstep tag=p11b_after 树模式={"enabled":true,"tree":true} 帧数=80 → C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\prof\_p1_1_dt_trainstep_p11b_after.jsonl
-lastUpdateType=object getTime=true ttStep=1
-  [step40ms] target=0.04 首个贴合帧=4 FRAME_DT轨迹=0.02,0.02,0.02,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04
-      末帧: FRAME_DT=0.04 沙箱=0.04 实测=0.04 矫正次数=1 nProj=0 op=树:静止 nodes=262 bulletErr=0
-  [step20ms] target=0.02 首个贴合帧=44 FRAME_DT轨迹=0.04,0.04,0.04,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02
-      末帧: FRAME_DT=0.02 沙箱=0.02 实测=0.02 矫正次数=2 nProj=1 op=树:前 nodes=199 bulletErr=0.306
-TRAINSTEP_EXIT=0

@@ -1,1 +1,0 @@
-diff_shrapnel_wall_stop PASS (破片撞墙清零停止，反弹弹种不受影响；v10 已透传 Rust 且判据一致)

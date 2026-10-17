@@ -12,7 +12,7 @@
 ════════════════════════════════════════════════════════════════════════════
 
 【口径（父代理 `2026-10-17` 拍定）】
-  1. 动作 = 在**前 `N` 个 node token** 上选 1 个 ⟹ `78` 个上下文 token（`opp/bullet/item/global/mem`）
+  1. 动作 = 在**前 `N` 个 node token** 上选 1 个 ⟹ `vb.CTX_TOKENS`（= `85`：`opp8/bullet64/item8/global1/mem4`）个上下文 token
      **不是候选**。实现 = 取 `out[3][:, :nmax]` 后**再做一次 `log_softmax`**（重归一化），
      这与服务端 `policy_server_graph.py:99-100` 的做法逐字一致（`softmax` 平移不变 ⟹ 等价于只在前 `N` 个原始分数上做 softmax）。
   2. `logp` **必须用当前策略重算**（不是直接用采集时的 `lp`）；同时记 `ratio` 的 `mean/max/min/KL`（"训练有没有生效"的判据）。
@@ -72,11 +72,26 @@ CFG_CITE = {
     "minibatch": "有出处：AGENTS.md:1357-1373 实测『本机甜点 32~64、≥128 掉崖 49×』（同构 d=256/L=3）",
     "min_episodes": "【无出处、待定】G4 文档 §2.3 建议 20~60【估计值】",
     "value_head": "有出处：父代理 2026-10-17 裁定 out[0]（head_node 池化标量）；服务端 policy_server_graph.py:107 同",
-    "mem_mode": "见 MEM_MODE_NOTE（服务端恒喂零 ⟹ zeros）",
+    "mem_mode": "zeros | net；net = 局内按帧序重算记忆（与服务端 phase=B 同序），见《记忆槽-数据格式设计-2026-10-15》",
     "reward_mode": "有出处（方向）：今晚持续训练方案-2026-10-17.md §三 三分项；权重数值【无出处、待定】",
     "w_result": "【无出处、待定】今晚持续训练方案 §三（结果项：胜 +1/负 -1/双死 -0.25/超时 0）",
     "w_survive": "【无出处、待定】今晚持续训练方案 §三（『存活小权重』，具体数未给）",
     "w_legal": "【无出处、待定】今晚持续训练方案 §三（重/中/轻罚，具体数未给）",
+    "w_spawn": "【无出处、待主人拍】2026-10-17 父代理裁定（B）初始值 0.02：每真发射一发奖励⇒直接教它松扳机",
+    "w_hit": "【无出处、待主人拍】2026-10-17 父代理裁定（B）初始值 0.2；口径=推断（对手 alive 位 1→0），见文档§十一",
+    "w_aim": "【无出处、待主人拍】2026-10-17 父代理裁定（B-2）初始值 0.01；口径=刚发射的子弹速度方向与\"我方→最近存活对手\"方位夹角 ≤30°（离散、非势函数），由桥在页面内计算",    "w_aim": "【无出处、待主人拍】2026-10-17 父代理裁定（B-2）初始值 0.01；口径=刚发射的子弹速度方向与\"我方→最近存活对手\"方位夹角 ≤30°（离散、非势函数），由桥在页面内计算",
+    "w_kill": "【无出处、待主人拍】2026-10-17 主人 10 条规格：我方子弹击杀对手 +1.0（TANK_KILLED killer/victim）",
+    "w_selfkill": "【无出处、待主人拍】自己子弹打自己 -1.5（比死亡更重）",
+    "w_death": "【无出处、待主人拍】被他人子弹打死 -1.0",
+    "w_death_storm": "【无出处、待主人拍】被毒雾杀死 -1.5；⚠️口径=【推断】TANK_KILLED 且 killer 缺失",
+    "w_kill_storm": "【无出处、待主人拍】对手被毒雾杀死 +1.0；⚠️同上推断口径",
+    "w_crate": "【无出处、待主人拍】拿到道具 +0.05（可按训练轮次线性衰减，本轮未接衰减）",
+    "w_draw": "【无出处、待主人拍】1v1 平局 -0.5",
+    "w_empty_fire": "【有出处（主人 2026-10-17 原话）】没子弹仍扣扳机 = 纯错、惩罚量比真实对局更大 ⟹ -0.10（出处线索：决策源接口架构:973）",
+    "w_win": "【有出处（主人 2026-10-17 原话）】胜利的奖励绝对需要最大 ⟹ +3.0（所有奖励项里最大）",
+    "w_lose": "【无出处、待主人拍】负 -1.0",
+    "w_legal_pen": "【无出处、待主人拍】重罚：每次被拒（no-output / 炮口贴墙 / 不在路线上 / 节点编号不存在）-0.05；⛔ 不罚“树自身变化导致引用失效”（那类单独计数）",
+    "max_updates": "【无出处、待主人拍】每个 cycle 最多多少个 minibatch 更新（0=不限）",
     "adv_norm": "【无出处、待定】工程默认；量级同 stage1p_ppo.py:135（优势全局标准化）",
     "bootstrap": "截断局末帧的 V(s')：`error`=缺 `v_next` 就抛错（⛔ 不静默当 0）；`zero`=显式当终止并计数",
 }
@@ -86,6 +101,10 @@ DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
                 minibatch=32, min_episodes=20,
                 value_head="out[0]", mem_mode="zeros", reward_mode="parts",
                 w_result=1.0, w_survive=1.0, w_legal=1.0, adv_norm=True,
+                w_spawn=0.02, w_hit=0.2, w_aim=0.01, max_updates=0,
+                w_kill=1.0, w_selfkill=-1.5, w_death=-1.0, w_death_storm=-1.5, w_kill_storm=1.0,
+                w_crate=0.05, w_draw=-0.5, w_empty_fire=-0.10,
+                w_win=3.0, w_lose=-1.0, w_legal_pen=0.05,   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
                 bootstrap="error")
 
 MEM_MODE_NOTE = (
@@ -216,7 +235,7 @@ def build_net(device):
     if got != want:
         raise AssertionError("段容量不一致：net=%s buffer=%s" % (got, want))
     if vb.CTX_TOKENS != vb.CAP["opp"] + vb.CAP["bullet"] + vb.CAP["item"] + vb.CAP["global"] + vb.CAP["mem"]:
-        raise AssertionError("78 个上下文 token 的求和自检失败")
+        raise AssertionError("%d 个上下文 token 的求和自检失败" % vb.CTX_TOKENS)
     net = nv2.NetV2().to(device)
     return net, nv2
 
@@ -227,8 +246,8 @@ def build_batch(frames, idx, device):
 
     统一约定（与 `net_v2_fixed.forward` 及服务端 `mk()` 对齐）：
       · node 段裁到**本批真实最大 N**（`nmax`），行 `[N, nmax)` 的 mask 置 True
-      · 其余 5 段一律**固定容量**（1/64/8/1/4）且 mask=False（服务端也是这么喂的）
-      · mask 长度 = nmax + 78
+      · 其余 5 段一律**固定容量**（8/64/8/1/4）且 mask=False（服务端也是这么喂的）
+      · mask 长度 = nmax + `vb.CTX_TOKENS`（= `85`）
     """
     B = len(idx)
     nmax = max(frames[i]["N"] for i in idx)
@@ -255,7 +274,7 @@ def build_batch(frames, idx, device):
             "bullet": torch.from_numpy(np.stack([frames[i]["bullet"] for i in idx])).to(device),
             "item": torch.from_numpy(np.stack([frames[i]["item"] for i in idx])).to(device),
             "global": torch.from_numpy(np.stack([frames[i]["global"] for i in idx])).to(device),
-            "mem": torch.from_numpy(np.stack([frames[i]["mem"] for i in idx])).to(device)}
+            "mem": torch.from_numpy(np.stack([frames[i].get("_mem", frames[i]["mem"]) for i in idx])).to(device)}   # ⭐ mem_mode=net 时用局内重算的记忆
     return {"segs": segs, "mask": mask, "act": act, "lp_old": lp_old, "v_old": v_old,
             "rew": rew, "Ns": Ns, "nmax": nmax}
 
@@ -272,12 +291,43 @@ def node_dist(out3, nmax):
     return lp, ent, p
 
 
+def precompute_mem(buffer, net, device):
+    """⭐⭐ mem_mode=net：局内按帧序重算记忆（no_grad）。
+    口径与服务端完全一致（phase=B）：本帧喂 `mem = cat(zeros(2,256), B_prev)`；帧后 `B_now = write_mem(...)`
+    ⏔t 乱序（记忆是序列依赖的）。
+    """
+    CTX = vb.CTX_TOKENS
+    zeroA = np.zeros((2, 256), np.float32)
+    n_done = 0
+    for e in buffer.episodes:
+        mem = np.zeros((4, 256), np.float32)   # ⭐ 每局清零 M_0 = 0
+        for f in e["frames"]:
+            f["_mem"] = mem
+            N = int(f["N"])
+            # ⭐ 与服务端同样的档位 padding（让核形状一致 ⇒ 数值差更小）
+            _t = 64
+            for _tt in (64, 256, 512, 1008):
+                _t = _tt
+                if N <= _tt: break
+            segs = {}
+            node = np.zeros((_t, 10), np.float32); node[:N] = np.asarray(f["node"], np.float32)
+            segs["node"] = torch.tensor(node, device=device).unsqueeze(0)
+            for k in ("opp", "bullet", "item", "global"):
+                segs[k] = torch.tensor(np.asarray(f[k], np.float32), device=device).unsqueeze(0)
+            segs["mem"] = torch.tensor(mem, device=device).unsqueeze(0)
+            mask = torch.zeros(1, _t + CTX, dtype=torch.bool, device=device)
+            mask[0, N:_t] = True   # ⭐ 与服务端 mk()/forward 同一掩码语义
+            w = net.write_mem(segs, mask)
+            mem = np.concatenate([zeroA, w[0].detach().cpu().numpy().astype(np.float32)], 0)
+            n_done += 1
+    return n_done
+
 def forward_batch(net, b):
     out = net(b["segs"], b["mask"])
     if len(out) != 4:
         raise AssertionError("期望 4 个输出（含动作分布头 out[3]），实际 %d" % len(out))
     if out[3].shape[1] != b["nmax"] + vb.CTX_TOKENS:
-        raise AssertionError("out[3] 长度 %d != nmax(%d)+78 —— 口径漂了" % (out[3].shape[1], b["nmax"]))
+        raise AssertionError("out[3] 长度 %d != nmax(%d)+CTX(%d) —— 口径漂了" % (out[3].shape[1], b["nmax"], vb.CTX_TOKENS))
     lp_nodes, ent, p = node_dist(out[3], b["nmax"])
     lp = lp_nodes.gather(1, b["act"].view(-1, 1)).squeeze(1)
     v = out[0].view(-1)          # ⭐ out[0] = 价值头（父代理 2026-10-17 裁定）
@@ -318,7 +368,15 @@ def reward_of(f, cfg):
     if cfg["reward_mode"] == "total":
         return float(r["total"])
     return (cfg["w_result"] * r["result"] + cfg["w_survive"] * r["survive"]
-            + cfg["w_legal"] * r["legal"])
+            + cfg["w_legal"] * r["legal"]
+            + cfg["w_spawn"] * float(r.get("spawn", 0.0)) + cfg["w_hit"] * float(r.get("hit", 0.0))
+            + cfg["w_aim"] * float(r.get("aim", 0.0))
+            + cfg["w_kill"] * float(r.get("kill", 0.0)) + cfg["w_selfkill"] * float(r.get("selfkill", 0.0))
+            + cfg["w_death"] * float(r.get("death", 0.0)) + cfg["w_death_storm"] * float(r.get("death_storm", 0.0))
+            + cfg["w_kill_storm"] * float(r.get("kill_storm", 0.0)) + cfg["w_crate"] * float(r.get("crate", 0.0))
+            + cfg["w_draw"] * float(r.get("draw", 0.0)) + cfg["w_empty_fire"] * float(r.get("empty_fire", 0.0))
+            + cfg["w_win"] * float(r.get("win", 0.0)) + cfg["w_lose"] * float(r.get("lose", 0.0))
+            + cfg["w_legal_pen"] * float(r.get("legal", 0.0)))   # ⭐ 奖惩 v2（各项独立）   # ⭐ (B) 新增两项；缺省=0 并在 buffer 里计数
 
 
 def prepare_targets(buffer, cfg):
@@ -377,9 +435,15 @@ def ppo_update(buffer, net, opt, cfg, device, step):
     s_ret = 0.0
     s_ret2 = 0.0
     n_ev = 0
+    _maxupd = int(cfg.get("max_updates", 0) or 0)   # ⭐ (A)2 小窗口：每次 ppo_update 最多更新几个 minibatch（0=不限）
+    _nupd = 0
     for ep_i in range(int(cfg["epochs"])):
-        order = np.random.permutation(n)
-        order = order[np.argsort(Ns[order], kind="stable")]        # 按长度装桶（净减少 pos 编码的批间偏差）
+        _ok = np.array([i for i in range(n) if int(frames[i]["N"]) >= 2], dtype=np.int64)   # ⭐ N<2：候选只有 1 个 ⇒ ent≡0、无梯度 ⇒ 不进 batch
+        order = _ok[np.random.permutation(len(_ok))] if len(_ok) else np.array([], dtype=np.int64)
+        if _maxupd > 0:
+            pass   # ⭐ 小窗口：不按 N 排序（否则只训最短的 8 帧）
+        else:
+            order = order[np.argsort(Ns[order], kind="stable")]        # 按长度装桶（净减少 pos 编码的批间偏差）
         for s0 in range(0, n, k):
             idx = order[s0:s0 + k]
             b = build_batch(frames, idx, device)
@@ -405,6 +469,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
                 opt.zero_grad(set_to_none=True)
                 continue
             opt.step()
+            _nupd += 1   # ⭐ 计数（供 max_updates 截断）
             with torch.no_grad():
                 sse += float(((v - ret_t) ** 2).sum())
                 s_ret += float(ret_t.sum())
@@ -421,6 +486,8 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             # 动作分布口径自证：前 N 个 node token 的概率和 == 1
             psum = p.sum(-1)
             m.setdefault("prob_sum_max_dev", []).append(float((psum - 1.0).abs().max()))
+            if _maxupd > 0 and _nupd >= _maxupd: break   # ⭐ (A)2 小窗口：到上限就停
+        if _maxupd > 0 and _nupd >= _maxupd: break
     out = {}
     for kk in ("pg", "v", "ent", "ratio_mean", "clip_frac", "kl", "gn", "v_mean", "bs"):
         if kk in m:
@@ -430,6 +497,8 @@ def ppo_update(buffer, net, opt, cfg, device, step):
     if "ratio_min" in m:
         out["ratio_min"] = float(np.min(m["ratio_min"]))
     out["prob_sum_max_dev"] = float(max(m.get("prob_sum_max_dev", [0.0])))
+    out["dropped_n1_frames"] = int(n - len(_ok))   # ⭐ 被跳过的 N<2 帧数（显式计数）
+    out["updates"] = int(_nupd)   # ⭐ 本次实际更新次数（供小窗口可见）
     out["nan_skipped"] = int(m.get("nan_skipped", 0))
     if n_ev > 0:
         var_ret = s_ret2 / n_ev - (s_ret / n_ev) ** 2
@@ -472,7 +541,9 @@ def load_ckpt(path, net, opt, device):
     obj = torch.load(path, map_location=device, weights_only=True)
     if obj.get("format") != CKPT_FORMAT:
         raise AssertionError("ckpt 格式不符：%r（期望 %r）—— ⛔ 不许猜着读" % (obj.get("format"), CKPT_FORMAT))
-    net.load_state_dict(obj["model"])           # ⛔ 不用 assign=True（保持张量指针 ⟹ CUDA Graph 有效）
+    _r = net.load_state_dict(obj["model"], strict=False)   # ⭐ 记忆头新增 ⇒ strict=False
+    log("⭐ ckpt 对齐：missing=%s unexpected=%s（missing 应只有 mem_writer.*）" % (list(_r.missing_keys), list(_r.unexpected_keys)))   # ⏔t 不静默
+    if list(_r.unexpected_keys): raise AssertionError("ckpt 多余键 %s ⇒ 不匹配" % list(_r.unexpected_keys))           # ⛔ 不用 assign=True（保持张量指针 ⟹ CUDA Graph 有效）
     if "opt" in obj:
         opt.load_state_dict(obj["opt"])
     if "rng" in obj:
@@ -644,7 +715,7 @@ def make_fake_episode(ep, rng, players=2, n_frames=30, n_lo=40, n_hi=300, win=No
         node_id = int(rng.randint(0, N))
         obs = {
             "node": rng.randn(N, vb.SEG_DIM["node"]).astype(np.float32),
-            "opp": rng.randn(1, 15).astype(np.float32),
+            "opp": rng.randn(vb.CAP["opp"], 15).astype(np.float32),
             "bullet": rng.randn(64, 7).astype(np.float32),   # ⭐ 6→7 对齐 net_v2_fixed.SEG / 定稿
             "item": rng.randn(8, 6).astype(np.float32),
             "global": rng.randn(1, 38).astype(np.float32),
@@ -771,8 +842,8 @@ def smoke(args, cfg, state, net, opt, device):
 
     # ---- 口径自证 ----
     log("SMOKE 口径自证：动作只在前 N 个 node token 上（重归一化后概率和最大偏差=%.2e，"
-        "out[3] 长度 = nmax+78）；mem=%s；value=head out[0]；mask 只标 [N,nmax) 的 node 行"
-        % (r2.get("prob_sum_max_dev", float("nan")), cfg["mem_mode"]))
+        "out[3] 长度 = nmax+CTX(%d)）；mem=%s；value=head out[0]；mask 只标 [N,nmax) 的 node 行"
+        % (r2.get("prob_sum_max_dev", float("nan")), vb.CTX_TOKENS, cfg["mem_mode"]))
     print("SMOKE_OK step=%d cycles=%d frames_trained=%d kl_first=%.4f delta_max=%.3e ckpt=%s"
           % (state["step"], state["cycle"], state["trained_frames"], l2_first, delta, ckpt))
     return 0
@@ -834,7 +905,7 @@ def main(argv=None):
             log("▶ 从 ckpt 续训：step=%d episodes=%d（超参随 ckpt 读回，⛔ 不靠命令行默认值）"
                 % (state["step"], state["episodes"]))
 
-        log("口径：动作=前 N 个 node token（重归一化，同服务端 :99-100）；78 个上下文 token 不是候选")
+        log("口径：动作=前 N 个 node token（重归一化，同服务端 :99-100）；%d 个上下文 token 不是候选" % vb.CTX_TOKENS)
         log("      v=%s；mem_mode=%s；mask=只标 [N,nmax) 的 node 行；minibatch=%d；pos 编码按批内 max 归一"
             % (cfg["value_head"], cfg["mem_mode"], cfg["minibatch"]))
         log("      mask/mem 的理由：%s" % MEM_MODE_NOTE)

@@ -1,0 +1,24 @@
+{
+ "recordFile": "C:\\Users\\L_Shy_P user\\Desktop\\Code\\Python\\Projects\\TankTrouble Local\\_tools\\headless\\prof\\detfix\\bootvar_rec_300.jsonl",
+ "runs": 10,
+ "frames": 300,
+ "recRngLen": 5483,
+ "recSiteCount": 106,
+ "replayCalls": [
+  4479,
+  4479,
+  4479,
+  4479,
+  4479,
+  4479,
+  4479,
+  4479,
+  4479,
+  4479
+ ],
+ "replayCallUnique": [
+  4479
+ ],
+ "varyingSites": 0,
+ "varying": []
+}

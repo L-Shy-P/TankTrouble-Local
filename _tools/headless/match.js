@@ -306,6 +306,9 @@ class Match {
       this.bootFrames = menu.frames + this.bootPadded;
       this.releaseSteps = releaseSteps;
     }
+    // ★ 2026-10-17（真游戏路径）：跳过 match.js 自造的 bootstrap，停在 Menu/大厅 ⟹
+    //   调用方才能走真游戏自己的「Add Vantage」→「Play」链路（直连 addAIManager 造出来的是游客皮肤）。
+    if (opts.skipBootstrap) { this.bootFrames = menu.frames; this.skippedBootstrap = true; return this; }
     const bootT = await this.eval('window.__vt.t');
     const epochNow = await this.eval('window.__vt.epoch');
     const menuRelease = await this.eval('window.__vtMenuReleaseInfo || null');

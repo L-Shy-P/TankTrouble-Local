@@ -27,18 +27,19 @@ import numpy as np
 
 # ---------------------------------------------------------------- 段定义（与网络对齐）
 SEG_DIM = {"node": 10, "opp": 15, "bullet": 7, "item": 6, "global": 38, "mem": 256}   # ⭐ bullet 6→7（对齐 net_v2_fixed.SEG）
-CAP = {"node": None, "opp": 1, "bullet": 64, "item": 8, "global": 1, "mem": 4}  # node 容量 = N（不填）
+CAP = {"node": None, "opp": 8, "bullet": 64, "item": 8, "global": 1, "mem": 4}  # node 容量 = N（不填）；opp 1→8（2026-10-17 派单①：编码器每对手 15 维×最多 8 个对手行）
 SEG_ORDER = ("node", "opp", "bullet", "item", "global", "mem")
-CTX_TOKENS = CAP["opp"] + CAP["bullet"] + CAP["item"] + CAP["global"] + CAP["mem"]  # = 78
-assert CTX_TOKENS == 78, "上下文 token 数必须 = 78（opp1+bullet64+item8+global1+mem4）"
+CTX_TOKENS = CAP["opp"] + CAP["bullet"] + CAP["item"] + CAP["global"] + CAP["mem"]  # = 85（opp8+bullet64+item8+global1+mem4）
+assert CTX_TOKENS == 85, "上下文 token 数必须 = 85（opp8+bullet64+item8+global1+mem4）；与服务端 policy_server_graph.py 的 CTX 同源"
 
 # 帧内 dtype（fp16 只给 node：省 RAM；其余段只有 ~1.5k 个数）
-DTYPE = {"node": np.float16, "opp": np.float32, "bullet": np.float32,
+DTYPE = {"node": np.float32, "opp": np.float32, "bullet": np.float32,   # ⭐ node fp16→fp32（2026-10-17）：记忆对拍才能与服务端（fp32）同输入
          "item": np.float32, "global": np.float32, "mem": np.float32}
 
 REQUIRED_FRAME_KEYS = ("t", "N", "obs", "act", "lp", "v", "r", "done")
 REQUIRED_EP_KEYS = ("ep", "frames")
 REWARD_KEYS = ("total", "result", "survive", "legal")
+OPTIONAL_REWARD_KEYS = ("spawn", "hit", "aim", "kill", "selfkill", "death", "kill_storm", "death_storm", "crate", "draw", "empty_fire", "win", "lose", "legal")   # ⭐ 奖惩 v2 + 主人新裁定（win/lose 分开记、legal=重罚负计数）   # ⭐奖惩 v2（主人 10 条） ⭐ aim = 2026-10-17 父代理裁定 (B-2)：瞸准奖励（桥侧计算）   # ⭐ 2026-10-17 父代理裁定 (B)：真发射/命中；缺省=0、并计数 missing_spawn_frames/missing_hit_frames（⏔t 不静默）
 SCENE_KEYS = ("players", "mapW", "mapH", "storm", "crates")
 
 
@@ -162,6 +163,12 @@ def decode_frame(fr, ctx):
     for k in REWARD_KEYS:
         _need(r, k, ctx + ".r")
         rw[k] = _as_float(r[k], ctx + ".r." + k)
+    for k in OPTIONAL_REWARD_KEYS:   # ⭐ 可选项：缺省 = 0.0，但要计数（⏔t 不静默）
+        if k in r:
+            rw[k] = _as_float(r[k], ctx + ".r." + k)
+        else:
+            rw[k] = 0.0
+            rw["_missing_" + k] = 1
     if not isinstance(fr["done"], bool):
         raise BufferSchemaError("%s.done: 期望 bool，实际 %r" % (ctx, fr["done"]))
 
@@ -366,7 +373,7 @@ if __name__ == "__main__":
     N = 7
 
     def mkframe(t, node_id, done):
-        obs = {"node": rng.randn(N, 10), "opp": rng.randn(1, 15), "bullet": rng.randn(64, 7),
+        obs = {"node": rng.randn(N, 10), "opp": rng.randn(CAP["opp"], 15), "bullet": rng.randn(64, 7),
                "item": rng.randn(8, 6), "global": rng.randn(1, 38), "mem": np.zeros((4, 256), np.float32)}
         return {"t": t, "N": N, "obs": obs,
                 "act": {"nodeId": node_id, "fire": 0, "picks": [{"nodeId": node_id, "back": 0}]},

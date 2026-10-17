@@ -62,7 +62,7 @@ const P = (s) => { console.log(s); OUT.facts.push(s); };
     const tankFacts = await m.eval(`(() => {
       var gc = GameManager.getGameController();
       var t = gc.getTank('tank_b'), b = t.getB2DBody();
-      var out = { bodyType: b.GetType(), isBullet: b.IsBullet(), isDynamic: b.IsDynamic(),
+      var out = { bodyType: b.GetType(), isBullet: b.IsBullet(), isDynamic: (typeof b.IsDynamic === 'function') ? b.IsDynamic() : (typeof b.IsStatic === 'function' ? !b.IsStatic() : null),
                   fixtures: [] };
       for (var f = b.GetFixtureList(); f; f = f.GetNext()) {
         out.fixtures.push({ sensor: f.IsSensor(), cat: f.GetFilterData().categoryBits,
@@ -89,7 +89,7 @@ const P = (s) => { console.log(s); OUT.facts.push(s); };
         if (p.getType() !== 0) continue;
         var b = p.getB2DBody(), f = b.GetFixtureList();
         return { id: k, type: p.getType(), lifetime: p.lifetime, timeAlive: p.getTimeAlive(),
-                 bodyType: b.GetType(), isBullet: b.IsBullet(), isDynamic: b.IsDynamic(),
+                 bodyType: b.GetType(), isBullet: b.IsBullet(), isDynamic: (typeof b.IsDynamic === 'function') ? b.IsDynamic() : (typeof b.IsStatic === 'function' ? !b.IsStatic() : null),
                  shape: f.GetShape().GetType(), shapeRadius: f.GetShape().m_radius,
                  fixtureRadius: f.GetShape().m_radius, density: 0.01,
                  cat: f.GetFilterData().categoryBits, mask: f.GetFilterData().maskBits,

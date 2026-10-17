@@ -1,0 +1,10 @@
+const fs=require('fs');const {Match}=require('./match');
+const SRC=fs.readFileSync(__dirname+'/inject_encprof.js','utf8');
+const FR=Number(process.env.FRAMES||600);
+(async()=>{const m=new Match();
+ await m.open({humanIds:['tank_a'],aiCount:2,vantCount:1});
+ await m.clearControl(); await m.eval(SRC); await m.eval('window.__ep.start()');
+ const t0=Date.now(); await m.pump(FR,{yieldMs:0}); const wall=Date.now()-t0;
+ console.log('ENCPROF '+String(await m.eval('window.__ep.stat()')).slice(0,400));
+ console.log('WALL frames='+FR+' wall_ms='+wall+' perFrame='+(wall/FR).toFixed(2)+' ⟹ 一局(3158)='+(wall/FR*3158/1000).toFixed(1)+'s');
+ await m.close();})();

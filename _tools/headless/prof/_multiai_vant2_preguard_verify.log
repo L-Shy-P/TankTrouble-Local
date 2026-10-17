@@ -1,6 +1,0 @@
-VERIFY FAIL
-  baseline=_tools/headless/prof/_multiai_vant2_preguard.jsonl treeVersion=v170 treeMd5(录制时)=23e7d265c3366746ec4865ce813eff31
-  treeMd5(现在)=6535326bdcce59bc55dfa340be1c2994  frames=600  rngLen=17187 replayOverflow=0 aiControl={"tree":true,"enabled":true,"ver":"v170"}
-  不一致帧数=600/600  分歧字段={"t":600,"rng":598,"acc":200,"tanks[0].rot":270,"tanks[0].x":286,"tanks[0].y":286,"nodes":506,"commit.id":507,"commit.tEnd":552,"tanks[2].x":239,"tanks[2].y":239,"tanks[3].x":239,"tanks[3].y":239,"projs[0].x":63,"projs[0].y":63,"tanks[0].fwd":45,"tanks[2].rot":225,"tanks[3].rot":224,"tanks[0].right":39,"op":2,"commit.op":2,"commit.seg":11,"tanks[2].left":2,"tanks[3].left":2,"tanks[0].left":38,"tanks[0].fire":10,"tanks[2].back":1,"tanks[3].back":1,"projs.len":490,"projs[1].x":9,"projs[1].y":9,"tanks[0].back":6,"tanks.len":307}
-  首个分歧 f=1 [{"path":"t","a":2383.333333333334,"b":2450},{"path":"rng","a":5292,"b":5289}]
-EXIT=1

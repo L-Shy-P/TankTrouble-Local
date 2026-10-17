@@ -11,7 +11,7 @@ const { Match } = require('./match');
 function arg(n, d) { const i = process.argv.indexOf('--' + n); return i < 0 ? d : Number(process.argv[i + 1]); }
 const TILE = 10;
 
-async function oneEnv(id, STEPS, SEG, barrierStart, onProgress) {
+async function oneEnv(id, STEPS, PUMP_CHUNK, barrierStart, onProgress) {
   const t0 = Date.now();
   const m = new Match();
   const out = { id, ok: false };
@@ -54,7 +54,7 @@ async function oneEnv(id, STEPS, SEG, barrierStart, onProgress) {
         const k = 1 + ((Math.random() * 8) | 0);
         const o = [null, { fwd: 1 }, { back: 1 }, { left: 1 }, { right: 1 },
           { fwd: 1, left: 1 }, { fwd: 1, right: 1 }, { back: 1, left: 1 }, { back: 1, right: 1 }][k];
-        const nxt = await m.eval(`window.__vtStep1(${JSON.stringify(o)}, ${SEG}, ${B.x}, ${B.y})`);
+        const nxt = await m.eval(`window.__vtStep1(${JSON.stringify(o)}, ${PUMP_CHUNK}, ${B.x}, ${B.y})`);
         if (!nxt) break;
         steps++;
         cur = nxt;
@@ -74,7 +74,7 @@ async function oneEnv(id, STEPS, SEG, barrierStart, onProgress) {
 (async () => {
   const N = arg('n', 4);
   const STEPS = arg('steps', 20);
-  const SEG = arg('seg', 13);
+  const PUMP_CHUNK = arg('seg', 13);   // ⚠️ 脚本参数、非设计参数
   const t0 = Date.now();
   console.log(`启动 ${N} 路并行环境…`);
 
@@ -82,7 +82,7 @@ async function oneEnv(id, STEPS, SEG, barrierStart, onProgress) {
   const barrier = new Promise((r) => { release = r; });
   // 全部就绪后统一放行
   const tasks = [];
-  for (let i = 0; i < N; i++) tasks.push(oneEnv(i, STEPS, SEG, barrier));
+  for (let i = 0; i < N; i++) tasks.push(oneEnv(i, STEPS, PUMP_CHUNK, barrier));
   // 等所有 ready 后放行（用轮询 readyMs 不可靠，改成固定延迟后放行）
   setTimeout(() => release(), 6000 + N * 1500);
 

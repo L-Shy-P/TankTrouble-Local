@@ -93,7 +93,8 @@ function judge(rec, file, label, tag) {
     ok: c.ok, frames: rr.frames.length,
     opMismatch: c.opMismatch, poseMismatch: c.poseMismatch, maxPoseDiff: c.maxPoseDiff,
     projMismatch: c.projMismatch, stateMismatch: c.stateMismatch,
-    rngMismatch: c.rngMismatch, timeMismatch: c.timeMismatch, maxTimeDiff: c.maxTimeDiff,
+    rngMismatch: c.rngMismatch, rngBootOffset: c.rngBootOffset, rngOffsetFrames: c.rngOffsetFrames,
+    timeMismatch: c.timeMismatch, maxTimeDiff: c.maxTimeDiff,
     hiddenMismatch: c.hiddenMismatch, hiddenObsMismatch: c.hiddenObsMismatch, driveMismatch: c.driveMismatch,
     examples: c.examples.slice(0, 3),
   };

@@ -36,24 +36,3 @@ PASS diff_shrapnel_lifetime_zero
 PASS diff_shrapnel_no_bounce
 PASS diff_shrapnel_wall_stop
 PASS diff_tree_coarse_reach
-PASS diff_tree_continuous_refine
-PASS diff_tree_death_blind
-PASS diff_tree_death_shorten
-PASS diff_tree_grow_boost
-PASS diff_tree_growth_switch
-PASS diff_tree_killfield
-PASS diff_tree_low_eval_frames
-PASS diff_tree_move_target
-PASS diff_tree_no_veto
-PASS diff_tree_nodecount
-PASS diff_tree_prune_compensation
-PASS diff_tree_red_never_over_nonred
-PASS diff_tree_refine_split
-PASS diff_tree_refine_split_death_inherit
-PASS diff_tree_reset_calib
-PASS diff_tree_retreat_depth
-PASS diff_tree_retreat_reroute
-PASS diff_tree_soft_dead_growth
-PASS diff_tree_softdead_refork
-PASS diff_tree_warmup_cap
-DONE

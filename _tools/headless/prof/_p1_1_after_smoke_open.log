@@ -1,5 +1,0 @@
-{"case":"collect.js","openMs":2983,"roundWaitFrames":120,"installControl":"ok","bootstrap":{"gameId":"gc-0c44-0","humanIds":["tank_a"],"aiIds":["6148530"],"vantageIds":["vantage_1"],"started":true},"stateBefore":"Game","players":["6148530","tank_a","vantage_1"],"tankMove20帧":3.096,"rngMode":"record","rngState":{"mode":"record","len":6195,"idx":0,"overflow":0},"pageErrors":[]}
-{"case":"parallel_bench.js / stage1_rollout.js","openMs":2816,"roundWaitFrames":120,"installControl":"ok","bootstrap":{"gameId":"gc-450c-0","humanIds":["tank_a"],"aiIds":[],"vantageIds":["vantage_1"],"started":true},"stateBefore":"Game","players":["tank_a","vantage_1"],"tankMove20帧":4.745,"rngMode":"record","rngState":{"mode":"record","len":4383,"idx":0,"overflow":0},"pageErrors":[]}
-{"case":"match.js 默认","openMs":2651,"roundWaitFrames":120,"installControl":"ok","bootstrap":{"gameId":"gc-2e4a-0","humanIds":["tank_a"],"aiIds":["6148530"],"vantageIds":[],"started":true},"stateBefore":"Game","players":["6148530","tank_a"],"tankMove20帧":2.678,"rngMode":"record","rngState":{"mode":"record","len":4741,"idx":0,"overflow":0},"pageErrors":[]}
-烟测结论: 全部通过
-EXIT=0

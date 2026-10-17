@@ -20,7 +20,7 @@ const ACT = [{}, { fwd: 1 }, { back: 1 }, { left: 1 }, { right: 1 },
 
     const mz = await m.maze();
     const cand = mz.reachable.map((r) => ({ x: r.x * 10 + 5, y: r.y * 10 + 5 }));
-    const SEG = 13, STEPS = 8, NEP = 5;
+    const PUMP_CHUNK = 13, STEPS = 8, NEP = 5;   // ⚠️ 同 stage1_env：脚本参数、非设计参数
     for (let ep = 0; ep < NEP; ep++) {
       const A = cand[(Math.random() * cand.length) | 0];
       await m.teleport('tank_a', A.x, A.y, Math.random() * 6.283);
@@ -32,7 +32,7 @@ const ACT = [{}, { fwd: 1 }, { back: 1 }, { left: 1 }, { right: 1 },
         const a = (Math.random() * 9) | 0;
         const o = ACT[a];
         await m.setControl(o);
-        await m.pump(SEG, { yieldMs: 0 });
+        await m.pump(PUMP_CHUNK, { yieldMs: 0 });
         await m.clearControl();
         const t = await m.myTank();
         const d = Math.hypot(t.x - prev.x, t.y - prev.y);
@@ -40,7 +40,7 @@ const ACT = [{}, { fwd: 1 }, { back: 1 }, { left: 1 }, { right: 1 },
         prev = t;
       }
       const net = Math.hypot(prev.x - st0.x, prev.y - st0.y);
-      console.log(`局${ep} 起点(${st0.x.toFixed(0)},${st0.y.toFixed(0)}) ${STEPS}步×${SEG}帧: ` +
+      console.log(`局${ep} 起点(${st0.x.toFixed(0)},${st0.y.toFixed(0)}) ${STEPS}步×${PUMP_CHUNK}帧: ` +
         `每步位移 [${ds.join(' ')}] 路径总长=${path.toFixed(1)} 净位移=${net.toFixed(1)} 像素`);
     }
     console.log('时钟:', JSON.stringify(await m.stats()));

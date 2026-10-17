@@ -1,0 +1,188 @@
+{
+ "startedAt": "2026-10-13T15:21:35.223Z",
+ "steps": [
+  {
+   "name": "D0_shield_built",
+   "upgradeId": "g5u-75f6-12",
+   "real": {
+    "has": true,
+    "r": 4.3,
+    "categoryBits": 32,
+    "maskBits": 101,
+    "maskHasMaze": false
+   },
+   "sandbox": {
+    "has": true,
+    "r": 4.3,
+    "x": 15,
+    "y": 25,
+    "categoryBits": 32,
+    "maskBits": 101,
+    "maskHasMaze": false
+   },
+   "stats": {
+    "built": 9,
+    "torn": 0,
+    "bounceContacts": 0,
+    "shrapnelStops": 0,
+    "ownPassThrough": 0,
+    "hasShieldFixture": true,
+    "roundSlots": []
+   }
+  },
+  {
+   "name": "E_lifetime",
+   "grantFrame": 0,
+   "fixtureGoneAtFrame": null,
+   "upgradeAtLoss": null,
+   "realFramesAt60fps": null,
+   "sandboxFrameDt": 0.02,
+   "consts": {
+    "SHIELD_LIFETIME": 6,
+    "SPAWN_SHIELD_LIFETIME": 10
+   }
+  },
+  {
+   "name": "D1_fp_rate",
+   "tp": 150,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "n": 150
+  },
+  {
+   "name": "A0_shield_again",
+   "real": {
+    "has": true,
+    "r": 4.3,
+    "categoryBits": 32,
+    "maskBits": 101,
+    "maskHasMaze": false
+   },
+   "sbFixture": {
+    "has": true,
+    "r": 4.3,
+    "x": 15,
+    "y": 25,
+    "categoryBits": 32,
+    "maskBits": 101,
+    "maskHasMaze": false
+   },
+   "built": 9,
+   "torn": 0
+  },
+  {
+   "name": "A1_bounce",
+   "bullet": "g5p-75f6-15",
+   "before": {
+    "y": 16.096,
+    "vy": 6,
+    "speed": 6
+   },
+   "after": {
+    "y": 20.410000298060062,
+    "vy": -5.999960258656509,
+    "speed": 5.999960258656509
+   },
+   "bounceFrame": 44,
+   "speedPreserved": 1,
+   "sandboxBounceContacts": 0,
+   "slotRule": []
+  },
+  {
+   "name": "A3_own_pass_through",
+   "bullet": "g5p-75f6-16",
+   "shieldR": 4.3,
+   "dStart": 1.102,
+   "dEnd": 4.6,
+   "crossedShieldSurface": true,
+   "vyUnchanged": true,
+   "sandboxOwnPassThrough": 0,
+   "slotRule": [],
+   "rule": null
+  },
+  {
+   "name": "note",
+   "msg": "shrapnel 用 type=MINE(4)"
+  },
+  {
+   "name": "A2_shrapnel_stop",
+   "bullet": "g5p-75f6-18",
+   "before": {
+    "y": 16.306,
+    "speed": 18
+   },
+   "after": {
+    "y": 20.80600000000001,
+    "speed": 0
+   },
+   "stoppedAtFrame": -1,
+   "gone": false,
+   "sandboxShrapnelStops": 0,
+   "slotRule": []
+  },
+  {
+   "name": "B_oblique_mirror",
+   "bullet": "g5p-75f6-19",
+   "hitFrame": 13,
+   "v_before": {
+    "x": 6,
+    "y": 6
+   },
+   "v_after": {
+    "x": -6,
+    "y": 6
+   },
+   "speedBefore": 8.485281,
+   "speedAfter": 8.485281,
+   "predFromPrevFrame": {
+    "x": -3.9858,
+    "y": -7.4909
+   },
+   "predFromAfterFrame": {
+    "x": -4.0756,
+    "y": -7.4424
+   },
+   "errPrevFrame": 13.6404,
+   "errAfterFrame": 13.5795,
+   "pass_lt_0_2": false
+  },
+  {
+   "name": "C2_mine_at_feet",
+   "shrapnel": "g5p-75f6-21",
+   "shrapnelAt": {
+    "x": 15,
+    "y": 25.000000298060076,
+    "rot": 0
+   },
+   "hadShield": true,
+   "died": true,
+   "deathFrame": 0
+  }
+ ],
+ "samples": [],
+ "errors": [],
+ "consts": {
+  "SHIELD_LIFETIME": 6,
+  "SPAWN_SHIELD_LIFETIME": 10,
+  "SHIELD_RADIUS_M": 4.3,
+  "UPGRADE_TYPES": {
+   "LASER_AIMER": 0,
+   "SPAWN_SHIELD": 1,
+   "SHIELD": 2,
+   "AIMER": 3,
+   "SPEED_BOOST": 4
+  },
+  "FRAME_DT_SANDBOX": 0.02
+ },
+ "pose": {
+  "x": 15,
+  "y": 25,
+  "rot": 0,
+  "bx": 15,
+  "by": 22.2
+ },
+ "wallPose": {
+  "err": "no wall pose"
+ }
+}

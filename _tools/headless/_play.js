@@ -1,0 +1,14 @@
+const { Match } = require('./match');
+(async () => { const o = {}; const m = new Match();
+  await m.open({ humanIds: ['tank_a'], aiCount: 0, vantCount: 1, rng: 'flat', rngMode: 'flat' });
+  await m.clearControl();
+  let t = Date.now(); await m.pump(600, { yieldMs: 0 }); o.recordMs = Date.now() - t;
+  o.rng = await m.eval('(function(){var d=window.__vtRng.dump();return d?d.length:0;})()');
+  const seq = await m.eval('JSON.stringify(window.__vtRng.dump())');
+  o.seqLen = JSON.parse(seq).length;
+  t = Date.now();
+  await m.eval('window.__vtRng.play(' + seq + ');');
+  await m.pump(600, { yieldMs: 0 });
+  o.replayMs = Date.now() - t;
+  o.decisions = await m.eval('JSON.stringify(window.__vtCollect ? Object.keys(window.__vtCollect) : null)');
+  await m.close(); console.log('PLAY ' + JSON.stringify(o)); })();

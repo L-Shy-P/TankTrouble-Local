@@ -1,0 +1,237 @@
+{
+ "samples": [
+  {
+   "f": 0,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 6,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 6,
+     "_weakened": false
+    }
+   },
+   "tok": 6
+  },
+  {
+   "f": 30,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 5.499999999999993,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 5.499999999999993,
+     "_weakened": false
+    }
+   },
+   "tok": 5.499999999999993
+  },
+  {
+   "f": 60,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 4.999999999999986,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 4.999999999999986,
+     "_weakened": false
+    }
+   },
+   "tok": 4.999999999999986
+  },
+  {
+   "f": 90,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 4.499999999999979,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 4.499999999999979,
+     "_weakened": false
+    }
+   },
+   "tok": 4.499999999999979
+  },
+  {
+   "f": 120,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 3.999999999999972,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 3.999999999999972,
+     "_weakened": false
+    }
+   },
+   "tok": 3.999999999999972
+  },
+  {
+   "f": 150,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 3.499999999999974,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 3.499999999999974,
+     "_weakened": false
+    }
+   },
+   "tok": 3.499999999999974
+  },
+  {
+   "f": 180,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 2.9999999999999756,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 2.9999999999999756,
+     "_weakened": false
+    }
+   },
+   "tok": 2.9999999999999756
+  },
+  {
+   "f": 210,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 2.4999999999999774,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 2.4999999999999774,
+     "_weakened": false
+    }
+   },
+   "tok": 2.4999999999999774
+  },
+  {
+   "f": 240,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 1.9999999999999791,
+    "getField_weakened": true,
+    "rawFields": {
+     "_lifetime": 1.9999999999999791,
+     "_weakened": true
+    }
+   },
+   "tok": 1.9999999999999791
+  },
+  {
+   "f": 270,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 1.499999999999981,
+    "getField_weakened": true,
+    "rawFields": {
+     "_lifetime": 1.499999999999981,
+     "_weakened": true
+    }
+   },
+   "tok": 1.499999999999981
+  },
+  {
+   "f": 300,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 0.9999999999999826,
+    "getField_weakened": true,
+    "rawFields": {
+     "_lifetime": 0.9999999999999826,
+     "_weakened": true
+    }
+   },
+   "tok": 0.9999999999999826
+  },
+  {
+   "f": 330,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 0.4999999999999821,
+    "getField_weakened": true,
+    "rawFields": {
+     "_lifetime": 0.4999999999999821,
+     "_weakened": true
+    }
+   },
+   "tok": 0.4999999999999821
+  },
+  {
+   "f": 360,
+   "raw": {
+    "present": true,
+    "getField_lifetime": -1.8207657603852567e-14,
+    "getField_weakened": true,
+    "rawFields": {
+     "_lifetime": -1.8207657603852567e-14,
+     "_weakened": true
+    }
+   },
+   "tok": -1.8207657603852567e-14
+  },
+  {
+   "f": 390,
+   "raw": {
+    "gone": true
+   },
+   "tok": 0
+  },
+  {
+   "f": 420,
+   "raw": {
+    "gone": true
+   },
+   "tok": 0
+  }
+ ],
+ "cases": {
+  "noShield": {
+   "raw": {
+    "gone": true
+   },
+   "tok": 0,
+   "on": 0
+  },
+  "oppShield": {
+   "opp": 6148530,
+   "raw": {
+    "present": true,
+    "getField_lifetime": 5.916999999999999,
+    "getField_weakened": false,
+    "rawFields": {
+     "_lifetime": 5.916999999999999,
+     "_weakened": false
+    }
+   },
+   "oppTok": [
+    20.17954349494488,
+    14.910004275817228,
+    1.7473508749057336,
+    0,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    -1,
+    5,
+    1,
+    -1,
+    -1
+   ]
+  }
+ },
+ "dtApplied": 0.016666666666666666,
+ "tanks": "[\"6148530\",\"tank_a\"]",
+ "grant": {
+  "id": "su-c776-9",
+  "type": 2,
+  "constLifetime": 6
+ },
+ "grantOpp": {
+  "id": "su-c776-10",
+  "type": 2,
+  "constLifetime": 6
+ }
+}

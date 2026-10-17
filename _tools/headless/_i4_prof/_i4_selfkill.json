@@ -1,0 +1,1202 @@
+{
+ "startedAt": "2026-10-12T14:34:52.665Z",
+ "fingerprints": [
+  {
+   "file": "game_core/js/b714588dc4621fe104113111ba90b1a7.js",
+   "mtime": "2026-06-13T17:38:28.247Z",
+   "bytes": 58771,
+   "md5": "97cadb8a67a443a9eb2f51ebc7d12916"
+  },
+  {
+   "file": "game_core/js/82e43ebfcdffdaf490dbe79c9c119d29.js",
+   "mtime": "2026-06-13T12:22:43.984Z",
+   "bytes": 24449,
+   "md5": "a2bf42171d586f54e5e5fac5779424e4"
+  },
+  {
+   "file": "game_core/js/46989e393ad0e356ac8a0c6c53b362f9.js",
+   "mtime": "2026-06-13T17:38:28.229Z",
+   "bytes": 55406,
+   "md5": "1c7bcaba8381d40aa591f5abacb8d96e"
+  },
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-12T13:16:01.302Z",
+   "bytes": 252467,
+   "md5": "8cfbe563b372fd21c54281eb7cb7642d"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "mtime": "2026-10-12T11:23:33.984Z",
+   "bytes": 29120,
+   "md5": "b7c5ce158730819614b599fb1510d65b"
+  }
+ ],
+ "wall": {
+  "x+_roundWait": {
+   "ok": true,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "x+_pressedFire": {
+   "edge": "x+",
+   "on": true,
+   "setup": {
+    "pick": {
+     "x": 9,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    "cx": 95,
+    "cy": 5,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 9,
+     "maxY": 6
+    },
+    "wallFace": 99.6,
+    "axis": "x"
+   },
+   "pressed": {
+    "x": 96.8925,
+    "y": 5,
+    "rot": 1.5708
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      98.1925,
+      5.35
+     ],
+     [
+      98.1925,
+      4.65
+     ],
+     [
+      99.5925,
+      4.65
+     ],
+     [
+      99.5925,
+      5.35
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 2.707,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": 0.043,
+    "turretTip": 2.7,
+    "tipInsideWall": -0.007
+   },
+   "deadAt": 0,
+   "traceN": 1,
+   "trace": [
+    {
+     "f": 0,
+     "alive": false,
+     "n": 0,
+     "p": null
+    }
+   ]
+  },
+  "x-_roundWait": {
+   "ok": true,
+   "frames": 180,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "x-_pressedFire": {
+   "edge": "x-",
+   "on": true,
+   "setup": {
+    "pick": {
+     "x": 0,
+     "y": 0,
+     "top": 1,
+     "left": 1
+    },
+    "cx": 5,
+    "cy": 5,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 8,
+     "maxY": 5
+    },
+    "wallFace": 0.4,
+    "axis": "x"
+   },
+   "pressed": {
+    "x": 3.1075,
+    "y": 5,
+    "rot": -1.5708
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      1.8075,
+      4.65
+     ],
+     [
+      1.8075,
+      5.35
+     ],
+     [
+      0.4075,
+      5.35
+     ],
+     [
+      0.4075,
+      4.65
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 2.708,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": 0.042,
+    "turretTip": 2.7,
+    "tipInsideWall": -0.007
+   },
+   "deadAt": 0,
+   "traceN": 1,
+   "trace": [
+    {
+     "f": 0,
+     "alive": false,
+     "n": 0,
+     "p": null
+    }
+   ]
+  },
+  "y+_roundWait": {
+   "ok": true,
+   "frames": 180,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "y+_pressedFire": {
+   "edge": "y+",
+   "on": true,
+   "setup": {
+    "pick": {
+     "x": 0,
+     "y": 6,
+     "top": 1,
+     "left": 1
+    },
+    "cx": 5,
+    "cy": 65,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 10,
+     "maxY": 6
+    },
+    "wallFace": 69.6,
+    "axis": "y"
+   },
+   "pressed": {
+    "x": 5,
+    "y": 66.8925,
+    "rot": 3.1416
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      4.65,
+      68.1925
+     ],
+     [
+      5.35,
+      68.1925
+     ],
+     [
+      5.35,
+      69.5925
+     ],
+     [
+      4.65,
+      69.5925
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 2.707,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": 0.043,
+    "turretTip": 2.7,
+    "tipInsideWall": -0.007
+   },
+   "deadAt": 0,
+   "traceN": 1,
+   "trace": [
+    {
+     "f": 0,
+     "alive": false,
+     "n": 0,
+     "p": null
+    }
+   ]
+  },
+  "y-_roundWait": {
+   "ok": true,
+   "frames": 180,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "y-_pressedFire": {
+   "edge": "y-",
+   "on": true,
+   "setup": {
+    "pick": {
+     "x": 0,
+     "y": 0,
+     "top": 1,
+     "left": 1
+    },
+    "cx": 5,
+    "cy": 5,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 8,
+     "maxY": 6
+    },
+    "wallFace": 0.4,
+    "axis": "y"
+   },
+   "pressed": {
+    "x": 5,
+    "y": 3.1075,
+    "rot": 0
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      5.35,
+      1.8075
+     ],
+     [
+      4.65,
+      1.8075
+     ],
+     [
+      4.65,
+      0.4075
+     ],
+     [
+      5.35,
+      0.4075
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 2.708,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": 0.042,
+    "turretTip": 2.7,
+    "tipInsideWall": -0.007
+   },
+   "deadAt": 0,
+   "traceN": 1,
+   "trace": [
+    {
+     "f": 0,
+     "alive": false,
+     "n": 0,
+     "p": null
+    }
+   ]
+  }
+ },
+ "wallControl": {
+  "x+_roundWait": {
+   "ok": true,
+   "frames": 180,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "x+_awayFire": {
+   "edge": "x+",
+   "on": false,
+   "setup": {
+    "pick": {
+     "x": 7,
+     "y": 0,
+     "top": 1,
+     "left": 0
+    },
+    "cx": 75,
+    "cy": 5,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 7,
+     "maxY": 6
+    },
+    "wallFace": 79.6,
+    "axis": "x"
+   },
+   "pressed": {
+    "x": 75,
+    "y": 5,
+    "rot": -1.5708
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      73.7,
+      4.65
+     ],
+     [
+      73.7,
+      5.35
+     ],
+     [
+      72.3,
+      5.35
+     ],
+     [
+      72.3,
+      4.65
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 4.6,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": -1.85,
+    "turretTip": 2.7,
+    "tipInsideWall": -1.9
+   },
+   "deadAt": -1,
+   "traceN": 71,
+   "trace": [
+    {
+     "f": 0,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 72.194,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 1,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 71.888,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 2,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 71.6,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 3,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 71.294,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 4,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 70.988,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 5,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 70.7,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 6,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 70.394,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 7,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 70.088,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 8,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 69.8,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 9,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 69.494,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 10,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 69.188,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 11,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 68.9,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 12,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 68.594,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 13,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 68.288,
+      "y": 5,
+      "vx": -18,
+      "vy": 0
+     }
+    }
+   ]
+  },
+  "x-_roundWait": {
+   "ok": true,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "x-_awayFire": {
+   "edge": "x-",
+   "on": false,
+   "setup": {
+    "pick": {
+     "x": 0,
+     "y": 1,
+     "top": 1,
+     "left": 1
+    },
+    "cx": 5,
+    "cy": 15,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 7,
+     "maxY": 6
+    },
+    "wallFace": 0.4,
+    "axis": "x"
+   },
+   "pressed": {
+    "x": 5,
+    "y": 15,
+    "rot": 1.5708
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      6.3,
+      15.35
+     ],
+     [
+      6.3,
+      14.65
+     ],
+     [
+      7.7,
+      14.65
+     ],
+     [
+      7.7,
+      15.35
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 4.6,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": -1.85,
+    "turretTip": 2.7,
+    "tipInsideWall": -1.9
+   },
+   "deadAt": 10,
+   "traceN": 11,
+   "trace": [
+    {
+     "f": 0,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 7.788,
+      "y": 15,
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 1,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.094,
+      "y": 15,
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 2,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.4,
+      "y": 15,
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 3,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.688,
+      "y": 15,
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 4,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.994,
+      "y": 15,
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 5,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 9.3,
+      "y": 15,
+      "vx": 18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 6,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 9.112,
+      "y": 15,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 7,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.806,
+      "y": 15,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 8,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.5,
+      "y": 15,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 9,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 8.212,
+      "y": 15,
+      "vx": -18,
+      "vy": 0
+     }
+    },
+    {
+     "f": 10,
+     "alive": false,
+     "n": 0,
+     "p": null
+    }
+   ]
+  },
+  "y+_roundWait": {
+   "ok": true,
+   "frames": 180,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "y+_awayFire": {
+   "edge": "y+",
+   "on": false,
+   "setup": {
+    "pick": {
+     "x": 0,
+     "y": 4,
+     "top": 0,
+     "left": 1
+    },
+    "cx": 5,
+    "cy": 45,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 10,
+     "maxY": 4
+    },
+    "wallFace": 49.6,
+    "axis": "y"
+   },
+   "pressed": {
+    "x": 5,
+    "y": 45,
+    "rot": 0
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      5.35,
+      43.7
+     ],
+     [
+      4.65,
+      43.7
+     ],
+     [
+      4.65,
+      42.3
+     ],
+     [
+      5.35,
+      42.3
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 4.6,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": -1.85,
+    "turretTip": 2.7,
+    "tipInsideWall": -1.9
+   },
+   "deadAt": -1,
+   "traceN": 71,
+   "trace": [
+    {
+     "f": 0,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 42.194,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 1,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 41.888,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 2,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 41.6,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 3,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 41.294,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 4,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 40.988,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 5,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 40.7,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 6,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 40.394,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 7,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 40.088,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 8,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 39.8,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 9,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 39.494,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 10,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 39.188,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 11,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 38.9,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 12,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 38.594,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 13,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 38.288,
+      "vx": 0,
+      "vy": -18
+     }
+    }
+   ]
+  },
+  "y-_roundWait": {
+   "ok": true,
+   "state": {
+    "state": "in round",
+    "tanks": [
+     "tank_a",
+     "tank_b",
+     "tank_c"
+    ]
+   }
+  },
+  "y-_awayFire": {
+   "edge": "y-",
+   "on": false,
+   "setup": {
+    "pick": {
+     "x": 0,
+     "y": 0,
+     "top": 1,
+     "left": 1
+    },
+    "cx": 5,
+    "cy": 5,
+    "TILE": 10,
+    "WALL": 0.8,
+    "bounds": {
+     "minX": 0,
+     "minY": 0,
+     "maxX": 10,
+     "maxY": 4
+    },
+    "wallFace": 0.4,
+    "axis": "y"
+   },
+   "pressed": {
+    "x": 5,
+    "y": 5,
+    "rot": 3.1416
+   },
+   "turret": {
+    "ut": "turret",
+    "v": [
+     [
+      4.65,
+      6.3
+     ],
+     [
+      5.35,
+      6.3
+     ],
+     [
+      5.35,
+      7.7
+     ],
+     [
+      4.65,
+      7.7
+     ]
+    ]
+   },
+   "muzzleGeom": {
+    "centerToWall": 4.6,
+    "muzzleOffset": 2.5,
+    "bulletR": 0.25,
+    "muzzleLead": 2.75,
+    "leadInsideWall": -1.85,
+    "turretTip": 2.7,
+    "tipInsideWall": -1.9
+   },
+   "deadAt": 10,
+   "traceN": 11,
+   "trace": [
+    {
+     "f": 0,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 7.788,
+      "vx": 0,
+      "vy": 18
+     }
+    },
+    {
+     "f": 1,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.094,
+      "vx": 0,
+      "vy": 18
+     }
+    },
+    {
+     "f": 2,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.4,
+      "vx": 0,
+      "vy": 18
+     }
+    },
+    {
+     "f": 3,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.688,
+      "vx": 0,
+      "vy": 18
+     }
+    },
+    {
+     "f": 4,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.994,
+      "vx": 0,
+      "vy": 18
+     }
+    },
+    {
+     "f": 5,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 9.3,
+      "vx": 0,
+      "vy": 18
+     }
+    },
+    {
+     "f": 6,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 9.112,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 7,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.806,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 8,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.5,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 9,
+     "alive": true,
+     "n": 1,
+     "p": {
+      "x": 5,
+      "y": 8.212,
+      "vx": 0,
+      "vy": -18
+     }
+    },
+    {
+     "f": 10,
+     "alive": false,
+     "n": 0,
+     "p": null
+    }
+   ]
+  }
+ },
+ "pageErrorsWall": [],
+ "pageErrorsAI": []
+}

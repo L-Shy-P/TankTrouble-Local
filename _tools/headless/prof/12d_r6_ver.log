@@ -1,7 +1,0 @@
-VERIFY PASS
-  baseline=prof/_multiai_vant2_missile.jsonl treeVersion=v174 treeMd5(录制时)=7bd5910d7fd02a19894313698a1d1f2b
-  treeMd5(现在)=7bd5910d7fd02a19894313698a1d1f2b  frames=600  rngLen=17621 replayOverflow=0 aiControl={"tree":true,"enabled":true,"ver":"v174"}
-  epoch(录制/现在)=1791801793506 / 1791801793506  bootFrames(录制/现在)=300 / 300  menuFrames(录制/现在)=21 / 21
-  不一致帧数=0/600  分歧字段={}
-  MISSILE-INJECT {"ok":true,"id":"probe_base_missile","type":3,"tgt":null,"x":31,"y":55,"t":8033.33333333339}
-  MISSILE-FINAL  {"t":17033.333333333143,"missileCount":0,"missiles":[],"treeVersion":"v174","abiVersion":12}

@@ -1,0 +1,13 @@
+{"i":1,"calls":4525,"siteCount":88}
+{"i":2,"calls":4453,"siteCount":81}
+{"i":3,"calls":4367,"siteCount":80}
+{"i":4,"calls":4428,"siteCount":97}
+{"i":5,"calls":4435,"siteCount":79}
+{"i":6,"calls":4484,"siteCount":80}
+{"i":7,"calls":4835,"siteCount":97}
+{"i":8,"calls":5134,"siteCount":97}
+{"i":9,"calls":4551,"siteCount":98}
+{"i":10,"calls":4507,"siteCount":80}
+{"i":11,"calls":4291,"siteCount":79}
+{"i":12,"calls":4529,"siteCount":88}
+SUMMARY {"runs":12,"callUnique":[4291,4367,4428,4435,4453,4484,4507,4525,4529,4551,4835,5134],"varyingSites":72,"varying":[{"key":"203571017","vals":[12,12,12,12,0,12,12,0,0,12,12,0],"stack":"    at Math.random (<anonymous>:313:19) <-     at new UITrophyExplosionFragmentSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:169) <-     at new UICelebrationTrophyGroup (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:1260)"},{"key":"478728765","vals":[5,3,3,3,5,4,5,5,2,5,4,5],"stack":"    at Math.random (<anonymous>:313:19) <-     at cls.getRandomWalls (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:6779) <-     at object._calculateBorderFloorsSpacesWallsAndDecorations (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1395:46)"},{"key":"958504536","vals":[120,120,120,120,0,120,120,0,0,120,120,0],"stack":"    at Math.random (<anonymous>:313:19) <-     at cls.shuffle (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:256) <-     at new UIShieldSprite (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:731)"},{"key":"994275060","vals":[238,238,238,238,240,238,238,240,240,238,238,240],"stack":"    at Math.random (<anonymous>:313:19) <-     at object.update (http://127.0.0.1:8000/js/797722a577a2434caf0d387feddd3494.js:1:19064) <-     at methods.update (http://127.0.0.1:8000/js/vantage_testbench.js?v=118:253:26)"},{"key":"1092164548","vals":[5,0,0,3,0,0,5,5,2,0,0,5],"stack":"    at Math.random (<anonymous>:313:19) <-     at cls.getRandomBorders (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:5405) <-     at object._calculateBorderFloorsSpacesWallsAndDecorations (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1346:48)"},{"key":"1116504976","vals":[64,116,24,27,57,108,351,453,108,133,0,67],"stack":"    at Math.random (<anonymous>:313:19) <-     at cls.shuffle (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:1:256) <-     at object._expandReachable (eval at <anonymous> (http://127.0.0.1:8000/index.html:1:1), <anonymous>:669:20)"}]}

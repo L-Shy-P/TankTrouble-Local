@@ -1,0 +1,50 @@
+{
+ "fingerprints": [
+  {
+   "file": "game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js",
+   "mtime": "2026-06-13T12:22:28.277Z",
+   "md5": "7bb079c4eaf88c8e4267c52f918e0fdf"
+  },
+  {
+   "file": "game_core/js/b714588dc4621fe104113111ba90b1a7.js",
+   "mtime": "2026-06-13T17:38:28.247Z",
+   "md5": "97cadb8a67a443a9eb2f51ebc7d12916"
+  },
+  {
+   "file": "game_core/js/vantage_sandbox.js",
+   "mtime": "2026-10-14T13:53:13.093Z",
+   "md5": "3dd7660a2817642c27e8edd12ac835a0"
+  },
+  {
+   "file": "game_core/js/vantage_tree.js",
+   "mtime": "2026-10-15T07:30:07.182Z",
+   "md5": "72cc853a79cb3c30564ea3568954ce8f"
+  },
+  {
+   "file": "_tools/headless/match.js",
+   "mtime": "2026-10-12T11:23:33.984Z",
+   "md5": "b7c5ce158730819614b599fb1510d65b"
+  },
+  {
+   "file": "_tools/headless/clock.js",
+   "mtime": "2026-10-11T09:21:03.391Z",
+   "md5": "664cd0cfb7eb12cf0c7cfd0dacf41e43"
+  }
+ ],
+ "facts": [
+  "=== 指纹 ===",
+  "  game_core/js/f1a5ef972c273fb89a098cb50b0f22e7.js 2026-06-13T12:22:28.277Z 7bb079c4eaf88c8e4267c52f918e0fdf",
+  "  game_core/js/b714588dc4621fe104113111ba90b1a7.js 2026-06-13T17:38:28.247Z 97cadb8a67a443a9eb2f51ebc7d12916",
+  "  game_core/js/vantage_sandbox.js 2026-10-14T13:53:13.093Z 3dd7660a2817642c27e8edd12ac835a0",
+  "  game_core/js/vantage_tree.js 2026-10-15T07:30:07.182Z 72cc853a79cb3c30564ea3568954ce8f",
+  "  _tools/headless/match.js 2026-10-12T11:23:33.984Z b7c5ce158730819614b599fb1510d65b",
+  "  _tools/headless/clock.js 2026-10-11T09:21:03.391Z 664cd0cfb7eb12cf0c7cfd0dacf41e43",
+  "  open: {\"frames\":120,\"inRound\":\"in round\",\"log\":[\"0帧→counting down\"]}",
+  "  给武器: {\"activeType\":0}",
+  "  世界: {\"continuousPhysics\":true,\"warmStarting\":true,\"gravity\":[0,0],\"allowSleep\":true}",
+  "  坦克(tank_b)夹具: {\"bodyType\":2,\"isBullet\":false,\"isDynamic\":null,\"fixtures\":[{\"sensor\":false,\"cat\":1,\"mask\":119,\"type\":\"turret\",\"shapeRadius\":0.005},{\"sensor\":false,\"cat\":1,\"mask\":127,\"type\":\"base\",\"shapeRadius\":0.005}],\"dynamicBodyConst\":2}",
+  "  激光弹体: {\"id\":\"l-3ffb-10\",\"type\":0,\"lifetime\":0.8,\"timeAlive\":0.033,\"bodyType\":2,\"isBullet\":true,\"isDynamic\":null,\"shape\":0,\"shapeRadius\":0,\"fixtureRadius\":0,\"density\":0.01,\"cat\":4,\"mask\":99,\"deadlyToOwner\":true,\"bounces\":1,\"hasClass\":\"Object\"}",
+  "  （对比：LASER.RADIUS.m=0，LASER.SPEED.m=180，LASER_MAX_LIFETIME=0.8，TANK.WIDTH.m=3，TANK.HEIGHT.m=4）",
+  "  弹数: 1，页面异常: []"
+ ]
+}

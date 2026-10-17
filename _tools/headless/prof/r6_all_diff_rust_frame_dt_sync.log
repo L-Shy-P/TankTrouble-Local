@@ -1,1 +1,0 @@
-diff_rust_frame_dt_sync PASS (Rust 可设帧长 + JS 每批同步 + 护栏保留回退)

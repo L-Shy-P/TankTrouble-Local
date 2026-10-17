@@ -309,7 +309,7 @@ window.__vtKillRender = function () {
   const PAGES = arg('pages', 4);
   const EP_PER_PAGE = arg('episodes', 40);
   const STEPS = arg('steps', 24);
-  const SEG = arg('seg', 13);
+  const PUMP_CHUNK = arg('seg', 13);   // ⚠️ 脚本参数、非设计参数
   const TEMP = (() => { const i = process.argv.indexOf('--temp'); return i < 0 ? 1.0 : Number(process.argv[i + 1]); })();
   const WFILE = argS('weights', '');
   const OUT = argS('out', path.join(__dirname, 'rollout.jsonl'));
@@ -436,7 +436,7 @@ window.__vtKillRender = function () {
   const results = await Promise.all(pages.map(async (p) => {
     const wArr = Array.from(w);
     return browser.evaluate(
-      `window.__vtBatch(${JSON.stringify(wArr)}, ${EP_PER_PAGE}, ${STEPS}, ${SEG}, ${TEMP}, ${JSON.stringify(p.cand)}, 25, false)`,
+      `window.__vtBatch(${JSON.stringify(wArr)}, ${EP_PER_PAGE}, ${STEPS}, ${PUMP_CHUNK}, ${TEMP}, ${JSON.stringify(p.cand)}, 25, false)`,
       p.sessionId, { awaitPromise: true, returnByValue: true });
   }));
   const runMs = Date.now() - tRun;
@@ -466,7 +466,7 @@ window.__vtKillRender = function () {
   const avgPath = sumPath / Math.max(nEp, 1);
   const avgStep = sumPath / Math.max(nStep, 1) * 10; // 单位→像素
   console.log(`  平均每局净位移 ${(sumMove/Math.max(nEp,1)).toFixed(2)} 像素`);
-  console.log(`  平均每步位移 ${avgStep.toFixed(2)} 像素 (每步 ${SEG} 帧, 满速上限 ${(15.95*SEG/60*10).toFixed(1)} 像素)`);
+  console.log(`  平均每步位移 ${avgStep.toFixed(2)} 像素 (每步 ${PUMP_CHUNK} 帧, 满速上限 ${(15.95*PUMP_CHUNK/60*10).toFixed(1)} 像素)`);
   console.log(`  平均每局路径长度 ${avgPath.toFixed(1)} 单位 = ${(avgPath*10).toFixed(1)} 像素   死亡局 ${nDead}`);
   console.log(`  输出 ${OUT}  ${(fs.statSync(OUT).size / 1048576).toFixed(2)} MB`);
   console.log(`  总用时 ${T()}`);

@@ -1,3 +1,0 @@
-tag=p11b_after {"rustReadyBefore":true,"initResult":null,"rustReadyAfter":true,"frameDtAfterSet":0.04,"adapterDt":0.04,"batchLen":9,"rustPhysics":true,"sampleCount":11,"t1":0.04,"t5":0.2,"t10":0.4}
-判定[样本时间戳 = i*0.04]: PASS  (t1=0.04 t5=0.2 t10=0.4, 旧版写死 0.02 时会是 0.02/0.1/0.2)
-TSTAMP_EXIT=0

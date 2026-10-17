@@ -1,3 +1,0 @@
-[Killfield] 外接 AI 管理器已加载（粗版：密度场走位 + 风险躲弹 + 瞄准开火；MPC 待下一步）
-[Killfield] 外接 AI 管理器已加载（粗版：密度场走位 + 风险躲弹 + 瞄准开火；MPC 待下一步）
-diff_lobby_killfield PASS：Killfield 可作独立坦克（大厅按钮 + 开局管理器 + 每帧提交输入 + 大脑未就绪时安全降级）

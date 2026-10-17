@@ -1,6 +1,0 @@
-BASELINE FAILED: Error: 页面异常: TypeError: A.getId is not a function
-    at <anonymous>:9:72
-    at <anonymous>:27:3
-    at CDP.evaluate (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\cdp.js:124:19)
-    at async runEpisode (C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_baseline_multiai_vant2_missile.js:194:22)
-    at async C:\Users\L_Shy_P user\Desktop\Code\Python\Projects\TankTrouble Local\_tools\headless\_baseline_multiai_vant2_missile.js:227:15
