@@ -65,6 +65,10 @@ function fnv1a(str) {
 //   ⛔ 不用 Date.now()/全局递增/Math.random()；同一 scene + 同一帧 ⟹ 永远同一个 seed ⟹ 采样可复现
 const SEED_MODE = 'deterministic';
 // ⭐ 2026-10-17：`--repeat k`（每场跑 k 次取中位；k=1 为旧行为）
+// ⭐⭐⭐ S30_DUMP（父代理 2026-10-18）：把**评测路径**每帧导出成训练数据。
+//   动机：采集器（inject_fire.js）那条路 22000 帧零死亡 ⟹ 训练数据没有 win/lose/kill/death；
+//        而评测路径（_g1_inject.js）同场景 302 帧就 victory ⟹ **必须从评测路径采数据**。
+const DUMP_DIR = process.env.S30_DUMP || null;
 const REPEAT_K = Math.max(1, Number(process.env.S30_REPEAT || (process.argv.indexOf('--repeat') >= 0 ? (process.argv[process.argv.indexOf('--repeat') + 1] || 1) : 1)));
 // ⭐ 2026-10-17（父代理指派）：请求超时 + 有限重试（【无出处、待实验】的 10s / 2 次）
 const ASK_TIMEOUT_MS = Math.max(500, Number(process.env.S30_ASK_MS || 10000));
@@ -183,6 +187,8 @@ class Srv {
 
 /* ---------------- 单场景 ---------------- */
 async function runScene(scene, srv, cap) {
+  const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
+  let s30segs = null, s30p = null;   // ⭐ S30_DUMP：本帧 segs/p（块内 let 出不来 ⟹ 提到函数作用域）
   const r = {
     scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0,
     players: scene.players, mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: null,
@@ -260,6 +266,7 @@ async function runScene(scene, srv, cap) {
         //      记 `opp_input/opp_rows_max/opp_over`；>8 个对手 ⟹ 显式计数（⛔ 不静默截断）。
         // ⭐ 2026-10-17（父代理指派）：统一走 `_tools/headless/_segs.js`（⛔ 本文件不再自己展开 opp）
         let segs = null, _segStats = null;
+
         try {
           const built = SEGS.buildSegs({
             n: o.segs.node,
@@ -269,7 +276,7 @@ async function runScene(scene, srv, cap) {
           });
           const vio = SEGS.validateSegs(built.segs);
           if (!vio.ok) { r.step_err = 'segs 形状不合法（⛔ 拒绝发送）: ' + vio.errors.slice(0, 4).join('; '); break; }
-          segs = built.segs; _segStats = built.stats;
+          segs = built.segs; _segStats = built.stats; s30segs = segs;
           const nBlocks = _segStats.oppBlocks;
           if (nBlocks > oppBlocksSeen) oppBlocksSeen = nBlocks;
           if (_segStats.oppOver > 0) { oppOver++; if (oppOver <= 3) logErr('⚠️ OPP_OVER[' + scene.id + '] ' + nBlocks + ' 个对手 > 槽位 8（显式计数、不静默截断）'); }
@@ -313,6 +320,7 @@ async function runScene(scene, srv, cap) {
           }
           break;
         }
+        s30p = p;   // ⭐ S30_DUMP
         if (p) {
           if (p.err) { srvErr++; if (srvErr <= 2) logErr('SRV_ERR[' + scene.id + '] ' + String(p.err).slice(0, 200)); }
           else {
@@ -320,6 +328,19 @@ async function runScene(scene, srv, cap) {
             if (typeof p.nodeId === 'number') { if (p.nodeId < 0 || p.nodeId >= o.N) oob++; else nodeId = p.nodeId; }
           }
         }
+      }
+      // ⭐ S30_DUMP：每帧落一条（obs 直接用已过 SEGS.validateSegs 的 segs ⟹ 与服务端同源）
+      if (DUMP_DIR && s30segs && o && o.N) {
+        const segs = s30segs;
+        const _fire = (s30p && typeof s30p.fire === 'number') ? (s30p.fire ? 1 : 0) : 0;
+        dumpFrames.push({
+          t: f, N: o.N, obs: segs,
+          act: { nodeId: nodeId, fire: _fire, picks: [{ nodeId: nodeId, back: 0 }] },
+          lp: (s30p && typeof s30p.lp === 'number' && isFinite(s30p.lp)) ? s30p.lp : null,
+          v: (s30p && typeof s30p.v === 'number' && isFinite(s30p.v)) ? s30p.v : null,
+          execByPolicy: true, execStill: (o.sub ? (!o.sub.f && !o.sub.b && !o.sub.l && !o.sub.r) : null),
+          r: { total: 0, result: 0, survive: 1, legal: 0 }, done: false
+        });
       }
       if (f % 30 === 0) {
         const ss = await m.stormState();
@@ -392,6 +413,28 @@ async function runScene(scene, srv, cap) {
       r.ok = true; r.result = 'victory'; r.win = 1;
     } else {
       r.ok = true; r.result = 'defeat'; r.win = 0;
+    }
+    // ⭐ S30_DUMP：写盘（终局奖励 win=+3 / lose=-1 / 未决=0；最后一帧 done=true）
+    if (DUMP_DIR && dumpFrames.length >= 2) {
+      try {
+        const fsd = require('fs');
+        fsd.mkdirSync(DUMP_DIR, { recursive: true });
+        const term = (r.win === 1) ? 3.0 : (r.win === 0 ? -1.0 : 0.0);
+        dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
+                                                 survive: 1, legal: 0,
+                                                 win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
+                                                 kill: 0, death: 0, selfkill: 0 };
+        dumpFrames[dumpFrames.length - 1].done = true;
+        const epObj = {
+          ep: (typeof r.ep === 'number' ? r.ep : 1),
+          scene: { players: scene.players, mapW: r.mapW, mapH: r.mapH, storm: !!scene.storm,
+                   crates: (scene.crates === undefined ? [] : scene.crates) },
+          frames: dumpFrames, win: r.win
+        };
+        fsd.appendFileSync(DUMP_DIR + '/episodes.jsonl', JSON.stringify(epObj) + String.fromCharCode(10));
+        r.dump_frames = dumpFrames.length; r.dump_win = r.win;
+        logErr('DUMP_OK[' + scene.id + '] frames=' + dumpFrames.length + ' win=' + r.win);
+      } catch (eD) { r.dump_err = String((eD && eD.message) || eD).slice(0, 200); logErr('DUMP_ERR ' + r.dump_err); }
     }
     // ⭐ 超时场次强制 ok:false + reason（⛔ 不允许被上面的分类覆盖成 ok:true）
     if (r.reason === 'ask_timeout') { r.ok = false; r.result = 'unknown'; r.win = null; }
