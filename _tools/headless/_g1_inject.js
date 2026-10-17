@@ -4,9 +4,14 @@
  * 结构照抄 `inject_sarl2.js`（已是"起对局 + 每帧读观测 + 喂回决策"的完整循环），
  * 只改三类事：
  *   ① 适配器绑到【真正的 Vantage 玩家 id】（不再是写死的 'tank_a'）
- *   ② 观测按【完整 segs】上行（node / opp / global），并报出真实行数与各段宽度
- *      ⚠️ bullet 段：`VantageObserve` 的 BULLET_DIM=7，而网络槽位是 6 ⟹ 本探针【不发】
- *         （发了会被服务端的"段超容量"显式拒绝 —— 见 policy_server_graph.py 的 shape 检查）
+ *   ② 观测按【完整 segs】上行（node / opp / bullet / item / global），并报出真实行数与各段宽度
+ *      ⭐ 2026-10-17 审计修复（父代理最高优先）：此前只发 node/opp/global ⟹ **bullet/item 全零**
+ *         ⟹ AI 在评测里看不见子弹 ⟹ `run_scenes_30` 的所有胜率一律不可信。
+ *         现按采集器 `_collect_tmp.js:9-24` 的口径补齐：
+ *           · bullet: (M,7)，M 为 0 时**发一行零**（⛔ 不能发 []，服务端要求二维）
+ *           · item  : (8,6) = 该索引道具 3 维 + 地雷 3 维
+ *           · opp   : 本文件只报 `oppBlocks/oppOver`；8 行展开由 `run_scenes_30.js:160-176` 做
+ *                     （⚠️ 若这里就展开成 8 行，那边会拿 `segs.opp[0]` 再切一次 ⟹ 多对手被丢，属回归）
  *   ③ 每帧回报【双方位姿 + 弹丸按归属计数 + 武器开火数 + 对局状态】—— G1 四条判据的原始证据
  *
  * 契约（与 inject_sarl2 一致）：`window.__g1.step(nodeId)` 一次 eval 完成
@@ -111,6 +116,38 @@
     return h;
   }
 
+  // ============================================================
+  // ⭐ 2026-10-17 审计修复：段构造（口径照抄 `_collect_tmp.js:9-24` 的 oppRows/itemRows/pad）
+  //   bullet: (M,7)，M=0 时发一行零（⛔ 不能发 []，服务端要求二维）
+  //   item  : (8,6) = 该索引道具 3 维 + 地雷 3 维
+  //   mem   : `mem_on=0` 不发（服务端恒零）；`mem_on=1` 发上一帧 `mem_echo`（4×256）
+  // ============================================================
+  var BULLET_SLOTS = 64, BULLET_W = 7, OPP_W = 15, OPP_SLOTS = 8, ITEM_ROWS = 8, ITEM_W = 6;
+  G.memOn = 0; G.lastMemEcho = null;
+  G.setMem = function (v) { G.memOn = v ? 1 : 0; return G.memOn; };
+  G.setMemEcho = function (rows) { G.lastMemEcho = rows || null; return G.lastMemEcho ? G.lastMemEcho.length : 0; };
+
+  function zeroRow(w) { var r = []; for (var i = 0; i < w; i++) r.push(0); return r; }
+  function padRows(rows, slots, w, atLeastOne) {
+    var out = [];
+    for (var i = 0; i < (rows || []).length && out.length < slots; i++) {
+      var r = rows[i] || [], o = [];
+      for (var j = 0; j < w; j++) o.push((typeof r[j] === 'number' && isFinite(r[j])) ? r[j] : (+r[j] || 0));
+      out.push(o);
+    }
+    if (!out.length && atLeastOne) out.push(zeroRow(w));
+    while (out.length < slots) out.push(zeroRow(w));
+    return out;
+  }
+  function buildItemRows(colTok, mineTok) {
+    var out = [];
+    for (var k = 0; k < ITEM_ROWS; k++) {
+      var c = (colTok || []).slice(k * 3, k * 3 + 3), m = (mineTok || []).slice(k * 3, k * 3 + 3);
+      out.push([+c[0] || 0, +c[1] || 0, +c[2] || 0, +m[0] || 0, +m[1] || 0, +m[2] || 0]);
+    }
+    return out;
+  }
+
   G.step = function (nodeId) {
     var gc = GameManager.getGameController();
     // ① 决策回填：上一帧策略给的 nodeId（A=生长位置 / B=路线目标，契约同 inject_sarl2）
@@ -146,6 +183,8 @@
       var gArr = (e.global && e.global.globalTok) || [];
       var oppArr = (e.global && e.global.oppTok) || [];
       var bulArr = (e.bullets && e.bullets.tokens) || [];
+      var colArr = (e.global && e.global.colTok) || [];
+      var mineArr = (e.global && e.global.mineTok) || [];
       out.N = nTok.length;
       out.dims = { NODE_DIM: e.nodes ? e.nodes.dim : null, globalTok: gArr.length, oppTok: oppArr.length,
                    bulletRows: bulArr.length, bulletW: bulArr.length ? bulArr[0].length : null,
@@ -158,9 +197,17 @@
         out.r = { nRows: 0 };
         return JSON.stringify(out);
       }
-      // ③ 哈希：对【实际上行的那三段的每个数】做 FNV-1a（变了就说明载荷真的变了）
+      var itemSeg = buildItemRows(colArr, mineArr);
+      var bulletSeg = padRows(bulArr, BULLET_SLOTS, BULLET_W, true);
+      var oppBlocks = Math.floor(oppArr.length / OPP_W);
+      if (oppBlocks * OPP_W !== oppArr.length) out.oppErr = 'oppTok 长度 ' + oppArr.length + ' 不是 ' + OPP_W + ' 的整数倍（拒绝猜块边界）';
+      if (oppBlocks > OPP_SLOTS) { G.oppOver = (G.oppOver || 0) + 1; out.oppOver = G.oppOver; }
+      out.oppBlocks = oppBlocks;
+
+      // ⭐ 哈希：对【实际上行的全部段】的每个数做 FNV-1a（变了就说明载荷真的变了）
       var h = 2166136261 >>> 0;
       h = fnv2(nTok, h); h = fnv1a(gArr, h); h = fnv1a(oppArr, h);
+      h = fnv2(bulletSeg, h); h = fnv2(itemSeg, h);
 
       // ④ 双方位姿 + 弹丸归属 + 武器开火数（G1 判据的原始证据）
       var pl = {}, projBy = {}, wep = {};
@@ -200,8 +247,15 @@
       } catch (eI) { }
       out.h = h >>> 0;
       out.r = { nRows: nTok.length, tok: 1 };
-      // ⑤ 交给 Node 的载荷：node(T 行×10) / opp(1 行×15) / global(1 行×38)
-      out.segs = { node: nTok, opp: [oppArr], global: [gArr] };
+      // ⑤ 交给 Node 的载荷：node(T×10) / opp(1 行 flat，由 run_scenes_30 展成 8 行) / bullet(64×7) / item(8×6) / global(1×38)
+      //   ⭐ bullet 行数 = 场上真实子弹数（M=0 时是 1 行零）；`segRows` 把真实行数报给 Node 侧做验收
+      out.segs = { node: nTok, opp: [oppArr], bullet: bulletSeg, item: itemSeg, global: [gArr] };
+      out.segRows = { node: nTok.length, opp: oppBlocks, oppSentRows: 1, bullet: (bulArr || []).length, bulletSentRows: bulletSeg.length,
+                      item: ITEM_ROWS, global: 1 };
+      out.segDims = { node: nTok.length ? nTok[0].length : null, opp: OPP_W, bullet: BULLET_W, item: ITEM_W, global: gArr.length };
+      out.bulletSample = (bulArr || []).slice(0, 2);      // ⭐ 硬证据：bullet 段真的承载了子弹（不是全零）
+      out.itemNonZero = itemSeg.reduce(function (n, r) { for (var i = 0; i < r.length; i++) if (r[i]) n++; return n; }, 0);
+      if (G.memOn && G.lastMemEcho) { out.segs.mem = G.lastMemEcho; out.memSent = G.lastMemEcho.length; }   // mem_on=1 才发
       out.payloadN = nTok.length;
       return JSON.stringify(out);
     } catch (e) {
