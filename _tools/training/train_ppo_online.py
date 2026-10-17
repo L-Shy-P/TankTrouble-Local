@@ -254,6 +254,10 @@ def build_batch(frames, idx, device):
     node = torch.zeros(B, nmax, vb.SEG_DIM["node"], device=device)
     mask = torch.zeros(B, nmax + vb.CTX_TOKENS, dtype=torch.bool, device=device)
     act = torch.zeros(B, dtype=torch.int64, device=device)
+    grow_ok = torch.zeros(B, nmax, device=device)          # ⭐ A 相：可生长掩码（叶）
+    grow_row = torch.zeros(B, dtype=torch.int64, device=device)
+    lp_grow_old = torch.zeros(B, device=device)
+    grow_missing = 0
     lp_old = torch.zeros(B, device=device)
     v_old = torch.zeros(B, device=device)
     rew = torch.zeros(B, device=device)
@@ -265,6 +269,24 @@ def build_batch(frames, idx, device):
         if n < nmax:
             mask[j, n:nmax] = True
         act[j] = f["act"]["nodeId"]
+        # ⭐ 叶规则（与桥 `grow_ok` 同一口径）：行 i 是叶 ⇔ 没有任何行 parentIdx == i（排除根行 0）
+        nd = f["node"]
+        isPar = np.zeros(n, dtype=np.int64)
+        for _i in range(1, n):
+            _pp = int(nd[_i][1])
+            if 0 < _pp < n: isPar[_pp] = 1
+        for _i in range(1, n):
+            if isPar[_i] == 0: grow_ok[j, _i] = 1.0
+        g = (f["act"] or {}).get("grow")
+        if isinstance(g, dict) and "lp_grow" in g:
+            uid = int(g["nodeId"])
+            row = -1
+            for _i in range(n):
+                if int(nd[_i][0]) == uid: row = _i; break
+            if row >= 0: grow_row[j] = row; lp_grow_old[j] = float(g["lp_grow"])
+            else: grow_missing += 1
+        else:
+            grow_missing += 1
         lp_old[j] = f["lp"]
         v_old[j] = f["v"]
         rew[j] = f["_rew"]
@@ -276,6 +298,7 @@ def build_batch(frames, idx, device):
             "global": torch.from_numpy(np.stack([frames[i]["global"] for i in idx])).to(device),
             "mem": torch.from_numpy(np.stack([frames[i].get("_mem", frames[i]["mem"]) for i in idx])).to(device)}   # ⭐ mem_mode=net 时用局内重算的记忆
     return {"segs": segs, "mask": mask, "act": act, "lp_old": lp_old, "v_old": v_old,
+            "grow_ok": grow_ok, "grow_row": grow_row, "lp_grow_old": lp_grow_old, "grow_missing": grow_missing,
             "rew": rew, "Ns": Ns, "nmax": nmax}
 
 
@@ -322,6 +345,24 @@ def precompute_mem(buffer, net, device):
             n_done += 1
     return n_done
 
+def grow_forward(net, b):
+    """⭐⭐ A 相：用 `head_grow` 在【可生长掩码】上重归一化，返回 (lp_at_action, ent)。
+    口径 = 服务端 A 相：`log_softmax(where(grow_ok>0, logits, -inf))`
+    """
+    gs = net.grow_scores(b["segs"], b["mask"])[:, :b["nmax"]].float()
+    _ok = b["grow_ok"] > 0
+    _has = _ok.any(-1)
+    # ⭐ 没候选的样本：不能全 -inf（会 NaN）⇒ 用未掩码分布占位，它们在 loss 里会被排除
+    gm = torch.where(_ok, gs, torch.full_like(gs, float("-inf")))
+    if not bool(_has.all()):
+        gm = torch.where(_has.view(-1, 1), gm, gs)
+    lp = torch.log_softmax(gm, dim=-1)
+    p = lp.exp()
+    ent = -(p * torch.where(p > 0, lp, torch.zeros_like(lp))).sum(-1)
+    picked = lp.gather(1, b["grow_row"].view(-1, 1)).squeeze(1)
+    return picked, ent
+
+
 def forward_batch(net, b):
     out = net(b["segs"], b["mask"])
     if len(out) != 4:
@@ -364,19 +405,18 @@ def compute_gae_episode(rew, val, done, gamma, lam, v_next_last=None, ctx=""):
 
 
 def reward_of(f, cfg):
-    r = f["r"]
-    if cfg["reward_mode"] == "total":
-        return float(r["total"])
-    return (cfg["w_result"] * r["result"] + cfg["w_survive"] * r["survive"]
-            + cfg["w_legal"] * r["legal"]
-            + cfg["w_spawn"] * float(r.get("spawn", 0.0)) + cfg["w_hit"] * float(r.get("hit", 0.0))
-            + cfg["w_aim"] * float(r.get("aim", 0.0))
-            + cfg["w_kill"] * float(r.get("kill", 0.0)) + cfg["w_selfkill"] * float(r.get("selfkill", 0.0))
-            + cfg["w_death"] * float(r.get("death", 0.0)) + cfg["w_death_storm"] * float(r.get("death_storm", 0.0))
-            + cfg["w_kill_storm"] * float(r.get("kill_storm", 0.0)) + cfg["w_crate"] * float(r.get("crate", 0.0))
-            + cfg["w_draw"] * float(r.get("draw", 0.0)) + cfg["w_empty_fire"] * float(r.get("empty_fire", 0.0))
-            + cfg["w_win"] * float(r.get("win", 0.0)) + cfg["w_lose"] * float(r.get("lose", 0.0))
-            + cfg["w_legal_pen"] * float(r.get("legal", 0.0)))   # ⭐ 奖惩 v2（各项独立）   # ⭐ (B) 新增两项；缺省=0 并在 buffer 里计数
+    # ⭐ 2026-10-17 子代理：奖励合成【唯一入口】已抽到 `_tools/training/rewards.py`
+    #    （主人 10 条奖惩全部落地 + 零 double-count；`legal` 双权重 / `hit`+`kill` 双计 /
+    #     `result`+`win|lose|draw` 双计都在那个文件里修掉，并由 `rewards_selftest.py` 逐位验算）
+    #    ⛔ 本函数体内不再保留任何权重乘法（否则就又是一处"同一字段两个权重"）。
+    import os as _os
+    import sys as _sys
+    _d = _os.path.dirname(_os.path.abspath(__file__))
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+    import rewards as _rewards
+    return _rewards.reward_of(f, cfg)
+
 
 
 def prepare_targets(buffer, cfg):
@@ -455,7 +495,14 @@ def ppo_update(buffer, net, opt, cfg, device, step):
                             torch.clamp(ratio, 1.0 - cfg["clip"], 1.0 + cfg["clip"]) * A).mean()
             vloss = F.mse_loss(v, ret_t)
             ent_m = ent.mean()
-            loss = pg + cfg["value_coef"] * vloss - cfg["entropy_coef"] * ent_m
+            # ⭐⭐ A 相梯度：pg_grow = -(logp_grow(a_t) × A_t)；ent_grow = 可生长分布的熵
+            lp_grow, ent_grow_b = grow_forward(net, b)
+            _gv = ((b["grow_ok"] > 0).any(-1) & (b["grow_row"] > 0)).float()   # ⭐ 只对「有候选且有动作」的样本算梯度
+            _gn = _gv.sum().clamp(min=1.0)
+            _term = torch.where(_gv > 0, lp_grow * A, torch.zeros_like(lp_grow))   # ⭐ 先置零再求和（避免 -inf×0 ⇒ NaN）
+            pg_grow = -_term.sum() / _gn
+            ent_grow = torch.where(_gv > 0, ent_grow_b, torch.zeros_like(ent_grow_b)).sum() / _gn
+            loss = pg + pg_grow + cfg["value_coef"] * vloss - cfg["entropy_coef"] * (ent_m + ent_grow)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), cfg["max_grad_norm"])
@@ -480,7 +527,8 @@ def ppo_update(buffer, net, opt, cfg, device, step):
                    "ratio_mean": float(ratio.mean().detach()), "ratio_max": float(ratio.max().detach()),
                    "ratio_min": float(ratio.min().detach()),
                    "clip_frac": float(((ratio - 1.0).abs() > cfg["clip"]).float().mean().detach()),
-                   "kl": kl, "gn": float(gn), "v_mean": float(v.mean().detach()), "bs": len(idx)}
+                   "kl": kl, "gn": float(gn), "v_mean": float(v.mean().detach()), "bs": len(idx),
+                   "pg_grow": float(pg_grow.detach()), "ent_grow": float(ent_grow.detach())}
             for kk, vv in rec.items():
                 m.setdefault(kk, []).append(vv)
             # 动作分布口径自证：前 N 个 node token 的概率和 == 1
@@ -489,7 +537,7 @@ def ppo_update(buffer, net, opt, cfg, device, step):
             if _maxupd > 0 and _nupd >= _maxupd: break   # ⭐ (A)2 小窗口：到上限就停
         if _maxupd > 0 and _nupd >= _maxupd: break
     out = {}
-    for kk in ("pg", "v", "ent", "ratio_mean", "clip_frac", "kl", "gn", "v_mean", "bs"):
+    for kk in ("pg", "v", "ent", "ratio_mean", "clip_frac", "kl", "gn", "v_mean", "bs", "pg_grow", "ent_grow"):
         if kk in m:
             out["grad_norm" if kk == "gn" else kk] = float(np.mean(m[kk]))
     if "ratio_max" in m:
@@ -511,6 +559,23 @@ def ppo_update(buffer, net, opt, cfg, device, step):
 
 
 # ---------------------------------------------------------------- ckpt（`P2-1` 断点续训）
+def make_opt(net, lr):
+    """⭐ 记忆头单独一个 param group（老参数动量照常恢复）。
+    理由：`mem_writer` 是后加的新头，它的 Adam 状态在老 ckpt 里不存在 ⇒ 单独一组便于"老参数动量原样恢复、新头从零开始。
+    """
+    old_p = [p for n, p in net.named_parameters() if not n.startswith("mem_writer")]
+    new_p = [p for n, p in net.named_parameters() if n.startswith("mem_writer")]
+    groups = [{"params": old_p, "lr": lr, "name": "trunk"}]
+    if new_p: groups.append({"params": new_p, "lr": lr, "name": "mem_writer"})
+    opt = torch.optim.Adam(groups, lr=lr)
+    return opt
+
+
+def log_opt_groups(opt, logf):
+    for i, g in enumerate(opt.param_groups):
+        logf("   opt group[%d] name=%-10s params=%d lr=%g" % (i, g.get("name", "?"), len(g["params"]), g["lr"]))
+
+
 def save_ckpt(path, net, opt, step, episodes, cfg, extra=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     obj = {"format": CKPT_FORMAT,
@@ -545,7 +610,24 @@ def load_ckpt(path, net, opt, device):
     log("⭐ ckpt 对齐：missing=%s unexpected=%s（missing 应只有 mem_writer.*）" % (list(_r.missing_keys), list(_r.unexpected_keys)))   # ⏔t 不静默
     if list(_r.unexpected_keys): raise AssertionError("ckpt 多余键 %s ⇒ 不匹配" % list(_r.unexpected_keys))           # ⛔ 不用 assign=True（保持张量指针 ⟹ CUDA Graph 有效）
     if "opt" in obj:
-        opt.load_state_dict(obj["opt"])
+        _old = obj["opt"]; _ng_new = len(opt.param_groups); _ng_old = len(_old.get("param_groups", []))
+        try:
+            opt.load_state_dict(_old); log("⭐ optimizer 状态已整体恢复（组数 %d）" % _ng_new)
+        except Exception as _e:
+            log("⭐ optimizer 组数不一致（old=%d new=%d）⇒ 按参数顺序前缀重映射旧动量（⏔t 整体重建）" % (_ng_old, _ng_new))
+            _params = [p for g in opt.param_groups for p in g["params"]]
+            _ns = {}
+            for _k, _v in (_old.get("state") or {}).items():
+                _i = int(_k)
+                if _i < len(_params): _ns[_params[_i]] = _v
+            _pgs = []
+            _base = dict(_old["param_groups"][0]) if _old.get("param_groups") else {}
+            _base.pop("params", None)
+            for g in opt.param_groups:
+                _ng = dict(g); _ng.update({k2: v2 for k2, v2 in _base.items() if k2 in ("lr", "betas", "eps", "weight_decay", "amsgrad")})
+                _pgs.append(_ng)
+            opt.load_state_dict({"state": _ns, "param_groups": _pgs})
+            log("⭐ 老参数动量已恢复 %d 项；mem_writer 从零开始" % len(_ns))
     if "rng" in obj:
         torch.set_rng_state(obj["rng"].cpu())
     if "np_rng" in obj:
@@ -618,6 +700,9 @@ def run_cycle(state, buffer, cfg, args, net, opt, device):
     log("cycle %d 开始：局 %d / 帧 %d（N p50=%s max=%s, RAM %.1f MB）"
         % (state["cycle"] + 1, st["episodes"], st["frames"], st.get("N_p50"), st.get("N_max"),
            st.get("ram_MB", 0)))
+    if cfg.get("mem_mode") == "net":
+        _n = precompute_mem(buffer, net, device)   # ⭐ mem_mode=net：局内按帧序重算记忆
+        log("⭐ 记忆已按帧序重算：%d 帧（每局 M_0=0）" % _n)
     res = ppo_update(buffer, net, opt, cfg, device, state["step"])
     state["step"] += 1
     state["cycle"] += 1
@@ -781,7 +866,7 @@ def smoke(args, cfg, state, net, opt, device):
     if os.path.exists(ckpt + ".tmp"):
         raise AssertionError("ckpt 目录残留 .tmp ⟹ 原子写有问题")
     net2, _ = build_net(device)
-    opt2 = torch.optim.Adam(net2.parameters(), cfg["lr"])
+    opt2 = make_opt(net2, cfg["lr"])
     obj = load_ckpt(ckpt, net2, opt2, device)
     same = all(torch.equal(net2.state_dict()[k].cpu(), net.state_dict()[k].cpu())
                for k in net.state_dict())
@@ -872,7 +957,8 @@ def main(argv=None):
         # ---- 网络 ----
         net, nv2 = build_net(device)
         nparam = sum(p.numel() for p in net.parameters())
-        opt = torch.optim.Adam(net.parameters(), lr=DEFAULTS["lr"])
+        opt = make_opt(net, DEFAULTS["lr"])
+        log_opt_groups(opt, log)   # ⭐ 打印各 param group 参数量（验证 mem_writer 单独一组）
         log("网络 net_v2_fixed.NetV2 参数=%d（%.4f M）段=%s 容量(opp,bul,itm,glb,mem)=(%d,%d,%d,%d,%d) node<=%d"
             % (nparam, nparam / 1e6, nv2.SEG, nv2.N_OPP, nv2.N_BUL, nv2.N_ITM, nv2.N_GLB, nv2.N_MEM, nv2.N_NODE))
 
@@ -892,7 +978,7 @@ def main(argv=None):
             ckpt_cfg["_path"] = resume_path
         cfg = resolve_cfg(args, ckpt_cfg)
         if ckpt_cfg:
-            opt = torch.optim.Adam(net.parameters(), lr=cfg["lr"])
+            opt = make_opt(net, cfg["lr"])
             load_ckpt(resume_path, net, opt, device)   # 二次加载：opt 用【读回的超参 lr】重建
         log("超参分辨率 cfg[_source]=%s" % cfg["_source"])
         for k in DEFAULTS:
