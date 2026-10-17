@@ -96,7 +96,8 @@ INFERRED = OrderedDict([
 # 报告/验算用的固定求和顺序：⛔ 不许改成 set/dict 的任意顺序（浮点加法不结合，顺序会改末位）
 ITEMS = ("result", "kill", "kill_storm", "hit_nonlethal", "selfkill", "death", "death_storm",
          "win", "lose", "draw", "crate", "speed", "fast_death",
-         "survive", "legal", "empty_fire", "spawn", "aim")
+         "survive", "legal", "empty_fire", "spawn", "aim",
+         "still", "progress")   # ⭐ 稠密两项（新增在末尾 ⇒ 不影响既有求和顺序）
 
 SUMMARY_EVERY = 5000      # 【无出处、工程默认】stderr 摘要的打印节律（只影响日志，不影响数值）
 
@@ -570,6 +571,23 @@ def explain(f, cfg):
                       float(w("w_spawn", 0.02)) * float(r.get("spawn", 0.0) or 0.0))
     parts["aim"] = (float(r.get("aim", 0.0) or 0.0), float(w("w_aim", 0.01)),
                     float(w("w_aim", 0.01)) * float(r.get("aim", 0.0) or 0.0))
+
+    # ⭐⭐ 稠密奖励（主人报告需要；系数【无出处、待拍】）
+    _still = 1.0 if (f.get("execStill") is True) else 0.0
+    parts["still"] = (_still, float(w("w_still", 0.01)), -float(w("w_still", 0.01)) * _still)
+    if _still > 0.0:
+        STATS["still_frames"] += 1
+    # progress：与最近对手距离的减少量（只奖励靠近）
+    _d = f.get("distNear")
+    _dp = f.get("_distPrev")
+    _prog = 0.0
+    if _d is not None and _dp is not None:
+        _dd = float(_dp) - float(_d)
+        _prog = max(0.0, min(1.0, _dd))
+        if _prog > 0.0:
+            STATS["progress_frames"] += 1
+            STATS["progress_sum"] = STATS.get("progress_sum", 0.0) + _prog
+    parts["progress"] = (_prog, float(w("w_progress", 0.02)), float(w("w_progress", 0.02)) * _prog)
 
     total = 0.0
     for k in ITEMS:                       # ⭐ 固定顺序求和（浮点加法不结合，顺序变了末位就变）

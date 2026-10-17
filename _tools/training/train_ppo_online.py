@@ -97,7 +97,8 @@ CFG_CITE = {
 }
 
 DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
-                entropy_coef=0.01, value_coef=0.5, max_grad_norm=0.5,
+                value_coef=0.5,   # ⭐选(b)：归一化回报 ⇒ vloss 已是 O(1)，value_coef 保持 0.5
+                entropy_coef=0.001, max_grad_norm=0.5,   # ⭐ entropy 0.01→0.001【无出处、待实验】
                 minibatch=32, min_episodes=20,
                 value_head="out[0]", mem_mode="zeros", reward_mode="parts",
                 w_result=1.0, w_survive=1.0, w_legal=1.0, adv_norm=True,
@@ -105,7 +106,9 @@ DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
                 w_kill=1.0, w_selfkill=-1.5, w_death=-1.0, w_death_storm=-1.5, w_kill_storm=1.0,
                 w_crate=0.05, w_draw=-0.5, w_empty_fire=-0.10,
                 w_win=3.0, w_lose=-1.0, w_legal_pen=0.05,
-                fire_ent_coef=0.1,   # ⭐【无出处、待实验】=10×entropy_coef；目的把 head_fire 从饱和（p≈0.94）拉出来   # ⭐（无出处、待实验）单独给 head_fire 的熵权重；-1 = 随 entropy_coef（用于把 fire 头从饱和里拉出）   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
+                fire_ent_coef=0.1,
+                w_fire_pg=0.0,
+                w_still=0.01,   # ★【无出处、待拍】本帧执行 inputs 全 false ⇒ 惩罚（治"爱静止"）   # ⭐ 【射击维临时屏蔽（VT_FIRE_MODE=mask）】pg_fire 乘子；0=不参与梯度   # ⭐【无出处、待实验】=10×entropy_coef；目的把 head_fire 从饱和（p≈0.94）拉出来   # ⭐（无出处、待实验）单独给 head_fire 的熵权重；-1 = 随 entropy_coef（用于把 fire 头从饱和里拉出）   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
                 bootstrap="error")
 
 MEM_MODE_NOTE = (
@@ -489,7 +492,18 @@ def prepare_targets(buffer, cfg):
     adv_std_raw = float(adv.std())
     if cfg["adv_norm"]:
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-    return frames, adv.astype(np.float32), ret.astype(np.float32), adv_std_raw, tails
+    # ⭐⭐ 数据保险（Phase1 父代理要求）：只保留「真由策略执行」的帧
+    # ⭐ 只丢「明确 False」的；无字段（烟测/旧数据）保留并计数（⏔t 静默丢）
+    _keep = [i for i, f in enumerate(frames) if f.get("execByPolicy") is not False]
+    tails["droppedNotPolicyExec"] = len(frames) - len(_keep)
+    tails["execByPolicyUnknown"] = sum(1 for f in frames if f.get("execByPolicy") is None)
+    tails["totalFrames"] = len(frames)
+    if len(_keep) < len(frames):
+        frames = [frames[i] for i in _keep]
+        adv = adv[_keep]; ret = ret[_keep]
+    # ⭐⭐ 选 (b)：**归一化回报**（让 vloss 变 O(1)，这样 value_coef 不用改也不会淹没策略）
+    tails["ret_std_raw"] = float(np.std(ret))
+    return frames, adv.astype(np.float32), ret.astype(np.float32), adv_std_raw, tails   # ⭐ 撤销 ret 归一化（改归一化 loss）
 
 
 def ppo_update(buffer, net, opt, cfg, device, step, net_a=None, opt_a=None):   # ⭐ net_a/opt_a 非 None ⇒ D8 双网
@@ -524,7 +538,11 @@ def ppo_update(buffer, net, opt, cfg, device, step, net_a=None, opt_a=None):   #
             ret_t = torch.as_tensor(ret[idx], device=device)
             pg = -torch.min(ratio * A,
                             torch.clamp(ratio, 1.0 - cfg["clip"], 1.0 + cfg["clip"]) * A).mean()
-            vloss = F.mse_loss(v, ret_t)
+            _vraw = F.mse_loss(v, ret_t)
+            _vden = float(ret_t.detach().var()) + 1e-8
+            vloss = _vraw / _vden   # ⭐ 归一化 loss ⇒ 无量纲 O(1)，与策略项可比
+            if int(ep_i) == 0:
+                log("VLOSS_RAW=%.4f  ret_var=%.6g  VLOSS_NORM=%.6f" % (float(_vraw), _vden, float(vloss)))
             ent_m = ent.mean()
             # ⭐⭐ A 相梯度：pg_grow = -(logp_grow(a_t) × A_t)；ent_grow = 可生长分布的熵
             lp_grow, ent_grow_b = grow_forward(net_a if net_a is not None else net, b)   # ⭐ 双网 ⇒ A 网
@@ -540,7 +558,7 @@ def ppo_update(buffer, net, opt, cfg, device, step, net_a=None, opt_a=None):   #
             lp_fire_new = torch.where(_bit > 0.5, torch.log(_pf), torch.log(1.0 - _pf))
             _fv = b["fire_valid"].float()
             _fn = _fv.sum().clamp(min=1.0)
-            pg_fire = -(torch.where(_fv > 0, lp_fire_new * A, torch.zeros_like(lp_fire_new)).sum()) / _fn
+            pg_fire = -(torch.where(_fv > 0, lp_fire_new * A, torch.zeros_like(lp_fire_new)).sum()) / _fn * float(cfg.get("w_fire_pg", 1.0))   # ⭐ mask 模式下 =0
             ent_fire = torch.where(_fv > 0, -(_pf * torch.log(_pf) + (1 - _pf) * torch.log(1 - _pf)), torch.zeros_like(_pf)).sum() / _fn
             loss = pg + pg_grow + pg_fire + cfg["value_coef"] * vloss - cfg["entropy_coef"] * (ent_m + ent_grow) - _fec * ent_fire
             opt.zero_grad(set_to_none=True)
@@ -557,6 +575,14 @@ def ppo_update(buffer, net, opt, cfg, device, step, net_a=None, opt_a=None):   #
                 continue
             opt.step()
             if net_a is not None: opt_a.step()   # ⭐ D8 双网：A 网自己 step
+            # ⭐ logger：每个 update 落一行（之前每 cycle 才一行 ⇒ 判不了趋势）
+            try:
+                _ui = globals().get("_UPD_IDX", 0) + 1; globals()["_UPD_IDX"] = _ui
+                log("UPD#%d ep=%d ratio[%.3f,%.3f] kl=%.4f ent=%.4f ent_grow=%.4f clip=%.3f loss_v=%.4f loss_pg=%.4f" % (
+                    _ui, ep_i, float(ratio.min()), float(ratio.max()), float(kl), float(ent_m), float(ent_grow),
+                    float(((ratio - 1.0).abs() > cfg["clip"]).float().mean()), float(vloss), float(pg)))
+            except Exception as _eL:
+                log("UPD_LOG_ERR %s" % _eL)
             _nupd += 1   # ⭐ 计数（供 max_updates 截断）
             with torch.no_grad():
                 sse += float(((v - ret_t) ** 2).sum())
