@@ -140,6 +140,25 @@
             var tree = null;
             try { tree = VantageTree.getTree ? VantageTree.getTree() : null; } catch (eTree) {}
             info.treeNodes = tree && typeof tree.nodeCount === 'number' ? tree.nodeCount : null;
+            // ⭐⭐⭐ 2026-10-18（父代理）：**"谁在驾驶"指示器** —— 这是排查"训练了没用"最关键的一格。
+            //   `ai_vantage.js` 的控制优先级是：debugTarget(点击寻路) > 面板操控(树) > Laika 原生栈 > 静止。
+            //   `vantageControlOpName` 只在【面板操控】分支里被写；若从不更新 ⟹ 坦克走的不是树，而是 Laika。
+            try {
+                var _mgr = null, _ms = (typeof AIs !== 'undefined' && AIs.aiManagers) ? AIs.aiManagers : [];
+                for (var _mi = 0; _mi < _ms.length; _mi++) { if (_ms[_mi] && _ms[_mi].isVantage) { _mgr = _ms[_mi]; break; } }
+                var _ai = _mgr && _mgr.ai ? _mgr.ai : null;
+                info.driver = _ai ? (_ai.vantageControlOpName || '(从未写入)') : '(找不到 AI 实例)';
+                info.debugTarget = _ai ? (_ai.debugTarget ? ('已设置 ' + _ai.debugTarget.x + ',' + _ai.debugTarget.y) : null) : null;
+                info.iface = (function () {
+                    try {
+                        var IS = window.__vantageIface || {};
+                        return { callsA: IS.callsA || 0, callsB: IS.callsB || 0, giveUpA: IS.giveUpA || 0, giveUpB: IS.giveUpB || 0 };
+                    } catch (eIF) { return null; }
+                })();
+                if (!_ai) warns.push('找不到 Vantage AI 实例 ⟹ 无法判断谁在驾驶');
+                else if (!_ai.vantageControlOpName) hard.push('⛔ 面板操控从未写入 ⟹ 坦克走的是【Laika 原生 AI】，网络没在驾驶');
+                else if (_ai.debugTarget) hard.push('⛔ 点击寻路(debugTarget)正在接管（无子弹时会覆盖网络输入）');
+            } catch (eDrv) { info.driver = '读取异常: ' + String(eDrv && eDrv.message || eDrv); }
             if (!tree) warns.push('树还没起来：第一帧才会建树；若一直为空，检查「AI 操控」是否被切走（Vantage AI 正常加入时会自动进树模式：local_patch.js:369-382）');
             if (!(S.server && S.server.ok)) warns.push('策略服务端状态还没取到（点「重载权重」可重试）');
             if (S.server && S.server.ok && S.server.bridgeJsExists === false) hard.push('桥脚本不存在：' + S.server.bridgeJs);
@@ -156,6 +175,16 @@
         var c = S.compat;
         if (!c) { box.innerHTML = ''; return; }
         var html = '';
+        // ⭐ 驾驶者行（最上面，一眼看到）：谁在控制这台坦克
+        if (c.info && c.info.driver) {
+            var _drv = c.info.driver;
+            var _okDrv = /^树/.test(_drv);
+            var _col = _okDrv ? '#a6e3a1' : '#f38ba8';
+            var _txt = '驾驶者: ' + _drv;
+            if (c.info.debugTarget) _txt += '  ⚠点击寻路接管中(' + c.info.debugTarget + ')';
+            if (c.info.iface) _txt += '  A=' + c.info.iface.callsA + ' B=' + c.info.iface.callsB;
+            html += '<div style="color:' + _col + ';font-weight:700">' + _txt + '</div>';
+        }
         if (c.reasons.length) html += '<div style="color:#f38ba8">⛔ 不兼容：' + c.reasons.join('<br>⛔ ') + '</div>';
         if (c.warns.length) html += '<div style="color:#f9e2af">⚠ ' + c.warns.join('<br>⚠ ') + '</div>';
         if (!html && c.ok) html = '<div style="color:#a6e3a1">✔ 环境兼容</div>';
