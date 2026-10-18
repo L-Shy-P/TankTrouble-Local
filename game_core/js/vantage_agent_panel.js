@@ -310,8 +310,12 @@
     }
 
     function defaultCkpt() {
+        // ⭐⭐⭐ 2026-10-18（父代理）：**删掉硬编码 `D:/vt_run/smoke_mem2/ckpt/last.pt`**。
+        //   它是"行为一直没变化"的真正元凶：面板每次请求都显式带 `ckpt=<smoke_mem2>`，
+        //   而服务端取值顺序是 `req.ckpt > self._ckpt > VT_DEFAULT_CKPT` ⟹ **客户端把服务端默认值彻底盖掉**。
+        //   现在：拿不到服务端默认值时返回 null ⟹ 服务端自己用 `VT_DEFAULT_CKPT`。
         if (S.server && S.server.defaultCkpt) return S.server.defaultCkpt;
-        return S.ckpt || 'D:/vt_run/smoke_mem2/ckpt/last.pt';
+        return S.ckpt || null;
     }
 
     // ============================================================
@@ -587,7 +591,7 @@
         return {
             N: N,
             seed: (S.seq * 2654435761) >>> 0,
-            ckpt: S.ckpt || defaultCkpt(),
+            ckpt: (function () { var c = S.ckpt || defaultCkpt(); return c ? c : undefined; })(),
             cheat: !!S.cheat,
             mem_on: S.mem ? 1 : 0,           // ⭐ 记忆开关真正下发给服务端（`policy_server_graph.py:143` d.get('mem_on')）
             round_id: roundId(),             // ⭐ 服务端只在 round_id 变化时清 mem（`:147-149`）
