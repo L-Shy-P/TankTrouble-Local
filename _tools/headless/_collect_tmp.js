@@ -1,6 +1,17 @@
 // 最小采集器（父代理 2026-10-17 夜）：2 人局 Vantage vs Laika → 逐帧记录 → 每局一行 JSON 喂训练器
 const fs=require('fs');const {spawn}=require('child_process');const {Match}=require('./match');
 const SRC=fs.readFileSync(__dirname+'/inject_fire.js','utf8');
+// ⭐ v202：树形指标源码（一处定义、多处只调它 —— ⛔ 不每帧重新拼）
+const SHAPE_SRC=`(function(){try{var t=VantageTree.getTree();if(!t||!t.root)return null;
+  var nI=0,nL=0,mD=0,dh={},kh={},hg=0,fi=0,fb=0;
+  (function rec(n,d){if(!n)return;if(d>mD)mD=d;dh[d]=(dh[d]||0)+1;var ks=n.children||[];
+    if(ks.length){nI++;kh[ks.length]=(kh[ks.length]||0)+1;}else nL++;
+    if(n.hasGrown===true)hg++;if(n.forkInsert)fi++;if(n.forkBranch)fb++;
+    for(var i=0;i<ks.length;i++)rec(ks[i],d+1);})(t.root,0);
+  var n9=kh[9]||0;return {nodeCount:t.nodeCount,internal:nI,leaves:nL,maxDepth:mD,depthHist:dh,kidHist:kh,
+    full9Pct:(nI?Math.round(n9*1000/nI)/10:null),hasGrownTrue:hg,forkInserted:fi,forkBranch:fb};}catch(e){return {err:String(e&&e.message||e)}}})()`;
+// ⭐ m.eval 走 CDP by-value ⟹ 直接回对象；两种都容忍（⛔ 不许因解析失败静默丢数）
+const _J=(v)=>{ if(v===null||v===undefined) return {}; if(typeof v==='string'){ try{return JSON.parse(v);}catch(eJ){return {raw:String(v).slice(0,200)};} } return v; };
 const OUT=(process.env.C_OUT||'D:/vt_run/collect')+'/';
 const ROUNDS=+process.env.C_ROUNDS||3, CAP=+process.env.C_CAP||900, FIRE=+process.env.C_FIRE||1;
 const NODE_SLOTS=1000, BUL_SLOTS=64, OPP=15, OPP_SLOTS=8, ITEM_R=8, ITEM_C=6, GLB=38;   // ⭐ OPP_SLOTS=8：与服务端 mk() 的 opp 槽 (B,8,15) 同源
@@ -31,7 +42,10 @@ function pad(rows,slot,w){ if(rows.length>slot) bulletOver++;   // ⭐ 子弹超
 //    ⟹ 前几帧解析失败 + 首帧串包（实测 max|Δlp|=2.13）。这里按 `\n` 切行排队；开机必须先吃掉到 WARMUP_SAMPLE。
 let _buf='', _q=[], _wait=[];
 function _pumpLine(ln){ if(!String(ln).trim())return; if(_wait.length)_wait.shift()(ln); else _q.push(ln); }
-function _nextLine(){ if(_q.length) return Promise.resolve(_q.shift()); return new Promise(r=>_wait.push(r)); }
+// ⭐ v202：加一个**看门狗**——服务端不回行时**响亮失败**（⛔ 不许挂死不报；实测同机多份重活时会挂起）
+function _nextLine(){ if(_q.length) return Promise.resolve(_q.shift());
+  return new Promise((res,rej)=>{ var done=false; var t=setTimeout(()=>{ if(done)return; done=true; rej(new Error('SRV_TIMEOUT: 300s 内没有读到服务端回行（同机资源抢占 / 服务端已死）')); }, 300000);
+    _wait.push(function(ln){ if(done)return; done=true; clearTimeout(t); res(ln); }); }); }
 function ask(srv,o){ srv.stdin.write(JSON.stringify(o)+'\n'); return _nextLine().then(t=>{ try{return JSON.parse(String(t).trim())}catch(e){return {lp:null,err:'parse',raw:String(t).slice(0,160)}} }); }
 async function waitBoot(){ for(let i=0;i<40;i++){ const ln=await _nextLine(); if(String(ln).indexOf('WARMUP_SAMPLE')>=0) return i+1; } throw new Error('开机 40 行里没出现 WARMUP_SAMPLE'); }
 const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?gc.getState():null,scores:{}};try{var ss=gc.getScores();for(var k in ss){var s=ss[k];var pid=s.getPlayerId?s.getPlayerId():s.playerId;var t=s.getType?s.getType():s.type;var v=s.getValue?s.getValue():s.value;out.scores[pid+':'+t]=v;}}catch(e){out.err=String(e&&e.message||e);}return out})()";
@@ -66,6 +80,7 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   console.log('SRV_BOOT_LINES '+await waitBoot());   // ⭐ 必须先吃完开机行（否则前几帧串包）
   console.log('OPEN '+JSON.stringify({ai:op.aiIds,vant:op.vantageIds}));
   await m.eval(SRC); console.log('SETUP '+await m.eval('window.__probe.setup()'));
+
   // ⭐ 开火接线（2026-10-17 派单③）：服务端返回的 fire 决定本帧要不要拼 picks[1] 射击帧
   const FIRE_BACK=process.env.VT_FIRE_BACK||'now';
   const MEM_ENV=(process.env.VT_MEM_ON==='1');
@@ -110,6 +125,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
   let desiredFireFrames=0, desiredErrSeen='';
   const TRACE_FIRE=(process.env.VT_FIRE_TRACE==='1'), TRACE_N=+(process.env.VT_FIRE_TRACE_N||60);   // ⭐ 父代理 ① 只读诊断   // ⭐ 诊断：射击帧的依据游标下一帧是否还在
   const skipReasons={}, aReasons={}, roundFire=[];   // ⭐ aReasons = A 相拒绝原因分类
+  const backHist={};   // ⭐ v202：A 相 `back`（反向相对帧）取值直方图 —— 验收「唯一值数 > 1」
+  const shapeTimeline=[];   // ⭐ v202：每 200 帧一次的树形时间线（回合末树被重置也能留证据）
   for(let ep=1; ep<=ROUNDS; ep++){
     const frames=[]; let nodeId=0, done=false, won=null, f=0, prevState=null;
     const rb=JSON.parse(await m.eval('JSON.stringify(window.__b.stats())'));   // ⭐ 本轮起点（picks[1] 提交/被接受差分用）
@@ -133,6 +150,8 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
                     won=(vp.indexOf('vantage_1')===0)?1:0; } }
         console.log('EP'+ep+' ROUND_END state='+st.state+' scores='+JSON.stringify(st.scores)+' won='+won);
         break; }
+      if(f%100===0) console.log('HEART ep='+ep+' f='+f+' nodeId='+nodeId);
+      if(f>0 && f%200===0){ const sh=_J(await m.eval(SHAPE_SRC)); if(sh && !sh.err && sh.nodeCount>1){ sh.f=f; shapeTimeline.push(sh); } }
       const o=JSON.parse(await m.eval('window.__b.step('+nodeId+',0)'));   // ⭐ 开火位在【拿到服务端回答后】再置（同一帧生效，无延迟）
       if(o.err){ console.log('STEP_ERR '+o.err); break; }
       { const skv=(o.stats&&o.stats.skipped)?String(o.stats.skipped):''; if(skv){ skipReasons[skv]=(skipReasons[skv]||0)+1;
@@ -190,9 +209,18 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
       const oppR=oppRows(o), itemR=itemRows(o);
       // ⭐⭐ A 相：先问服务端「在可生长节点里选 1 个」（D11：没候选就不调）
       let growUid=null, lpGrow=null, growOkList=o.growOk||null, growOkN=o.growOkCount||0;   // ⭐ 在 step() 回包顶层
+      // ⭐⭐ v202（2026-10-18 主人更正语义）：帧地址 = (子节点ID, **反向相对帧**) ⟹
+      //   服务端采样 `nodeId`（head_grow）之后，这里再在 `[growKMin, growKMax]` 上**均匀采样 `back`**。
+      //   ⛔ 服务端在 `_tools/training/`（不许改）⟹ 采样落在采集侧；⛔ 不急着加新网络头。
+      let growBack=0, growKMin=-1, growKMax=-1;
       if(GROW_SRC==='server' && growOkN>0 && growOkList){
         const pa=await ask(srv,{N:N,seed:(ep*100000+f+7)%2147483647,mem_on:memOn,phase:'A',round_id:ep,grow_ok:growOkList,segs:{node:o.n,opp:oppR,bullet:bRows,item:itemR,global:[o.g]}});
-        if(pa && pa.grow && typeof pa.grow.grow_nodeId==='number'){ const rw=pa.grow.grow_nodeId; if(o.n[rw]) growUid=o.n[rw][0]|0; lpGrow=pa.grow.lp_grow; await m.eval('window.__b.growRow='+rw); aReqOk++; growEntSee=(pa.grow.ent_grow!==undefined?pa.grow.ent_grow:growEntSee); }
+        if(pa && pa.grow && typeof pa.grow.grow_nodeId==='number'){ const rw=pa.grow.grow_nodeId; if(o.n[rw]) growUid=o.n[rw][0]|0; lpGrow=pa.grow.lp_grow;
+          growKMin=(o.growKMin&&typeof o.growKMin[rw]==='number')?o.growKMin[rw]:-1;
+          growKMax=(o.growKMax&&typeof o.growKMax[rw]==='number')?o.growKMax[rw]:-1;
+          if(growKMax>=growKMin && growKMin>=0) growBack=growKMin+Math.floor(Math.random()*((growKMax-growKMin)+1));
+          backHist[growBack]=(backHist[growBack]||0)+1;
+          await m.eval('window.__b.growRow='+rw+';window.__b.growBack='+growBack+';'); aReqOk++; growEntSee=(pa.grow.ent_grow!==undefined?pa.grow.ent_grow:growEntSee); }
         else { aReqBad++; await m.eval('window.__b.growRow=null'); }
       } else { aSkipNoCand++; await m.eval('window.__b.growRow=null'); }   // GROW_SRC=bridge 或无候选 ⇒ 桥回退到 B 目标叶
       if(o.probeDz) console.log('DZ_PROBE '+JSON.stringify(o.probeDz));
@@ -256,7 +284,7 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
    // ⭐ Phase1 数据保险：本帧执行源是否策略
         plan:(Array.isArray(o.plan)?o.plan:null),   // ⭐ 事实直传：plan 段承载「A 长了哪个/结果」
         act:{nodeId:(typeof p.nodeId==='number'?p.nodeId:0),fire:fire,picks:picksRec,
-             grow:(growUid===null?null:{nodeId:growUid,lp_grow:lpGrow}),
+             grow:(growUid===null?null:{nodeId:growUid,back:growBack,kMin:growKMin,kMax:growKMax,lp_grow:lpGrow}),   // ⭐ v202：back = 反向相对帧（帧地址的第二维）
              lp_fire:(typeof p.lp_fire==='number'?p.lp_fire:null), fire_ent:(typeof p.fire_ent==='number'?p.fire_ent:null),
              fire_frames:(picksRec.length>1?picksRec.slice(1):[])},   // ⭐ 射击帧清单（桥真提交的）   // ⭐ ⭐ A 相动作（uid + 采样时的 lp_grow）
         lp:(lpOkF?p.lp:0),v:(typeof p.v==='number'&&isFinite(p.v)?p.v:0),
@@ -298,6 +326,68 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
     // 每局复位：重开一局（原版会自动开新回合）
   }
   const _fin=JSON.parse(await m.eval('JSON.stringify(window.__b.stats())'));
+  // ⭐ v202 验收：树侧「在某一帧分叉」计数 + 树形指标（全部只读）
+  const forkStats=_J(await m.eval(`(function(){try{
+    var t=VantageTree.getTree(); if(!t||!t.stats) return {};
+    var s=t.stats, ks=['expandForkOk','expandForkFromInternal','expandForkFromLeaf','expandForkLeaf','expandRejectHasGrown','expandRejectBackRange','expandForkReuse','expandForkNewBranches','expandForkReuseDeltaMax','forkInvariantChecks','forkInvariantNodes','forkInvariantMaxDt','forkInvariantMaxDp','forkInvariantLost','forkDepthShifted','forkDepthShiftPlus1','expands'];
+    var o={}; for(var i=0;i<ks.length;i++) o[ks[i]]=s[ks[i]];
+    o.lastForkInstance=s.lastForkInstance||null; o.growStalls=s.growStalls||null; return o;
+  }catch(e){return {err:String(e&&e.message||e)}}})()`));
+  const treeShape=_J(await m.eval(SHAPE_SRC));
+
+  // ⭐⭐ v202 验收自测（真实树上直接验三条硬判据）：
+  //   ① 插入分叉后【既有节点的 tEndSec / 位姿零变化】（全树前后沙盘 diff）
+  //   ④ `hasGrown === true` 的节点上再长 ⟹ 必须被 `expandRejectHasGrown` 拒绝
+  //   ② 非叶目标上真的新建了节点（expandForkFromInternal 增量 + 实例）
+  let forkSelfTest = null;
+  try {
+    forkSelfTest = _J(await m.eval(`(function(){try{
+      var t=VantageTree.getTree(); if(!t||!t.root) return {err:'noTree'};
+      var ad=null; try{ ad=(VantageTree.getLastAdapter?VantageTree.getLastAdapter():null); }catch(eAd){}
+      var snap=function(){var m={};(function rec(n){if(!n)return;var tk=(n.simState&&n.simState.tank)?n.simState.tank:null;m[n.id]={t:(typeof n.tEndSec==='number')?n.tEndSec:null,x:tk?tk.x:null,y:tk?tk.y:null,d:(typeof n.depth==='number')?n.depth:null};var ks=n.children||[];for(var i=0;i<ks.length;i++)rec(ks[i]);})(t.root);return m;};
+      // ⚠️ 智能体路径要求 tree._agentDecision/_agentDecisionB 在场（agentPathActive）。跑完收尾时它们可能已被清空
+      //    ⟹ 这里按"决策缝的同一写法"临时置一个空决策，用完**原样还原**（只影响本次自测，不影响整局数据）。
+      var sA=t._agentDecision, sB=t._agentDecisionB, forced=0;
+      if(!t._agentDecision && !t._agentDecisionB){ t._agentDecision={picks:[],memory:{}}; forced=1; }
+      var st0={hg:t.stats.expandRejectHasGrown||0, ok:t.stats.expandForkOk||0, fi:t.stats.expandForkFromInternal||0, nb:t.stats.expandForkNewBranches||0, br:t.stats.expandRejectBackRange||0, ic:t.stats.forkInvariantChecks||0};
+      // ── ④ hasGrown 拒绝：在树里找 hasGrown===true 的节点，直接对它调 expandLeaf ──
+      var hgNode=null, hgCount=0;
+      (function rec(n){if(!n)return;if(n.hasGrown===true){hgCount++; if(!hgNode)hgNode=n;}var ks=n.children||[];for(var i=0;i<ks.length;i++)rec(ks[i]);})(t.root,0);
+      var hgReturn=null, hgDelta=0;
+      if(hgNode){ hgReturn=VantageTree.expandLeaf(t,hgNode,ad,t.threats||[],0); hgDelta=(t.stats.expandRejectHasGrown||0)-st0.hg; }
+      // ── ①② 非叶段内分叉：挑最浅的、L≥3 的非叶节点，back=3 ⟹ 必须新建节点且既有节点帧号/位姿零变化 ──
+      var best=null,bd=1e9;
+      (function rec(n,dep){if(!n)return;var ks=n.children||[];var L=(typeof n.validFrames==='number'&&n.validFrames>0)?n.validFrames:0;
+        if(n!==t.root&&n.parent&&ks.length&&L>=3&&dep<bd){bd=dep;best=n;}for(var i=0;i<ks.length;i++)rec(ks[i],dep+1);})(t.root,0);
+      var preNode=t.nodeCount, before=snap(), forkReturn=null, usedBack=null, L2=null, okDelta=0, fiDelta=0, nbDelta=0;
+      if(best){ L2=(typeof best.validFrames==='number'&&best.validFrames>0)?best.validFrames:0;
+        usedBack=Math.max(1,Math.min(L2-1,3));
+        forkReturn=VantageTree.expandLeaf(t,best,ad,t.threats||[],usedBack);
+        okDelta=(t.stats.expandForkOk||0)-st0.ok; fiDelta=(t.stats.expandForkFromInternal||0)-st0.fi; nbDelta=(t.stats.expandForkNewBranches||0)-st0.nb; }
+      var after=snap(), lost=0,maxDt=0,maxDp=0,depthChg=0,n2=0,id,diffList=[];
+      for(id in before){var b0=before[id],a0=after[id];if(!a0){lost++;continue;}n2++;
+        if(b0.t!==null&&a0.t!==null){var dt=Math.abs(a0.t-b0.t);if(dt>maxDt)maxDt=dt;}
+        var dpv=0;
+        if(b0.x!==null&&a0.x!==null){dpv=Math.max(Math.abs(a0.x-b0.x),Math.abs(a0.y-b0.y));if(dpv>maxDp)maxDp=dpv;}
+        if(b0.d!==a0.d)depthChg++;
+        if((b0.t!==a0.t)||(dpv>1e-12)||(b0.d!==a0.d)){ if(diffList.length<6) diffList.push({id:+id,dt:+(a0.t-b0.t),dp:+dpv,dB:b0.d,dA:a0.d,xB:+(+b0.x).toFixed(3),xA:+(+a0.x).toFixed(3)}); }}
+      // ── 掩码普查：按 kRangeOfNode 数"可生长行"里叶子/非叶各多少（证明非叶真的进候选集）──
+      var nGrowLeaf=0,nGrowInternal=0,nNoGrow=0;
+      if(window.__b && window.__b.kRangeOfNode){(function rec(n){if(!n)return;var ks=n.children||[];var rg=window.__b.kRangeOfNode(n);
+        if(!rg||rg.kMax<rg.kMin) nNoGrow++; else if(ks.length) nGrowInternal++; else nGrowLeaf++;
+        for(var i=0;i<ks.length;i++)rec(ks[i]);})(t.root);}
+      t._agentDecision=sA; t._agentDecisionB=sB;   // 原样还原
+      return {forcedAgentPath:forced, hasGrownNodeCount:hgCount, hasGrownTargetId:(hgNode?hgNode.id:null),
+        hasGrownRejectReturn:hgReturn, rejHasGrownDelta:hgDelta,
+        targetId:(best?best.id:null), targetL:L2, backUsed:usedBack, forkReturn:forkReturn,
+        forkOkDelta:okDelta, fromInternalDelta:fiDelta, newBranchesDelta:nbDelta,
+        preNodeCount:preNode, postNodeCount:t.nodeCount,
+        checkedNodes:n2, lostNodes:lost, maxDeltaTEndSec:maxDt, maxDeltaPose:maxDp, depthChanged:depthChg, diffSample:diffList,
+        adapterPresent:!!ad, lastForkInstance:t.stats.lastForkInstance||null,
+        growableLeaves:nGrowLeaf, growableInternals:nGrowInternal, notGrowable:nNoGrow};
+    }catch(e){return {err:String(e&&e.message||e)}}})()`));
+    console.log('FORK_SELFTEST '+JSON.stringify(forkSelfTest));
+  } catch(eFT){ forkSelfTest={err:String(eFT&&eFT.message||eFT)}; console.log('FORK_SELFTEST_ERR '+forkSelfTest.err); }
   const _ifc=JSON.parse(await m.eval('JSON.stringify(window.__vantageIface||{})'));   // ⭐ A 相被接受数 = _ifaceStats.growAt
    // ⭐ 脉冲开火计数（父代理要求单独上报）
   const summary={rounds:episodes.length, fireSubmitsTotal:_fin.fireSubmits||0,
@@ -307,6 +397,10 @@ const SCORE_SRC="(()=>{var gc=GameManager.getGameController();var out={state:gc?
     fireMode:FIRE_BACK, fire1Frames:firedFrames, vBulletFrames:vFire, fire1AndBulletFrames:fireAndBullet, noFireButBulletFrames:noFireButBullet,
     vBulletSpawnFrames:spawnFrames, fire1ThenSpawnFrames:fire1ThenSpawn, subFireFrames:subFireFrames, lastPickSameCursor:lastPickSameCursor, lastPickCursorChanged:lastPickCursorChanged, targetChangedFrames:targetChangedFrames, targetSameFrames:targetSameFrames, opBFrames:opBFrames, opBFireFrames:opBFireFrames, opOtherFrames:opOtherFrames, desiredFireFrames:desiredFireFrames, desiredErr:desiredErrSeen, slotsNullFrames:slotsNullFrames, vNextOk:vNextOk, vNextFail:vNextFail, buildOK:buildOKEnd, buildMisses:buildMissEnd, fireNoCursor:fireNoCursorEnd, fireErr:fireErrSeen,
     planFrames:planCnt,
+    // ⭐ v202「在某一帧分叉」验收数（全部来自树侧 stats，逐项有出处）
+    growBackDistinct:Object.keys(backHist).length,        // ⭐ `act.grow.back` 的唯一取值数（>1 才算"有分叉帧这一维"）
+    growBackHist:backHist,
+    fork:forkStats, treeShape:treeShape, forkSelfTest:forkSelfTest, shapeTimeline:shapeTimeline,
     // ⭐ 口径澄清：两个完全不同的数
     fireSubmitsTotal:_fin.fireSubmits||0,          // 「想开火」帧数（提交次数）
     bulletsSpawned:(function(){var _t=0;for(var _i=0;_i<roundFire.length;_i++)_t+=(roundFire[_i].wepShotsByInc||0);return _t;})(),   // ⭐ 真子弹（_bulletsFired 增量）

@@ -15,6 +15,51 @@
     if (!n || !n.fullDead) return 75;                    // EVAL_FRAMES 默认（`vantage_tree.js:819`）
     return (n.fullDeathFrame >= 2) ? (n.fullDeathFrame - 1) : 0;
   };
+  // ══════════════════════════════════════════════════════════════════════════
+  // ⭐⭐ v202（2026-10-18）「在某一帧分叉」：帧地址 = `(子节点ID, 反向相对帧)`，即
+  //   `picks[0] = {nodeId, back}`，`back` = **反向相对帧**（主人 2026-10-18 定死，毋庸置疑）。
+  //   `back = 0` ⟹ 位置**就是该节点本身**；`back > 0` ⟹ 位置落在该节点那一段的**内部**。
+  //   · 位置落在**叶子**上（back 只能是 0）⟹ 省去建节点，直接在该叶分叉 9 支（现状行为）
+  //   · 位置落在**非叶**上 ⟹ `back = 0` 表示"就在这个已经生长过的节点本身" ⟹ **完全重叠** ⟹ 禁止；
+  //        `back ∈ [1, L−1]` ⟹ 落在该节点的段内第 `L−back` 帧 ⟹ 先建节点 N 再分叉 9 支
+  //   （主人原话：「不能生长在已生长过（有这个字段）的节点上，否则就完全重叠了」·
+  //     权威版 `:3217-3218` 的 `d`/`e` 两条小裁决）
+  //   ⚠️ 真死位置由**建点规则**（死前1帧 / 75帧末尾，即 `backMax`）本身排除，这里不另设判据。
+  // ══════════════════════════════════════════════════════════════════════════
+  window.__b.kRangeOfNode = function (n) {
+    if (!n) return null;
+    var L = window.__b.execLenOf(n);
+    var isLeaf = !(n.children && n.children.length);
+    if (!(L > 0)) return null;                                      // L≤0 ⟹ backMax<0 ⟹ 无合法帧（由建点规则蕴含）
+    // 叶：直接在该叶分叉（省去建节点）。⚠️ `hasGrown` 为真的叶（生过但 9 支全真死）**不许再长**
+    if (isLeaf) return n.hasGrown ? { kMin: 1, kMax: 0, L: L, leaf: 1 } : { kMin: 0, kMax: 0, L: L, leaf: 1 };
+    if (L < 2) return { kMin: 1, kMax: 0, L: L, leaf: 0 };           // 段只有 1 帧 ⟹ 没有"段内帧"
+    return { kMin: 1, kMax: L - 1, L: L, leaf: 0 };                  // 非叶：段内任意帧（⛔ 不含 back=0）
+  };
+  window.__b.kRangeOfRow = function (row) {
+    var a = window.__b.nodeKRange;
+    if (!a || typeof row !== 'number' || row < 0 || row >= a.length) return null;
+    return a[row];
+  };
+  // ⭐ 反向相对帧 `back` 的取值：采集侧（扮演"服务端采样"那一层）若已给定 `growBack` 就用它，
+  //   否则在本节点合法区间 [kMin,kMax] 上**均匀采样**（⛔ 不急着加新网络头）。
+  window.__b.pickBack = function (rg) {
+    if (!rg || rg.kMax < rg.kMin) return 0;
+    var v;
+    var ov = window.__b.growBack;
+    if (typeof ov === 'number' && isFinite(ov) && Math.round(ov) >= rg.kMin && Math.round(ov) <= rg.kMax) {
+      v = Math.round(ov);
+      window.__b.growBackSrc = 'collector';
+    } else {
+      v = rg.kMin + Math.floor(Math.random() * (rg.kMax - rg.kMin + 1));
+      window.__b.growBackSrc = 'bridge-uniform';
+    }
+    window.__b.growBack = null;                        // 一次性：⛔ 不许把上一帧的 back 静默套到这一帧
+    var h = window.__b.growBackHist || (window.__b.growBackHist = {});
+    h[v] = (h[v] || 0) + 1;
+    window.__b.growBackN = (window.__b.growBackN || 0) + 1;
+    return v;
+  };
   window.__b.cursor = function (tree, pathNodes) {
     try {
       var p = pathNodes || [];
@@ -174,6 +219,7 @@
     var IS = window.__vantageIface || {};
     return { aCalls: window.__b.aCalls||0, aNotGrowable: window.__b.aNotGrowable||0, aTreeFull: window.__b.aTreeFull||0, growRejectMissing: window.__b.growRejectMissing||0, growRejectNotGrowable: window.__b.growRejectNotGrowable||0, growStillValid: window.__b.growStillValid||0, growChkErr: window.__b.growChkErr||null, aCanGrowErr: window.__b.aCanGrowErr||null, aGrow: window.__b.aGrow||0, aGrowServer: window.__b.aGrowServer||0, aServerReject: window.__b.aServerReject||0, growOkCount: window.__b.growOkCount||0, fireEmptyFallback: window.__b.fireEmptyFallback||0, aNotLeaf: window.__b.aNotLeaf||0, aNoSlots: window.__b.aNoSlots||0, aErr: window.__b.aErr||null, lastGrow: window.__b.lastGrow||null, nodeCount: (function(){try{var t=VantageTree.getTree();return t?t.nodeCount:null}catch(e){return null}})(),
              fireSubmits: window.__b.fireSubmits, fireNoCursor: window.__b.fireNoCursor, fireFallbackUsed: window.__b.fireFallbackUsed || 0, fireHackApplied: window.__b.fireHackApplied || 0, bTargetSrc: window.__b.bTargetSrc || null, bNoTargetAll: window.__b.bNoTargetAll || 0, fireHackErr: window.__b.fireHackErr || null, pathFallback: window.__b.pathFallback || 0, fireMasked: window.__b.fireMasked || 0, aimGateDeg: (window.__b.aimGateDeg||0), aimBlocked: (window.__b.aimBlocked||0), aimPassN: (window.__b.aimPassN||0), aimLastDeg: (window.__b.aimLastDeg===undefined?null:window.__b.aimLastDeg), aimErr: (window.__b.aimErr||null), holdTargetN: (window.__b.holdTargetN||0), holdReused: (window.__b.holdReused||0), holdAccepted: (window.__b.holdAccepted||0), aSkipEnoughLeaves: window.__b.aSkipEnoughLeaves || 0, aSkipNotThisFrame: window.__b.aSkipNotThisFrame || 0, aNoTree: window.__b.aNoTree || 0, aNoSlots: window.__b.aNoSlots || 0, aBadTarget: window.__b.aBadTarget || 0, aGrowTurns: window.__b.aGrowTurns || 0, agentFrameFromCache: window.__b.agentFrameFromCache || 0, agentFrameFromDz: window.__b.agentFrameFromDz || 0, agentFrameMissing: window.__b.agentFrameMissing || 0, bResendAfterA: window.__b.bResendAfterA || 0, bResendOk: window.__b.bResendOk || 0,
+             growBackHist: (window.__b.growBackHist || null), growBackN: (window.__b.growBackN || 0), growKMin: (window.__b.growKMin || null), growKMax: (window.__b.growKMax || null), aNotLeaf: window.__b.aNotLeaf || 0,
              curLStats: (function(){ var a = window.__b.curLs || []; if (!a.length) return null; var b = a.slice().sort(function(x,y){return x-y;}); return {min:b[0], med:b[Math.floor(b.length/2)], max:b[b.length-1], n:b.length}; })(), fireSkippedRetry: window.__b.fireSkippedRetry || 0, emptyBlocked: window.__b.emptyBlocked || 0, gAmmo: window.__b.gAmmo, gQueue: window.__b.gQueue, deathSubErr: window.__b.deathSubErr || null, pulseBlocked: window.__b.pulseBlocked || 0, pulseBlock: (window.__b.pulseBlock || 0), fbSum: window.__b.fbSum||0, fbN: window.__b.fbN||0, fb1: window.__b.fb1||0, fb24: window.__b.fb24||0, fb5: window.__b.fb5||0, pulseHeldFrames: (window.__b.pulseHeldFrames || 0), pulseBlockedByPrev: window.__b.pulseBlockedByPrev || 0, pulseBlockedBySelfFire: window.__b.pulseBlockedBySelfFire || 0, selfFire: window.__b.gSelfFire || 0,
              buildOK: window.__b.buildOK, buildMisses: window.__b.buildMisses,
              lastFirePick: window.__b.lastFirePick, fireBack: window.__b.fireBack, fireErr: window.__b.fireErr,
@@ -218,19 +264,24 @@
         var _uid = window.__b.nodeRows[_gr][0] | 0;
         var _tr2 = VantageTree.getTree(); var _node2 = null;
         (function rec2(nd, dep) { if (!nd || _node2 || dep > 60) return; if (nd.id === _uid) { _node2 = nd; return; } var ks2 = nd.children || []; for (var q2 = 0; q2 < ks2.length; q2++) { rec2(ks2[q2], dep + 1); if (_node2) return; } })(_tr2 && _tr2.root, 0);
-        if (_node2 && typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants && VantageTreeInterface.Invariants.canGrowAt(_node2) && (!_node2.children || !_node2.children.length)) {
+        var _rk = window.__b.kRangeOfRow ? window.__b.kRangeOfRow(_gr) : null;
+        if (_node2 && typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants && VantageTreeInterface.Invariants.canGrowAt(_node2) && _rk && _rk.kMax >= _rk.kMin) {
+          var _bk = window.__b.pickBack(_rk);
           window.__b.aGrowServer = (window.__b.aGrowServer || 0) + 1;
           window.__b.forceBResend = true;
+          window.__b.lastGrow = { nodeId: _uid, back: _bk, kMin: _rk.kMin, kMax: _rk.kMax, leaf: _rk.leaf ? 1 : 0 };
           window.__b.growFact = { nodeId: _uid, result: 'pending', reason: 'serverPick' };
           window.__b.pendingGrowCheck = { uid: _uid, depth: null };   // ⭐ 服务端路径也必须设（否则复查不跑 ⇒ 永远 pending）
-          return { picks: [{ nodeId: _uid, back: 0 }], memory: {} };
+          return { picks: [{ nodeId: _uid, back: _bk }], memory: {} };
         }
         window.__b.aServerReject = (window.__b.aServerReject || 0) + 1;
       }
       var w = window.__b.walk(tree, slots);
       var n = w.node;
       if (!n || n === tree.root) { window.__b.aBadTarget = (window.__b.aBadTarget || 0) + 1; return { picks: [], memory: {} }; }
-      if (n.children && n.children.length) { window.__b.aNotLeaf = (window.__b.aNotLeaf || 0) + 1; return { picks: [], memory: {} }; }
+      // v202：非叶不再被拒 —— 只要它有一段可分的内部帧就算可生长（叶子 = 直接在该叶分叉）
+      var _rk2 = window.__b.kRangeOfNode ? window.__b.kRangeOfNode(n) : null;
+      if (!_rk2 || _rk2.kMax < _rk2.kMin) { window.__b.aNotLeaf = (window.__b.aNotLeaf || 0) + 1; return { picks: [], memory: {} }; }
       // ⭐ 自查：不满足 canGrowAt 就别报（显式计数）
       try {
         if (typeof VantageTreeInterface !== 'undefined' && VantageTreeInterface.Invariants && !VantageTreeInterface.Invariants.canGrowAt(n)) {
@@ -242,8 +293,9 @@
       if (!window.__b.growFact) window.__b.growFact = { nodeId: n.id, result: 'pending', reason: 'submitted' };   // ⭐ 首帧就有事实可传   // ⭐ 下一帧复查这个 uid 还在不在/能不能长
       window.__b.aGrow = (window.__b.aGrow || 0) + 1;
       window.__b.forceBResend = true;
-      window.__b.lastGrow = { nodeId: n.id, depth: (w.path ? w.path.length : null) };
-      return { picks: [{ nodeId: n.id, back: 0 }], memory: {} };   // ⭐ 必须带 back：校验里 `targetBack !== null` 会把 undefined 当"越界"整包拒
+      var _bk2 = window.__b.pickBack(_rk2);
+      window.__b.lastGrow = { nodeId: n.id, back: _bk2, kMin: _rk2.kMin, kMax: _rk2.kMax, leaf: _rk2.leaf ? 1 : 0, depth: (w.path ? w.path.length : null) };
+      return { picks: [{ nodeId: n.id, back: _bk2 }], memory: {} };   // ⭐ 必须带 back：校验里 `targetBack !== null` 会把 undefined 当"越界"整包拒
     } catch (e) { window.__b.aErr = String((e && e.message) || e); return null; }
   };
   window.__b.build = function () {
@@ -545,16 +597,32 @@
         }
       } catch (eGC) { window.__b.growChkErr = String((eGC && eGC.message) || eGC); }
     }
-    // ⭐⭐ grow_ok（A 相可生长掩码）：行 i 是叶 ⇔ 没有任何行的 parentIdx == i（根行 0 除外）
+    // ⭐⭐ grow_ok（A 相可生长掩码）—— v202（2026-10-18）**放开非叶**：
+    //   · 叶子：可生长（叶尾，省去建节点）⟹ kMin = kMax = L−1
+    //   · 非叶：只要存在合法的"段内分叉帧"就可生长 ⟹ kMin = 1, kMax = L−1（见 kRangeOfNode 注释）
+    //   ⛔ `hasGrown === true`（= 探测过但一个分支都没建出来 = 真死，确定）的节点**一律不标 1**
+    //   ⛔ 旧的"只把叶子标 1"是"树只能一层层往下长"的结构性根因（根因文档 2026-10-18）。
     try {
-      // ⭐ 用【树上的真叶子】算（token 的 parentIdx 不一定是行号 ⇒ 用 uid 匹配才准）
-      var _leaf = {};
-      (function _recL(nd, dep) { if (!nd || dep > 80) return; var ks = nd.children || []; if (!ks.length) _leaf[nd.id | 0] = 1; for (var q = 0; q < ks.length; q++) _recL(ks[q], dep + 1); })(VantageTree.getTree() && VantageTree.getTree().root, 0);
+      // ⭐ 用【树上的真节点】算（token 的 parentIdx 不一定是行号 ⇒ 用 uid 匹配才准）
+      var _byId = {};
+      (function _recA(nd, dep) { if (!nd || dep > 80) return; _byId[nd.id | 0] = nd; var ks = nd.children || []; for (var q = 0; q < ks.length; q++) _recA(ks[q], dep + 1); })(VantageTree.getTree() && VantageTree.getTree().root, 0);
       var _nn = nSrc.length;
       var _ok = new Array(_nn).fill(0); var _cnt = 0;
-      for (var _j = 1; _j < _nn; _j++) { if (_leaf[nSrc[_j][0] | 0]) { _ok[_j] = 1; _cnt++; } }
+      var _kMin = new Array(_nn).fill(-1), _kMax = new Array(_nn).fill(-1);
+      var _kRg = new Array(_nn).fill(null);
+      for (var _j = 1; _j < _nn; _j++) {
+        var _nd = _byId[nSrc[_j][0] | 0];
+        var _rg = _nd ? window.__b.kRangeOfNode(_nd) : null;
+        if (_rg && _rg.kMax >= _rg.kMin) { _ok[_j] = 1; _cnt++; _kMin[_j] = _rg.kMin; _kMax[_j] = _rg.kMax; _kRg[_j] = _rg; }
+      }
       window.__b.growOk = _ok; window.__b.growOkCount = _cnt; window.__b.nodeRows = nSrc;
-    } catch (eGO) { window.__b.growOk = null; window.__b.growOkCount = 0; window.__b.growOkErr = String((eGO && eGO.message) || eGO); }
+      window.__b.growKMin = _kMin; window.__b.growKMax = _kMax;    // ⭐ 任务书③：暴露每个候选的 k 范围
+      window.__b.nodeKRange = _kRg;
+    } catch (eGO) {
+      window.__b.growOk = null; window.__b.growOkCount = 0;
+      window.__b.growKMin = null; window.__b.growKMax = null;
+      window.__b.growOkErr = String((eGO && eGO.message) || eGO);
+    }
     window.__b.pendingSlots = _freshSlots;   // ⭐ 给 A 用的是新鲜目标；B 用（可能被保持的）slots
     // ⭐⭐ 脉冲开火（2026-10-17 父代理诊断）：`BulletWeapon.fire()` 的 `_triggerPulled` 是锁存
     //    ⇒ 连续帧都提交 picks[1] = 一直按扳机 = 只出第一发 ⇒ 桥强制"发一帧、松一帧"
@@ -671,7 +739,7 @@ matchDbg: (function () { if (!window.__b.probeMatchDbgOn) return null; window.__
                return !(_i.forward || _i.back || _i.left || _i.right); } catch (e) { return null; } })(),
              execByPolicy: (function () { try { var _d = VantageTree.getDesiredOperation(); return !!(_d && typeof _d.agentFrame === 'number'); } catch (e) { return null; } })(),
              plan: (function () { try { var _g = window.__b.growFact; if (!_g) return null; var _pi = VantageObserve.encodePlan({ leafId: _g.nodeId, stale: (_g.result === 'ok' ? 0 : 1), fires: [] }, 8); return _pi.token; } catch (eP) { window.__b.planErr = String((eP && eP.message) || eP); return null; } })(),
-             growFact: (window.__b.growFact || null), stats: st, growOk: (window.__b.growOk||null), growOkCount: (window.__b.growOkCount||0), subFire: subFire, opName: opName, wep: wep, aim: aimNow, aimDeg: aimDeg,   // ⭐ wep 必须在（上一版被后续补丁覆盖丢了 ⇒ shots 测成 0）
+             growFact: (window.__b.growFact || null), stats: st, growOk: (window.__b.growOk||null), growOkCount: (window.__b.growOkCount||0), growKMin: (window.__b.growKMin||null), growKMax: (window.__b.growKMax||null), subFire: subFire, opName: opName, wep: wep, aim: aimNow, aimDeg: aimDeg,   // ⭐ wep 必须在（上一版被后续补丁覆盖丢了 ⇒ shots 测成 0）
       ammo: window.__b.gAmmo, queueLen: window.__b.gQueue, kills: (function(){ var q = window.__b.kills || []; window.__b.kills = []; return q; })(),   // ⭐ 奖惩 v2：本帧前新增的 TANK_KILLED 事件（取完清空） wep: wep, desiredFrame: desiredFrame, desiredFire: desiredFire, desiredErr: desiredErr, wantFire: window.__b.wantFire ? 1 : 0,
       b: bSrc, nSlots: slots ? slots.length : -1, nBul: bSrc.length, bDim: (e.bullets && e.bullets.dim) || null,
       opp: (gl.oppTok || null), col: (gl.colTok || null), mine: (gl.mineTok || null) });   // ⭐ 敌人/道具信息（在 global 里）

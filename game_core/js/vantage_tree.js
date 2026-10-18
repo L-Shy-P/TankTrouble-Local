@@ -799,7 +799,7 @@
     //      `_timeAcc` 只推进一次（训练分支 `seen === _lastSeenWorldStep` 同义，保护行未动）；
     //   ② 回退分支的墙钟 raw 改用整数毫秒口径（`Math.floor(Date.now()) - luMs`），
     //      消掉 headless 虚拟时钟下浮点 `Date.now()` vs 截断 `getTime()` 造成的 +2% 均值偏大。
-    var TREE_VERSION = 'v201';   // 2026-10-13 G5（§12.8/§12.31）：沙箱侧护盾 fixture 进融合世界（只改 sandbox；树无行为改动）。
+    var TREE_VERSION = 'v202';   // 2026-10-18：实现主人「任选 1 帧生长 9 个操作」——非叶节点可在自己那一段的第 k 帧插入分叉点 N（旧孩子原样复用、帧号/位姿零变化）。上一版：v201（2026-10-13 G5）：沙箱侧护盾 fixture 进融合世界。
     // 上一版 v189：   // 2026-10-13 S1-毒雾：沙箱侧补「毒雾判死」（纯几何、无 Box2D；只改 sandbox，树无行为改动）。
     // 上一版 v188：   // 2026-10-13 S1（§12.3）：沙箱侧补「子弹非正常消失」移除链（只改 sandbox；树无行为改动）。
     // 上一版 v187：   // 2026-10-13 阶段3-5 执行层：B 路线逐帧滚动执行（游标）+ fire 解开写死 false（仅该帧，不锁存）+ 射击帧按 (nodeId,back) 落帧 + 0帧自杀检测（炮口贴墙；拒绝该射击帧）；规则版/无 B 路线原样（§5）
@@ -1731,7 +1731,23 @@
             reuseCount: 0,           // v47：reactivate 复用次数
             active: false,           // tick 驱动中（面板树模式开启）
             stats: { expands: 0, extends: 0, commits: 0, rebuilds: 0, freshRoots: 0, alignFails: 0, retreats: 0, growMs: 0, growSkips: 0, nodeCountFixes: 0, rustScoredBatches: 0, rustScoredFallbacks: 0,
-                commitSliceRustBatches: 0, commitSliceJsBatches: 0, commitSliceRustFails: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, refineSplits: 0, growStalls: {} },
+                commitSliceRustBatches: 0, commitSliceJsBatches: 0, commitSliceRustFails: 0, jsConfirmCount: 0, jsConfirmEarlier: 0, jsConfirmLater: 0, jsConfirmCleared: 0, deepSelects: 0, retreatReroutes: 0, refineSplits: 0, growStalls: {},
+                  // v202（2026-10-18）「在某一帧分叉」计数（主人 2026-10-18 更正后的唯一语义）
+                  expandForkOk: 0,            // 分叉插入**成功**次数（在该帧位置建了新节点 N）
+                  expandForkFromInternal: 0,  // ⭐验收②：目标**是非叶**（段中间）⟹ 先建节点再分叉 9 支
+                  expandForkLeaf: 0,          // 位置**就是叶本身**（back=0）⟹ 省去建节点，直接分叉 9 支
+                  expandRejectHasGrown: 0,    // ⭐验收④：在 hasGrown 为真的节点本身再长 ⟹ 完全重叠 ⟹ 拒绝
+                  expandRejectBackRange: 0,   // 反向相对帧越界（back ∉ [0,L)）⟹ 拒绝（格式错误，不是惩罚）
+                  expandForkReuse: 0,         // 复用"操作相同那一支"（原样接回旧孩子）的次数
+                  expandForkNewBranches: 0,   // 分叉新增支（新叶子）累计个数
+                  expandForkReuseDeltaMax: 0, // 复用自检：重算的 op-o 支终点 vs 复用节点位姿的最大偏差（米）
+                  forkInvariantChecks: 0,     // 生长前后全树自检次数（硬验收①）
+                  forkInvariantNodes: 0,      // 上述自检覆盖的既有节点数
+                  forkInvariantMaxDt: 0,      // 既有节点 tEndSec（帧号）最大变化（秒）——必须是 0
+                  forkInvariantMaxDp: 0,      // 既有节点位姿最大变化（米/弧度）——必须是 0
+                  forkInvariantLost: 0,       // 分叉后"丢了"的既有节点数——必须是 0
+                  forkDepthShifted: 0,        // 深度发生变化的既有节点数（插入必然 +1 层）
+                  forkDepthShiftPlus1: 0 },   // 其中"深度恰好 +1"的个数
             doomedSnaps: [],     // v6 上次坍缩被弃的 8 兄弟快照（灰显到下次 commit）
             execTrail: [],       // v6 执行过的节点轨迹快照（灰链渲染，上限 200）
             _expandSlice: null,  // 预览展开切片：{leaf, adapter, threats, idx, results}
@@ -4405,9 +4421,11 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
         if (phase === 'A') {
             // v184（3-3）/ v185（3-4）· A 相：生长位置的契约 —— `picks: [{nodeId, back}]`（新，优先）/
             //   `growAt: [nodeId]`（旧，兼容）；**一次调用只校验/消费 [0]**（每次 1 帧）。
-            //   ⚠️ 语义层必须把"非叶生长"响亮拒绝：`expandLeaf` 会拒绝非叶，而
-            //   `Invariants.canGrowAt` 只查 invalid/真死 ⟹ 旧代码在 checkBundleSemantics
-            //   放行、到 expandLeaf 静默失败（阶段 3-3 方针点名的矛盾）。
+            //   v202（权威版 `:3129-3165` 裁决①）：**非叶生长已放开**，且**生长合法性只剩一条**
+            //   = 「`hasGrown === true` ⟹ 拒绝」，由树侧 `expandLeaf/expandForkAt` 执行并计
+            //   `expandRejectHasGrown`（那里才是唯一判据；语义层只拦格式）。
+            //   ⛔ 这里不再用"真死"当生长限制（真死被 hasGrown 包含：真死 ⟹ 必然生长过）。
+            //   `back`（反向相对帧）的越界检查【保留】：`back >= L` 或 `< 0` ⟹ 拒。
             var targetId = null, targetBack = null, targetField = '';
             if (clean.picks && clean.picks.length) {
                 targetId = clean.picks[0].nodeId;
@@ -4420,10 +4438,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             if (targetId !== null && targetId !== undefined) {
                 var n = findNodeById(tree, targetId);
                 if (!n) { illegal.push('生长'); reason = targetField + ' 节点编号不存在'; }
-                else if (!VantageTreeInterface.Invariants.canGrowAt(n)) {
-                    illegal.push('生长'); reason = targetField + ' 在真死/失效节点上生长';
-                } else if (n.children && n.children.length > 0) {
-                    illegal.push('生长'); reason = targetField + ' 在非叶节点上生长（expandLeaf 会拒绝）';
+                else if (n.invalid) {
+                    illegal.push('生长'); reason = targetField + ' 在结构失效的节点上生长';
                 } else if (targetBack !== null) {
                     var Lp = pickLOf(n);
                     if (!(Lp > 0)) { illegal.push('生长'); reason = targetField + ' 真死节点（L<=0）'; }
@@ -5170,11 +5186,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
         if (!leaf || isTerminalDead(leaf) || leaf.children.length > 0) return 0;
         ensureNonNegativeNodeCount(tree);
         if (!canAddTreeNodes(tree, results.length)) return 0;
-        // v180（阶段2-3 G2）：【生长过】置位点 —— 本节点真的展开出了子节点（9 候选已探）。
-        //   语义见权威版 §16.4 裁决①：只有【无分支】的节点才需要看它。
-        //   ⛔ 复位点只在 invalidateDescendants / markReserveInvalid（预测失效），**不在**提前死亡剪枝（tree:2667）——
-        //   那里 hasGrown 必须保持 1（"生过 + 无分支 ⟹ 真死"）。
-        leaf.hasGrown = true;
+        // v202（权威版 `:3129-3165` 裁决①，主人 2026-10-12）：
+        //   `hasGrown` **只给"没有分支"的节点打** —— 有分支 ⟹ 必然生长过 ⟹ 打标冗余。
+        //   于是 `hasGrown === true` 的唯一含义 = "探测过、一个分支都没建出来" = **真死（确定）**；
+        //   `hasGrown === false` = **不确定（还没探）**。置位点在函数末尾（newKids 建完之后）。
+        //   ⛔ 复位点只在 invalidateDescendants / markReserveInvalid（预测失效）—— 那里必须允许重长，
+        //      **不许**把"当时死、现在活"的位置永久堵死。
         var ecfg = effectiveExpandCfg(tree);
         tree.diag.lastEffTMin = ecfg.tMin;
         tree.diag.lastEffDt = _lastWorldDt;
@@ -5222,9 +5239,12 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
         // ── 智能体路径（3-2）：next 只可能在"建出来的"候选里；全真死 → 缺席即标记 ──
         if (newKids.length === 0) {
             leaf.next = null;
+            // ⭐ 权威版裁决①：**只有"生长过但没有分支"才打 hasGrown**（= 真死，确定）。
+            leaf.hasGrown = true;
             tree.stats.agentTrueDeadLeaves = (tree.stats.agentTrueDeadLeaves || 0) + 1;
             recordStructure(tree, 'grow-all-truedeath', 'n' + (leaf.id || '?') + ' 9×L<=0');
         } else {
+            leaf.hasGrown = false;         // 有分支 ⟹ 生长过但不打标（打了是冗余，且会遮住"真死"信号）
             leaf.next = pickBestChildByRolloutTotal(newKids);
         }
         leaf.probe = null;        // 智能体路径不消费 probeSegment（规则版遗产）
@@ -5232,7 +5252,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
         return newKids.length;
     }
 
-    function expandLeaf(tree, leaf, adapter, threats) {
+    function expandLeaf(tree, leaf, adapter, threats, back) {
         // ★ B5 修复（2026-10-07）：原来这三个出口全是【静默失败】——
         //   语义校验 Invariants.canGrowAt 只查 invalid + 真死，会放行"已经有子节点的节点"，
         //   到 expandLeaf 这里才被拒 → 记一笔 expand-fail 就没了。
@@ -5242,20 +5262,52 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             recordGrowStall(tree, 'expand-null', 'no-parent');
             return 0;
         }
-        if (isTerminalDead(leaf)) {
+        var _agentPath = agentPathActive(tree);
+        // v202：**生长合法性只剩一条**（权威版 `:3129-3165` 裁决①）：
+        //   `hasGrown === true`（= 探测过、一个分支都没建出来 = 真死，确定）⟹ 拒绝。
+        //   ⛔ 真死不再单独判断 —— 它被 `hasGrown` 包含（真死 ⟹ 必然生长过）。
+        //   ⚠️ 规则版仍保留原来的 `isTerminalDead` 闸门（规则版没有 hasGrown 语义，⛔ 不改坏现有路径）。
+        if (_agentPath) {
+            if (leaf.hasGrown === true) {
+                tree.stats.expandRejectHasGrown = (tree.stats.expandRejectHasGrown || 0) + 1;
+                recordGrowStall(tree, 'expand-hasgrown',
+                    'id=' + leaf.id + ' n=' + leaf.children.length + ' hasGrown=true');
+                if (typeof _ifaceStats !== 'undefined') {
+                    _ifaceStats.expandHasGrown = (_ifaceStats.expandHasGrown || 0) + 1;
+                }
+                return 0;
+            }
+        } else if (isTerminalDead(leaf)) {
             recordGrowStall(tree, 'expand-dead', 'fd=' + leaf.fullDeathFrame);
             return 0;
         }
+        // v202（权威版 `:3217-3218` 的 d/e 两条小裁决）：
+        //   · 位置落在**叶子**上 ⟹ 省去建节点，直接在该叶分叉 9 个操作 = **改动前的老行为**
+        //     （所以这里只按"有没有孩子"分流，`back` 在叶子分支被忽略 —— 零回归）
+        //   · 位置落在**非叶**上 ⟹ 先在该帧位置建一个节点 N，再从 N 分叉 9 个操作
         if (leaf.children.length > 0) {
-            // ★ 主人 2026-10-07 已把生长改成「在某一帧分叉」，
-            //   届时"有子节点的节点"要靠【时长延伸】判定合法性（新时长 > 现有时长才合法），
-            //   不再是一律拒绝。在那之前这里必须【响】，不能静默。
+            // ════════════════════════════════════════════════════════════════════
+            // v202（2026-10-18 主人「任选 1 帧生长 9 个操作」落地）：
+            //   非叶节点【不再一律拒绝】—— 智能体路径走 `expandForkAt`：
+            //   在 `leaf` 自己那一段的第 `back` 帧插入分叉点 N，`leaf` 整棵子树按
+            //   「操作仍是同一个的那一支」**原样复用**接回 N（⛔ 不重算，帧号/位姿零变化）。
+            //   规则版（segmentFrames / probeSegment 那一套）仍拒绝 —— 它的"段长"语义与
+            //   "帧坐标系"不同，分叉未在规则版实现，这里显式计数（⛔ 不许静默）。
+            // ════════════════════════════════════════════════════════════════════
+            if (agentPathActive(tree)) {
+                return expandForkAt(tree, leaf, adapter, threats, back);
+            }
             recordGrowStall(tree, 'expand-has-children',
                 'id=' + leaf.id + ' n=' + leaf.children.length);
             if (typeof _ifaceStats !== 'undefined') {
                 _ifaceStats.expandHasChildren = (_ifaceStats.expandHasChildren || 0) + 1;
             }
             return 0;
+        }
+        if (_agentPath) {
+            // 位置**就是叶子本身**（back = 0）⟹ "省去建立节点的过程"，直接在该叶分叉 9 支 ——
+            // 这一条与改动前【逐字一致】，现有路径不受影响。
+            tree.stats.expandForkLeaf = (tree.stats.expandForkLeaf || 0) + 1;
         }
         ensureNonNegativeNodeCount(tree);
         if (!canAddTreeNodes(tree, 9)) {
@@ -5268,6 +5320,317 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             return 0;
         }
         return attachResults(tree, leaf, results, threats);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // v202（2026-10-18）· 在某一帧分叉（主人 2026-10-07 原话的逐字实现）
+    //
+    //   原路径：  P --(op o, Lx 帧)--> X
+    //   分叉后：  P --(op o, k 帧)--> N --(…)-> { op o 那一支 = **X 原样复用**,
+    //                                            其余 8 支 = 新叶子（兄弟共享段长 d = Lx−k）}
+    //   ⛔ 硬约束（权威版 §2 的合法性论证就靠它）：X 的帧号(tEndSec) 与位姿(simState.tank)
+    //      **一个都不许变**；X 的整棵子树原样保留（这就是主人说的"这个一样的部分可以节省模拟量"）。
+    // ════════════════════════════════════════════════════════════════════════
+
+    /** 节点的操作槽位（0..8）。新节点都带 opIndex；过渡节点按 inputs 反查兜底。 */
+    function opIndexOfNode(n) {
+        if (!n) return -1;
+        if (typeof n.opIndex === 'number' && n.opIndex >= 0) return n.opIndex | 0;
+        var ops = (typeof VantageSandbox !== 'undefined' && VantageSandbox.OPERATIONS) || [];
+        var key = null;
+        try { key = JSON.stringify(n.inputs || null); } catch (eOp) { key = null; }
+        for (var i = 0; i < ops.length; i++) {
+            var ki = null;
+            try { ki = JSON.stringify(ops[i].inputs || null); } catch (eOp2) { ki = null; }
+            if (ki !== null && ki === key) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * v202：分叉用的**新鲜节点 id**。`tree.nextNodeId` 只在 attachChild 里单调递增，
+     * 但整树重建（`reset`:7720 把 `nextNodeId` 归零）时保留子树的旧 id 可能远大于它
+     * ⟹ 直接拿 `nextNodeId` 会**撞 id**（实测：新节点 N 拿到 id 20，而树里已有 id 20 的节点，
+     * 于是"既有节点位姿变了 0.528m"是**假警报**、其实是两个不同节点共用一个 id）。
+     * 这里取 `max(nextNodeId, 全树最大 id + 1)`，并由调用方把分配器推上去。
+     */
+    function forkFreshIdBase(tree) {
+        var maxId = 0;
+        (function rec(n) {
+            if (!n) return;
+            if (typeof n.id === 'number' && n.id > maxId) maxId = n.id;
+            var ks = n.children || [];
+            for (var i = 0; i < ks.length; i++) rec(ks[i]);
+        })(tree && tree.root);
+        var nid = (typeof tree.nextNodeId === 'number') ? tree.nextNodeId : 1;
+        return Math.max(nid, maxId + 1);
+    }
+
+    /** v202：生长前/后全树快照（只读）—— 硬验收①的自检材料。 */
+    function forkSnapshotOf(tree) {
+        var snap = {};
+        (function rec(n) {
+            if (!n) return;
+            var tk = (n.simState && n.simState.tank) ? n.simState.tank : null;
+            snap[n.id] = {
+                t: (typeof n.tEndSec === 'number') ? n.tEndSec : null,
+                x: tk ? tk.x : null,
+                y: tk ? tk.y : null,
+                r: tk ? tk.rot : null,
+                d: (typeof n.depth === 'number') ? n.depth : null
+            };
+            var ks = n.children || [];
+            for (var i = 0; i < ks.length; i++) rec(ks[i]);
+        })(tree && tree.root);
+        return snap;
+    }
+
+    /**
+     * v202：比对生长前后快照 —— 帧号(tEndSec) / 位姿(x,y,rot) 必须【零变化】。
+     *   `depth` 单独统计：插入一个分叉点必然让"被分叉节点的子树"整体 +1 层，
+     *   这是插入的**定义**，不是帧号变化（故不计入硬违规，只计入 `forkDepthShifted`）。
+     */
+    function forkInvariantCheck(tree, before, after) {
+        var maxDt = 0, maxDp = 0, nChk = 0, lost = 0, nDepth = 0, shift1 = 0, id;
+        for (id in before) {
+            if (!Object.prototype.hasOwnProperty.call(before, id)) continue;
+            var b = before[id], a = after[id];
+            if (!a) { lost++; continue; }
+            nChk++;
+            if (b.t !== null && a.t !== null) {
+                var dt = Math.abs(a.t - b.t);
+                if (dt > maxDt) maxDt = dt;
+            }
+            if (b.x !== null && a.x !== null) {
+                var dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+                var dr = 0;
+                if (b.r !== null && a.r !== null) {
+                    dr = Math.abs(((a.r - b.r + Math.PI) % (2 * Math.PI)) - Math.PI);
+                }
+                var dp = Math.max(dx, dy, dr);
+                if (dp > maxDp) maxDp = dp;
+            }
+            if (b.d !== null && a.d !== null && a.d !== b.d) {
+                nDepth++;
+                if (a.d - b.d === 1) shift1++;
+            }
+        }
+        tree.stats.forkInvariantChecks = (tree.stats.forkInvariantChecks || 0) + 1;
+        tree.stats.forkInvariantNodes = (tree.stats.forkInvariantNodes || 0) + nChk;
+        tree.stats.forkInvariantMaxDt = Math.max(tree.stats.forkInvariantMaxDt || 0, maxDt);
+        tree.stats.forkInvariantMaxDp = Math.max(tree.stats.forkInvariantMaxDp || 0, maxDp);
+        tree.stats.forkInvariantLost = (tree.stats.forkInvariantLost || 0) + lost;
+        tree.stats.forkDepthShifted = (tree.stats.forkDepthShifted || 0) + nDepth;
+        tree.stats.forkDepthShiftPlus1 = (tree.stats.forkDepthShiftPlus1 || 0) + shift1;
+        return { maxDt: maxDt, maxDp: maxDp, lost: lost, depthShifted: nDepth };
+    }
+
+    /**
+     * v202：分叉新增支的候选（与 `buildCandidate` 的智能体分支同口径，
+     *   唯一区别：**段长由分叉点给定**（兄弟共享 `d`），被死亡截短）。
+     *   `Lc ≤ 0` ⟹ 真死 ⟹ 不建（缺席即标记，权威版 §7.3b）。
+     */
+    function buildForkChild(tree, N, opIdx, r, d, threats) {
+        if (!r) return null;
+        var ops = VantageSandbox.OPERATIONS;
+        var Lr = agentValidFramesOf(r);          // 该 op 在 75 帧视界内能走几步
+        var Lc = Math.min(d, Lr);                 // 兄弟共享段长 d，被死亡截短
+        if (!(Lc > 0)) return null;               // 真死 → 不建
+        var s = (r.samples && r.samples[Lc])
+            || (r.samples && r.samples[r.samples.length - 1])
+            || (N.simState && N.simState.tank);
+        if (!s) return null;
+        var c = createTreeNode(N, ops[opIdx].inputs, {
+            tank: { x: s.x, y: s.y, rot: s.rot },
+            tGlobal: N.simState.tGlobal + Lc * FRAME_DT
+        });
+        c.validFrames = Lc;
+        c.backMax = Lc - 1;
+        c.segmentScore = (typeof r.totalScore === 'number') ? r.totalScore : 0;
+        c.baseExt = 0;
+        c.rolloutTotal = (typeof r.totalScore === 'number') ? r.totalScore : 0;
+        c.perFrameScores = r.perFrameScores ? r.perFrameScores.slice() : null;
+        c.deathAuthority = r.deathAuthority || (r.rustPhysics ? 'rust-candidate' : 'fused');
+        c.subtreeBest = Math.max(c.rolloutTotal, 0);
+        c.status = 'alive';
+        c.fullDead = !!r.dead;
+        c.fullDeathFrame = r.dead ? r.deathFrame : -1;
+        c.tEndSec = tree.rootAbsT + c.simState.tGlobal;
+        c.opName = ops[opIdx].name;
+        c.opIndex = opIdx;
+        c.threats = threats || null;
+        c.rolloutStartT = N.simState.tGlobal;
+        c.rolloutSamples = r.samples;
+        c.rolloutDeathFrame = r.deathFrame;
+        c.forkBranch = true;                      // 溯源：本节点是"分叉新增支"
+        return c;
+    }
+
+    /**
+     * v202：在帧位置 `(X, back)` 生长 —— `back` = **反向相对帧**（主人 2026-10-18 更正后的唯一语义；
+     *   帧地址 = `(子节点ID, 反向相对帧)`，项目里就是 `picks[0] = {nodeId, back}`）。
+     *
+     *   位置落在**叶子本身**（`back = 0` 且 X 无孩子）⟹ 不建节点，直接在该叶分叉 9 支
+     *     （走 `expandLeaf` 的叶子分支，本函数不参与）。
+     *   位置落在**段内某帧**（`0 < back < Lx`）⟹ 【系统先在该帧位置建一个节点 N】，再从 N 分叉 9 支；
+     *     其中"操作仍为同一支"继续走完 `back` 帧、**原样落回 X** ⟹ X 及其整棵子树直接复用（⛔ 不重算）。
+     *
+     *   ⛔ 本函数**没有任何"操作时长/新时长必须更长"的判断**，也**没有真死判断**
+     *      （权威版 `:3129-3165` 裁决①：真死被 `hasGrown` 包含；裁决③：每个节点只看自己）。
+     *   `k` = 段内**前向**偏移 = `Lx − back`；`d` = 新分支的段长 = `Lx − k` = `back`（兄弟共享段长）。
+     * @returns {number} 新增节点数（0 = 失败/被拒）
+     */
+    function expandForkAt(tree, X, adapter, threats, back) {
+        var P = X ? X.parent : null;
+        var Lx = X ? (validFramesOf(X) || pickLOf(X) || 0) : 0;
+        var b = (typeof back === 'number' && isFinite(back)) ? Math.round(back) : 0;
+        var opIdx = opIndexOfNode(X);
+        // ── 唯一合法性子句（权威版 `:3129-3165` 裁决①）：hasGrown 为真 ⟹ 拒绝 ──
+        if (X && X.hasGrown === true) {
+            tree.stats.expandRejectHasGrown = (tree.stats.expandRejectHasGrown || 0) + 1;
+            recordGrowStall(tree, 'expand-hasgrown',
+                'id=' + X.id + ' back=' + b + ' n=' + ((X.children && X.children.length) || 0));
+            if (typeof _ifaceStats !== 'undefined') {
+                _ifaceStats.expandHasGrown = (_ifaceStats.expandHasGrown || 0) + 1;
+            }
+            return 0;
+        }
+        // ── 位置必须落在段的内部：`back ∈ [1, Lx−1]` ──
+        //   `back = 0` 表示"位置就是这个节点本身"，对非叶而言没有可以切给 N 的剩余段（d = back = 0）
+        //   ⟹ 不是合法帧位置。这是**位置/长度**问题，不是"真死"判断。
+        if (!P || !(Lx >= 1) || !(b >= 1 && b <= Lx - 1) || opIdx < 0 ||
+            !(X.rolloutSamples && X.rolloutSamples.length >= Lx + 1) ||
+            !(X.simState && X.simState.tank)) {
+            tree.stats.expandRejectBackRange = (tree.stats.expandRejectBackRange || 0) + 1;
+            recordGrowStall(tree, 'expand-back-range',
+                'id=' + (X && X.id) + ' back=' + b + ' L=' + Lx +
+                ' op=' + opIdx + ' hasParent=' + !!P);
+            return 0;
+        }
+        ensureNonNegativeNodeCount(tree);
+        // N(1) + 最多 8 个新支 = 9；X 本身复用、不计新增
+        if (!canAddTreeNodes(tree, 9)) {
+            recordGrowStall(tree, 'expand-budget', 'nodeCount=' + tree.nodeCount);
+            return 0;
+        }
+        var _idCur = forkFreshIdBase(tree);                 // ⭐ 本函数新节点的 id 分配游标（防与保留子树撞 id）
+        var before = forkSnapshotOf(tree);
+        var wasInternal = !!(X.children && X.children.length);   // 目标是不是"非叶"（验收②要分类计数）
+        var oldSamples = X.rolloutSamples;
+        var oldStartT = (typeof X.rolloutStartT === 'number') ? X.rolloutStartT : 0;
+        var oldFd = (typeof X.fullDeathFrame === 'number') ? X.fullDeathFrame : -1;
+        var k = Lx - b;                        // 段内【前向】偏移（back 是反向相对帧）
+        var d = b;                             // 新分支段长 = X 剩下的那段 = back（兄弟共享）
+        var sK = oldSamples[k];
+        if (!sK || !(k >= 1) || !(d >= 1)) {
+            tree.stats.expandRejectBackRange = (tree.stats.expandRejectBackRange || 0) + 1;
+            recordGrowStall(tree, 'expand-fork-nosample', 'id=' + X.id + ' back=' + b + ' k=' + k);
+            return 0;
+        }
+        // ── 1) 建 N：落在 P --k 帧--> N，操作 o 与 X 相同 ──
+        var N = createTreeNode(P, X.inputs, {
+            tank: { x: sK.x, y: sK.y, rot: sK.rot },
+            tGlobal: oldStartT + k * FRAME_DT
+        });
+        N.id = _idCur++;                                   // ⭐ 见 forkFreshIdBase（防撞 id）
+        tree.nodeCount++;
+        var xi = P.children.indexOf(X);
+        if (xi >= 0) P.children[xi] = N; else P.children.push(N);
+        N.parentId = P.id;
+        N.validFrames = k;
+        N.backMax = k > 0 ? k - 1 : 0;
+        N.rolloutSamples = oldSamples.slice(0, k + 1);
+        N.rolloutStartT = oldStartT;
+        N.opName = X.opName;
+        N.opIndex = opIdx;
+        N.threats = X.threats || threats || null;
+        N.deathAuthority = X.deathAuthority || '';
+        N.status = 'alive';
+        N.fullDead = !!X.fullDead;
+        N.fullDeathFrame = (oldFd >= 0) ? (oldFd - k) : -1;
+        N.tEndSec = tree.rootAbsT + N.simState.tGlobal;
+        N.hasGrown = false;   // 权威版裁决①：hasGrown 只给【没有分支】的节点打 —— N 有 9 支 ⟹ 必须为 false
+        // 评分类字段是规则版遗产、智能体路径不消费它们做决策 ⟹ 一律【继承】，⛔ 不新造数值
+        N.perFrameScores = X.perFrameScores;
+        N.segmentScore = X.segmentScore;
+        N.rolloutTotal = X.rolloutTotal;
+        N.subtreeBest = X.subtreeBest;
+        N.baseExt = 0;
+        N.scoreCache = null;
+        N.freshSig = '';
+        N.forkInsert = { fromId: X.id, back: b, k: k, Lx: Lx, branchLen: d, fromInternal: wasInternal };   // 溯源（验收用）
+        // ── 2) 复用 X：挂到 N 下，"操作仍为 o 的那一支"= X 原样接回 ──
+        //   ⛔ X.simState / X.tEndSec / X.children 一个都不动（硬验收①）
+        N.children.push(X);
+        X.parent = N;
+        X.parentId = N.id;
+        X.depth = N.depth + 1;
+        X.validFrames = d;
+        X.backMax = d > 0 ? d - 1 : 0;
+        X.rolloutSamples = oldSamples.slice(k);       // samples[j] = 原 samples[k+j]
+        X.rolloutStartT = N.simState.tGlobal;
+        X.fullDeathFrame = (oldFd >= 0) ? (oldFd - k) : -1;
+        X.scoreCache = null;
+        X.freshSig = '';
+        tree.stats.expandForkReuse = (tree.stats.expandForkReuse || 0) + 1;
+        // ── 3) N 的其余 8 支：从 N 的状态重跑 9 个操作，op o 那一支丢弃（复用 X） ──
+        var built = 0, reuseDelta = null, res = null;
+        try { res = rolloutNine(tree, adapter, N.simState, threats); } catch (eForkRoll) { res = null; }
+        if (res && res.length) {
+            for (var oi = 0; oi < res.length; oi++) {
+                if (oi === opIdx) {
+                    // 复用自检：重算的 op-o 支走满 d 帧应当**落回 X 的位姿**
+                    var rr = res[oi];
+                    var sRe = (rr && rr.samples && rr.samples[d]) ? rr.samples[d] : null;
+                    if (sRe && X.simState && X.simState.tank) {
+                        var ddx = sRe.x - X.simState.tank.x, ddy = sRe.y - X.simState.tank.y;
+                        reuseDelta = Math.sqrt(ddx * ddx + ddy * ddy);
+                    }
+                    continue;
+                }
+                var kid = buildForkChild(tree, N, oi, res[oi], d, threats);
+                if (!kid) {
+                    tree.stats.agentTrueDeadSkips = (tree.stats.agentTrueDeadSkips || 0) + 1;
+                    continue;
+                }
+                kid.id = _idCur++;                             // ⭐ 见 forkFreshIdBase（防撞 id）
+                tree.nodeCount++;
+                kid.parent = N;
+                kid.parentId = N.id;
+                kid.depth = N.depth + 1;
+                N.children.push(kid);
+                if (!isTerminalDead(kid)) tree.leaves.push(kid);
+                built++;
+            }
+        }
+        backpropBest(P);
+        // ── 4) 硬验收①自检：既有节点的帧号/位姿必须零变化 ──
+        tree.nextNodeId = Math.max((typeof tree.nextNodeId === 'number') ? tree.nextNodeId : 1, _idCur);
+        var chk = forkInvariantCheck(tree, before, forkSnapshotOf(tree));
+        tree.stats.expandForkOk = (tree.stats.expandForkOk || 0) + 1;
+        // ⭐ 验收②：目标节点是**非叶**（"段中间分叉"）—— 本函数只在非叶目标上被调用
+        tree.stats.expandForkFromInternal = (tree.stats.expandForkFromInternal || 0) + 1;
+        tree.stats.expandForkNewBranches = (tree.stats.expandForkNewBranches || 0) + built;
+        if (reuseDelta !== null) {
+            tree.stats.expandForkReuseDeltaMax = Math.max(tree.stats.expandForkReuseDeltaMax || 0, reuseDelta);
+        }
+        tree.stats.expands = (tree.stats.expands || 0) + 1;
+        // ⭐ 验收②要"一个实例"⟹ 每次分叉都留档（structureHistory 上限内），并单独留最后一个实例
+        tree.stats.lastForkInstance = {
+            xId: X.id, back: b, k: k, Lx: Lx, d: d,
+            // 插入节点 N 的身份/父/深度/帧位（验收②要求"一个实例"能落到具体数字上）
+            nId: N.id, nParentId: N.parentId, nDepth: (typeof N.depth === 'number') ? N.depth : null,
+            nTEndSec: (typeof N.tEndSec === 'number') ? Math.round(N.tEndSec * 1000) / 1000 : null,
+            nFrameInSegment: k,
+            fromInternal: wasInternal ? 1 : 0, newBranches: built,
+            chkMaxDt: chk.maxDt, chkMaxDp: chk.maxDp, chkLost: chk.lost
+        };
+        recordStructure(tree, 'fork-insert',
+            'X=n' + X.id + ' back=' + b + ' k=' + k + '/L' + Lx + ' d=' + d + ' N=n' + N.id +
+            (wasInternal ? ' from=非叶' : ' from=叶') +
+            ' new=' + built + ' reuse=1 chkΔdt=' + chk.maxDt + ' Δdp=' + chk.maxDp +
+            ' lost=' + chk.lost + ' Δdepth=' + chk.depthShifted);
+        return 1 + built;
     }
 
     /** v92：点击目标评分只在“安全分完全相同”时作为平局裁决。
@@ -6687,12 +7050,16 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
         //     （预留"多帧 = 多次调用 A"，权威版 §7.5；多节点消费不再做）。
         var _agentWantsGrow = null;   // null = 智能体没表态（走规则）；数组 = 以智能体为准
         var _pickUsed = false;
+        var _agentBack = null;        // v202：A 给的「段内偏移」= 在节点的第几帧分叉（picks[0].back）
         if (typeof VantageTreeInterface !== 'undefined' && tree._agentDecision) {
             var _dec = tree._agentDecision;
             if (Object.prototype.toString.call(_dec.picks) === '[object Array]') {
                 if (_dec.picks.length) {
                     _agentWantsGrow = [_dec.picks[0].nodeId];   // ★ 只消费 [0]
                     _pickUsed = true;
+                    if (typeof _dec.picks[0].back === 'number' && isFinite(_dec.picks[0].back)) {
+                        _agentBack = Math.round(_dec.picks[0].back);
+                    }
                 } else {
                     _agentWantsGrow = [];                        // picks: [] = 本帧不生长
                 }
@@ -6730,7 +7097,8 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
                 // v184（3-3）：只消费 [0]（见上方 B3 说明）；**语义校验也只查 [0]**，
                 //    多给的由 growStep 忽略并记 extras ⟹ 不会因第 2 个非法触发整帧重试。
                 var _an = findNodeById(tree, _agentWantsGrow[0]);
-                if (_an && VantageTreeInterface.Invariants.canGrowAt(_an)) {
+                // v202：这里只挡"结构失效"；**生长合法性唯一一条 = hasGrown**，由 expandLeaf/expandForkAt 判
+                if (_an && !_an.invalid) {
                     leaf = _an;                       // 不限于叶节点
                     tree.stats.ifaceGrowAt = (tree.stats.ifaceGrowAt || 0) + 1; _ifaceStats.growAt++;
                     if (_pickUsed) { tree.stats.ifacePicks = (tree.stats.ifacePicks || 0) + 1; _ifaceStats.picks++; }
@@ -6801,7 +7169,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
                     }
                     break;
                 }
-                if (!expandLeaf(tree, growLeaf, adapter, threats)) {
+                // v202：把 A 的「段内偏移」`back` 透传给 expandLeaf —— **只对 A 亲自选的那一个节点
+                //   生效**（grown === 0）；后续层是规则版 `pickGrowLeaf` 挑的叶，没有 back 可言。
+                var _backThis = (grown === 0) ? _agentBack : null;
+                if (!expandLeaf(tree, growLeaf, adapter, threats, _backThis)) {
                     recordStructure(tree, 'expand-fail',
                         'leaf=' + (growLeaf.opName || growLeaf.id) + ' nodes=' + tree.nodeCount);
                     break;
@@ -9289,6 +9660,8 @@ return count;
         ensureKillfield: ensureKillfield,
         killfieldScoreAtTank: killfieldScoreAtTank,
         debugObjective: debugObjective,
+        // v202：只读调试钩子 —— 回传本帧适配器（探针/回归用；⛔ 不参与任何逻辑，不改任何状态）
+        getLastAdapter: function () { return _lastAdapter; },
         // v121：权威扫描轨迹环（回归测试用）
         _scanTrace: {
             record: function (t, n, d, f) { recordScanTrace(t, n, d, f); },
