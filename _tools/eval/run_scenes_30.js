@@ -204,6 +204,7 @@ async function runScene(scene, srv, cap) {
   let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
+  let stillFrames = 0, emptyFireFrames = 0;   // ⭐ 静止帧 / 空放帧（验证两个惩罚真的在生效）
   let dummyN = 0, s30DummyErr = null, dummyPatched = false, vidOfScene = 'vantage_1', vantageDeadAt = null;   // ⭐ 靶场模式：被清成静止靶的对手数
   let growOkFrames = 0;    // ⭐ A 相拿到 grow 决策的帧数（验证 A 数据真的进来了）
   let s30AErr = null;
@@ -381,6 +382,25 @@ async function runScene(scene, srv, cap) {
         }
       }
       // ⭐ S30_DUMP：每帧落一条（obs 直接用已过 SEGS.validateSegs 的 segs ⟹ 与服务端同源）
+      // ⭐⭐ 父代理 2026-10-18：补 `still` / `empty_fire` 两个信号
+      //   ⛔ 之前评测路径的 dump 里【根本没有这两个字段】⟹ rewards.py 的静止惩罚和空放惩罚恒为 0，从未生效。
+      //   `still` = 本帧执行的 inputs 全 false（注入器 `o.execStill`）；
+      //   `empty_fire` = 想开火但没子弹（act.fire=1 且 global[15]=ammoLeft<=0）。
+      //   ⚠️ `_g1_inject.js` 没有 `execStill`；但它导出 `out.sub` = 本帧【真实提交】的 5 个键（mgr.storedStates）⟹ 用它对。
+      let _stillF = 0;
+      try {
+        const _sb = (o && o.sub) || null;
+        if (_sb && !(_sb.f || _sb.b || _sb.l || _sb.r)) _stillF = 1;
+      } catch (eSF) {}
+      let _emptyFire = 0;
+      try {
+        const _gg = (s30segs && s30segs.global && s30segs.global[0]) || null;
+        const _ammo = _gg ? _gg[15] : null;          // global[15] = ammoLeft
+        const _ft = (s30p && s30p.fire) ? 1 : 0;
+        if (_ft && typeof _ammo === 'number' && _ammo <= 0) _emptyFire = 1;
+      } catch (eEF) {}
+      if (_stillF) stillFrames++;
+      if (_emptyFire) emptyFireFrames++;
       if (DUMP_DIR && s30segs && o && o.N) {
         const segs = s30segs;
         s30n++;
@@ -548,6 +568,7 @@ async function runScene(scene, srv, cap) {
     } catch (eMD5) { r.src_md5 = null; }
     r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
     r.grow_ok_frames = growOkFrames;
+    r.still_frames = stillFrames; r.empty_fire_frames = emptyFireFrames;
     r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
     r.ask_a_err = s30AErr;
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
@@ -582,7 +603,7 @@ async function runScene(scene, srv, cap) {
                    : (_isTimeout ? -2.0 : 0.0));
         // 终局帧之前若曾裁剪，t 仍严格递增（保留的是尾部连续段）⟹ 合规
         dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
-                                                 survive: 0.01, legal: 0,
+                                                 survive: 0.01, legal: 0, still: _stillF, empty_fire: _emptyFire,
                                                  win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
                                                  // ⭐ 父代理 2026-10-18：死亡发生在【最后一帧】⟹ 逐帧 pl 集合变化采不到
                                                  //   ⟹ 终局帧按胜负反推：win=1 ⟹ 我方击杀；win=0 ⟹ 我方死亡。
