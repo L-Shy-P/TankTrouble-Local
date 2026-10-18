@@ -799,7 +799,7 @@
     //      `_timeAcc` 只推进一次（训练分支 `seen === _lastSeenWorldStep` 同义，保护行未动）；
     //   ② 回退分支的墙钟 raw 改用整数毫秒口径（`Math.floor(Date.now()) - luMs`），
     //      消掉 headless 虚拟时钟下浮点 `Date.now()` vs 截断 `getTime()` 造成的 +2% 均值偏大。
-    var TREE_VERSION = 'v202';   // 2026-10-18：实现主人「任选 1 帧生长 9 个操作」——非叶节点可在自己那一段的第 k 帧插入分叉点 N（旧孩子原样复用、帧号/位姿零变化）。上一版：v201（2026-10-13 G5）：沙箱侧护盾 fixture 进融合世界。
+    var TREE_VERSION = 'v203';   // 2026-10-18：实现主人「任选 1 帧生长 9 个操作」——非叶节点可在自己那一段的第 k 帧插入分叉点 N（旧孩子原样复用、帧号/位姿零变化）。上一版：v201（2026-10-13 G5）：沙箱侧护盾 fixture 进融合世界。
     // 上一版 v189：   // 2026-10-13 S1-毒雾：沙箱侧补「毒雾判死」（纯几何、无 Box2D；只改 sandbox，树无行为改动）。
     // 上一版 v188：   // 2026-10-13 S1（§12.3）：沙箱侧补「子弹非正常消失」移除链（只改 sandbox；树无行为改动）。
     // 上一版 v187：   // 2026-10-13 阶段3-5 执行层：B 路线逐帧滚动执行（游标）+ fire 解开写死 false（仅该帧，不锁存）+ 射击帧按 (nodeId,back) 落帧 + 0帧自杀检测（炮口贴墙；拒绝该射击帧）；规则版/无 B 路线原样（§5）
@@ -4461,8 +4461,23 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             if (routeId !== null && routeId !== undefined) {
                 var rn = findNodeById(tree, routeId);
                 if (!rn) { illegal.push('选路'); reason = routeField + ' 节点编号不存在'; }
-                else if (rn.invalid || rn.exhausted || VantageTreeInterface.Invariants.isTrueDead(rn)) {
-                    illegal.push('选路'); reason = routeField + ' 真死/失效节点';
+                else if (rn.invalid || rn.exhausted) {
+                    illegal.push('选路'); reason = routeField + ' 失效节点';
+                } else if (VantageTreeInterface.Invariants.isTrueDead(rn)) {
+                    // ⭐⭐⭐ 主人 2026-10-18 裁定：「**如果所有叶子都真死时（这也刚好是它能看到真死的情况），
+                    //   并且下一帧有活路，那就只拒绝并惩罚 B 选的下一帧的真死，因为只有【瞬死】才是绝对的错误，
+                    //   其他都不一定。**」
+                    //   ⟹ 分两种情况（与 `Invariants.checkSelect` 完全一致）：
+                    //     · 有【非瞬死】替代 ⟹ 拒绝（并计数，供惩罚）
+                    //     · 全是瞬死（§7.3c 全真死绝境）⟹ **放行**（否则 B 无路可走）
+                    var _cs = VantageTreeInterface.Invariants.checkSelect(rn, (tree && tree.leaves) || []);
+                    if (_cs && _cs.ok === false) {
+                        illegal.push('选路'); reason = routeField + ' 瞬死(fd<=1) 且有活路';
+                        _ifaceStats.selectViolationRejected = (_ifaceStats.selectViolationRejected || 0) + 1;
+                        try { recordStructure(tree, 'iface-select-truedeath-rejected', 'id=' + rn.id + ' fd=' + rn.fullDeathFrame); } catch (eSV) {}
+                    } else {
+                        _ifaceStats.selectAllTrueDeadPass = (_ifaceStats.selectAllTrueDeadPass || 0) + 1;   // §7.3c 全真死绝境：放行
+                    }
                 } else if (routeFromPicks) {
                     if (!agentRoutePathOf(tree, routeId)) { illegal.push('选路'); reason = routeField + ' 不在本 root 的路径上'; }
                 } else {
