@@ -139,6 +139,8 @@ pub struct RescoreThreatInput {
     pub anchor_offset: f64,
     pub bullet_radius: f64,
     pub life_left_seconds: f64,
+    /// v11（1-2③）：激光标记 —— 判死必须用线段扫掠，不是半径 0.05 的点圆。
+    pub is_laser: bool,
     /// True when this threat is newly added since the node's previous
     /// per-frame scores were computed.  Only `is_new` threats contribute to
     /// the incremental affected-frame mask.
@@ -156,6 +158,7 @@ impl RescoreThreatInput {
             bullet_radius: scoring::BULLET_RADIUS_M,
             life_left_seconds: 10.0,
             is_new: false,
+            is_laser: false,
         }
     }
 
@@ -182,6 +185,11 @@ impl RescoreThreatInput {
 
     pub fn with_life_left_seconds(mut self, life_left_seconds: f64) -> Self {
         self.life_left_seconds = life_left_seconds;
+        self
+    }
+
+    pub fn with_is_laser(mut self, is_laser: bool) -> Self {
+        self.is_laser = is_laser;
         self
     }
 
@@ -1105,6 +1113,13 @@ pub fn verify_death_for_node(
         return Ok((-1, 0));
     }
 
+    // TODO(阶段1-2ab收尾)：本循环仍缺 ①霰弹撞墙减命 / ②35ms 内 ≥5 反弹去抖上限。
+    // 2026-10-11 实测：生产口径喂 th.track 时，JS track 已在销毁帧断供，rescore fd 与
+    // rollout 完全一致（不因缺 ①/② 而变）；反事实放宽常量时 rescore 跟着 track 报到同帧。
+    // 【已知残余缺口】只喂 path（无 track 折线回退）时会沿折线飞过销毁点（59/28 vs -1）；
+    // 修它需 ABI 弹种 + 销毁状态跨帧持久，属设计变更，按任务书「不修，只写 TODO」。
+    // 证据：game_core/rust/diff_rescore_proj_semantics.js 与 1-2ab 收尾报告。
+
     let mut any_danger = false;
     for k in 0..max_steps {
         if danger_flags.get(k + 1).copied().unwrap_or(0) != 0 {
@@ -1145,6 +1160,7 @@ pub fn verify_death_for_node(
         vw.world
             .set_body_angular_velocity(candidate, norm_angle_delta(p1.rot - p0.rot) / crate::rollout::frame_dt());
         vw.world.set_body_awake(candidate, true);
+        let mut laser_hit = false;
 
         for (ti, th) in threats.iter().enumerate() {
             let t_k = node.start_t + k as f64 * crate::rollout::frame_dt();
@@ -1165,6 +1181,27 @@ pub fn verify_death_for_node(
                 Some(p1) => ((p1.x - pos_k.x) / crate::rollout::frame_dt(), (p1.y - pos_k.y) / crate::rollout::frame_dt()),
                 None => prev_vel[ti].unwrap_or((0.0, 0.0)),
             };
+
+            // v11（1-2③）：激光线段扫掠 —— 本帧位移段 × 候选 sensor 多边形
+            // （帧首 p0 与帧末 p1 两个位姿都测，覆盖坦克自身的移动）。
+            if th.is_laser {
+                let end = match pos_k1 {
+                    Some(p) => p,
+                    None => Point::new(
+                        pos_k.x + vx * crate::rollout::frame_dt(),
+                        pos_k.y + vy * crate::rollout::frame_dt(),
+                    ),
+                };
+                let hit_pre = crate::rollout::sweep_hits_tank_pose(
+                    p0.x, p0.y, p0.rot, pos_k.x, pos_k.y, end.x, end.y,
+                );
+                let hit_post = crate::rollout::sweep_hits_tank_pose(
+                    p1.x, p1.y, p1.rot, pos_k.x, pos_k.y, end.x, end.y,
+                );
+                if hit_pre || hit_post {
+                    laser_hit = true;
+                }
+            }
 
             let initial_speed = (vx * vx + vy * vy).sqrt();
             vw.world.set_position_and_angle(body, pos_k.x, pos_k.y, 0.0);
@@ -1193,6 +1230,11 @@ pub fn verify_death_for_node(
 
         vw.world.step(crate::rollout::frame_dt(), 10, 10);
         verified_frames += 1;
+
+        // v11（1-2③）：激光扫掠命中 → 与接触同口径返回 fd=k（能走 k 步）。
+        if laser_hit {
+            return Ok((k as i32, verified_frames));
+        }
 
         // Bullet lifetime / renormalization, exactly like JS.
         for slot_idx in 0..vw.bullet_slots.len() {
@@ -1316,10 +1358,15 @@ pub fn rescore_nodes(
             );
             let (death_frame, verified_frames) =
                 verify_death_for_node(cache, walls, node, verify_threats, &danger)?;
-            if death_frame > 0 {
-                let death_idx = death_frame as usize;
+            // v172（1-2③收尾）：death_frame==0 = 起手第 0 步就撞上（能走 0 步）。
+            // 旧代码 `> 0` 会把激光扫掠的首帧命中直接丢掉（verify 已返回 0，但这里
+            // 不写回 out ⟹ bridge 看到 -1）。⛔ 禁止把 fd 改写成 1；只是让 0 也进
+            // 消费层（与 score_paths.rs 的 `>= 0` 同口径）。
+            if death_frame >= 0 {
+                let death_idx = death_frame.max(0) as usize;
                 if death_idx <= out.per_frame_scores.len() {
-                    let mut alive: Vec<f64> = out.per_frame_scores.drain(..death_idx - 1).collect();
+                    let prefix = death_idx.saturating_sub(1);
+                    let mut alive: Vec<f64> = out.per_frame_scores.drain(..prefix).collect();
                     let new_total = alive.iter().sum::<f64>() - cfg.death_penalty;
                     alive.push(-cfg.death_penalty);
                     out.per_frame_scores = alive;
@@ -1655,6 +1702,11 @@ mod tests {
                 radius: 0.25,
                 life_left: 10.0,
                 active: true,
+                is_shotgun: false,
+                is_shrapnel: false,
+                is_laser: false,
+                is_missile: false,
+                missile_time_alive: 0.0,
             }],
             cache_id: 0,
         };

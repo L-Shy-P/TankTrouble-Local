@@ -13,13 +13,62 @@ pub mod rollout;
 pub mod score_paths;
 pub mod scoring;
 pub mod tree;
+pub mod vtmaze;
 
 /// Fixed ABI version.
 #[no_mangle]
 pub extern "C" fn vt_version() -> u32 {
     // v7：两个 ABI 各加了一个 `occlusion_enabled` 尾参（把遮蔽开关接进 Rust）。
     // v8：新增 `vt_set_frame_dt`（不改既有 ABI 签名，只加一个 setter）。
-    8
+    // v9：`vt_rollout_batch` / `vt_score_paths` 的弹体数组各增加一个与
+    //     `bullet_count` 等长的 `bullet_is_shrapnel: *const u8`，把真游戏
+    //     `WeaponTypes.MINE=4` 的破片语义带进 Rust（见 rollout.rs `BulletInput`
+    //     与《待查清单》§13.3 / §19）。
+    // v10：**不新增参数** —— 把上面那个 u8 数组从"破片布尔"扩成**弹种码**：
+    //       0=普通弹、1=破片（MINE）、2=霰弹（SHOTGUN）。
+    //      Rust 侧 `BulletInput` 拆成 `is_shrapnel` / `is_shotgun` 两个布尔；
+    //      旧 JS 只会发 0/1，语义与 v9 完全兼容。霰弹语义见 rollout.rs
+    //      `SHOTGUN_LIFETIME_AFTER_MAZE_HIT_SEC`（撞墙/撞盾后剩余寿命 ≤0.7s）。
+    // v11（1-2③）：弹种码再加 **3 = LASER**（4 预留 HOMING_MISSILE）；同时
+    //      `vt_rescore_nodes` 新增 `threat_kind: *const u8` 尾参（每 threat 一项）。
+    //      激光判死必须用线段扫掠，**禁止用半径 0/0.05 判种**。
+    // v12（1-2④）：弹种码 **4 = HOMING_MISSILE**（2.0s 后按迷宫图制导）；
+    //      `vt_rollout_batch` 加两个尾参：`maze_id: u32`（与 `vt_set_maze` 缓存的 id
+    //      比对，不匹配就响亮返回 0）与 `bullet_missile_ta: *const f64`
+    //      （HOMING_MISSILE 的 timeAlive，秒；判 2.0s 门）。
+    //      ⚠️ `vt_score_paths` **没有**这两个尾参（它的 ABI 不变）⟹ 有制导弹时沙箱
+    //      `simulateTankBatchScored` 直接返回 null、回退 JS 评分（绝不把制导弹当普通弹）。
+    //      **下一格表由 JS 用游戏自己的 API 预计算**（`VantageSandbox.buildNextTileTable`），
+    //      Rust 只查表 + 4 连通 BFS，**不实现 jKstra 的双向 Dijkstra**（平局是实现细节）。
+    12
+}
+
+/// v12（1-2④）：一次性写入追踪导弹要用的迷宫表（JS `VantageSandbox.buildNextTileTable` 产出）。
+///
+/// 布局（与 JS 侧同约定）：
+///   * `flags`：`w*h` 字节，每格 bit0=reachable、bit1=leftWall(`tiles[x][y][2]`)、
+///     bit2=topWall(`tiles[x][y][1]`)、bit3=floor(`tiles[x][y][0]`)。
+///   * `next_tile`：`w*h*w*h` 字节，下标 `fromIdx*(w*h)+toIdx`，值 = 下一格下标；255 = 不可算。
+/// `maze_id` 变了就整表重建（= maze 变更的失效机制）。返回 1=成功、0=参数非法。
+#[no_mangle]
+pub extern "C" fn vt_set_maze(
+    maze_id: u32,
+    w: u32,
+    h: u32,
+    flags: *const u8,
+    next_tile: *const u8,
+) -> i32 {
+    if flags.is_null() || next_tile.is_null() {
+        return 0;
+    }
+    let w = w as usize;
+    let h = h as usize;
+    if w == 0 || h == 0 || w * h > 4096 {
+        return 0;
+    }
+    let flags_slice = unsafe { std::slice::from_raw_parts(flags, w * h) };
+    let next_slice = unsafe { std::slice::from_raw_parts(next_tile, w * h * w * h) };
+    if vtmaze::set_maze(maze_id, w, h, flags_slice.to_vec(), next_slice.to_vec()) { 1 } else { 0 }
 }
 
 /// v160：把 JS 侧校准后的真实帧步长写进 Rust。
@@ -33,7 +82,8 @@ pub extern "C" fn vt_version() -> u32 {
 ///   · `RESCORE_DT` 在 rescore.rs 里有 20+ 处使用点，逐个穿参会大改 ABI 签名；
 ///   · 帧步长是「一次设定、整局不变」的全局量，语义上就是全局。
 /// 调用方必须在**每批调用前**传当前值（JS 侧 `VantageSandbox.setFrameDtSec` 之后）。
-/// 值域钳在 [0.005, 0.2]，越界会被忽略（保持上一次的值）。
+/// 值域钳在 [0.001, 1.0]（v163b 与 JS 侧 `setFrameDtSec` 对齐；原来 [0.005, 0.2]），
+/// 越界会被忽略（保持上一次的值）。
 #[no_mangle]
 pub extern "C" fn vt_set_frame_dt(dt: f64) {
     rollout::set_frame_dt(dt);
@@ -44,6 +94,16 @@ pub extern "C" fn vt_set_frame_dt(dt: f64) {
 /// All geometry/velocities are `f64` (JS numbers are doubles). Fixed limits:
 /// ops <= 9, durationFrames <= 75 (samples = durationFrames + 1), walls <=
 /// 1024, 3..8 vertices per wall, bullets <= 256 (0-radius laser allowed).
+///
+/// v9/v10: `bullet_is_shrapnel` is one `u8` per bullet holding a **bullet kind
+/// code** (v10): `0` = ordinary, `1` = MINE shrapnel, `2` = SHOTGUN.
+/// Shrapnel semantics (kind 1): wall hit zeroes velocity and deactivates the
+/// bullet; speed^2 <= 0.01 also deactivates; no initial-speed renormalization.
+/// Shotgun semantics (kind 2): after a wall/shield hit its remaining lifetime
+/// is clamped to <= `SHOTGUN_LIFETIME_AFTER_MAZE_HIT` (0.7 s) — the real
+/// `Shotgun.hitMaze/hitShield` sets `timeAlive = max(timeAlive, MAX-AFTER)`.
+/// See `rollout.rs` for the Shrapnel.hitMaze / Shrapnel.done / Shotgun evidence.
+/// Older JS builds only send 0/1, which stays fully compatible.
 ///
 /// Output layout (all caller-owned):
 /// - `out_x`, `out_y`, `out_rot`: candidate-major, index
@@ -76,6 +136,9 @@ pub extern "C" fn vt_rollout_batch(
     bullet_radius: *const f64,
     bullet_life_left: *const f64,
     bullet_active: *const u8,
+    // v9：与 `bullet_count` 等长的破片标记数组（非 0 = MINE 破片）。
+    // v10：同一位扩成弹种码（0=普通、1=破片、2=霰弹），签名不变。
+    bullet_is_shrapnel: *const u8,
     bullet_count: u32,
     duration_frames: u32,
     out_x: *mut f64,
@@ -83,6 +146,11 @@ pub extern "C" fn vt_rollout_batch(
     out_rot: *mut f64,
     out_dead: *mut u8,
     out_death_frame: *mut i32,
+    // v12（1-2④）：追踪导弹（弹种码 4）需要
+    //   · `maze_id`：与 `vt_set_maze` 缓存比对；不匹配且场上确有导弹 ⟹ 响亮返回 0（不猜）
+    //   · `bullet_missile_ta`：与 `bullet_count` 等长的 timeAlive（秒），判 `> 2.0` 激活门
+    maze_id: u32,
+    bullet_missile_ta: *const f64,
 ) -> i32 {
     use rollout::{
         BulletInput, OpInput, RolloutCache, RolloutInput, StartPose, WallPoly, MAX_BULLETS,
@@ -113,6 +181,7 @@ pub extern "C" fn vt_rollout_batch(
             || bullet_radius.is_null()
             || bullet_life_left.is_null()
             || bullet_active.is_null()
+            || bullet_is_shrapnel.is_null()
             || out_x.is_null()
             || out_y.is_null()
             || out_rot.is_null()
@@ -157,6 +226,25 @@ pub extern "C" fn vt_rollout_batch(
             unsafe { std::slice::from_raw_parts(bullet_life_left, bullet_count_u) };
         let bullet_active_slice =
             unsafe { std::slice::from_raw_parts(bullet_active, bullet_count_u) };
+        let bullet_is_shrapnel_slice =
+            unsafe { std::slice::from_raw_parts(bullet_is_shrapnel, bullet_count_u) };
+        // v12（1-2④）：只有场上真有导弹（kind==4）时才要求 ta 数组 + 迷宫表 id 匹配。
+        //   没有导弹 = 零行为变化（旧 JS 一字不改也照跑）。
+        let has_missile = bullet_is_shrapnel_slice.iter().any(|&k| k == 4);
+        if has_missile {
+            if bullet_missile_ta.is_null() {
+                return 0;
+            }
+            if vtmaze::maze_id() != maze_id {
+                // 响亮失败：宁可让 JS 掉回融合路径，也不拿一张旧迷宫去制导。
+                return 0;
+            }
+        }
+        let bullet_missile_ta_slice: Vec<f64> = if bullet_missile_ta.is_null() {
+            vec![0.0; bullet_count_u]
+        } else {
+            unsafe { std::slice::from_raw_parts(bullet_missile_ta, bullet_count_u) }.to_vec()
+        };
 
         let mut walls = Vec::with_capacity(wall_count_u);
         let mut offset = 0usize;
@@ -185,6 +273,16 @@ pub extern "C" fn vt_rollout_batch(
                 radius: bullet_radius_slice[i],
                 life_left: bullet_life_left_slice[i],
                 active: bullet_active_slice[i] != 0,
+                // v10：**必须按码精确判定**，不能再用 `!= 0`——
+                // 旧写法会把 2（霰弹）也当成破片，霰弹会被 Shrapnel 语义接管
+                // （撞墙方向一变就速度清零退场），霰弹减命永远不会发生。
+                is_shrapnel: bullet_is_shrapnel_slice[i] == 1,
+                is_shotgun: bullet_is_shrapnel_slice[i] == 2,
+                // v11（1-2③）：弹种码 3 = LASER（4 预留 HOMING_MISSILE）。
+                is_laser: bullet_is_shrapnel_slice[i] == 3,
+                // v12（1-2④）：弹种码 4 = HOMING_MISSILE（2.0s 后按迷宫表制导）。
+                is_missile: bullet_is_shrapnel_slice[i] == 4,
+                missile_time_alive: bullet_missile_ta_slice[i],
             })
             .collect();
 
@@ -302,6 +400,9 @@ pub extern "C" fn vt_rescore_nodes(
     speed: *const f64,
     bullet_radius: *const f64,
     life_left_seconds: *const f64,
+    // v11（1-2③）：与 threat_count 等长的弹种码（0普通/1破片/2霰弹/3激光）。
+    // 激光判死必须走线段扫掠；**禁止用半径 0/0.05 推断弹种**。
+    threat_kind: *const u8,
     death_penalty: f64,
     stuck_penalty: f64,
     stuck_dist_eps: f64,
@@ -367,6 +468,7 @@ pub extern "C" fn vt_rescore_nodes(
                 || speed.is_null()
                 || bullet_radius.is_null()
                 || life_left_seconds.is_null()
+                || threat_kind.is_null()
                 || threat_is_new.is_null())
         {
             return 0;
@@ -533,6 +635,8 @@ pub extern "C" fn vt_rescore_nodes(
                 unsafe { std::slice::from_raw_parts(bullet_radius, threat_count_u) };
             let life_left_slice =
                 unsafe { std::slice::from_raw_parts(life_left_seconds, threat_count_u) };
+            let threat_kind_slice =
+                unsafe { std::slice::from_raw_parts(threat_kind, threat_count_u) };
 
             let mut threats = Vec::with_capacity(threat_count_u);
             let mut track_offset = 0usize;
@@ -582,6 +686,7 @@ pub extern "C" fn vt_rescore_nodes(
                     bullet_radius: bullet_radius_slice[ti],
                     life_left_seconds: life_left_slice[ti],
                     is_new: threat_is_new_slice[ti] != 0,
+                    is_laser: threat_kind_slice[ti] == 3,
                 });
             }
             threats
@@ -1001,7 +1106,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(vt_version(), 7);
+        assert_eq!(vt_version(), 12);
     }
 
     #[test]
@@ -1037,6 +1142,7 @@ mod tests {
             wall_verts.as_ptr(),
             0,
             0,
+            std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
@@ -1124,6 +1230,7 @@ mod tests {
             std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
+            std::ptr::null(),
             0.0,
             4.0,
             0.05,
@@ -1184,6 +1291,7 @@ mod tests {
             wall_verts.as_ptr(),
             0,
             1,
+            std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),
             std::ptr::null(),

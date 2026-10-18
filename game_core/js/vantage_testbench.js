@@ -149,7 +149,7 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v103';   // 与 index.html ?v= 同步递增；console/断言脚本可查
+    var TB_VERSION = 'v104';   // v104（2026-10-13）：DEFAULT_EXP 跟随阶段2 A1/A2（maxNodes/warmup 1000、nodeCap true、horizonSec 10、refineBeyond false）
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -198,7 +198,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false, horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 1000, warmupMaxNodes: 1000, nodeCap: true, horizonCap: true, horizonSec: 10, refineBeyond: false, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -1687,7 +1687,7 @@
         if (!tip) return '金线断因: 空末端';
         var root = tr.root;
         var depthSec = tip.tEndSec - root.tEndSec;
-        var cfgHorizon = (tr.cfg && tr.cfg.horizonSec) ? tr.cfg.horizonSec : 8;
+        var cfgHorizon = (tr.cfg && tr.cfg.horizonSec) ? tr.cfg.horizonSec : 10;
         if (tip.children.length === 0) {
             if (tip.status === 'dead') {
                 return '金线断因: ' + (tip.fullDeathFrame >= 2 ?
@@ -2171,8 +2171,8 @@
     var DEFAULT_EXP = {
         fixed75: false, noDeath: true, lane: false, springRope: false,
         rustMinimal: false, rustPhysics: true, growWithoutThreats: true,
-        growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: false,
-        horizonCap: true, horizonSec: 8, refineBeyond: true, continuousRefine: false,
+        growLayers: 1, maxNodes: 1000, warmupMaxNodes: 1000, nodeCap: true,
+        horizonCap: true, horizonSec: 10, refineBeyond: false, continuousRefine: false,
         pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
         killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0,
@@ -2387,9 +2387,9 @@
             // 生长/节点：只在“树”模式显示
             expLine('生长', '#f9e2af', 'vt-exp-treeRow',
                 expItem('每帧生长层数 <input type="range" data-act="exp-growLayers" min="1" max="6" step="1" value="1" style="width:66px;cursor:pointer;background:#313244"> <span id="vt-exp-growLayers">1层</span>') +
-                expItem('预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label>') +
-                expItem('节点数量上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="500" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes">500</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap"> 启用</label>') +
-                expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="8" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">8秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
+                expItem('预热上限 <input type="range" data-act="exp-warmupMaxNodes" min="100" max="3000" step="50" value="1000" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-warmupMaxNodes">1000</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-growWithoutThreats"> 无子弹时预热</label>') +
+                expItem('节点数量上限 <input type="range" data-act="exp-maxNodes" min="100" max="3000" step="50" value="1000" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-maxNodes">1000</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-nodeCap" checked> 启用</label>') +
+                expItem('预测时长上限 <input type="range" data-act="exp-horizonSec" min="1" max="15" step="0.5" value="10" style="width:86px;cursor:pointer;background:#313244"> <span id="vt-exp-horizonSec">10秒</span> <label style="cursor:pointer;"><input type="checkbox" data-act="exp-horizonCap"> 启用</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-refineBeyond"> 超上限细化长路径</label>') +
                 expItem('<label style="cursor:pointer;"><input type="checkbox" data-act="exp-continuousRefine"> 细化长路径</label>')
             ) +
@@ -2629,7 +2629,7 @@
         }
         if (_expCtrl.maxNodes) {
             _expCtrl.maxNodes.addEventListener('input', function() {
-                state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.maxNodes.value, 10) || 500));
+                state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.maxNodes.value, 10) || 1000));
                 if (_expCtrl.maxNodesSpan) {
                     _expCtrl.maxNodesSpan.textContent = String(state.exp.maxNodes);
                 }
@@ -2639,7 +2639,7 @@
         // 否则拖动过程中 updatePanel 的 syncExpControls 会把滑块弹回旧值。
         if (_expCtrl.warmupMaxNodes) {
             _expCtrl.warmupMaxNodes.addEventListener('input', function() {
-                state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.warmupMaxNodes.value, 10) || 500));
+                state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(_expCtrl.warmupMaxNodes.value, 10) || 1000));
                 if (_expCtrl.warmupMaxNodesSpan) {
                     _expCtrl.warmupMaxNodesSpan.textContent = String(state.exp.warmupMaxNodes);
                 }
@@ -2664,7 +2664,7 @@
         if (_expCtrl.horizonSec) {
             _expCtrl.horizonSec.addEventListener('input', function() {
                 var v = parseFloat(_expCtrl.horizonSec.value);
-                state.exp.horizonSec = Math.max(1, Math.min(15, isFinite(v) ? v : 8));
+                state.exp.horizonSec = Math.max(1, Math.min(15, isFinite(v) ? v : 10));
                 if (_expCtrl.horizonSecSpan) {
                     _expCtrl.horizonSecSpan.textContent = state.exp.horizonSec + '秒';
                 }
@@ -3088,10 +3088,11 @@
         // —— v87/v91 重置配置：恢复到作者实测较强且性能不错的实验项组合 ——
         if (act === 'exp-presetStrong') {
             state.exp.growLayers = 1;
-            state.exp.nodeCap = false;
+            state.exp.maxNodes = 1000;   // v104：作者预设跟随阶段2 A2（原块漏了 maxNodes）
+            state.exp.nodeCap = true;
             state.exp.horizonCap = true;
-            state.exp.horizonSec = 8;
-            state.exp.refineBeyond = true;
+            state.exp.horizonSec = 10;
+            state.exp.refineBeyond = false;
             state.exp.continuousRefine = false;
             state.exp.pruneCompensateLayers = 1;
             state.exp.pruneCompensateFrames = 3;
@@ -3115,7 +3116,7 @@
             state.exp.fixed75 = false;
             state.exp.lane = false;
             state.exp.springRope = false;
-            state.exp.warmupMaxNodes = 500;
+            state.exp.warmupMaxNodes = 1000;
             state.exp.growWithoutThreats = true;
             state.exp.deepSelect = false;
             if (state.exp.rustPhysics) state.exp.springRope = false;
@@ -3124,6 +3125,7 @@
                 VantageTree.setNodeCapEnabled(state.exp.nodeCap);
                 VantageTree.setHorizonCapEnabled(state.exp.horizonCap);
                 VantageTree.setHorizonSec(state.exp.horizonSec);
+                VantageTree.setMaxNodes(state.exp.maxNodes);   // v104：预设同时恢复数量闸门
                 VantageTree.setRefineBeyondLimits(state.exp.refineBeyond);
                 VantageTree.setContinuousRefine(state.exp.continuousRefine);
                 VantageTree.setPruneCompensateLayers(state.exp.pruneCompensateLayers);
@@ -3168,7 +3170,7 @@
         // —— v91 预测时长上限滑块（1~15 秒）——
         if (act === 'exp-horizonSec') {
             var hv = parseFloat(srcEl.value);
-            state.exp.horizonSec = Math.max(1, Math.min(15, isFinite(hv) ? hv : 8));
+            state.exp.horizonSec = Math.max(1, Math.min(15, isFinite(hv) ? hv : 10));
             if (typeof VantageTree !== 'undefined') VantageTree.setHorizonSec(state.exp.horizonSec);
             if (_expCtrl.horizonSecSpan) _expCtrl.horizonSecSpan.textContent = state.exp.horizonSec + '秒';
             updatePanel();
@@ -3237,7 +3239,7 @@
         }
         // —— v89 预热上限（100~3000）——
         if (act === 'exp-warmupMaxNodes') {
-            state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 500));
+            state.exp.warmupMaxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 1000));
             if (typeof VantageTree !== 'undefined') VantageTree.setWarmupMaxNodes(state.exp.warmupMaxNodes);
             if (_expCtrl.warmupMaxNodesSpan) _expCtrl.warmupMaxNodesSpan.textContent = String(state.exp.warmupMaxNodes);
             updatePanel();
@@ -3245,7 +3247,7 @@
         }
         // —— v84 节点数上限滑块（100~3000）——
         if (act === 'exp-maxNodes') {
-            state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 500));
+            state.exp.maxNodes = Math.max(100, Math.min(3000, parseInt(srcEl.value, 10) || 1000));
             if (typeof VantageTree !== 'undefined') {
                 VantageTree.setMaxNodes(state.exp.maxNodes);
             }
@@ -3875,8 +3877,8 @@
         html.push('<div style="margin:2px 0 1px;color:#6c7086">── 树 / 节点 ──</div>');
         if (tr) {
             var capTxt = (tr.cfg && tr.cfg.nodeCapEnabled === false)
-                ? (' | 预热≤' + ((tr.cfg.warmupMaxNodes) || 500))
-                : ('/' + ((tr.cfg && tr.cfg.maxNodes) || 500));
+                ? (' | 预热≤' + ((tr.cfg.warmupMaxNodes) || 1000))
+                : ('/' + ((tr.cfg && tr.cfg.maxNodes) || 1000));
             html.push('<div style="padding:1px 0;color:#94e2d5">树 节点 <b>' + tr.nodeCount +
                 capTxt +
                 '</b> | 储备 <b>' + (tr.reserveCount || 0) +

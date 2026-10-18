@@ -14,8 +14,13 @@ assert(!s.includes('anyFullSurvivor'),'v115 的一票否决不得回归');
 assert(!/minTier/.test(s),'不得按存活层级过滤参选资格');
 
 // ② 红（fd<=1）硬过滤保留——主人不变量「只要有非红，红的就绝对不能选」
-assert(s.includes('if (!allTrueDead && isTerminalDead(c)) continue;'),'pickBestChild 必须挡红');
-assert(s.includes('if (!onlyImmediateDead && isTerminalDead(c)) continue;'),'pickBest 必须挡红');
+// v162：挡的是「真死」= 自身红 或（已展开且 9 种操作全真死），不再只看候选自身 fd。
+assert(s.includes('if (!allTrueDead && isDeadSubtree(c)) continue;'),'pickBestChild 必须挡真死');
+assert(s.includes('if (!onlyImmediateDead && isDeadSubtree(c)) continue;'),'pickBest 必须挡真死');
+// 但**没有活路优先**：未展开的候选（无活跃孩子）绝不能被判成真死，否则就是变相的一票否决。
+assert(/function isDeadSubtree[\s\S]{0,600}if \(!kids \|\| !kids\.length\) return false;/.test(s),
+       '未展开节点必须返回 false（未知 != 死）');
+assert(s.includes('function isDeadSubtree'),'必须有递归真死判定');
 // v159：主人要求「尽可能不用兜底」→ 调用注释掉、函数保留、方案留文档
 assert(s.includes('// best = enforceNonRedPrefer(tree, best, root);'),'兜底调用必须是注释状态');
 assert(s.includes('function enforceNonRedPrefer'),'兜底函数必须保留（文档留方案）');

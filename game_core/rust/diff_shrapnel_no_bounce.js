@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// v161 回归：地雷破片不反弹 —— 路径计算必须用 0 次反弹（1 次射线）。
+// v162/v171 回归：地雷破片不反弹（激光 v171 起改为镜面反弹） —— 路径计算必须用 0 次反弹（1 次射线）。
 // 依据：Shrapnel.hitMaze 把速度清零（撞墙即停）、done() 在速度≈0 时返回 true。
 // 原来一律用全局 pathBounces=5 → 6 次全图射线 × 30 片 = 180 次，是地雷卡死的来源。
 'use strict';
@@ -9,8 +9,15 @@ const sb=fs.readFileSync(path.join(root,'js','vantage_sandbox.js'),'utf8');
 
 // ① 必须按弹种决定反弹次数
 assert(sb.includes('var effBounces = bounces;'),'getProjectilePaths 必须有按弹种的反弹次数');
-assert(/effBounces = 0;/.test(sb),'地雷必须用 0 次反弹');
-assert(/p\.getType\(\) === Constants\.WEAPON_TYPES\.MINE/.test(sb),'必须按 MINE 类型判定');
+// v164：反弹次数改由「弹种档案」决定（原来只特判 MINE 的写法已并入档案）。
+assert(sb.includes('projectileProfileOf'),'必须有弹种档案查询');
+assert(/effBounces = _profP\.bounces;/.test(sb),'必须从弹种档案取反弹次数');
+assert(/put\(W\.MINE,\s*\{[^}]*bounces:\s*0/.test(sb),'地雷破片必须在档案里登记 0 次反弹');
+// v171（1-2③）：实测（激光判死几何实测-2026-10-11）证明真激光撞墙是
+// **镜面反弹、|v| 不变、0.8s 寿命到才消失**，不是撞墙消失 ⟹ 档案必须是
+// `bounces: null`（用全局反弹计数）。旧的 0 是错的，本条随之翻转。
+assert(/put\(W\.LASER,\s*\{[^}]*bounces:\s*null/.test(sb),'激光档案必须是 null 反弹次数（真激光镜面反弹）');
+assert(!/put\(W\.LASER,\s*\{[^}]*bounces:\s*0/.test(sb),'激光不得再登记 0 次反弹（旧错误语义）');
 assert(sb.includes('calculateProjectilePath(world, p, effBounces, maxLen, false)'),
        '必须把 effBounces 传进 calculateProjectilePath');
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// v160 回归：帧步长必须由 JS 同步进 Rust，Rust 不得再写死 0.02。
+// v162 回归：帧步长必须由 JS 同步进 Rust，Rust 不得再写死 0.02。
 // 背景：写死 0.02 导致 rustFrameDtCompatible() 在帧长校准后停用 Rust 快路，
 // 实测 1800 帧里只有 44% 时间 Rust 在跑，出问题那局只有 1%。
 'use strict';
@@ -37,7 +37,8 @@ assert(/setFrameDt\(_frameDtSec\)/.test(sb),'sandbox 必须在 Rust 调用前同
 assert(/不再要求精确 == 0\.02/.test(sb),'护栏必须说明已放宽');
 assert(/Math\.abs\(_frameDtSec - 0\.02\) < 1e-9/.test(sb),'旧 wasm 的回退分支必须保留');
 
-// ④ 值域护栏（Rust 侧钳 0.005~0.2，越界忽略）
-assert(/0\.005\.\.=0\.2\)\.contains\(&v\)/.test(rollCode),'Rust 必须钳帧长值域');
+// ④ 值域护栏（Rust 侧与 JS 侧必须一致：0.001~1.0，越界忽略）
+// v163：原来钳 0.005~0.2，>200fps（240Hz≈0.00417s）被静默忽略 → JS/Rust 两套帧长。
+assert(/0\.001\.\.=1\.0\)\.contains\(&v\)/.test(rollCode),'Rust 必须钳帧长值域，且与 JS 侧 [0.001,1.0] 一致');
 
 console.log('diff_rust_frame_dt_sync PASS (Rust 可设帧长 + JS 每批同步 + 护栏保留回退)');

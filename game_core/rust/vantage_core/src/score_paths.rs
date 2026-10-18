@@ -128,6 +128,9 @@ pub fn run_score_paths(
             bullet_radius: crate::scoring::BULLET_RADIUS_M,
             life_left_seconds: 10.0,
             is_new: false,
+            // v11（1-2③）：score_paths 的 threats 只参与评分；激光判死权威在
+            // bullets 数组（run_rollout_batch 的 is_laser 扫掠）⟹ 这里 false。
+            is_laser: false,
         })
         .collect();
 
@@ -162,8 +165,11 @@ pub fn run_score_paths(
         .map_err(|e| e.to_string())?;
 
         let death_frame = rollout.death_frame[op];
-        let (per_frame_scores, total_score) = if death_frame > 0 {
-            let d = death_frame as usize;
+        // v11（1-2③）：fd=0 = 起手就撞上（能走 0 步）。旧代码 `> 0` 会把它
+        // 当存活，直接吃掉激光扫掠首帧命中的收益。⛔禁止把 fd 改写成 1；
+        // 只在消费层把 0 与 1 都按“首帧即死、只记一次 deathPenalty”处理。
+        let (per_frame_scores, total_score) = if death_frame >= 0 {
+            let d = (death_frame.max(0) as usize).max(1);
             if d > scored.per_frame_scores.len() {
                 return Err("death frame exceeds scored frames".to_string());
             }
@@ -228,6 +234,10 @@ pub extern "C" fn vt_score_paths(
     bullet_radius: *const f64,
     bullet_life_left: *const f64,
     bullet_active: *const u8,
+    // v9：与 `bullet_count` 等长的破片标记数组（非 0 = MINE 破片）。
+    // v10：同一位扩成**弹种码**（0=普通、1=破片、2=霰弹），签名不变。
+    // 语义与 `vt_rollout_batch` 完全一致，由 `rollout::run_rollout_batch` 执行。
+    bullet_is_shrapnel: *const u8,
     bullet_count: u32,
     duration_frames: u32,
     threat_count: u32,
@@ -283,6 +293,7 @@ pub extern "C" fn vt_score_paths(
             || bullet_radius.is_null()
             || bullet_life_left.is_null()
             || bullet_active.is_null()
+            || bullet_is_shrapnel.is_null()
             || out_x.is_null()
             || out_y.is_null()
             || out_rot.is_null()
@@ -370,6 +381,8 @@ pub extern "C" fn vt_score_paths(
             unsafe { std::slice::from_raw_parts(bullet_life_left, bullet_count_u) };
         let bullet_active_slice =
             unsafe { std::slice::from_raw_parts(bullet_active, bullet_count_u) };
+        let bullet_is_shrapnel_slice =
+            unsafe { std::slice::from_raw_parts(bullet_is_shrapnel, bullet_count_u) };
         for i in 0..bullet_count_u {
             if !bullet_x_slice[i].is_finite()
                 || !bullet_y_slice[i].is_finite()
@@ -482,6 +495,16 @@ pub extern "C" fn vt_score_paths(
                 radius: bullet_radius_slice[i],
                 life_left: bullet_life_left_slice[i],
                 active: bullet_active_slice[i] != 0,
+                // v10：按弹种码精确判定（1=破片、2=霰弹），**不能再用 `!= 0`**。
+                is_shrapnel: bullet_is_shrapnel_slice[i] == 1,
+                is_shotgun: bullet_is_shrapnel_slice[i] == 2,
+                // v11（1-2③）：3 = LASER（线段扫掠；不看半径）。
+                is_laser: bullet_is_shrapnel_slice[i] == 3,
+                // v12（1-2④）：`vt_score_paths` 的 ABI **没有** maze_id/missile_ta
+                // 尾参 ⟹ 这里无法制导。上层（bridge/沙箱）在有制导弹时不应把
+                // 制导弹送进这条评分快路（否则会被当成普通弹），这里 decode 保持 false。
+                is_missile: false,
+                missile_time_alive: 0.0,
             })
             .collect();
 

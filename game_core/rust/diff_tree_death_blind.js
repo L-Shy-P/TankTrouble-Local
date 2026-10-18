@@ -120,7 +120,7 @@ const C = VT._coarse;
 
     // 逐帧到期退场的机制必须还在（active 只是不再"提前整颗关掉"）
     assert(/bs\.lifeLeft -= FRAME;/.test(sbSrc), '③ 逐帧 lifeLeft 递减退场必须保留');
-    // v160：帧步长改成 frame_dt()（可设全局值），两种写法都算合规
+    // v162：帧步长改成 frame_dt()（可设全局值），两种写法都算合规
     assert(/slot\.life_left -= (frame_dt\(\)|FRAME_DT);/.test(rollSrc), '③ rollout.rs 逐帧 life_left 递减必须保留');
 }
 
@@ -143,7 +143,7 @@ const C = VT._coarse;
         assert(seg.indexOf('rustFrameDtCompatible()') >= 0, '④ ' + e + ' 必须挂帧步长护栏');
     }
 
-    // v160：帧步长不再写死，改成"可设全局值 + JS 每次调用前同步"。
+    // v162：帧步长不再写死，改成"可设全局值 + JS 每次调用前同步"。
     // 这反而解除了"必须精确 0.02"的枷锁——实测 Rust 可用率从 44% 提到接近 100%。
     // 旧断言（v137）备份：`pub const FRAME_DT: f64 = 0.02;` / `pub const RESCORE_DT: f64 = 0.02;`
     const rollSrc = fs.readFileSync(path.join(root, 'rust', 'vantage_core', 'src', 'rollout.rs'), 'utf8');

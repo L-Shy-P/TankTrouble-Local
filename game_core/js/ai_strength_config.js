@@ -357,19 +357,74 @@
          * 当前预设：'easy' | 'normal' | 'hard' | 'expert' | 'maximum' | null
          * null = 使用 custom 块（可单独微调 aiProfiles + decisionOverrides）
          */
-        activePreset: 'maximum',
+        activePreset: null,
 
         presets: PRESETS,
 
-        /** activePreset 为 null 时生效 */
+        /**
+         * activePreset 为 null 时生效
+         *
+         * 2026-10-02 主人要求「加强 Laika」后的 custom 块。
+         * 以 maximum 预设为底座（Object.assign 展开，不复制数值——
+         * 以后调 maximum 这里会跟着走），只做三件事：
+         *   ① traits 拉到上限：cleverness/dexterity/determination = 1.0
+         *      （dexterity=1 时 MAX_ROTATION_IMPRECISION / MAX_FIRE_DELAY
+         *        会被插值到 0，下面显式写 0 是双保险）
+         *   ② 清掉残留的**随机**削弱：瞄准抖动与开火角抖动归零
+         *   ③ 加强弹道预测与射位搜索：反弹数 / 射位扇面 / 感知距离
+         *
+         * ⚠️ 必须带上 behavior 块：resolve() 在 custom 模式下只读
+         *    CONFIG.custom.behavior || CONFIG.behavior，而顶层没有 behavior。
+         *    漏掉它会丢掉全部防发呆补丁（antiStall / alwaysHunt / skillIdleWander…），
+         *    结果不是变强而是变弱。
+         *
+         * 回退：把 activePreset 改回 'maximum' 即可，本块不影响任何预设。
+         */
         custom: {
-            aiProfiles: VANILLA_PROFILES,
-            decisionOverrides: {
-                // 示例：取消注释即可全局加强瞄准
-                // MAX_FIRING_PATH_BOUNCES: 8,
-                // MAX_NUM_FIRING_PATHS: 7,
-                // MAX_FIRE_DELAY: 100
-            }
+            aiProfiles: [
+                profile('6148530', 'Laika', {
+                    aggressiveness: '0.88', cleverness: '1.0', boldness: '0.52',
+                    dexterity: '1.0', determination: '1.0', vengefulness: '0.95',
+                    greediness: '0.25'
+                })
+            ],
+            decisionOverrides: Object.assign({}, PRESETS.maximum.decisionOverrides, {
+                // ② 清随机：这两处原本是"永远带抖动"，不受 trait 控制
+                MAX_ROTATION_IMPRECISION: 0.0,
+                FIRING_PATH_RANDOM_OFFSET: 0.0,
+                // 反应延迟压到很小但**不为 0**——作者警告过 0 会导致每帧开火/站桩连射
+                MAX_FIRE_DELAY: 30,
+                MAX_RETALIATE_DELAY: 20,
+                // ③ 加强：更多射位扇面 / 更深反弹 / 更远感知
+                MAX_NUM_FIRING_PATHS: 11,
+                MAX_FIRING_PATH_BOUNCES: 12,
+                MAX_FIRING_PATH_LENGTH: 14,
+                MAX_PROJECTILE_BOUNCES: 9,
+                MAX_PROJECTILE_DISTANCE_TO_CONSIDER: 18,
+                MAX_TANK_HUNT_DISTANCE_TO_CONSIDER: 30
+            }),
+            /**
+             * behavior 块必须带上：resolve() 在 custom 模式下只读
+             * CONFIG.custom.behavior || CONFIG.behavior，而顶层没有 behavior。
+             * 漏掉会丢掉全部防发呆补丁，结果不是变强而是变弱。
+             *
+             * 2026-10-02 复核结论：maximum 预设的 behavior 块**已经把主人要的
+             * 三件事全实现了并且开着**——
+             *   弹道不重复 → diversifyShots:true + sameAngleCooldownMs:300
+             *   多角弹     → cornerRicochet:true + cornerRicochetBonus:3.8
+             *                + wallGrazingAngle 75°~89°
+             *   提前量射击 → interceptShoot:true + interceptScanPaths:31
+             *   躲弹       → smartDodge/dynamicDodge/comboDodge/temporalDodge 全 true
+             * 所以这里只清掉**残留的两处真削弱**（见下）。
+             */
+            behavior: Object.assign({}, PRESETS.maximum.behavior, {
+                // ④ 移除残留的两处削弱行为
+                //    proactiveShoot: maximum 里是 false —— 不允许主动开火
+                proactiveShoot: true,
+                //    aimImprecisionScale: MAX_ROTATION_IMPRECISION 上面已归零，
+                //    但这里还会再乘一次 0.35，是第二道独立的瞄准削弱
+                aimImprecisionScale: 0.0
+            })
         }
     };
 

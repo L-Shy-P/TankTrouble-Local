@@ -115,9 +115,12 @@ function s0() {
     iface.indexOf("illegal.push('生长picks[' + pi + '].back')") >= 0);
   check('validateDecision 接 picks 且无 growTimes', iface.indexOf('out.picks = pk;') >= 0 &&
     iface.indexOf('out.growTimes') < 0);
-  check('树侧 checkBundleSemantics 有 picks[0] 目标 + back 范围 + 非叶响亮拒绝',
+  // ⚠️ v202（2026-10-18）：主人已定「任意没生长过的位置都能生长」⟹ "非叶一律拒绝"这条契约**已作废**。
+  //    新契约 = picks[0] 目标 + back（反向相对帧）范围检查 + 唯一合法性 `hasGrown`。
+  check('树侧 checkBundleSemantics 有 picks[0] 目标 + back 范围（非叶生长已放开，改判 hasGrown）',
     tree.indexOf('targetBack = clean.picks[0].back;') >= 0 && tree.indexOf('越界 [0,') >= 0 &&
-    tree.indexOf('在非叶节点上生长（expandLeaf 会拒绝）') >= 0);
+    tree.indexOf('在非叶节点上生长（expandLeaf 会拒绝）') < 0 &&
+    tree.indexOf('expandRejectHasGrown') >= 0);
   check('树侧 growStep 只消费 picks[0]/growAt[0] 且删了 growTimes', tree.indexOf('[_dec.picks[0].nodeId];   // ★ 只消费 [0]') >= 0 &&
     tree.indexOf('_agentDecision.growTimes') < 0);
 }
@@ -183,12 +186,16 @@ function s4_growat() {
     'callsA=' + h1.state.callsA + ' kids=' + leaf1.children.length);
   check('growAt 多给的 1 个被忽略并记 extras', (h1.tree.stats.ifaceGrowAtExtras || 0) === 1,
     'ifaceGrowAtExtras=' + h1.tree.stats.ifaceGrowAtExtras);
+  // ⚠️ v202（2026-10-18 主人裁定）：**非叶生长已合法** ⟹ 旧断言"非叶 ⟹ 语义层拒绝 3 次"作废。
+  //    现在：`growAt=[根]` 语义层放行（根不是 invalid），到树侧因为**根没有父**（无"段内帧"）被
+  //    `expandRejectBackRange` 计数拒绝 —— 仍然"不静默"，但不再是"重试 3 次"。
   const h2 = newHarness();
   const root = h2.tree.root;
-  h2.state.decision = { growAt: [root.id] };            // 非叶：旧代码会静默 expand-fail
+  h2.state.decision = { growAt: [root.id] };
   h2.tick(2);
-  check('growAt=[非叶根] → A 相语义拒绝（重试 3 次后规则兜底），不再静默', h2.state.callsA === 3,
-    'callsA=' + h2.state.callsA + ' callsB=' + h2.state.callsB);
+  check('growAt=[非叶根] → 语义层放行、树侧以"位置非法(无父/无段内帧)"计数拒绝，不静默',
+    h2.state.callsA === 1 && (h2.tree.stats.expandRejectBackRange || 0) >= 1,
+    'callsA=' + h2.state.callsA + ' rejectBackRange=' + (h2.tree.stats.expandRejectBackRange || 0));
 }
 
 /* ---------- S5 selftest 假绿（成因） ---------- */

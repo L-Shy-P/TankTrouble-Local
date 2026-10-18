@@ -342,6 +342,32 @@ fn parse_scene(json: &Json) -> Result<RolloutInput, String> {
                 Some(Json::Bool(b)) => *b,
                 _ => true,
             },
+            // v9：场景 JSON 可选 `isShrapnel`，缺省 false（旧场景语义不变）。
+            is_shrapnel: match bo.get("isShrapnel") {
+                Some(Json::Bool(b)) => *b,
+                _ => false,
+            },
+            // v10：场景 JSON 可选 `isShotgun`（霰弹：撞墙/撞盾后剩余寿命 ≤0.7s）。
+            is_shotgun: match bo.get("isShotgun") {
+                Some(Json::Bool(b)) => *b,
+                _ => false,
+            },
+            // v11（1-2③）：场景 JSON 可选 `isLaser`（线段扫掠；不看半径）。
+            is_laser: match bo.get("isLaser") {
+                Some(Json::Bool(b)) => *b,
+                _ => false,
+            },
+            // v12（1-2④）：场景 JSON 可选 `isMissile` + `missileTimeAlive`。
+            // ⚠️ 用这个 CLI 跑制导弹场景前必须先用 `vt_set_maze` 装表（否则
+            // run_rollout_batch 会响亮失败）——CLI 没有装表入口，只作对拍夹具。
+            is_missile: match bo.get("isMissile") {
+                Some(Json::Bool(b)) => *b,
+                _ => false,
+            },
+            missile_time_alive: match bo.get("missileTimeAlive") {
+                Some(Json::Number(n)) => *n,
+                _ => 0.0,
+            },
         });
     }
 

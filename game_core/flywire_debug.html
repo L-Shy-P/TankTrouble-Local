@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>果蝇反射层调试页 · FlyWire LIF</title>
+<style>
+  :root { --bg:#0d1117; --fg:#c9d1d9; --dim:#8b949e; --line:#30363d; --hot:#ff7b72; --ok:#3fb950; --cy:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; gap:20px; align-items:baseline; flex-wrap:wrap; }
+  h1 { font-size:15px; margin:0; font-weight:600; }
+  .stat { color:var(--dim); } .stat b { color:var(--fg); font-variant-numeric:tabular-nums; }
+  main { display:grid; grid-template-columns:300px 1fr 260px; gap:14px; padding:14px; align-items:start; }
+  .panel { border:1px solid var(--line); border-radius:6px; padding:10px; }
+  .panel h2 { font-size:12px; margin:0 0 8px; color:var(--dim); font-weight:600; letter-spacing:.4px; }
+  canvas { display:block; background:#010409; border-radius:4px; }
+  #dial { cursor:crosshair; }
+  .hint { color:var(--dim); font-size:11px; margin-top:6px; }
+  .row { display:flex; justify-content:space-between; font-variant-numeric:tabular-nums; }
+  .row span:last-child { color:var(--cy); }
+  #err { color:var(--hot); white-space:pre-wrap; }
+  label { display:flex; align-items:center; gap:8px; color:var(--dim); font-size:12px; margin-top:8px; }
+  input[type=range] { flex:1; }
+</style>
+</head>
+<body>
+<div id="banner" style="display:none;padding:10px 16px;background:#3d1418;color:#ff7b72;border-bottom:1px solid #ff7b72;font-family:ui-monospace,monospace"></div>
+<header>
+  <h1>果蝇反射层 · 调试页</h1>
+  <div class="stat" style="flex:1;min-width:260px;color:#3fb950">操作：① 鼠标在左盘拖动给刺激 ② 勾「读游戏局面」看真实局面 ③ 下方可切决策源</div>
+  <div class="stat">状态 <b id="s-status">加载中…</b></div>
+  <div class="stat"><b id="zoomInfo">—</b></div>
+  <div class="stat">神经元 <b id="s-n">–</b> 边 <b id="s-e">–</b></div>
+  <div class="stat">全网发放/帧 <b id="s-total">0</b></div>
+  <div class="stat">种子群 <b id="s-seed">0</b></div>
+  <div class="stat">中间层 <b id="s-mid">0</b></div>
+  <div class="stat">读出层(DN) <b id="s-dn">0</b></div>
+  <div class="stat">帧 <b id="s-frame">0</b></div>
+</header>
+
+<main>
+  <div class="panel">
+    <h2>感觉输入 · 拖动鼠标给刺激</h2>
+    <canvas id="dial" width="276" height="276"></canvas>
+    <label><input id="c-all" type="checkbox" checked> 全扇区</label>
+    <label><input id="c-game" type="checkbox"> <b>读游戏局面</b></label>
+    <div class="hint" id="game-info">游戏局面：未连接</div>
+    <div id="ifaceBox" style="margin-top:8px;border-top:1px solid #21262d;padding-top:6px;font:11px ui-monospace,monospace;white-space:pre-wrap;color:#8b949e"></div>
+    <div id="ifaceBtns" style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap"></div>
+    <div id="bullets" style="font:10px ui-monospace,monospace;color:#8b949e;margin-top:4px;line-height:1.35;white-space:pre"></div>
+    <div class="hint">圆心=无刺激，越靠外越强。角度=扇区。</div>
+    <label>每帧 LIF 步数 <input id="c-steps" type="range" min="1" max="40" value="16"><b id="c-steps-v">16</b></label>
+    <label>暂停 <input id="c-pause" type="checkbox"></label>
+    <div class="hint" id="err"></div>
+  </div>
+
+  <div class="panel">
+    <h2>网络活动 · 3508 个神经元（每格一个）</h2>
+    <canvas id="grid" width="660" height="648"></canvas>
+    <div class="hint">亮度 = 本窗口发放次数。左下角是种子（感觉）神经元，其余是中间层与读出层。</div>
+  </div>
+
+  <div class="panel">
+    <h2>读出层 · 82 个下行神经元</h2>
+    <canvas id="dn" width="236" height="400"></canvas>
+    <div class="row"><span>读出总发放</span><span id="o-dn">0</span></div>
+    <div class="row"><span>刺激增益</span><span id="o-gain">–</span></div>
+    <div class="hint">下游要接的就是这一列数字。高度=发放率。</div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  // ⚠️ Web Worker 里的 fetch() 相对【Worker 脚本】解析，不是相对页面。
+  //    所以这里必须传绝对 URL（相对 document.baseURI 解析）。
+  var DIR = new URL('external_ai/flywire/', document.baseURI).href;
+  console.log('[FlyDebug] 数据目录 =', DIR);
+  var sectors = new Float64Array(8);
+  for (var _i=0;_i<8;_i++) sectors[_i]=0.85;   // 默认全开，否则拖到小扇区像没反应
+  var mouseDown = false, mouse = { x: 0, y: 0 };
+  var running = true, stepsPerFrame = 16;
+  var EMBED = /[?&]embed=1/.test(location.search);
+  if (EMBED) {
+    // 内嵌：页面按【自然尺寸】渲染，再用 transform 整体缩放适配。
+    // 上一版用 !important 硬改三栏宽度，结果文字挤压重叠、canvas 被切 —— 已废弃。
+    var NAT_W = 1000, NAT_H = 620;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.width = NAT_W + 'px';
+    document.body.style.height = NAT_H + 'px';
+    document.body.style.transformOrigin = '0 0';
+    var fit = function () {
+      // 上限 1.5：框比自然尺寸大时把字放大，不再缩成蚂蚁
+      var sc = Math.min(1.5, Math.min(window.innerWidth / NAT_W, window.innerHeight / NAT_H));
+      document.body.style.transform = 'scale(' + sc + ')';
+      var el = document.getElementById('zoomInfo');
+      if (el) el.textContent = '缩放 ' + Math.round(sc * 100) + '%';
+    };
+    window.addEventListener('resize', fit);
+    try { new ResizeObserver(fit).observe(document.documentElement); } catch (e) {}
+    fit();
+  }
+  if (EMBED) { try { document.querySelector('header h1').textContent = '果蝇反射层 · 内嵌'; } catch (e) {} }
+  window.addEventListener('message', function (ev) {
+    if (ev.data && ev.data.flyAuto === 'game') {
+      var c = document.getElementById('c-game'); if (c) { c.checked = true; }
+    }
+  });
+  var isReady = false, inFlight = false;
+  var SNAP_KEY = 'vantageFlySnapshot';
+  var lastSnap = null;
+
+  /**
+   * 从游戏快照算 8 个【注入通道】。
+   * ⚠️ 这是**临时的手写编码**，只为"看得见"，不是果蝇的视野语义。
+   *    最终方案是让 NN 学编码（主人 2026-10-02 定案）。
+   */
+  // ★ 尺度必须按游戏 constants.js 定，不能拍：
+  //   MAZE_TILE_SIZE = 10.0 单位/格   TANK 3.0×4.0（半对角 ≈2.5）
+  //   BULLET.SPEED = 18.0 单位/秒     TANK.FORWARD_SPEED = 15.95
+  //   旧值 DMAX=2.2 比坦克半宽还小 → 几乎永不满足 → "感知不到子弹"
+  var TMAX = 2.5;   // 秒：约 4.5 格（18 单位/秒 × 2.5s = 45 单位）
+  var DMAX = 6.0;   // 单位：坦克半对角 2.5 + 弹半径 0.25 + 安全余量 ≈ 0.6 格
+
+  /**
+   * 从游戏快照算 8 个【注入通道】。
+   *
+   * ⚠️ 这是**临时的手写编码**，只为"看得见"，不是果蝇的视野语义。
+   *    最终方案是让 NN 学编码（主人 2026-10-02 定案）。
+   *
+   * ★ v2：改用【时间】而不是【距离】——旧版 urgency = closing/(r+0.5)
+   *   只看空间距离，所以"远处的快弹"看不见，表现为短视（主人 2026-10-02 反馈：
+   *   "感官比较短视、视野只有一两格"）。现在算 t_cpa（到最近点时间）与
+   *   miss（最近距离），两者都按尺度衰减。
+   */
+  /** 优先选 AI 那辆坦克（桥接会标 isAI）；没有标记就退回第一辆。 */
+  function pickTank(snap) {
+    if (!snap || !snap.tanks || !snap.tanks.length) return null;
+    for (var i = 0; i < snap.tanks.length; i++) if (snap.tanks[i].isAI) return snap.tanks[i];
+    return snap.tanks[0];
+  }
+
+  function channelsFromSnapshot(snap) {
+    var ch = new Float64Array(8);
+    if (!snap || !snap.tanks || !snap.tanks.length) return ch;
+    var t = pickTank(snap), i;
+    for (i = 0; i < (snap.bullets || []).length; i++) {
+      var b = snap.bullets[i];
+      var dx = b.x - t.x, dy = b.y - t.y;
+      // ★ 只取子弹速度，不减坦克速度（坦克速度 15.95 与弹速 18 同量级，
+      //   减了会让判定随坦克自身机动剧烈摆动）
+      var vx = b.vx || 0, vy = b.vy || 0;
+      var vv = vx * vx + vy * vy;
+      if (vv < 1e-9) continue;
+      var tcpa = -(dx * vx + dy * vy) / vv;                 // 到最近点的时间
+      if (tcpa < 0) continue;                                // 已经飞过去了
+      if (tcpa > TMAX) continue;                             // 太久才到，不算威胁
+      var mx = dx + vx * tcpa, my = dy + vy * tcpa;
+      var miss = Math.sqrt(mx * mx + my * my);               // 最近点距离
+      if (miss > DMAX) continue;                             // 根本打不到
+      // 时间越短越强 × 越准越强
+      // 平方根曲线：线性曲线会让远处的弹强度太低，跨不过 LIF 阈值 → 表现为短视
+      var urg = Math.sqrt(Math.max(0, 1 - tcpa / TMAX)) *
+                Math.sqrt(Math.max(0, 1 - miss / DMAX));
+      var ang = Math.atan2(dy, dx) + Math.PI / 8;
+      if (ang < 0) ang += Math.PI * 2;
+      ch[Math.floor(ang / (Math.PI / 4)) % 8] += urg;
+    }
+    for (i = 0; i < 8; i++) ch[i] = Math.min(1, ch[i]);
+    return ch;
+  }
+
+  var lastDiag = '';
+  var lastRows = [];
+  function diagRows(snap) {
+    var out = [];
+    if (!snap || !snap.tanks || !snap.tanks.length) return out;
+    var t = pickTank(snap);
+    for (var i = 0; i < (snap.bullets || []).length && i < 8; i++) {
+      var b = snap.bullets[i];
+      var dx = b.x - t.x, dy = b.y - t.y;
+      var vx = b.vx || 0, vy = b.vy || 0;   // 不减坦克速度，见 channelsFromSnapshot
+      var vv = vx * vx + vy * vy;
+      var r = Math.sqrt(dx * dx + dy * dy);
+      if (vv < 1e-9) { out.push({ d: r, tc: NaN, miss: NaN, ok: false, why: '速度为0' }); continue; }
+      var tc = -(dx * vx + dy * vy) / vv;
+      var miss = Math.sqrt((dx + vx * tc) ** 2 + (dy + vy * tc) ** 2);
+      var why = '';
+      if (tc < 0) why = '正远离';
+      else if (tc > TMAX) why = '太晚 ' + tc.toFixed(1) + 's';
+      else if (miss > DMAX) why = '偏 ' + miss.toFixed(1);
+      out.push({ d: r, tc: tc, miss: miss, ok: why === '', why: why });
+    }
+    return out;
+  }
+
+  function diagChannels(snap) {
+    if (!snap || !snap.tanks || !snap.tanks.length) return '无坦克';
+    var t = pickTank(snap), n = 0, acc = 0, best = null;
+    for (var i = 0; i < (snap.bullets || []).length; i++) {
+      var b = snap.bullets[i];
+      var dx = b.x - t.x, dy = b.y - t.y;
+      var vx = b.vx || 0, vy = b.vy || 0;   // 同 channelsFromSnapshot：不减坦克速度
+      var vv = vx * vx + vy * vy; if (vv < 1e-9) continue;
+      var tc = -(dx * vx + dy * vy) / vv;
+      var mx = dx + vx * tc, my = dy + vy * tc;
+      var miss = Math.sqrt(mx * mx + my * my);
+      n++;
+      if (tc >= 0 && tc <= TMAX && miss <= DMAX) acc++;
+      if (tc >= 0 && (!best || tc < best.tc)) best = { tc: tc, miss: miss };
+    }
+    return '弹 ' + n + ' 颗，入选 ' + acc + ' 颗' + (best
+      ? '｜最近: ' + best.tc.toFixed(2) + 's / 偏 ' + best.miss.toFixed(1) + '单位'
+      : '');
+  }
+
+  function pullSnapshot() {
+    // ① 同页直连（嵌在游戏页里时用这条：零延迟、不受后台限流影响）
+    try {
+      if (window.parent && window.parent !== window && window.parent.__flyLatestSnapshot) {
+        var ps = window.parent.__flyLatestSnapshot;
+        if (Date.now() - ps.t < 2000) return ps;
+      }
+      if (window.__flyLatestSnapshot) {
+        var ls2 = window.__flyLatestSnapshot;
+        if (Date.now() - ls2.t < 2000) return ls2;
+      }
+    } catch (e0) { /* 跨域或未嵌：走 localStorage */ }
+    // ② localStorage 兜底（两个独立标签页时用这条）
+    try {
+      var raw = localStorage.getItem(SNAP_KEY);
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      return (Date.now() - s.t < 2000) ? s : null;      // 超过 2 秒算过期
+    } catch (e) { return null; }
+  }   // 门控：就绪前不发，在途时不重发
+  var latest = null, nNeurons = 0, frame = 0;
+
+  var w = new Worker('js/vantage_fly_worker.js');
+  function fail(where, msg) {
+    console.error('[FlyDebug]', where, msg);
+    $('s-status').textContent = '失败';
+    $('s-status').style.color = 'var(--hot)';
+    var b = $('banner');
+    b.style.display = 'block';
+    b.textContent = where + '：' + msg;
+    $('err').textContent = where + ': ' + msg;
+  }
+  w.onerror = function (e) { fail('Worker 加载失败', (e && e.message) || '未知（检查 js/vantage_fly_worker.js 是否 200）'); };
+  w.onmessage = function (ev) {
+    var m = ev.data;
+    if (m.type === 'ready') {
+      nNeurons = m.info.neurons;
+      $('s-n').textContent = m.info.neurons.toLocaleString();
+      $('s-e').textContent = m.info.edges.toLocaleString();
+      clearTimeout(readyTimer);
+      clearTimeout(readyTimer);
+      $('s-status').textContent = '运行中';
+      $('s-status').style.color = 'var(--ok)';
+      $('banner').style.display = 'none';       // 清掉启动瞬间那批 'not ready' 残留
+      $('err').textContent = '';
+      isReady = true;
+      buildLayout(m.info);
+    } else if (m.type === 'out') {
+      inFlight = false;
+      latest = m; frame++;
+      $('s-total').textContent = m.spikes;
+      $('s-seed').textContent = m.seedSpikes;
+      $('s-mid').textContent = Math.max(0, m.spikes - m.seedSpikes);
+      var dnSum = 0; for (var i = 0; i < m.rates.length; i++) dnSum += m.rates[i];
+      $('o-dn').textContent = dnSum.toFixed(1) + ' Hz';
+      $('s-dn').textContent = m.rates.length;
+      $('s-frame').textContent = frame;
+      $('o-gain').textContent = m.gain ? m.gain.toFixed(2) : '0';
+    } else if (m.type === 'error') {
+      fail(m.where, m.message);
+    }
+  };
+  // 超时保险：20 秒还没 ready 就明确报错，不留"一直加载中"
+  var readyTimer = setTimeout(function () {
+    if ($('s-status').textContent === '加载中…') {
+      fail('初始化超时', '20 秒内未收到 Worker 的 ready。看 Console 里 [FlyWorker] 停在哪一步。');
+    }
+  }, 20000);
+  // 预检：先确认数据文件真能取到（能给出比 Worker 内部报错更清楚的提示）
+  fetch(DIR + 'reflex_core.json').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + DIR + 'reflex_core.json');
+    console.log('[FlyDebug] 数据预检通过');
+    w.postMessage({ cmd: 'init', bin: DIR + 'reflex_core.bin.gz', cfg: DIR + 'reflex_core.json' });
+  }).catch(function (e) { fail('数据拉取失败', e.message); });
+
+  // ---- 输入盘 ----
+  var dial = $('dial'), dctx = dial.getContext('2d');
+  function drawDial() {
+    var W = dial.width, H = dial.height, cx = W / 2, cy = H / 2, R = W / 2 - 26;
+    dctx.fillStyle = '#010409'; dctx.fillRect(0, 0, W, H);
+    for (var k = 0; k < 8; k++) {
+      var a0 = k * Math.PI / 4 - Math.PI / 8, a1 = a0 + Math.PI / 4;
+      var v = Math.min(1, sectors[k]);
+      dctx.beginPath(); dctx.moveTo(cx, cy);
+      dctx.arc(cx, cy, R, a0, a1); dctx.closePath();
+      dctx.fillStyle = v > 0 ? 'rgba(255,123,114,' + (0.12 + v * 0.75) + ')' : 'rgba(48,54,61,0.5)';
+      dctx.fill();
+      dctx.strokeStyle = '#21262d'; dctx.stroke();
+      // 数值
+      var am = (a0 + a1) / 2;
+      dctx.fillStyle = v > 0.5 ? '#fff' : '#8b949e';
+      dctx.font = '11px ui-monospace,monospace'; dctx.textAlign = 'center';
+      dctx.fillText(v.toFixed(2), cx + Math.cos(am) * R * 0.72, cy + Math.sin(am) * R * 0.72 + 4);
+    }
+    dctx.beginPath(); dctx.arc(cx, cy, 3, 0, 6.284); dctx.fillStyle = '#30363d'; dctx.fill();
+    if (mouseDown) { dctx.beginPath(); dctx.arc(mouse.x, mouse.y, 4, 0, 6.284); dctx.fillStyle = '#ff7b72'; dctx.fill(); }
+  }
+  function dialPick(e) {
+    var r = dial.getBoundingClientRect();
+    mouse.x = (e.clientX - r.left) * dial.width / r.width;
+    mouse.y = (e.clientY - r.top) * dial.height / r.height;
+    var dx = mouse.x - dial.width / 2, dy = mouse.y - dial.height / 2;
+    var R = dial.width / 2 - 26, dist = Math.hypot(dx, dy);
+    var v = Math.max(0, Math.min(1, (dist - 8) / (R - 8)));
+    var ang = Math.atan2(dy, dx) + Math.PI / 8;
+    if (ang < 0) ang += Math.PI * 2;
+    var k = Math.floor(ang / (Math.PI / 4)) % 8;
+    var all = $('c-all').checked;
+    for (var i = 0; i < 8; i++) sectors[i] = all ? v : 0;
+    if (!all) sectors[k] = v;
+    drawDial();
+  }
+  dial.addEventListener('mousedown', function (e) { mouseDown = true; dialPick(e); });
+  window.addEventListener('mousemove', function (e) { if (mouseDown) dialPick(e); });
+  window.addEventListener('mouseup', function () { mouseDown = false; drawDial(); });
+  drawDial();
+
+  // ---- 神经元网格 ----
+  var grid = $('grid'), gctx = grid.getContext('2d');
+  var GW = 60, CELL = Math.floor(grid.width / GW);
+  var pos = null;          // 神经元下标 → 显示位置（按层重排）
+  var groupOf = null;      // 'readout' | 'seed' | 'intrinsic'
+  function buildLayout(info) {
+    var n = info.neurons, i;
+    var isRO = new Uint8Array(n), isSeed = new Uint8Array(n);
+    // seed 集合 = 8 个扇区的并集（从首帧 out 里拿；这里先用 info 里带的）
+    if (info.seedIdx) for (i = 0; i < info.seedIdx.length; i++) isSeed[info.seedIdx[i]] = 1;
+    if (info.readoutIdx) for (i = 0; i < info.readoutIdx.length; i++) isRO[info.readoutIdx[i]] = 1;
+    var order = [], k;
+    for (k = 0; k < n; k++) if (isRO[k]) order.push(k);        // 读出层在最上
+    for (k = 0; k < n; k++) if (!isRO[k] && !isSeed[k]) order.push(k);
+    for (k = 0; k < n; k++) if (isSeed[k]) order.push(k);       // 种子层在最下
+    pos = new Int32Array(n); groupOf = new Uint8Array(n);
+    for (i = 0; i < order.length; i++) {
+      pos[order[i]] = i;
+      groupOf[order[i]] = isRO[order[i]] ? 2 : (isSeed[order[i]] ? 0 : 1);
+    }
+    drawGridBg();
+  }
+  function drawGridBg() {
+    gctx.fillStyle = '#010409'; gctx.fillRect(0, 0, grid.width, grid.height);
+    gctx.strokeStyle = '#0d1117';
+    for (var i = 0; i <= GW; i++) {
+      gctx.beginPath(); gctx.moveTo(i * CELL, 0); gctx.lineTo(i * CELL, grid.height); gctx.stroke();
+    }
+  }
+  function drawGrid() {
+    if (!latest || !latest.byNeuron) return;
+    var a = latest.byNeuron;
+    gctx.fillStyle = '#010409'; gctx.fillRect(0, 0, grid.width, grid.height);
+    for (var i = 0; i < nNeurons; i++) {
+      var v = a[i]; if (!v) continue;
+      var p2 = pos ? pos[i] : i;
+      var x = (p2 % GW) * CELL, y = Math.floor(p2 / GW) * CELL;
+      var t = Math.min(1, v / 3);
+      gctx.fillStyle = 'rgba(' + Math.round(88 + 167 * t) + ',' + Math.round(166 + 89 * t) + ',' + Math.round(255 - 60 * t) + ',' + (0.25 + 0.75 * t) + ')';
+      gctx.fillRect(x, y, CELL, CELL);
+    }
+  }
+
+  // ---- DN 柱状图 ----
+  var dn = $('dn'), nctx = dn.getContext('2d');
+  function drawDn() {
+    nctx.fillStyle = '#010409'; nctx.fillRect(0, 0, dn.width, dn.height);
+    if (!latest || !latest.rates) return;
+    var r = latest.rates, n = r.length;
+    var bw = dn.width / n, maxv = 1;
+    for (var i = 0; i < n; i++) if (r[i] > maxv) maxv = r[i];
+    for (i = 0; i < n; i++) {
+      var h = Math.min(1, r[i] / maxv) * (dn.height - 20);
+      nctx.fillStyle = r[i] > 0 ? '#58a6ff' : '#161b22';
+      nctx.fillRect(i * bw, dn.height - 20 - h, Math.max(1, bw - 1), Math.max(r[i] > 0 ? 2 : 1, h));
+    }
+    nctx.fillStyle = '#30363d'; nctx.fillRect(0, dn.height - 18, dn.width, 1);
+    nctx.fillStyle = '#8b949e'; nctx.font = '11px ui-monospace,monospace'; nctx.textAlign = 'left';
+    nctx.fillText('峰值 ' + maxv.toFixed(1) + ' Hz', 2, dn.height - 5);
+  }
+
+  // 初始绘制（必须在 dctx/gctx/nctx 都赋值之后，否则 gctx 还是 undefined）
+  drawGridBg(); drawDn(); drawDial();
+
+  // ---- 主循环 ----
+  function loop() {
+    var gameMode = $('c-game').checked;
+    if (gameMode) {
+      var snap = pullSnapshot();
+      lastSnap = snap;
+      if (snap) { sectors = channelsFromSnapshot(snap); lastDiag = diagChannels(snap); lastRows = diagRows(snap); drawDial(); }
+    }
+    if (isReady && !inFlight && running && !$('c-pause').checked) {
+      inFlight = true;   // 一次只放一个请求在途，避免队列堆积
+      w.postMessage({ cmd: 'step', sectors: Array.from(sectors), steps: stepsPerFrame, binMs: 1 });
+    }
+    if (gameMode) {
+      $('game-info').textContent = lastSnap
+        ? ('坦克 ' + lastSnap.tanks.length + ' 辆，' + lastDiag)
+        : '游戏局面：未连接（另开游戏标签页并进入一局）';
+      $('game-info').style.color = lastSnap ? 'var(--ok)' : 'var(--dim)';
+    } else {
+      $('game-info').textContent = '游戏局面：未连接';
+      $('game-info').style.color = 'var(--dim)';
+      lastRows = [];
+    }
+    var NL = String.fromCharCode(10);
+    var bl = '';
+    for (var bi = 0; bi < lastRows.length; bi++) {
+      var r0 = lastRows[bi];
+      bl += 'be' + bi + ' d' + r0.d.toFixed(0) + ' t' +
+            (isNaN(r0.tc) ? '--' : r0.tc.toFixed(2)) + 's ' +
+            (r0.ok ? 'OK' : 'X ' + r0.why) + NL;
+    }
+    var bel = $('bullets'); if (bel) bel.textContent = bl;
+
+    // ---- 树接口控制台（读父页的游戏侧状态；独立打开时显示"不可用"） ----
+    try {
+      var W = (window.parent && window.parent !== window) ? window.parent : window;
+      var I = W.VantageTreeInterface, st = W.__vantageIface;
+      var L = [];
+      if (!I) { L.push('接口: 未加载（本页独立打开时看不到游戏侧）'); }
+      else {
+        var cur = I.Agents.current();
+        L.push('接口: ' + I.VERSION + '  决策源: ' + cur.name + (cur.isReady ? (' 就绪:' + (cur.isReady() ? '是' : '否')) : ''));
+        if (st) {
+          L.push('探针: 调用 ' + st.calls + ' 次' + (st.skipped ? '  （跳过: ' + st.skipped + '）' : ''));
+          if (st.lastCtx) L.push('上下文: 节点' + st.lastCtx.nodes + ' 根' + st.lastCtx.root + ' 提交点' + st.lastCtx.commit + ' 弹' + st.lastCtx.bullets);
+          L.push('被采纳: 生长位置 ' + st.growAt + ' 次 | 层数 ' + st.growTimes + ' 次 | 选路 ' + (st.selectUsed||0) + ' 次 | 被拒 ' + st.rejected + ' 次');
+          L.push('违规/重试: 选路违规 ' + (st.selectViolation||0) + ' | 重试 ' + (st.retries||0) + ' 次 | 本帧放弃 ' + (st.giveUp||0) + ' 次');
+        } else L.push('探针: 未启动（树还没跑过）');
+      }
+      var ib = $('ifaceBox'); if (ib) ib.textContent = L.join(String.fromCharCode(10));
+      var bt = $('ifaceBtns');
+      if (bt && !bt.dataset.done) {
+        bt.dataset.done = '1';
+        [['装测试智能体', function () {
+            var I2 = (window.parent && window.parent !== window ? window.parent : window).VantageTreeInterface;
+            if (!I2) return;
+            I2.Agents.register({ name: 'panelTest', isReady: function () { return true; }, decide: function (ctx) {
+              // 找一个非叶节点当生长目标
+              var nl = null;
+              for (var i2 = 0; i2 < ctx.nodes.length && !nl; i2++)
+                for (var j2 = 0; j2 < ctx.nodes.length; j2++)
+                  if (ctx.nodes[j2].parentId === ctx.nodes[i2].id) { nl = ctx.nodes[i2]; break; }
+              // ★ 关键：在【提交点的子节点】里随便挑一个非真死的 —— 规则版会挑分数最高的，
+              //   所以这一步会明显改变 AI 的行为（这是用来验证"智能体能指挥选路"）
+              var kids = [];
+              for (var k2 = 0; k2 < ctx.nodes.length; k2++) {
+                var n2 = ctx.nodes[k2];
+                if (n2.parentId === ctx.commit && !n2.invalid && !n2.exhausted &&
+                    !(n2.fullDeathFrame >= 0 && n2.fullDeathFrame <= 1)) kids.push(n2.id);
+              }
+              var sel = kids.length ? kids[Math.floor(Math.random() * kids.length)] : ctx.commit;
+              return { growAt: nl ? [nl.id] : [], growTimes: 2, select: sel };
+            }});
+            I2.Agents.use('panelTest');
+          }],
+         ['切回规则', function () {
+            var I3 = (window.parent && window.parent !== window ? window.parent : window).VantageTreeInterface;
+            if (I3) I3.Agents.use('rule');
+          }]].forEach(function (pair) {
+          var b = document.createElement('button');
+          b.textContent = pair[0];
+          b.style.cssText = 'cursor:pointer;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:11px';
+          b.onclick = pair[1];
+          bt.appendChild(b);
+        });
+      }
+    } catch (e0) { }
+
+    drawGrid(); drawDn();
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  $('c-steps').addEventListener('input', function () {
+    stepsPerFrame = parseInt(this.value, 10);
+    $('c-steps-v').textContent = this.value;
+  });
+})();
+</script>
+</body>
+</html>

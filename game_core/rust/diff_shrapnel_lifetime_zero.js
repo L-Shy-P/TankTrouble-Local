@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// v163 回归：`lifetime === 0` 表示"这颗弹不靠寿命结束"，不得当 0 秒寿命用。
+// v162 回归：`lifetime === 0` 表示"这颗弹不靠寿命结束"，不得当 0 秒寿命用。
 // 原游戏 Projectile.constructor(state, lifetime, ...)；只有地雷破片传 0
 // （Shrapnel.create(state, 0, ...)），它靠 done()（速度≈0）结束。
 // 旧实现当 0 用 ⇒ lifeLeft=0 ⇒ 融合世界第一帧就杀掉破片 ⇒ 地雷绿死。

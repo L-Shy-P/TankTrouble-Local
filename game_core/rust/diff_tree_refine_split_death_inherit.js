@@ -48,6 +48,7 @@ const adapter = {
 function run(fd, segFrames) {
     VT.setGrowWithoutThreatsEnabled(true);
     VT.setRefineBeyondLimits(true);
+    VT.setHorizonSec(8);   // v179：本用例场景依赖 horizonSec=8（测的是 fd 继承，不是默认值）
     const tree = VT.createTree({ x: 0, y: 0, rot: 0 });
     tree.rootAbsT = 0;
     tree.root.simState = { tank: { x: 0, y: 0, rot: 0 }, tGlobal: 0 };

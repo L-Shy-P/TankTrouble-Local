@@ -4,9 +4,9 @@
  *
  * Exposes:
  *   - version()
- *   - rolloutBatch(...)         (ABI v2: vt_rollout_batch)
+ *   - rolloutBatch(...)         (ABI v2: vt_rollout_batch; v11: bullet kind code incl. 3=LASER)
  *   - rescoreNodes(...)         (ABI v5: vt_rescore_nodes)
- *   - scorePaths(...)           (ABI v6: vt_score_paths)
+ *   - scorePaths(...)           (ABI v6: vt_score_paths; v11: bullet kind code incl. 3=LASER)
  *   - buildWallRects(...)
  *   - sweepDangerFrames(...)
  *   - minimalDecide(...)
@@ -83,7 +83,13 @@
             try {
                 // v160：wasm 内容变了（ABI v7→v8 新增 vt_set_frame_dt），**这里必须同步提版本号**，
             // 否则浏览器会一直用缓存里的旧 wasm，改了等于没改（踩过一次）。
-            wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=13';
+            // v9：vt_rollout_batch / vt_score_paths 弹体数组新增 bullet_is_shrapnel，
+            // 缓存戳 13→14（见《待查清单》§19）。
+            // v10：同一位扩成**弹种码**（0=普通 1=破片 2=霰弹）⇒ wasm 内容又变了，
+            // 缓存戳 15→16，**不同步提就会一直吃浏览器缓存里的旧 wasm**。
+            // v12（1-2④）：ABI v12（弹种码 4=HOMING_MISSILE + 新导出 `vt_set_maze`
+            //   + `vt_rollout_batch` 两个尾参 maze_id/bullet_missile_ta）⇒ 缓存戳 18→19。
+            wasmUrl = wasmUrl || 'js/wasm/vantage_core.wasm?v=19';
 
                 var instance;
                 if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -119,6 +125,19 @@
                     throw new Error('vantage_core.wasm is missing required vt_* exports');
                 }
 
+                // v11（1-2③）：ABI 11 起弹种码含 3=LASER、vt_rescore_nodes 多 threat_kind。
+                // v12（1-2④）：ABI 12 起弹种码含 4=HOMING_MISSILE、新增 `vt_set_maze`、
+                //   `vt_rollout_batch` 多两个尾参（maze_id / bullet_missile_ta）。
+                // ⚠️ 只改源码版本号不同步改 bridge 实参个数 ⟹ 一旦重编就是
+                //   「wasm 12 + bridge 按 11 传参」→ 尾参 undefined → Rust 快路**静默**
+                //   掉回 JS（回归全绿也查不出来）。所以 A/E/bridge/wasm 必须原子落。
+                var abi = this._exports.vt_version();
+                if (abi < 12) {
+                    throw new Error('vantage_core.wasm ABI v' + abi + ' < required v12');
+                }
+                if (typeof this._exports.vt_set_maze !== 'function') {
+                    throw new Error('vantage_core.wasm ABI v' + abi + ' is missing vt_set_maze (v12)');
+                }
                 this._ready = true;
                 return { ok: true };
             } catch (e) {
@@ -139,6 +158,66 @@
                 return failure(e);
             }
         },
+
+        /**
+         * v12（1-2④）：一次性把追踪导弹要用的迷宫表写进 Rust（ABI v12
+         * `vt_set_maze(maze_id,w,h,flags,next_tile)`）。
+         *
+         * JS API：
+         *   input = {
+         *     mazeId: <0..2^32-1>,        // 同一张 maze 必须稳定（沙箱用 WeakMap 发号）
+         *     w, h: <1..64 的整数>,        // w*h <= 4096（与 Rust 侧上限一致）
+         *     flags: Uint8Array(w*h),      // bit0 reachable / bit1 leftWall / bit2 topWall / bit3 floor
+         *     nextTile: Uint8Array(w*h*w*h) // 下标 from*(w*h)+to，值=下一格下标；255=不可算
+         *   }
+         * returns {ok:true} 或 {ok:false,error}。
+         *
+         * 表由 `VantageSandbox.buildNextTileTable` 用**游戏自己的 API** 预计算
+         *（Rust 不复刻 jKstra 的双向 Dijkstra；平局是它的实现细节）。
+         * `maze_id` 变了 Rust 会整表重建 = maze 变更的失效机制。
+         */
+        setMaze: function (input) {
+            try {
+                this._ensureReady();
+                var badInput = function (msg) { var e = new Error(msg); e._isValidationError = true; return e; };
+                if (!input || typeof input !== 'object') throw badInput('setMaze input is required');
+                if (typeof this._exports.vt_set_maze !== 'function') {
+                    throw new Error('vantage_core.wasm ABI < v12 (no vt_set_maze)');
+                }
+                var mazeId = Number(input.mazeId);
+                if (!Number.isInteger(mazeId) || mazeId < 0 || mazeId > 0xFFFFFFFF) {
+                    throw badInput('mazeId must be an integer in [0, 2^32-1]');
+                }
+                var w = Number(input.w), h = Number(input.h);
+                if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1 || w > 64 || h > 64) {
+                    throw badInput('w/h must be integers in [1, 64]');
+                }
+                var n = w * h;
+                if (n > 4096) throw badInput('w*h must be <= 4096');
+                var flags = input.flags;
+                var nextTile = input.nextTile;
+                if (!(flags instanceof Uint8Array) || flags.length !== n) {
+                    throw badInput('flags must be a Uint8Array of w*h bytes');
+                }
+                if (!(nextTile instanceof Uint8Array) || nextTile.length !== n * n) {
+                    throw badInput('nextTile must be a Uint8Array of w*h*w*h bytes');
+                }
+
+                var flagsBase = this._allocBytes(n);
+                var nextBase = this._allocBytes(n * n);
+                new Uint8Array(this._memory.buffer, flagsBase, n).set(flags);
+                new Uint8Array(this._memory.buffer, nextBase, n * n).set(nextTile);
+                var ret = this._exports.vt_set_maze(mazeId >>> 0, w, h, flagsBase, nextBase);
+                if (ret !== 1) {
+                    throw new Error('vt_set_maze returned failure (' + ret + ')');
+                }
+                return { ok: true };
+            } catch (e) {
+                if (e && e._isValidationError) throw e;
+                return failure(e);
+            }
+        },
+
         /**
          * Fused rollout batch over up to 9 operations (ABI v2).
          *
@@ -148,7 +227,9 @@
          *     startPose: {x,y,rot},
          *     ops: [{speed, rotationSpeed}],        // 1..9 entries
          *     walls: [{verts:[[x,y],...]}],         // 0..1024 walls, 3..8 verts
-         *     bullets: [{x,y,vx,vy,radius,lifeLeft,active}], // 0..64 bullets
+         *     bullets: [{x,y,vx,vy,radius,lifeLeft,active,isShrapnel}],
+         *                                              // 0..256 bullets; isShrapnel
+         *                                              // 缺省 false = 普通弹
          *     frames: <integer 0..75>
          *   }
          * returns {ok:true,samples:[[{x,y,rot}...]],dead:[bool],deathFrame:[number]}
@@ -164,7 +245,8 @@
          * 背景：rollout.rs / rescore.rs 原本把 0.02 写死，JS 校准后是 ~0.0167，
          * 两边不一致 → rustFrameDtCompatible() 停用 Rust 快路 → 实测只有 44%
          * 时间 Rust 在跑。现在两边同口径，Rust 可以一直开着。
-         * 值域 Rust 侧钳在 [0.005, 0.2]，越界忽略。
+         * 值域 Rust 侧与 JS 侧一致：钳在 [0.001, 1.0]（v163b 从 [0.005, 0.2] 放宽，
+         * 否则 >200fps / 240Hz 的 0.00417s 会被静默吞掉），越界忽略。
          */
         setFrameDt: function (dt) {
             if (!this._ready || !this._exports || typeof this._exports.vt_set_frame_dt !== 'function') return false;
@@ -188,6 +270,12 @@
                 if (typeof frames !== 'number' || !Number.isInteger(frames) ||
                         frames < 0 || frames > 75) {
                     throw badInput('frames must be an integer in [0, 75]');
+                }
+                // v12（1-2④）：`maze_id` 尾参（无制导弹时沙箱传 0；Rust 只在
+                // 场上真有弹种码 4 时才用它比对 `vt_set_maze` 的缓存 id）。
+                var mazeIdIn = (input.mazeId === undefined || input.mazeId === null) ? 0 : Number(input.mazeId);
+                if (!Number.isInteger(mazeIdIn) || mazeIdIn < 0 || mazeIdIn > 0xFFFFFFFF) {
+                    throw badInput('mazeId must be an integer in [0, 2^32-1]');
                 }
 
                 var startPose = input.startPose;
@@ -293,6 +381,11 @@
                 var bulletRadiusBytes = Math.max(1, bulletCount) * 8;
                 var bulletLifeBytes = Math.max(1, bulletCount) * 8;
                 var bulletActiveBytes = Math.max(1, bulletCount);
+                // v9：破片标记数组，长度与 bulletCount 一致（与 Rust ABI 同序）。
+                var bulletIsShrapnelBytes = Math.max(1, bulletCount);
+                // v12（1-2④）：每弹 timeAlive（秒）—— 只对弹种码 4=HOMING_MISSILE
+                // 有意义（判 `> 2.0` 激活门）；Rust 在无制导弹时忽略它。
+                var bulletMissileTaBytes = Math.max(1, bulletCount) * 8;
                 var outSamplesBytes = opCount * stride * 8;
                 var outDeadBytes = opCount;
                 var outDeathBytes = opCount * 4;
@@ -312,7 +405,9 @@
                 var bulletRadiusBase = off; off += bulletRadiusBytes;
                 var bulletLifeBase = off; off += bulletLifeBytes;
                 var bulletActiveBase = off; off += bulletActiveBytes;
+                var bulletIsShrapnelBase = off; off += bulletIsShrapnelBytes;
                 off = align8(off);
+                var bulletMissileTaBase = off; off += bulletMissileTaBytes;
                 var outXBase = off; off += outSamplesBytes;
                 var outYBase = off; off += outSamplesBytes;
                 var outRotBase = off; off += outSamplesBytes;
@@ -333,6 +428,8 @@
                 bulletRadiusBase += base;
                 bulletLifeBase += base;
                 bulletActiveBase += base;
+                bulletIsShrapnelBase += base;
+                bulletMissileTaBase += base;
                 outXBase += base;
                 outYBase += base;
                 outRotBase += base;
@@ -369,6 +466,8 @@
                     var bulletRadius = new Float64Array(this._memory.buffer, bulletRadiusBase, bulletCount);
                     var bulletLifeLeft = new Float64Array(this._memory.buffer, bulletLifeBase, bulletCount);
                     var bulletActive = new Uint8Array(this._memory.buffer, bulletActiveBase, bulletCount);
+                    var bulletIsShrapnel = new Uint8Array(this._memory.buffer, bulletIsShrapnelBase, bulletCount);
+                    var bulletMissileTa = new Float64Array(this._memory.buffer, bulletMissileTaBase, bulletCount);
                     for (i = 0; i < bulletCount; i++) {
                         var b = bullets[i];
                         bulletX[i] = Number(b.x);
@@ -378,6 +477,15 @@
                         bulletRadius[i] = Number(b.radius);
                         bulletLifeLeft[i] = Number(b.lifeLeft);
                         bulletActive[i] = b.active ? 1 : 0;
+                        // v9：MINE 破片标记（JS 侧由 slot.isShrapnel 得来）。
+                        // v10：这一位扩成**弹种码**（Rust `BulletInput` 拆成 is_shrapnel/is_shotgun）：
+                        //   0=普通、1=破片、2=霰弹。JS 侧由 slot.isShrapnel / slot.isShotgun 得来。
+                        // v11（1-2③）：3=LASER；禁止用半径 0/0.05 判种。
+                        // v12（1-2④）：4=HOMING_MISSILE（必须显式传码；Rust 才会制导）。
+                        bulletIsShrapnel[i] = b.isMissile ? 4
+                            : (b.isLaser ? 3 : (b.isShotgun ? 2 : (b.isShrapnel ? 1 : 0)));
+                        // v12：制导弹的 timeAlive（秒）。非制导弹一律 0。
+                        bulletMissileTa[i] = b.isMissile ? Number(b.missileTimeAlive || 0) : 0;
                     }
                 }
 
@@ -389,10 +497,15 @@
                     opSpeedBase, opRotBase, opCount,
                     wallCountsBase, wallVertsBase, wallCount,
                     bulletXBase, bulletYBase, bulletVxBase, bulletVyBase,
-                    bulletRadiusBase, bulletLifeBase, bulletActiveBase, bulletCount,
+                    bulletRadiusBase, bulletLifeBase, bulletActiveBase,
+                    bulletIsShrapnelBase, bulletCount,
                     frames,
                     outXBase, outYBase, outRotBase,
-                    outDeadBase, outDeathFrameBase
+                    outDeadBase, outDeathFrameBase,
+                    // v12（1-2④）：尾参 `maze_id` + `bullet_missile_ta`。
+                    // ⚠️ 这两个实参必须与 `lib.rs` 的 v12 签名**同批落**；少传就是
+                    // 「wasm 12 + bridge 按 11 传参」→ 尾参 undefined → 静默掉回 JS。
+                    mazeIdIn, bulletMissileTaBase
                 );
                 if (ret !== 1) {
                     throw new Error('vt_rollout_batch returned failure (' + ret + ')');
@@ -466,6 +579,71 @@
          * (deathFrame, or min(frames, sampleCount-1) when no death).
          */
         rescoreNodes: function (input) {
+            try {
+                // v12（1-2④）路线 B2：有制导弹威胁时**按 node 逐次调用**
+                // `vt_rescore_nodes`（1 node/次），每次带该 node 算好的制导弹道。
+                // 理由：现有 ABI 的 `track` 是「每威胁一条、同一次调用的所有 node
+                // 共用」，而制导弹道依赖**该 node 的坦克轨迹** ⟹ 一个 node 一条轨道。
+                // Rust 一行不改（正是路线 B 的初衷）；代价 = 有制导弹时调用次数 = node 数。
+                var _threats0 = (input && Array.isArray(input.threats)) ? input.threats : null;
+                var _hasMissileThreat = false;
+                if (_threats0) {
+                    for (var _mi = 0; _mi < _threats0.length; _mi++) {
+                        var _mt = _threats0[_mi];
+                        if (_mt && Number(_mt.kind) === 4) { _hasMissileThreat = true; break; }
+                    }
+                }
+                if (!_hasMissileThreat || !input || !Array.isArray(input.nodes)) {
+                    return this._rescoreNodesOnce(input);
+                }
+                var badIn = function (msg) { var e = new Error(msg); e._isValidationError = true; return e; };
+                var mergedNodes = [];
+                for (var _ni = 0; _ni < input.nodes.length; _ni++) {
+                    var _node = input.nodes[_ni];
+                    if (!_node || typeof _node !== 'object') throw badIn('nodes[' + _ni + '] is not an object');
+                    var _tracks = _node.missileTracks;
+                    if (!Array.isArray(_tracks) || _tracks.length !== _threats0.length) {
+                        throw badIn('nodes[' + _ni + '].missileTracks must be an array with one entry per threat ' +
+                            'when a homing missile threat is present (B2 per-node delivery)');
+                    }
+                    var threatsOne = [];
+                    for (var _ti = 0; _ti < _threats0.length; _ti++) {
+                        var _t = _threats0[_ti];
+                        var _copy = {};
+                        for (var _kk in _t) {
+                            if (Object.prototype.hasOwnProperty.call(_t, _kk)) _copy[_kk] = _t[_kk];
+                        }
+                        if (Number(_t && _t.kind) === 4) {
+                            var _tr = _tracks[_ti];
+                            if (!Array.isArray(_tr) || _tr.length < 1) {
+                                throw badIn('nodes[' + _ni + '].missileTracks[' + _ti + '] must be a non-empty track');
+                            }
+                            _copy.track = _tr;   // 该 node 专属的制导弹道
+                        }
+                        threatsOne.push(_copy);
+                    }
+                    var _r = this._rescoreNodesOnce({
+                        cacheId: input.cacheId,
+                        walls: input.walls,
+                        nodes: [_node],
+                        threats: threatsOne,
+                        cfg: input.cfg
+                    });
+                    if (!_r || _r.ok !== true || !Array.isArray(_r.nodes) || _r.nodes.length !== 1) {
+                        return { ok: false, error: 'B2 per-node rescore failed at node ' + _ni +
+                            ': ' + ((_r && _r.error) || 'unknown') };
+                    }
+                    mergedNodes.push(_r.nodes[0]);
+                }
+                return { ok: true, nodes: mergedNodes };
+            } catch (e) {
+                if (e && e._isValidationError) throw e;
+                return failure(e);
+            }
+        },
+
+        /** v12：单次调用实现（`rescoreNodes` 的非制导弹路径 / B2 的逐 node 内核）。 */
+        _rescoreNodesOnce: function (input) {
             try {
                 this._ensureReady();
                 var badInput = function (msg) { var e = new Error(msg); e._isValidationError = true; return e; };
@@ -618,6 +796,7 @@
                 var trackCounts = [];
                 var pathCounts = [];
                 var threatIsNew = [];
+                var threatKind = [];   // v11（1-2③）：0普通/1破片/2霰弹/3激光
                 var totalTrack = 0;
                 var totalPath = 0;
                 for (i = 0; i < threatCount; i++) {
@@ -687,6 +866,16 @@
                         throw badInput('threats[' + i + '].isNew must be a boolean');
                     }
                     threatIsNew.push(th.isNew ? 1 : 0);
+                    // v11（1-2③）：激光必须显式传 kind=3（禁止用半径 0/0.05 推断）。
+                    var thKind = Number(th.kind !== undefined ? th.kind : (th.isLaser ? 3 : 0));
+                    // v12（1-2④）：kind 4 = HOMING_MISSILE（rescore.rs 只在
+                    // `is_laser=(kind==3)` 处用弹种码，kind 4 被自然忽略 ⟹
+                    // Rust 0 行改动；制导弹道由 JS 生产者按 node 预算成 track 喂进来）。
+                    if (!isFinite(thKind) || thKind < 0 || thKind > 4 || Math.floor(thKind) !== thKind) {
+                        throw badInput('threats[' + i + '].kind must be an integer in [0,4]');
+                    }
+                    threatKind.push(thKind);
+
                 }
 
                 var deathPenalty = Number(cfg.deathPenalty !== undefined ? cfg.deathPenalty : 0);
@@ -726,6 +915,7 @@
                 var speedBytes = Math.max(1, threatCount) * 8;
                 var bulletRadiusBytes = Math.max(1, threatCount) * 8;
                 var lifeLeftBytes = Math.max(1, threatCount) * 8;
+                var threatKindBytes = threatCount > 0 ? threatCount : 0;
                 // Only pass a previous-score block when every node has one;
                 // a single null pointer cannot represent a per-node None.
                 // v9: hasPrev/prevDeath are always passed and tell Rust which
@@ -768,6 +958,9 @@
                 var speedBase = off; off += speedBytes;
                 var bulletRadiusBase = off; off += bulletRadiusBytes;
                 var lifeLeftBase = off; off += lifeLeftBytes;
+                off = align4(off);
+                var threatKindBase = off; off += threatKindBytes;
+                off = align8(off);   // v11：u8 数组后必须重新 8 对齐，否则后续 Float64Array 起步非 8 倍数
                 var prevPfsBase = off; off += prevPfsBytes;
                 var nodeHasPrevBase = off; off += nodeHasPrevBytes;
                 off = align4(off);
@@ -802,6 +995,7 @@
                 speedBase += base;
                 bulletRadiusBase += base;
                 lifeLeftBase += base;
+                threatKindBase += base;   // v11：新增 u8 数组必须与其它输入一起平移
                 prevPfsBase += base;
                 nodeHasPrevBase += base;
                 prevDeathBase += base;
@@ -886,6 +1080,7 @@
                     var bulletRadius = new Float64Array(this._memory.buffer, bulletRadiusBase, threatCount);
                     var lifeLeft = new Float64Array(this._memory.buffer, lifeLeftBase, threatCount);
                     var threatIsNewView = new Uint8Array(this._memory.buffer, threatIsNewBase, threatCount);
+                    var threatKindView = new Uint8Array(this._memory.buffer, threatKindBase, threatCount);
 
                     var tOff = 0;
                     var pOff = 0;
@@ -911,6 +1106,7 @@
                         bulletRadius[i] = Number(th2.bulletRadius !== undefined ? th2.bulletRadius : 0.25);
                         lifeLeft[i] = Number(th2.lifeLeftSeconds !== undefined ? th2.lifeLeftSeconds : 10);
                         threatIsNewView[i] = threatIsNew[i];
+                        threatKindView[i] = threatKind[i];
                     }
                 }
 
@@ -926,6 +1122,7 @@
                     trackCountsBase, trackXBase, trackYBase, trackAliveBase,
                     pathCountsBase, pathXBase, pathYBase,
                     anchorOffsetBase, speedBase, bulletRadiusBase, lifeLeftBase,
+                    threatCount > 0 ? threatKindBase : 0,
                     deathPenalty, stuckPenalty, stuckDistEps, stuckRotEps,
                     lanePenaltyRatio, springRopeEnabled, occlusionEnabled,
                     allNodesPrev ? prevPfsBase : 0,
@@ -948,7 +1145,9 @@
                 var outNodes = [];
                 for (i = 0; i < nodeCount; i++) {
                     var df = outDeath[i];
-                    var actualFrames = df > 0 ? df : Math.min(nodeFrames[i], sampleCounts[i] - 1);
+                    // v172（1-2③收尾）：fd=0 也要读 1 条（哨兵 -deathPenalty），
+                    // 不能按“没死”读满 frames（旧 `df > 0` 会把 fd=0 的分数读错）。
+                    var actualFrames = df >= 0 ? Math.max(1, df) : Math.min(nodeFrames[i], sampleCounts[i] - 1);
                     var pfs = [];
                     var pfsBaseIdx = i * 75;
                     for (k = 0; k < actualFrames; k++) {
@@ -1212,6 +1411,8 @@
                 var bulletRadiusBytes = Math.max(1, bulletCount) * 8;
                 var bulletLifeBytes = Math.max(1, bulletCount) * 8;
                 var bulletActiveBytes = Math.max(1, bulletCount);
+                // v9：破片标记数组，长度与 bulletCount 一致（与 Rust ABI 同序）。
+                var bulletIsShrapnelBytes = Math.max(1, bulletCount);
                 var trackCountsBytes = Math.max(1, threatCount) * 4;
                 var pathCountsBytes = Math.max(1, threatCount) * 4;
                 var trackXBytes = Math.max(1, totalTrack) * 8;
@@ -1244,6 +1445,7 @@
                 var bulletRadiusBase = off; off += bulletRadiusBytes;
                 var bulletLifeBase = off; off += bulletLifeBytes;
                 var bulletActiveBase = off; off += bulletActiveBytes;
+                var bulletIsShrapnelBase = off; off += bulletIsShrapnelBytes;
                 off = align4(off);
                 var trackCountsBase = off; off += trackCountsBytes;
                 var pathCountsBase = off; off += pathCountsBytes;
@@ -1279,6 +1481,7 @@
                 bulletRadiusBase += base;
                 bulletLifeBase += base;
                 bulletActiveBase += base;
+                bulletIsShrapnelBase += base;
                 trackCountsBase += base;
                 pathCountsBase += base;
                 trackXBase += base;
@@ -1328,6 +1531,7 @@
                     var bulletRadius = new Float64Array(this._memory.buffer, bulletRadiusBase, bulletCount);
                     var bulletLifeLeft = new Float64Array(this._memory.buffer, bulletLifeBase, bulletCount);
                     var bulletActive = new Uint8Array(this._memory.buffer, bulletActiveBase, bulletCount);
+                    var bulletIsShrapnel = new Uint8Array(this._memory.buffer, bulletIsShrapnelBase, bulletCount);
                     for (i = 0; i < bulletCount; i++) {
                         var b = bullets[i];
                         bulletX[i] = Number(b.x);
@@ -1337,6 +1541,11 @@
                         bulletRadius[i] = Number(b.radius);
                         bulletLifeLeft[i] = Number(b.lifeLeft);
                         bulletActive[i] = b.active ? 1 : 0;
+                        // v9：MINE 破片标记（JS 侧由 slot.isShrapnel 得来）。
+                        // v10：这一位扩成**弹种码**（Rust `BulletInput` 拆成 is_shrapnel/is_shotgun）：
+                        //   0=普通、1=破片、2=霰弹。JS 侧由 slot.isShrapnel / slot.isShotgun 得来。
+                        // v11（1-2③）：3=LASER；禁止用半径 0/0.05 判种。
+                        bulletIsShrapnel[i] = b.isLaser ? 3 : (b.isShotgun ? 2 : (b.isShrapnel ? 1 : 0));
                     }
                 }
 
@@ -1383,7 +1592,8 @@
                     opSpeedBase, opRotBase, opMovingBase, opCount,
                     wallCountsBase, wallVertsBase, wallCount,
                     bulletXBase, bulletYBase, bulletVxBase, bulletVyBase,
-                    bulletRadiusBase, bulletLifeBase, bulletActiveBase, bulletCount,
+                    bulletRadiusBase, bulletLifeBase, bulletActiveBase,
+                    bulletIsShrapnelBase, bulletCount,
                     frames,
                     threatCount,
                     trackCountsBase, trackXBase, trackYBase, trackAliveBase,
@@ -1420,7 +1630,8 @@
                         });
                     }
                     var df = outDeath[i];
-                    var actualFrames = df > 0 ? df : frames;
+                    // v172：同上，fd=0 的 perFrameScores 只有 1 条（死罚）。
+                    var actualFrames = df >= 0 ? Math.max(1, df) : frames;
                     var pfs = [];
                     var pfsBaseIdx = i * 75;
                     for (k = 0; k < actualFrames; k++) {
@@ -1735,6 +1946,6 @@
     global.VantageRustBridge = VantageRustBridge;
 
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
-        console.log('[VantageRustBridge] loaded (v10: v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)');
+        console.log('[VantageRustBridge] loaded (v14: ABI v11 弹种码 0=普通/1=破片/2=霰弹/3=激光 + vt_rescore_nodes threat_kind 尾参 + v172 fd=0 rescore/scorePaths 消费层修正 + v6 ABI + vt_score_paths nine-op scored rollouts + v5 rescore, not auto-init)');
     }
 })(typeof window !== 'undefined' ? window : this);

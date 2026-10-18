@@ -46,6 +46,7 @@ VT_LEARN_DIR = os.environ.get('VT_LEARN_DIR') or 'D:/vt_run/panel_learn'
 #   ⚠️ 改这里之后【必须重启 game_core/server.py】（服务端启动时把权重读进内存，不会热加载）。
 #   核对方式：打开面板「检查点」看 md5，应为 df9db1f8...
 VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/loop/r10/ckpt/last.pt'
+_VT_CKPT_RE = re.compile(r'"ckpt"\s*:\s*"([^"]*)"')   # ⭐ 透传路径只靠它取 ckpt（不整包解析；2026-10-18 性能代理）
 _VT_LEARN_LOCK = threading.Lock()
 _VT_LEARN_COUNT = {}
 
@@ -137,6 +138,10 @@ class PolicyBridge(object):
             raise RuntimeError('策略脚本不存在: ' + VT_POLICY_SCRIPT)
         env = dict(os.environ)
         env['PYTHONIOENCODING'] = 'utf-8'
+        # ⭐ 2026-10-18（性能代理）：把策略进程的**优化开关**显式透传（默认 mem,echo,json,tensor,argmax,sync,zero）
+        #   逐项实测见 `_tools/perf/pm_ab.js` 报告；`VT_FAST=` 显式清空即退回老口径。
+        if 'VT_FAST' not in env:
+            env['VT_FAST'] = 'mem,echo,json,tensor,argmax,sync,zero,memg'
         if ckpt:
             if not os.path.exists(ckpt):
                 raise RuntimeError('权重文件不存在: ' + ckpt)
@@ -174,18 +179,31 @@ class PolicyBridge(object):
             except Exception:
                 pass
 
-    def ask(self, req, timeout=120.0):
-        req = req or {}
-        ckpt = req.get('ckpt') or self._ckpt or VT_DEFAULT_CKPT
-        payload = dict(req)
-        payload.pop('ckpt', None)
+    def ask(self, req=None, timeout=120.0, raw=None):
+        """raw = 原始 JSON 文本（bytes/str）⟹ **原样转发**给策略进程，不再 json.loads + json.dumps 一遍。
+
+        背景（2026-10-18 性能代理实测）：面板载荷 ~91KB，`json.loads`+`json.dumps` 一来一回 ~2.5ms/帧，
+          而策略进程本来就只认 JSON 文本 ⟹ 只要不需要修改载荷就可以直接透传。
+        口径：`ckpt` 字段**原样留着**（策略进程不读它：`policy_server_graph.py` 只读 mem_on/phase/round_id/seed/fire_cand/...）。
+        """
+        if raw is not None:
+            txt = raw.decode('utf-8') if isinstance(raw, (bytes, bytearray)) else str(raw)
+            _m = _VT_CKPT_RE.search(txt[:2048])
+            ckpt = (_m.group(1) if _m else None) or self._ckpt or VT_DEFAULT_CKPT
+            payload_line = txt
+        else:
+            req = req or {}
+            ckpt = req.get('ckpt') or self._ckpt or VT_DEFAULT_CKPT
+            payload = dict(req)
+            payload.pop('ckpt', None)
+            payload_line = json.dumps(payload, ensure_ascii=False)
         with self._lock:
             t_req = time.time()
             if self._proc is None or self._ckpt != ckpt or self._proc.poll() is not None:
                 self.start(ckpt)
             proc = self._proc
             try:
-                proc.stdin.write(json.dumps(payload, ensure_ascii=False) + '\n')
+                proc.stdin.write(payload_line + '\n')
                 proc.stdin.flush()
             except Exception as e:
                 raise RuntimeError('写策略进程失败: %r' % (e,))
@@ -501,7 +519,16 @@ class GameHandler(SimpleHTTPRequestHandler):
                 self._send_json(400, {'lp': None, 'v': None, 'err': 'vt_policy 请求不是合法 JSON: %s' % e})
                 return True
             try:
-                resp = _POLICY.ask(req)
+                # ⭐ 原样透传（省掉 91KB 的 json.loads+json.dumps ≈2.5ms/帧）。
+                #    ⚠️ 仍然先校验一次 JSON 合法性（畸形请求必须 400，⛔ 不能把垃圾塞给策略进程）
+                #    （只做一次 O(1) 结构检查：整包 `json.loads` 91KB 要 ~1.5ms，而策略进程自己会 json.loads ⟹ 非法包它自己会回 err）
+                if not body.lstrip()[:1] in (b'{', b'['):
+                    self._send_json(400, {'lp': None, 'v': None, 'err': 'vt_policy 请求不是合法 JSON（首字节不是 {/[）'})
+                    return True
+                resp = _POLICY.ask(raw=body)
+            except json.JSONDecodeError:
+                self._send_json(400, {'lp': None, 'v': None, 'err': 'vt_policy 请求不是合法 JSON'})
+                return True
             except Exception as e:
                 self._send_json(500, {'lp': None, 'v': None, 'err': str(e)[:400]})
                 return True

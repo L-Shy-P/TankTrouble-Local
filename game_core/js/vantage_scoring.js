@@ -1290,9 +1290,13 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         };
     }
 
-    function scoreFrame(adapter, tankState, bulletPositions, cfg) {
+    function scoreFrame(adapter, tankState, bulletPositions, cfg, bulletSegments) {
         cfg = mergeCfg(cfg);
         var dead = adapter.checkDeath(tankState, bulletPositions);
+        // v171（1-2③）：激光 threat 的线段扫掠（点采样看不见的帧间穿越）。
+        if (!dead && bulletSegments && bulletSegments.length && adapter.checkDeathSweep) {
+            dead = adapter.checkDeathSweep(tankState, bulletSegments);
+        }
         if (dead) {
             return {
                 dead: true,
@@ -1476,6 +1480,9 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
      *   tIn  = v7 首次进入固定圈的时刻（秒，穿入段插值；t=0 已在圈内 → 0；
      *          视界内不入圈 → null）——基准时间 min(tIn)+K_post 的输入
      */
+    // v12（1-2④）：D2 记账（追踪导弹追别人被摘掉的次数；与沙箱 `getFusedDropStats`
+    //   的 `droppedTargetOther` 同口径，供验收/诊断）。
+    var _droppedTargetOtherCount = 0;
     function computeThreats(adapter, tankState, cfg) {
         cfg = mergeCfg(cfg);
         var consts = adapter.constants;
@@ -1544,6 +1551,9 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
                 speed: pp.speed,
                 x: pp.x,
                 y: pp.y,
+                type: (pp.type !== undefined ? pp.type : null),   // v171（1-2③）
+                sweep: !!pp.sweep,                                 // v171：激光线段扫掠
+
                 tEnd: tEnd,
                 tIn: tIn,             // v7：首入圈时刻（秒）；null = 视界内不入圈
                 hasWindow: tEnd !== null,
@@ -1574,6 +1584,25 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
             for (pi = 0; pi < rawProjectiles.length; pi++) {
                 var pr = rawProjectiles[pi];
                 if (!pr || pr.id === undefined || seenIds[pr.id]) continue;
+                // v12（1-2④）D2：追踪导弹**追的是别人** → 不进威胁表（与融合世界
+                //   `simulateFusedBatch` 的建表/摆位判据同一口径）。
+                //   判据 = 真游戏 `currentTargetPlayerId`（**建表这一刻**）；
+                //   `null`（未激活）保守保留；"模拟中换目标"的限制见第 6 轮报告。
+                var _hmType = 3;
+                try {
+                    if (typeof Constants !== 'undefined' && Constants.WEAPON_TYPES &&
+                            typeof Constants.WEAPON_TYPES.HOMING_MISSILE === 'number') {
+                        _hmType = Constants.WEAPON_TYPES.HOMING_MISSILE;
+                    }
+                } catch (eHmT) {}
+                if (pr.type === _hmType) {
+                    var _myId = (adapter && typeof adapter.getAiId === 'function') ? String(adapter.getAiId()) : null;
+                    var _tgtId = (pr.targetId === undefined || pr.targetId === null) ? null : String(pr.targetId);
+                    if (_tgtId !== null && _myId !== null && _tgtId !== _myId) {
+                        _droppedTargetOtherCount++;
+                        continue;   // D2：本段摘掉（绝不降级成普通弹）
+                    }
+                }
                 var spd = 0;
                 var spx = pr.speedX || 0;
                 var spy = pr.speedY || 0;
@@ -1763,11 +1792,19 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         if (q < 0) return null;
         var tr = th.track;
         if (tr && tr.length) {
-            var dt = (adapter && adapter.constants && adapter.constants.FRAME_DT) || 0.02;
+            // v137：下标必须按**这条轨迹自己的帧长**（v129 trackFrameDt）算。
+            // 原来退回 adapter.constants.FRAME_DT——校准把 FRAME_DT 从 0.02 改到
+            // 0.0167 后，同一条轨迹在这里会被读成快 20% 的弹道，于是评分/死亡
+            // 判定与融合世界摆弹看到的弹位不一致（一条说在 A，一条说在 B）。
+            var dt = (th.trackFrameDt && th.trackFrameDt > 0) ? th.trackFrameDt
+                : ((adapter && adapter.constants && adapter.constants.FRAME_DT) || 0.02);
             var idx = Math.round(q / dt);
             if (idx < 0 || idx >= tr.length) return null;   // 轨迹耗尽=预测中已消失，不回退折线
             var s = tr[idx];
-            if (!s || s.alive === false) return null;
+            if (!s) return null;
+            // v137：坐标永远有效（与 tree.trackPosAt 同口径，v134 原则）——
+            // `alive` 只描述“这一步之后弹还在不在”，不该拿来抹掉一个真实弹位，
+            // 否则评分侧会凭空少一颗弹 → 与死权分歧。
             return { x: s.x, y: s.y };
         }
         if (th.path && th.speed && adapter && adapter.bulletPosAt) {
@@ -2356,7 +2393,12 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         var sim = adapter.simulateTank(parentSimState.tank, inputs, frames, {
             startPose: parentSimState.tank,
             threats: threats,
-            tGlobal: parentSimState.tGlobal
+            tGlobal: parentSimState.tGlobal,
+            // v37（S8）：节点起点不在"现在"时，子弹寿命必须扣
+            // （tGlobal - nowTGlobal）而不是 tGlobal —— 缺省 0 会让未来节点
+            // 多扣 min(tGlobal, nowTGlobal) 秒（子弹提前退场 ⇒ 假绿）；
+            // 近似摆弹的 advFrames 也会多推 nowTGlobal 秒（幻影弹 ⇒ 假红）。
+            nowTGlobal: parentSimState.nowTGlobal
         });
         var samples = sim.samples;
         var totalScore = 0;
@@ -2366,15 +2408,54 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         var i, b;
         var moving = isMovingInputs(inputs);
         var prevPose = samples[0] || null;
+        // 1-3 收尾（fd=0 第 5 sink）：先评估【起点帧 samples[0]】。
+        // `scorePath` 是导出函数（树在 vantage_tree.js:3418/4212/5811/6960 直接调用，
+        // scorePaths 逐 op 回退也在 :2466 调它），旧循环从 i=1 起跳 ⟹
+        // 起点已重叠时：首帧后仍重叠 → 晚判；首帧后分开 → 直接假绿。
+        // 与 v171 batch 路径（本文件 :2490-2502）同口径：
+        //   deathFrame=0 = 起手 0 步就撞上（能走 0 步）；⛔ 不许改写成 1。
+        // 起点帧没有“前一帧样本”，bulletSegments 故意留空：
+        //   激光“起点点重叠”由 scoreFrame→checkDeath 捕获；
+        //   激光“首帧内穿越”仍按下面 i=1 的 t0→t1 线段记 fd=1（口径不变）。
+        if (samples.length > 0 && samples[0] && threats && threats.length) {
+            var s0 = samples[0];
+            var tGlobal0 = parentSimState.tGlobal + (s0.t || 0);
+            var bulletPositions0 = [];
+            for (b = 0; b < threats.length; b++) {
+                var pos0 = threatBulletPos(adapter, threats[b], tGlobal0);
+                if (pos0) bulletPositions0.push(pos0);
+            }
+            var fr0 = scoreFrame(adapter,
+                { x: s0.x, y: s0.y, rot: s0.rot }, bulletPositions0, cfg);
+            if (fr0.dead) {
+                return {
+                    totalScore: -cfg.deathPenalty,
+                    dead: true,
+                    deathFrame: 0,
+                    perFrameScores: [-cfg.deathPenalty],
+                    frameCount: 1,
+                    samples: samples
+                };
+            }
+        }
         for (i = 1; i < samples.length; i++) {
             var s = samples[i];
             var tGlobal = parentSimState.tGlobal + s.t;
             var bulletPositions = [];
+            var bulletSegments = [];
+            var tPrevGlobal = parentSimState.tGlobal + (prevPose && prevPose.t ? prevPose.t : 0);
             for (b = 0; b < threats.length; b++) {
                 var pos = threatBulletPos(adapter, threats[b], tGlobal);
                 if (pos) bulletPositions.push(pos);
+                if (threats[b].sweep) {
+                    var posPrev = threatBulletPos(adapter, threats[b], tPrevGlobal);
+                    if (posPrev && pos) {
+                        bulletSegments.push({ ax: posPrev.x, ay: posPrev.y, bx: pos.x, by: pos.y });
+                    }
+                }
             }
-            var fr = scoreFrame(adapter, { x: s.x, y: s.y, rot: s.rot }, bulletPositions, cfg);
+            // v171：死亡帧沿用 scorePath 现有 sample 索引口径（i）；JS/Rust 口径统一见 1-3②。
+            var fr = scoreFrame(adapter, { x: s.x, y: s.y, rot: s.rot }, bulletPositions, cfg, bulletSegments);
             if (fr.dead) {
                 dead = true;
                 deathFrame = i;
@@ -2424,7 +2505,8 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
                 batch = adapter.simulateTankBatch(parentSimState.tank, operations, frames, {
                     startPose: parentSimState.tank,
                     threats: threats,
-                    tGlobal: parentSimState.tGlobal
+                    tGlobal: parentSimState.tGlobal,
+                    nowTGlobal: parentSimState.nowTGlobal   // v37（S8）：见 scorePath
                 });
             } catch (eBatch) {
                 batch = null;
@@ -2456,6 +2538,19 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
                 // v78：批量融合世界结果直接给出权威标记。
                 deathAuthority: batch[j].rustPhysics ? 'rust-candidate' : 'fused'
             });
+        }
+        // v171（1-2③）：fd=0 = 起手就撞上。旧循环从 i=1 开始，永远不会消费
+        // deathFrame===0；这里显式按“首帧即死”记一次 deathPenalty。
+        // ⛔ 严禁把 fd 改写成 1（权威版 §26.5）；这里只改消费口径。
+        for (j = 0; j < operations.length; j++) {
+            if (batch[j].dead && batch[j].deathFrame === 0) {
+                var r0 = results[j];
+                r0.dead = true;
+                r0.deathFrame = 0;
+                r0.totalScore = -cfg.deathPenalty;
+                r0.perFrameScores = [-cfg.deathPenalty];
+                r0.frameCount = 1;
+            }
         }
         var frameDt = (adapter.constants && adapter.constants.FRAME_DT)
             ? adapter.constants.FRAME_DT : 0.02;
@@ -2535,6 +2630,8 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
 
     global.VantageScoring = {
         computeThreats: computeThreats,
+        /** v12（1-2④）D2 记账：威胁表层面摘掉的「追别人」制导弹数量。 */
+        droppedTargetOtherCount: function () { return _droppedTargetOtherCount; },
         computeBaseTime: computeBaseTime,
         scoreFrame: scoreFrame,
         scoreFrameAlive: scoreFrameAlive,
@@ -2544,6 +2641,9 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         springRopeFrameScore: springRopeFrameScore,
         scorePath: scorePath,
         scorePaths: scorePaths,
+        // v137：导出弹位查询，供回归测试钉住"下标按轨迹自带帧长、alive 不抹弹位"
+        // 这两条语义（它们是死权与评分是否看到同一颗弹的前提）。
+        threatBulletPos: threatBulletPos,
         scoreRollout: scoreRollout,
         scoreRolloutCached: scoreRolloutCached,
         occlusionIntervals: occlusionIntervals,
@@ -2553,6 +2653,6 @@ function testArc(rawArcs, aLo, aHi, bLo, bHi, theta, idx, dist, aW, aH, TPI) {
         DEFAULTS: SCORING_DEFAULTS
     };
 
-    console.log('[Vantage Scoring] 模块已加载（v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
+    console.log('[Vantage Scoring] 模块已加载（v37：S8 补传 nowTGlobal（未来节点的子弹寿命不再多扣、approx 不再多推 nowTGlobal）+ v36：R_SEMI断崖已记录 + v35：安全过滤 k/遮蔽开关/动作成本 + v33：卡墙检测 8cm/惩罚 6 + v32：scorePaths 显式标注 fused/check/rust-candidate 死亡权威 + v28 兜底直线威胁）');
 
 })(typeof window !== 'undefined' ? window : this);

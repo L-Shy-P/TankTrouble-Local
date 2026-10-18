@@ -314,8 +314,8 @@ async function main() {
 
   const init = await globalBridge.init('js/wasm/vantage_core.wasm');
   if (!init.ok) throw new Error('bridge init failed: ' + init.error);
-  if (globalBridge.version() !== 8) {
-    throw new Error('expected wasm ABI v8, got ' + globalBridge.version());
+  if (globalBridge.version() !== 12) {
+    throw new Error('expected wasm ABI v12, got ' + globalBridge.version());
   }
   VantageSandbox.setRustPhysicsEnabled(true);
 

@@ -13,6 +13,7 @@ vm.runInContext(fs.readFileSync(path.join(root,'js','vantage_tree.js'),'utf8'),c
 const VT=sandbox.VantageTree;
 VT.setGrowWithoutThreatsEnabled(true);
 VT.setRefineBeyondLimits(true);
+VT.setHorizonSec(8);   // v179：本用例场景依赖 horizonSec=8（测的是 refine split，不是默认值）
 const tree=VT.createTree({x:0,y:0,rot:0});
 tree.rootAbsT=0;tree.root.simState={tank:{x:0,y:0,rot:0},tGlobal:0};tree.root.tEndSec=0;
 tree.threats=[];tree._hasOffsetThreats=false;tree._pendingThreats=[];

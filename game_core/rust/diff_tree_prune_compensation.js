@@ -13,7 +13,7 @@ const VT=sandbox.VantageTree;
 
 // defaults + clamps
 const t0=VT.createTree({x:0,y:0,rot:0});
-if(t0.cfg.horizonSec!==8) throw new Error('default horizonSec should be 8');
+if(t0.cfg.horizonSec!==10) throw new Error('default horizonSec should be 10 (v179 阶段2 A1：8.0→10.0 秒)');
 // v119：两类补偿默认开，各 1 层；持续帧数 v137 默认 10→3
 if(t0.cfg.pruneCompensateLayers!==1) throw new Error('default compensate layers should be 1');
 if(t0.cfg.pruneCompensateFrames!==3) throw new Error('default compensate frames should be 3');

@@ -26,11 +26,11 @@ import os
 import numpy as np
 
 # ---------------------------------------------------------------- 段定义（与网络对齐）
-SEG_DIM = {"node": 10, "opp": 15, "bullet": 7, "item": 6, "global": 38, "mem": 256}   # ⭐ bullet 6→7（对齐 net_v2_fixed.SEG）
-CAP = {"node": None, "opp": 8, "bullet": 64, "item": 8, "global": 1, "mem": 4}  # node 容量 = N（不填）；opp 1→8（2026-10-17 派单①：编码器每对手 15 维×最多 8 个对手行）
-SEG_ORDER = ("node", "opp", "bullet", "item", "global", "mem")
-CTX_TOKENS = CAP["opp"] + CAP["bullet"] + CAP["item"] + CAP["global"] + CAP["mem"]  # = 85（opp8+bullet64+item8+global1+mem4）
-assert CTX_TOKENS == 85, "上下文 token 数必须 = 85（opp8+bullet64+item8+global1+mem4）；与服务端 policy_server_graph.py 的 CTX 同源"
+SEG_DIM = {"node": 10, "opp": 15, "bullet": 7, "item": 6, "global": 38, "mem": 256, "plan": 19}   # ⭐ plan = 3+2*8（事实直传）   # ⭐ bullet 6→7（对齐 net_v2_fixed.SEG）
+CAP = {"node": None, "opp": 8, "bullet": 64, "item": 8, "global": 1, "mem": 4, "plan": 1}   # ⭐ plan 1 token  # node 容量 = N（不填）；opp 1→8（2026-10-17 派单①：编码器每对手 15 维×最多 8 个对手行）
+SEG_ORDER = ("node", "opp", "bullet", "item", "global", "mem", "plan")
+CTX_TOKENS = CAP["opp"] + CAP["bullet"] + CAP["item"] + CAP["global"] + CAP["mem"] + CAP["plan"]  # = 86（+plan1，⭐事实直传）tem8+global1+mem4）
+assert CTX_TOKENS == 86, "上下文 token 数必须 = 86（opp8+bullet64+item8+global1+mem4+plan1）；与服务端 policy_server_graph.py 的 CTX 同源"
 
 # 帧内 dtype（fp16 只给 node：省 RAM；其余段只有 ~1.5k 个数）
 DTYPE = {"node": np.float32, "opp": np.float32, "bullet": np.float32,   # ⭐ node fp16→fp32（2026-10-17）：记忆对拍才能与服务端（fp32）同输入
@@ -115,12 +115,18 @@ def decode_frame(fr, ctx):
         raise BufferSchemaError("%s.obs: 期望 dict，实际 %s" % (ctx, type(obs).__name__))
     segs = {}
     mem_absent = False
+    plan_absent = False
     for name in SEG_ORDER:
         if name == "mem" and name not in obs:
             # ⭐ `mem` 可省：服务端恒喂零（`policy_server_graph.py:18-23`）⟹ 采集器不发的段一律补零，
             #    并【显式计数】`mem_absent_frames`（⛔ 不静默：在 metrics/stats 里能看到）。
             segs["mem"] = np.zeros((CAP["mem"], SEG_DIM["mem"]), dtype=DTYPE["mem"])
             mem_absent = True
+            continue
+        if name == "plan" and name not in obs:
+            # ⭐ `plan` 可省（事实直传尚未覆盖到的旧数据/烟测）⇒ 补零 + 显式计数
+            segs["plan"] = np.zeros((CAP["plan"], SEG_DIM["plan"]), dtype=np.float32)
+            plan_absent = True
             continue
         _need(obs, name, ctx + ".obs")
         arr = decode_seg(obs[name], name, ctx + ".obs")
@@ -159,6 +165,8 @@ def decode_frame(fr, ctx):
     if isinstance(_ffr, list):
         fire_frames = [{"nodeId": _as_int(x.get("nodeId"), ctx + ".act.fire_frames.nodeId"),
                         "back": _as_int(x.get("back", 0), ctx + ".act.fire_frames.back")} for x in _ffr if isinstance(x, dict)]
+    exec_by_policy = fr.get("execByPolicy", None)
+    exec_still = fr.get("execStill", None)
     fire = _as_int(act.get("fire", 0), ctx + ".act.fire")
     if fire not in (0, 1):
         raise BufferSchemaError("%s.act.fire=%r 非法（应为 0/1）" % (ctx, fire))
@@ -192,6 +200,8 @@ def decode_frame(fr, ctx):
         "N": N,
         "node": segs["node"], "opp": segs["opp"], "bullet": segs["bullet"],
         "item": segs["item"], "global": segs["global"], "mem": segs["mem"],
+        "execByPolicy": (None if exec_by_policy is None else bool(exec_by_policy)),
+        "execStill": (None if exec_still is None else bool(exec_still)),
         "act": {"nodeId": node_id, "fire": fire, "picks": picks, "grow": grow,
                  "lp_fire": lp_fire, "fire_ent": fire_ent, "fire_frames": fire_frames},
         "lp": _as_float(fr["lp"], ctx + ".lp"),
@@ -310,7 +320,7 @@ class EpisodeBuffer(object):
         b = 0
         for f in self.all_frames():
             for name in SEG_ORDER:
-                b += f[name].nbytes
+                if name in f: b += f[name].nbytes   # ⭐ plan 可省（旧数据）
         return b
 
     # ---------- `P2-2` 小记录：抽样若干帧落盘（可用 `--episodes-json` 回灌复盘）----------
@@ -351,7 +361,7 @@ def encode_frame(f):
 
     若该帧原本就没发 `mem`（`_mem_absent`）⟹ 编码时也**省掉** `mem`（忠实还原 + 省 4 KB/帧）。
     """
-    obs = {name: encode_seg(f[name]) for name in SEG_ORDER}
+    obs = {name: encode_seg(f[name]) for name in SEG_ORDER if name in f}   # ⭐ plan 可省
     if f.get("_mem_absent"):
         obs.pop("mem", None)
     return {
@@ -389,7 +399,7 @@ if __name__ == "__main__":
     N = 7
 
     def mkframe(t, node_id, done):
-        obs = {"node": rng.randn(N, 10), "opp": rng.randn(CAP["opp"], 15), "bullet": rng.randn(64, 7),
+        obs = {"node": rng.randn(N, 10), "opp": rng.randn(CAP["opp"], 15), "bullet": rng.randn(64, 7), "plan": np.zeros((CAP["plan"], SEG_DIM["plan"])),
                "item": rng.randn(8, 6), "global": rng.randn(1, 38), "mem": np.zeros((4, 256), np.float32)}
         return {"t": t, "N": N, "obs": obs,
                 "act": {"nodeId": node_id, "fire": 0, "picks": [{"nodeId": node_id, "back": 0}]},

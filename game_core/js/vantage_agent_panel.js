@@ -31,6 +31,13 @@
     if (typeof CFG.cheat !== 'boolean') CFG.cheat = true;
     if (typeof CFG.learn !== 'boolean') CFG.learn = false;
     if (typeof CFG.mem !== 'boolean') CFG.mem = true;
+    // ⭐⭐⭐ 2026-10-18（性能代理 · 主人裁定「实机改成同步」）：
+    //   sync=true  ⟹ **不丢帧**：一帧的决策在飞时，把游戏循环冻住（loop.sleep），回包后立刻醒来（loop.wake）。
+    //                 代价 = 每帧串行花掉 RTT（实测见 `_tools/perf/pm_panel.js` 报告）；
+    //                 收益 = 决策延迟恒定 1 帧、覆盖率 100%（async 版本按"在飞就跳过"丢决策 ⟹ 延迟 ≥1 帧且抖动）。
+    //   sync=false ⟹ 退回旧行为（丢帧），只用于对照测量。`window.__vtConfig.sync = false` 可关。
+    var _syncDefault = (typeof CFG.sync === 'boolean') ? CFG.sync : true;
+    CFG.sync = _syncDefault;
 
     var S = {
         mounted: false,
@@ -57,7 +64,10 @@
         learnBuf: [], learnSaved: 0, learnLines: 0, learnBytes: 0,
         hist: [], histMax: 20000, lastTankPos: null, lastFrameEntry: null,
         session: null, server: null, compat: null,
-        bridgeReady: false, lastStatusAt: 0, lastRetryAt: 0, awaitNN: false, lastRoundState: null, roundSeq: 0
+        bridgeReady: false, lastStatusAt: 0, lastRetryAt: 0, awaitNN: false, lastRoundState: null, roundSeq: 0,
+        // ⭐ 同步流水（2026-10-18）：paused=游戏循环是否被本面板冻住；overlapInflight=在飞时又被要决策的次数（同步模式下应为 0）
+        paused: 0, pauseMode: null, pauseErr: null, pauses: 0, resumes: 0, resumeMiss: 0, watchdogResumes: 0,
+        overlapInflight: 0, syncRtt: [], lastSyncMs: null
     };
 
     function nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
@@ -505,6 +515,8 @@
     // 四、每帧决策管线（观测 → /vt_policy → 下一帧生效）
     // ============================================================
     var OPP = 15, OPP_SLOTS = 8, BUL_SLOTS = 64, ITEM_R = 8, ITEM_C = 6;
+    // ⭐ 同步闸门看门狗：回包长时间不回 ⟹ 强制解冻（⛔ 不许把游戏冻死；正常回包 3~6ms，5s 已是 1000 倍余量）
+    var S_SYNC_WATCHDOG_MS = 5000;
 
     function zeroRows(n, w) { var out = []; for (var i = 0; i < n; i++) { var r = []; for (var j = 0; j < w; j++) r.push(0); out.push(r); } return out; }
     function pad(rows, slot, w) {        var out = (rows || []).slice(0, slot);
@@ -628,9 +640,67 @@
         };
     }
 
+    // ============================================================
+    // 三·五、同步闸门：把游戏循环冻住 → 回包 → 醒来
+    //   ⛔ 浏览器主线程不能真阻塞 ⟹ 用 Phaser 的 loop.sleep()/wake()（等价于"暂停/单步"），
+    //      世界等策略，而不是"跳过决策继续跑"。⛔ 任何失败路径都必须 wake（不许把游戏冻死）。
+    // ============================================================
+    function _game() {
+        try { return (typeof GameManager !== 'undefined' && GameManager.getGame) ? GameManager.getGame() : null; } catch (e) { return null; }
+    }
+    function pauseForPolicy() {
+        if (!CFG.sync || S.paused) return;
+        var g = _game();
+        // ① Phaser 2（本项目就是这个）：`game.paused = true` ⟹ `Game.update()` 直接 return ⟹ 逻辑整帧不跑
+        //    实测证据（`_tools/perf/_pauseprobe5.js`）：置 true 后泵 10 帧，laikaX_1 坐标一位不动；置回 false 立刻恢复。
+        try {
+            if (g && typeof g.paused === 'boolean') {
+                g.paused = true;
+                if (g.paused !== true) throw new Error('g.paused 写不进去');
+                S.paused = 1; S.pauseMode = 'game.paused'; S.pauses++;
+                return;
+            }
+        } catch (e0) { S.pauseErr = 'game.paused: ' + String(e0 && e0.message || e0); }
+        // ② Phaser 3：TimeStep.sleep()
+        try {
+            if (g && g.loop && typeof g.loop.sleep === 'function') {
+                if (g.loop.running !== false) g.loop.sleep();
+                S.paused = 1; S.pauseMode = 'loop.sleep'; S.pauses++;
+                return;
+            }
+        } catch (e1) { S.pauseErr = (S.pauseErr || '') + ' | loop.sleep: ' + String(e1 && e1.message || e1); }
+        S.pauseErr = (S.pauseErr || '') + ' | 找不到可暂停的入口 ⟹ 退化为旧行为（不冻帧）';
+    }
+    function resumeFromPolicy(why) {
+        if (!S.paused) return;
+        var g = _game();
+        var ok = false;
+        try {
+            if (S.pauseMode === 'game.paused') {
+                g.paused = false;
+                // ⭐ 复位 Phaser 的固定步长累加器（`Game.update` 里 `_deltaTime += min(3*16.667, elapsed)`）：
+                //   冻结期间累下来的墙钟时间【不许】在醒来那一帧一次性补跑 —— 否则一帧会跑多个物理步，
+                //   而策略只给了一个动作 ⟹ 严格对齐就破坏了。复位后恒为「1 帧 = 1 个物理步 = 1 个决策」。
+                //   （`forceSingleUpdate` 在本版本 Phaser 里默认已是 true，见 `game_core/js/75c76f1d…js` 的 Game 构造）
+                try { g._deltaTime = 0; g.updatesThisFrame = 0; S.deltaReset = (S.deltaReset || 0) + 1; } catch (eD) {}
+                ok = (g.paused === false);
+            } else if (S.pauseMode === 'loop.sleep' && g && g.loop && typeof g.loop.wake === 'function') {
+                g.loop.wake(); ok = true;
+            }
+        } catch (e) { S.pauseErr = 'resume: ' + String(e && e.message || e); }
+        S.paused = 0; S.resumes++;
+        if (!ok) S.resumeMiss++;
+        if (why === 'watchdog') S.watchdogResumes++;
+    }
+
     function tickRefresh() {
         if (!S.on) return;
-        if (S.inflight) { S.skipInflight++; return; }
+        if (S.inflight) {
+            // ⭐ 同步模式下游戏已冻住 ⟹ 正常不可能走到这里；真走到了就【不丢决策】，只计数（旧版本是 skipInflight++ 然后丢帧）
+            S.overlapInflight++;
+            if (CFG.sync) return;
+            S.skipInflight++; return;
+        }
         if (!global.__b || !global.__b.step) { S.lastErr = '桥未安装'; return; }
         var o = null;
         try { o = JSON.parse(global.__b.step(S.prevNodeId, S.prevFire)); }
@@ -668,6 +738,17 @@
                 _to = setTimeout(function () { try { _ctrl.abort(); } catch (e) {} }, 20000);   // ⛔ 不许无限挂起（静默失败）
             }
         } catch (eAb) {}
+        // ⭐ 同步：先冻住世界，再发请求（顺序不能反：反了会有一帧用旧动作跑过去）
+        pauseForPolicy();
+        var _wd = null;
+        if (CFG.sync) {
+            // ⛔ 看门狗：回包丢了也必须解冻（否则整局冻死）；20s 的 AbortController 之外再加一层
+            _wd = setTimeout(function () {
+                if (S.inflight) { S.errCount++; S.lastErr = '⛔ 策略回包看门狗超时(5s) ⟹ 强制解冻（本帧用旧动作）'; S.inflight = 0; }
+                resumeFromPolicy('watchdog');
+            }, S_SYNC_WATCHDOG_MS);
+        }
+        var _fin = function () { if (_wd) { try { clearTimeout(_wd); } catch (eW) {} } _wd = null; };
         fetch('/vt_policy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
                               signal: _ctrl ? _ctrl.signal : undefined })
             .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
@@ -679,11 +760,13 @@
                     S.errCount++;
                     S.lastErr = 'policy: ' + j.err;
                     if (S.errLog.length < 8) S.errLog.push(String(j.err).slice(0, 160));
+                    _fin(); resumeFromPolicy('err');
                     return;
                 }
                 if (typeof j.nodeId !== 'number') {
                     S.errCount++;
                     S.lastErr = 'policy 返回缺 nodeId（键=' + Object.keys(j).join(',') + '）';
+                    _fin(); resumeFromPolicy('no-nodeId');
                     return;
                 }
                 S.prevNodeId = j.nodeId;
@@ -698,10 +781,16 @@
                 S.lat.push(ms);
                 if (S.lat.length > 160) S.lat.shift();
                 if (S.learn) queueLearn(S.pendingPayload, j);
+                // ⭐ 同步：动作已经落到 S.prevNodeId/prevFire 上 ⟹ 这时才醒来，下一帧必然用上本帧的决策
+                var _msReal = nowMs() - t0;
+                S.lastSyncMs = _msReal;
+                S.syncRtt.push(_msReal); if (S.syncRtt.length > 200) S.syncRtt.shift();
+                _fin(); resumeFromPolicy('ok');
             })
             .catch(function (e) {
                 if (_to) { try { clearTimeout(_to); } catch (eC2) {} }
                 S.inflight = 0;
+                _fin(); resumeFromPolicy('catch');
                 S.errCount++;
                 var aborted = String(e && e.name || '') === 'AbortError';
                 if (aborted) S.reqTimeouts = (S.reqTimeouts || 0) + 1;
@@ -1113,6 +1202,8 @@
         lines.push('策略调用: ' + S.served + ' 次 / 请求 ' + S.seq + ' · 错误 ' + S.errCount +
                    ' · 累计 ' + S.servedTotal + ' 次 / 恢复 ' + S.activations + ' 次' +
                    ' · 服务端延迟中位 ' + (med === null ? '-' : med.toFixed(1)) + ' ms');
+        lines.push('同步闸门: ' + (CFG.sync ? '开' : '关') + ' · 冻帧 ' + S.pauses + ' 次 · 解冻 ' + S.resumes + ' 次 · 看门狗解冻 ' + S.watchdogResumes + ' · 解冻失败 ' + S.resumeMiss + (S.pauseErr ? (' · ⛔ ' + S.pauseErr) : ''));
+        lines.push('同步 RTT: 最近 ' + (S.lastSyncMs === null ? '—' : S.lastSyncMs.toFixed(2)) + ' ms · 中位 ' + (function(){ if(!S.syncRtt.length) return '—'; var a=S.syncRtt.slice().sort(function(x,y){return x-y;}); return a[a.length>>1].toFixed(2); })() + ' ms · 样本 ' + S.syncRtt.length);
         lines.push('tick: ' + S.ticks + ' · 决策覆盖率 ' + cov.toFixed(1) + '% · 空树跳过 ' + S.emptyTree + ' · 在飞跳过 ' + S.skipInflight +
                    ' · 节点被剪枝换路 ' + S.nodeRemap + ' · N=' + S.lastN + (tree && tree.nodeCount ? (' · 树节点 ' + tree.nodeCount) : ''));
         if (S.lastResp) lines.push('最近: nodeId=' + S.lastResp.nodeId + ' fire=' + S.lastResp.fire +

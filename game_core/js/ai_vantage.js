@@ -54,9 +54,26 @@ var VantageAI=Classy.newClass();VantageAI.fields({aiId:null,config:null,gameCont
         this._updateAndRemovePerformedActions(deltaTime);
     } else if (this._vantageManualControl(deltaTime)) {
         // 操控模式已由 _vantageManualControl 内部写入 inputState
-    } else {
+    } else if (this.laikaFallback === false) {
+        // 保留旧行为作逃生开关：关掉兜底 = 面板没驱动就全静止
         this.actions = [];
         this.inputState = InputState.withState(this.aiId, false, false, false, false, false);
+    } else {
+        // v11（2026-10-02）恢复 Laika 原生决策栈。
+        //   旧版这里是"全静止"，后果有两个：
+        //     ① VantageAI 离开面板就完全不动（原版 Laika 的 goal→action 链不可达）；
+        //     ② 树模式永不开火（9 个操作里没有开火），
+        //        而原版 Laika 的 SHOOT_AFTER / _tryToRetaliate / checkFiringPath
+        //        全部是死代码。
+        //   现在优先级：debugTarget > 面板操控(树/手动) > Laika 决策栈 > 静止。
+        //   注意：actions 不在这里清空——原版语义是"goal 变了才重建"，
+        //   清空会打断正在执行的多帧动作（TURN_TO / FIRE 的 duration）。
+        this._updateState(deltaTime);
+        if (this._makeDecisionsAndUpdateGoal(deltaTime)) {
+            this._updateActionsToAchieveGoal();   // 内部自己清空并重建 actions
+        }
+        this._updateInputToDoAction();
+        this._updateAndRemovePerformedActions(deltaTime);
     }
 },_vantageManualControl:function(deltaTime){
     // v6 AI 操控（主人 2026-08-15 要求）：面板选操作/自动模式驱动本 AI
@@ -85,13 +102,13 @@ var VantageAI=Classy.newClass();VantageAI.fields({aiId:null,config:null,gameCont
         }
         var dInp = desired.inputs || {};
         this.inputState = InputState.withState(this.aiId,
-            !!dInp.forward, !!dInp.back, !!dInp.left, !!dInp.right, false);
+            !!dInp.forward, !!dInp.back, !!dInp.left, !!dInp.right, !!dInp.fire);   // v187（3-5）：fire 解开写死 false（仅该帧；缺省 undefined=false）
         this.vantageControlOpName = desired.opName;
         return true;
     }
     var inp = op.inputs || {};
     this.inputState = InputState.withState(this.aiId,
-        !!inp.forward, !!inp.back, !!inp.left, !!inp.right, false);
+        !!inp.forward, !!inp.back, !!inp.left, !!inp.right, !!inp.fire);
     this.vantageControlOpName = op.opName;
     return true;
 },shutdown:function(){this.gameController.removeRoundEventListener(this._roundEventHandler,this);},setDebugTarget:function(tileX, tileY){

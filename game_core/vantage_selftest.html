@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Vantage · 成果自检</title>
+<style>
+  body{margin:0;background:#0d1117;color:#c9d1d9;font:13px/1.6 "Segoe UI",system-ui,sans-serif}
+  header{padding:12px 18px;border-bottom:1px solid #30363d;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+  h1{font-size:15px;margin:0;font-weight:600}
+  .sum{color:#8b949e}.sum b{color:#3fb950}.sum .f b{color:#ff7b72}
+  main{padding:14px 18px;max-width:1000px}
+  h2{font-size:12px;color:#8b949e;margin:18px 0 6px;letter-spacing:.5px;font-weight:600}
+  table{border-collapse:collapse;width:100%}
+  td{padding:3px 8px;border-bottom:1px solid #161b22;vertical-align:top}
+  td:first-child{width:28px;text-align:center}
+  td:last-child{color:#8b949e;font-size:12px;font-family:ui-monospace,monospace}
+  .ok{color:#3fb950}.no{color:#ff7b72}.skip{color:#8b949e}
+  button{background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:5px 12px;cursor:pointer}
+  button:hover{background:#30363d}
+  #note{color:#8b949e;font-size:12px;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Vantage · 成果自检</h1>
+  <span class="sum">通过 <b id="n-ok">0</b></span>
+  <span class="sum f">失败 <b id="n-no">0</b></span>
+  <span class="sum">跳过 <b id="n-skip">0</b></span>
+  <button id="rerun">重跑</button>
+</header>
+<main>
+  <div id="out"></div>
+  <div id="note"></div>
+</main>
+
+<script src="js/vantage_tree_interface.js"></script>
+<script>
+(function () {
+  'use strict';
+  var results = [];
+
+  function ok(name, detail)   { results.push({ s: 'ok',   n: name, d: detail || '' }); }
+  function no(name, detail)   { results.push({ s: 'no',   n: name, d: detail || '' }); }
+  function skip(name, detail) { results.push({ s: 'skip', n: name, d: detail || '' }); }
+  function check(name, cond, detail) { cond ? ok(name, detail) : no(name, detail); }
+
+  // ============================================================
+  function run() {
+    results = [];
+
+    // ---------- 一、接口模块是否加载 ----------
+    var I = (typeof window !== 'undefined') ? window.VantageTreeInterface : null;
+    check('接口模块已加载', !!I,
+          I ? ('版本 ' + I.VERSION) : '找不到 VantageTreeInterface —— 检查 index.html 是否加载 js/vantage_tree_interface.js');
+
+    if (!I) { render(); return; }
+
+    // ---------- 二、两条不变量 ----------
+    var dead = { id: 1, fullDeathFrame: 1 };
+    var soft = { id: 2, fullDeathFrame: 3 };
+    var live = { id: 3, fullDeathFrame: -1 };
+
+    check('真死判定：fd=1 算真死', I.isTrueDead(dead) === true, 'fullDeathFrame=1');
+    check('真死判定：fd=3 不算真死', I.isTrueDead(soft) === false, 'fullDeathFrame=3（软死）');
+    check('真死判定：fd=-1 不算真死', I.isTrueDead(live) === false, 'fullDeathFrame=-1（活满）');
+
+    check('不变量一：真死节点禁止生长', I.Invariants.canGrowAt(dead) === false);
+    check('不变量一：软死节点允许生长', I.Invariants.canGrowAt(soft) === true);
+    check('不变量一：存活节点允许生长', I.Invariants.canGrowAt(live) === true);
+
+    var c1 = I.Invariants.checkSelect(dead, [dead, live]);
+    check('不变量二：选真死且有存活兄弟 → 判违规（不替它改选）', c1.ok === false, 'reason=' + c1.reason);
+    var c2 = I.Invariants.checkSelect(dead, [dead]);
+    check('不变量二：兄弟全真死 → 不干预', c2.ok === true, 'reason=' + c2.reason);
+    var c3 = I.Invariants.checkSelect(live, [dead, live]);
+    check('不变量二：选的本来就不是真死 → 放行', c3.ok === true);
+
+    // ---------- 三、可拆卸模块注册表 ----------
+    try {
+      I.Modules.install('scoring', { name: 'selftest', hooks: { score: function () { return 42; } } });
+      check('模块：装载后钩子可调用', I.Modules.hook('scoring', 'score')() === 42);
+      I.Modules.setAllEnabled(false);
+      check('模块：全关后钩子返回 null（树会回退内置逻辑）',
+            I.Modules.hook('scoring', 'score') === null);
+      I.Modules.setAllEnabled(true);
+      check('模块：全开后钩子恢复', I.Modules.hook('scoring', 'score')() === 42);
+      var snap = I.Modules.snapshot();
+      check('模块：六个插槽齐全',
+            ['scoring','selection','retreat','compensation','growth','seglen']
+              .every(function (k) { return k in snap; }),
+            Object.keys(snap).join(' '));
+    } catch (e) { no('模块注册表', String(e)); }
+
+    // ---------- 四、智能体 ----------
+    try {
+      var rule = I.Agents.use('rule');
+      check('智能体：规则版决定为 null（= 全部交回内置逻辑）', rule.decide({}) === null);
+
+      I.Agents.register({ name: 'selftest', isReady: function () { return true; },
+                          decide: function () { return { growAt: [1, 2], growTimes: 99, select: 7, junk: 1 }; } });
+      var d = I.validateDecision(I.Agents.use('selftest').decide({}));
+      check('智能体：越界参数被夹紧（growTimes 99 → 8）', d.growTimes === 8);
+      check('智能体：非法字段被过滤', !('junk' in d));
+
+      I.Agents.register({ name: 'notready', isReady: function () { return false; }, decide: function () { return { select: 1 }; } });
+      check('智能体：未就绪时 isReady()=false（探针会跳过）', I.Agents.use('notready').isReady() === false);
+
+      var fly = new I.FlyAgent();
+      check('果蝇适配器：未接 Worker 时自动交回', fly.isReady() === false && fly.decide({}) === null);
+      var nn = new I.NNAgent();
+      check('神经网络适配器：未接模型时自动交回', nn.isReady() === false && nn.decide({}) === null);
+
+      I.Agents.use('rule');
+      check('智能体：切回规则版成功', I.Agents.current().name === 'rule');
+    } catch (e) { no('智能体注册表', String(e)); }
+
+    // ---------- 五、运行时（需在游戏页内才测得到） ----------
+    var inGame = (typeof AIs !== 'undefined') || (typeof VantageTree !== 'undefined');
+    if (!inGame) {
+      skip('运行时：树对象可见', '当前不在游戏页 —— 打开游戏页后按 F 或用同一标签页打开本页');
+      skip('运行时：探针能捕获智能体决策', '同上');
+    } else {
+      check('运行时：VantageTree 已加载', typeof VantageTree !== 'undefined');
+      check('运行时：树接口已加载', typeof VantageTreeInterface !== 'undefined');
+      // 能不能拿到游戏控制器
+      var gc = null;
+      try {
+        if (typeof AIs !== 'undefined' && AIs.aiManagers) {
+          for (var i = 0; i < AIs.aiManagers.length; i++) {
+            if (AIs.aiManagers[i] && AIs.aiManagers[i].gameController) { gc = AIs.aiManagers[i].gameController; break; }
+          }
+        }
+      } catch (e) {}
+      check('运行时：能拿到 gameController', !!gc, gc ? '在对局中' : '未在对局中（开一局再重跑）');
+      skip('运行时：探针捕获', '需装一个假智能体并让树跑几帧 —— 见下方按钮');
+      var b = document.createElement('button');
+      b.textContent = '装假智能体，测 3 秒后自动切回规则版';
+      b.style.marginTop = '8px';
+      b.onclick = function () {
+        var seen = 0;
+        VantageTreeInterface.Agents.register({
+          name: 'probe', isReady: function () { return true; },
+          decide: function (ctx) {
+            seen++;
+            window.__probeLastCtx = ctx;
+            return { growAt: [], growTimes: 1, select: ctx.commit };
+          }
+        });
+        VantageTreeInterface.Agents.use('probe');
+        setTimeout(function () {
+          VantageTreeInterface.Agents.use('rule');
+          var c = window.__probeLastCtx;
+          if (seen === 0) {
+            no('探针捕获：3 秒内一次都没被调用', '树可能没在跑（不在对局中 / 无子弹不生长）');
+          } else {
+            ok('探针捕获：被调用了 ' + seen + ' 次', '最近一次：节点 ' + (c ? c.nodes.length : '?') +
+               ' 个，根 ' + (c ? c.root : '?') + '，提交点 ' + (c ? c.commit : '?'));
+            check('上下文：节点收集非空', c && c.nodes.length > 0,
+                  c ? ('收集到 ' + c.nodes.length + ' 个节点') : '');
+          }
+          render();
+        }, 3000);
+        render();
+      };
+      document.getElementById('note').appendChild(b);
+    }
+
+    render();
+  }
+
+  // ============================================================
+  function render() {
+    var groups = {}, order = [];
+    for (var i = 0; i < results.length; i++) {
+      var r = results[i];
+      var g = r.n.split('：')[0];
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(r);
+    }
+    var html = '', nOk = 0, nNo = 0, nSkip = 0;
+    for (var k = 0; k < order.length; k++) {
+      html += '<h2>' + order[k].replace(/^[一二三四五]、?/, '') + '</h2><table>';
+      var rows = groups[order[k]];
+      for (var j = 0; j < rows.length; j++) {
+        var r = rows[j];
+        if (r.s === 'ok') nOk++; else if (r.s === 'no') nNo++; else nSkip++;
+        var icon = r.s === 'ok' ? '✅' : (r.s === 'no' ? '❌' : '⬜');
+        html += '<tr><td class="' + r.s + '">' + icon + '</td><td>' + r.n + '</td><td>' + r.d + '</td></tr>';
+      }
+      html += '</table>';
+    }
+    document.getElementById('out').innerHTML = html;
+    document.getElementById('n-ok').textContent = nOk;
+    document.getElementById('n-no').textContent = nNo;
+    document.getElementById('n-skip').textContent = nSkip;
+  }
+
+  document.getElementById('rerun').onclick = run;
+  run();
+})();
+</script>
+</body>
+</html>

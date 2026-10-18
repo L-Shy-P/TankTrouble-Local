@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Vantage · 观测编码器调试页（阶段2-3）</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0d1117;color:#c9d1d9;font:12px/1.55 "Segoe UI",system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+  header{padding:8px 14px;border-bottom:1px solid #30363d;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  h1{font-size:13px;margin:0;font-weight:600}
+  button{background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:4px 10px;cursor:pointer}
+  button:hover{background:#30363d}button:disabled{opacity:.45;cursor:default}
+  .sum{color:#8b949e}.sum b{color:#58a6ff}
+  .bad b{color:#ff7b72}.good b{color:#3fb950}
+  main{flex:1;display:flex;min-height:0}
+  #left{flex:0 0 46%;border-right:1px solid #30363d;position:relative;background:#010409}
+  canvas{display:block;width:100%;height:100%}
+  #right{flex:1;overflow:auto;padding:8px 10px}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#010409}
+  h2{font-size:11px;color:#8b949e;margin:12px 0 4px;letter-spacing:.5px;font-weight:600;border-bottom:1px solid #21262d;padding-bottom:3px}
+  table{border-collapse:collapse;width:100%;font-family:ui-monospace,Consolas,monospace;font-size:11px}
+  th,td{padding:2px 6px;text-align:left;border-bottom:1px solid #161b22;white-space:nowrap}
+  th{color:#8b949e;font-weight:600;position:sticky;top:0;background:#0d1117}
+  .root{color:#d29922}.grown{color:#3fb950}.nogrow{color:#8b949e}
+  .miss{color:#ff7b72;font-weight:700}.shortl{color:#ffa657;font-weight:700}
+  .bl{color:#a5d6ff}.storm{color:#6e7681}
+  .note{color:#8b949e;font-size:11px;margin:6px 0}
+  .warn{color:#ffa657}
+  code{background:#161b22;padding:1px 4px;border-radius:3px}
+  #legend{position:absolute;left:8px;bottom:8px;background:#0d1117cc;border:1px solid #30363d;border-radius:6px;padding:6px 9px;font-size:11px;line-height:1.7}
+  .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header>
+  <h1>观测编码器调试页</h1>
+  <button id="btnTake">接管并开始跑</button>
+  <button id="btnPause">暂停</button>
+  <button id="btnStep">单步 +1 帧</button>
+  <button id="btnSnap">刷新一次</button>
+  <span>跳帧</span><input id="jump" type="number" value="60" style="width:64px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:5px;padding:3px 6px">
+  <button id="btnJump">跳到 N 帧后</button>
+  <span class="sum">帧 <b id="s-frame">-</b></span>
+  <span class="sum">N 节点 <b id="s-n">-</b></span>
+  <span class="sum">M 子弹 <b id="s-m">-</b></span>
+  <span class="sum">total 维 <b id="s-dim">-</b></span>
+  <span class="sum">分叉 <b id="s-br">-</b></span>
+  <span class="bad">缺slot <b id="s-miss">-</b></span>
+  <span class="warn">L=1 <b id="s-l1">-</b></span>
+  <span class="good">θ约定 <b id="s-theta">-</b></span>
+  <span id="s-status" class="note">未接管</span>
+</header>
+<main>
+  <div id="left"><canvas id="cv"></canvas><iframe id="fr" style="display:none"></iframe>
+    <div id="legend">
+      <div><span class="sw" style="background:#f0883e"></span>根节点</div>
+      <div><span class="sw" style="background:#3fb950"></span>节点（hasGrown=1）</div>
+      <div><span class="sw" style="background:#8b949e"></span>节点（未生长）</div>
+      <div><span class="sw" style="background:#ff7b72"></span>缺 slot 的枝（真死）</div>
+      <div><span class="sw" style="background:#ffa657"></span>L=1 节点（<b>短枝</b>；⚠️ <b>不是真死判据</b> —— 实测占 77.9%，非特异）</div>
+      <div><span class="sw" style="background:#a5d6ff"></span>子弹（箭头 = token 的 θ）</div>
+      <div><span class="sw" style="background:#30363d"></span>墙（来自 adapter，token 里没有）</div>
+      <div class="note">⚠️ 所有**坦克/节点/子弹**都由 token 还原 ⟹ 与本页右侧是【同一次 encode】</div>
+    </div>
+  </div>
+  <div id="right">
+    <h2>0 · 本次 encode 摘要（与左侧同一次调用）</h2>
+    <div id="o-sum" class="note">—</div>
+    <h2>1 · 节点 token（10 维 · <code>[uid,parentIdx,slot,depth,tRel,L,dx,dy,dRot,hasGrown]</code>）</h2>
+    <div id="o-node"></div>
+    <h2>2 · 子弹 token（7 维 · <code>[x,y,vx,vy,θ,type,lifeLeft]</code>）</h2>
+    <div id="o-bullet"></div>
+    <h2>3 · 分叉结构（按 parentIdx 收 slot ⟹ 缺的 slot = 那一支真死）</h2>
+    <div id="o-branch"></div>
+    <h2>4 · 替代信号（阶段3-2 之前的过渡口径）</h2>
+    <div id="o-alt"></div>
+    <h2>5 · 还原自检（token → 世界）</h2>
+    <div id="o-self" class="note"></div>
+  </div>
+</main>
+<script src="js/vantage_sandbox.js?v=75"></script>
+<script src="js/vantage_tree.js?v=180"></script>
+<script src="js/vantage_observe.js?v=181"></script>
+<script>
+/* ============================================================================
+ * 阶段 2-3 第三步：观测编码器可视化调试页
+ *
+ * ★ 核心判据（父代理要求 #2）：**左边画的东西 = 右边那一份 enc 解出来的世界**
+ *   —— 所以本页【绝不】在绘制路径上碰 `gc.getTank()` / `gc.getProjectiles()`；
+ *   —— 绘制只吃 `VantageObserve.buildScene(enc)` 的返回值，而 `buildScene` 的入参
+ *      就是右边那份 `enc` ⟹ **"另取一份世界"在结构上不可能发生**。
+ *   —— 唯一的例外是**墙**（token 里没有墙，见 §三 的说明），它单独标注。
+ * ========================================================================== */
+(function () {
+  'use strict';
+  var W = null;              // 游戏窗口（本页 window 或 iframe.contentWindow）
+  var enc = null, scene = null, frame = 0, auto = true;
+  var lastErr = '';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- 唯一真源：θ 一律走 VantageObserve.bulletTheta（⛔ 本页不许再写一遍 atan2）----
+  function thetaOf(bullet) { return bullet.theta; }
+  function deg(t) { return t * 180 / Math.PI; }
+
+  // ============================ 接管 ============================
+  function boot(src) {
+    var d = src.document, w = src;
+    if (!w.GameManager || !w.VantageObserve) return { err: '缺 GameManager / VantageObserve' };
+    if (!w.GameManager.getGameController() || !w.GameManager.getGameController().getMaze || !w.GameManager.getGameController().getMaze()) {
+      var ph = w.GameManager.getGame();
+      if (ph && ph.state && ph.state.current === 'Game') return { err: '在 Game 但没有 maze' };
+      var C = w.Constants;
+      C.setMode(C.MODE_CLIENT_LOCAL);
+      var g = w.GameController.create(w.BootCampGameMode.create(), false, false, false,
+        C.CLIENT.MAX_PLAYERS,
+        C.GAME_MODE_INFO[C.GAME_MODES.BOOT_CAMP].DEFAULT_AVAILABLE_CRATES,
+        false, C.MAZE_THEMES.RANDOM);
+      g.addPlayer('tank_a');
+      if (w.AIs && w.AIs.isReady()) {
+        var v = w.AIs.getAvailableAIId(g.getId());
+        if (v) { w.AIs.addAIManager(g, v); g.addPlayer(v); }
+      }
+      w.GameManager.setGameController(g);
+      ph.state.start('Game', true, false, g);
+      return { started: true };
+    }
+    return { already: true };
+  }
+
+  function takeOver() {
+    // ① 本页自己就是游戏页 ⟹ 直接用
+    if (window.GameManager && window.GameManager.getGameController &&
+        window.GameManager.getGameController() && window.GameManager.getGameController().getMaze &&
+        window.GameManager.getGameController().getMaze()) { W = window; start(); return; }
+    // ② 否则造一个 index.html 的 iframe（同源）
+    $('s-status').textContent = '正在引导 index.html …';
+    var fr = $('fr'); fr.style.display = 'block';
+    fr.onload = function () {
+      try {
+        var r = boot(fr.contentWindow);
+        if (r && r.err) { $('s-status').textContent = '引导失败：' + r.err; return; }
+      } catch (e) { $('s-status').textContent = '引导异常：' + e.message; return; }
+      W = fr.contentWindow;
+      setTimeout(start, 900);
+    };
+    fr.src = 'index.html';
+  }
+
+  function start() {
+    try {
+      // ⚠️ 读展开视图前先清缓存（本项目纪律）；本页不读 roundState，故只做防御
+      var gc = W.GameManager.getGameController();
+      var model = gc.roundController && gc.roundController.model;
+      if (model) model.cachedRoundState = null;
+    } catch (e) {}
+    $('s-status').textContent = '已接管 · 自动跑中';
+    auto = true; $('btnPause').textContent = '暂停';
+    tick();
+  }
+
+  // ============================ 采一帧 ============================
+  function capture() {
+    var gc = W.GameManager.getGameController();
+    var AD = W.VantageSandbox.createAdapter(gc, 'vantage_1');
+    var T = W.VantageTree.getTree();
+    var e = W.VantageObserve.encode({ adapter: AD, tree: T, horizonSec: 10 });
+    // ★★ 一次调用、两份产物：`e` 给右边打印，`buildScene(e)` 给左边画 —— 同一个 `e`
+    var s = W.VantageObserve.buildScene(e);
+    // 墙（token 里没有墙，这一份是【单独标注】的例外，只用于画背景）
+    var walls = [];
+    try {
+      var ws = W.VantageSandbox.getFusedWallShapes(gc, 'vantage_1') || [];
+      for (var i = 0; i < ws.length; i++) walls.push(ws[i]);
+    } catch (eW) {}
+    return { enc: e, scene: s, walls: walls };
+  }
+
+  function step() {
+    try {
+      W.__vt && 0;
+      frame++;
+      var r = capture();
+      enc = r.enc; scene = r.scene;
+      draw(scene, r.walls);
+      render(scene, enc);
+      lastErr = '';
+    } catch (e) { lastErr = String((e && e.message) || e); }
+    $('s-status').textContent = lastErr ? ('异常：' + lastErr) : (auto ? '已接管 · 自动跑中' : '已暂停');
+  }
+
+  function tick() {
+    if (!W) return;
+    if (auto) step();
+    requestAnimationFrame(tick);   // 世界照常跑；只在 auto 时采一帧
+  }
+
+  // ============================ 左：画 token 解出来的世界 ============================
+  function draw(sc, walls) {
+    var cv = $('cv'), ctx = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var cw = cv.clientWidth, ch = cv.clientHeight;
+    if (cv.width !== cw * dpr || cv.height !== ch * dpr) { cv.width = cw * dpr; cv.height = ch * dpr; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+
+    var ms = (sc && sc.mapSize) || { w: 80, h: 40 };
+    var pad = 12;
+    var k = Math.min((cw - pad * 2) / ms.w, (ch - pad * 2) / ms.h);
+    var ox = (cw - ms.w * k) / 2, oy = (ch - ms.h * k) / 2;
+    // 世界(米) → 画布；y 轴翻（游戏 y 向下）
+    function P(x, y) { return [ox + x * k, oy + y * k]; }
+
+    // 背景网格（每格 = MAZE_TILE_SIZE）
+    var tile = 10;
+    ctx.strokeStyle = '#161b22'; ctx.lineWidth = 1;
+    for (var gx = 0; gx <= ms.w; gx += tile) { var a = P(gx, 0), b = P(gx, ms.h); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    for (var gy = 0; gy <= ms.h; gy += tile) { var a2 = P(0, gy), b2 = P(ms.w, gy); ctx.beginPath(); ctx.moveTo(a2[0], a2[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke(); }
+
+    // 墙（唯一不是 token 来源的东西；单独标注）
+    ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1.5;
+    for (var wi = 0; wi < (walls || []).length; wi++) {
+      var poly = walls[wi];
+      var vs = (poly && poly.verts) ? poly.verts : (Array.isArray(poly) ? poly : null);
+      if (!vs || vs.length < 2) continue;
+      ctx.beginPath();
+      for (var v = 0; v < vs.length; v++) { var q = P(vs[v].x, vs[v].y); if (v === 0) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]); }
+      ctx.closePath(); ctx.stroke();
+    }
+
+    if (!sc) return;
+    // 树连线（parentIdx 来自 token）
+    ctx.strokeStyle = '#21262d'; ctx.lineWidth = 1;
+    for (var i = 0; i < sc.nodes.length; i++) {
+      var n = sc.nodes[i]; if (n.parentIdx < 0) continue;
+      var p = sc.nodes[n.parentIdx]; if (!p) continue;
+      var A = P(p.x, p.y), B = P(n.x, n.y);
+      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    }
+    // 缺 slot 的枝：把"父→该父所有子"的连线标红（= 那一支真死）
+    var missSet = {}; for (var msI = 0; msI < sc.missingSlots.length; msI++) missSet[sc.missingSlots[msI].parentIdx] = sc.missingSlots[msI];
+    ctx.strokeStyle = '#ff7b7266'; ctx.lineWidth = 2;
+    for (var i2 = 0; i2 < sc.nodes.length; i2++) {
+      var n2 = sc.nodes[i2]; if (n2.parentIdx < 0 || !missSet[n2.parentIdx]) continue;
+      var p2 = sc.nodes[n2.parentIdx]; if (!p2) continue;
+      var A2 = P(p2.x, p2.y), B2 = P(n2.x, n2.y);
+      ctx.beginPath(); ctx.moveTo(A2[0], A2[1]); ctx.lineTo(B2[0], B2[1]); ctx.stroke();
+    }
+    // 节点（只吃 token 还原出来的 x/y/rot）
+    var shortS = {}; for (var sI = 0; sI < sc.shortL.length; sI++) shortS[sc.shortL[sI]] = 1;
+    for (var i3 = 0; i3 < sc.nodes.length; i3++) {
+      var n3 = sc.nodes[i3], pt = P(n3.x, n3.y);
+      var isRoot = n3.parentIdx < 0;
+      var col = isRoot ? '#f0883e' : (shortS[i3] ? '#ffa657' : (n3.hasGrown ? '#3fb950' : '#8b949e'));
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(pt[0], pt[1], isRoot ? 5 : 3.2, 0, Math.PI * 2); ctx.fill();
+      // 朝向（token 的 rot，游戏约定：前向 = (sinθ, -cosθ)）
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      var L = isRoot ? 11 : 8;
+      var tx = n3.x + Math.sin(n3.rot) * L / k, ty = n3.y - Math.cos(n3.rot) * L / k;
+      var tp = P(tx, ty);
+      ctx.beginPath(); ctx.moveTo(pt[0], pt[1]); ctx.lineTo(tp[0], tp[1]); ctx.stroke();
+    }
+    // 子弹（x/y/θ 全来自 token）
+    for (var bi = 0; bi < sc.bullets.length; bi++) {
+      var bu = sc.bullets[bi], bp = P(bu.x, bu.y);
+      ctx.fillStyle = '#a5d6ff';
+      ctx.beginPath(); ctx.arc(bp[0], bp[1], 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#a5d6ff'; ctx.lineWidth = 1.5;
+      var hx = bu.x + Math.sin(thetaOf(bu)) * 1.6, hy = bu.y - Math.cos(thetaOf(bu)) * 1.6;
+      var hp = P(hx, hy);
+      ctx.beginPath(); ctx.moveTo(bp[0], bp[1]); ctx.lineTo(hp[0], hp[1]); ctx.stroke();   // 箭头 = token 的 θ
+    }
+    ctx.fillStyle = '#8b949e'; ctx.font = '11px monospace';
+    ctx.fillText('地图 ' + ms.w + '×' + ms.h + ' m（实测单位=米） · 画布全部来自 buildScene(enc)，唯一例外=墙', 10, ch - 8);
+  }
+
+  // ============================ 右：逐字段 ============================
+  function tbl(head, rows) {
+    var s = '<table><thead><tr>';
+    for (var h = 0; h < head.length; h++) s += '<th>' + head[h] + '</th>';
+    s += '</tr></thead><tbody>';
+    for (var i = 0; i < rows.length; i++) {
+      s += '<tr>';
+      for (var j = 0; j < rows[i].length; j++) s += '<td>' + rows[i][j] + '</td>';
+      s += '</tr>';
+    }
+    return s + '</tbody></table>';
+  }
+  function f(x, d) { return (typeof x === 'number' && isFinite(x)) ? x.toFixed(d === undefined ? 2 : d) : String(x); }
+
+  function render(sc, e) {
+    $('s-frame').textContent = frame;
+    $('s-n').textContent = sc.stat.N;
+    $('s-m').textContent = sc.stat.M;
+    $('s-dim').textContent = sc.stat.total;
+    $('s-br').textContent = sc.stat.nBranches;
+    $('s-miss').textContent = sc.stat.nMissing;
+    $('s-l1').textContent = sc.stat.nShortL;
+    $('s-theta').textContent = W.VantageObserve.THETA_CONVENTION;
+
+    $('o-sum').innerHTML =
+      '<b>同一次 encode 调用</b>：N=' + sc.stat.N + ' · M=' + sc.stat.M + ' · total=' + sc.stat.total + ' 维' +
+      '<br>根滞后=' + f(e.rootLag && e.rootLag.value, 5) + '（秒÷10，raw ' + f(e.rootLag && e.rootLag.raw, 4) + '）' +
+      ' · 毒雾 active=' + (e.storm && e.storm.token[0]) + ' · 全局段=' + (e.global && e.global.dim) + ' 维' +
+      ' · 上帧计划=' + (e.plan && e.plan.dim) + ' 维' +
+      '<br>地图=' + sc.mapSize.w + '×' + sc.mapSize.h + ' m · normalize=' + !!e.normalize +
+      ' · <span class="warn">θ 唯一真源 = VantageObserve.bulletTheta()</span>';
+
+    var nr = [];
+    for (var i = 0; i < sc.nodes.length && i < 400; i++) {
+      var n = sc.nodes[i], t = e.nodes.tokens[i];
+      var cls = n.parentIdx < 0 ? 'root' : (n.L === 1 ? 'shortl' : (n.hasGrown ? 'grown' : 'nogrow'));
+      nr.push(['<span class="' + cls + '">' + i + '</span>', t[0], t[1], '<b>' + t[2] + '</b>', t[3], f(t[4], 4), '<b>' + t[5] + '</b>',
+               f(t[6], 2), f(t[7], 2), f(deg(t[8]), 1) + '°', '<b>' + t[9] + '</b>']);
+    }
+    $('o-node').innerHTML = tbl(['#', 'uid', 'pidx', 'slot', 'depth', 'tRel', 'L', 'dx', 'dy', 'dRot', 'grown'], nr) +
+      (sc.nodes.length > 400 ? '<div class="note">（只列前 400 个）</div>' : '');
+
+    var br = [];
+    for (var j = 0; j < sc.bullets.length; j++) {
+      var b = sc.bullets[j], t2 = e.bullets.tokens[j];
+      br.push([j, f(t2[0], 2), f(t2[1], 2), f(t2[2], 1), f(t2[3], 1),
+               '<b>' + f(t2[4], 3) + '</b> (' + f(deg(t2[4]), 1) + '°)', t2[5], f(t2[6], 2)]);
+    }
+    $('o-bullet').innerHTML = br.length ? tbl(['#', 'x(m)', 'y(m)', 'vx', 'vy', 'θ(rad)', 'type', 'lifeLeft'], br)
+      : '<div class="note">本帧场上无子弹（⛔ 不能因此把字段当"恒空"——见报告 §六）</div>';
+
+    var gr = [];
+    for (var k = 0; k < sc.branches.length; k++) {
+      var B = sc.branches[k];
+      gr.push([B.parentIdx, B.nChildren, B.slots.join(','),
+               B.missing.length ? '<span class="miss">' + B.missing.join(',') + '</span>' : '—']);
+    }
+    gr.sort(function (a, b) { return a[0] - b[0]; });
+    $('o-branch').innerHTML = gr.length ? tbl(['parentIdx', '子数', '在的 slot', '缺的 slot ⟹ 那一支真死'], gr)
+      : '<div class="note">本帧没有已分叉的父节点</div>';
+
+    $('o-alt').innerHTML =
+      '<div class="note">① <b class="miss">缺 slot</b>：上表第 4 列 —— 父的子里少哪个 slot ⟹ 那个操作<b>真死</b>（"缺席即标记"）。本帧 <b>' + sc.stat.nMissing + '</b> 个父命中。</div>' +
+      '<div class="note">② <b class="shortl">L=1</b>：<code>L=1 ⟹ back∈[0,1)={0} ⟹ 这一支最多再走 1 帧</code>。' +
+      '<span style="color:#ff7b72"><b>⚠️ 已更正</b>：步 2 我说过"真死子节点 L 恒为 1"，那是<b>单向检查</b>；步 3 实测 <code>L=1</code> 占全部节点 <b>77.9%</b> ⟹ <b>它不是真死判据，只是"短枝"</b>（<code>back</code> 只能取 0）。<b>今天 token 里没有可用的真死信号</b> ⟹ 支持裁决 (a)：等阶段 3-2。</span>本帧 <b>' + sc.stat.nShortL + '</b> 个节点 L=1' +
+      (sc.shortL.length ? '（idx ' + sc.shortL.slice(0, 24).join(',') + (sc.shortL.length > 24 ? ' …' : '') + '）' : '') + '。</div>' +
+      '<div class="note warn">③ 阶段 3-2 之后：<code>hasGrown=1 且 子数=0</code> 会成为主信号（那时本页的"子数"列会直接显示 0）。</div>';
+
+    // 还原自检：根 token 必须解回 rootPose
+    var root = null; for (var r2 = 0; r2 < sc.nodes.length; r2++) if (sc.nodes[r2].parentIdx < 0) { root = sc.nodes[r2]; break; }
+    var okRoot = root && Math.abs(root.x - sc.rootPose.x) < 1e-9 && Math.abs(root.y - sc.rootPose.y) < 1e-9;
+    var okTok = true;
+    for (var q = 0; q < sc.nodes.length; q++) {
+      var t3 = e.nodes.tokens[q];
+      if (Math.abs(sc.nodes[q].x - (sc.rootPose.x + t3[6])) > 1e-9) { okTok = false; break; }
+      if (Math.abs(sc.nodes[q].y - (sc.rootPose.y + t3[7])) > 1e-9) { okTok = false; break; }
+    }
+    $('o-self').innerHTML =
+      '根 token 解回 rootPose：' + (okRoot ? '<b class="good" style="color:#3fb950">PASS</b>' : '<b style="color:#ff7b72">FAIL</b>') +
+      '（rootPose=(' + f(sc.rootPose.x, 3) + ',' + f(sc.rootPose.y, 3) + ')）' +
+      '<br>全部节点 <code>scene.x === rootPose.x + token[6]</code>：' + (okTok ? '<b style="color:#3fb950">PASS</b>' : '<b style="color:#ff7b72">FAIL</b>') +
+      '<br><span class="note">⟹ 左边画布上每个节点/子弹的位置，**逐位等于**右边那张表里的 token 值（不是"另取一份世界"）。</span>';
+  }
+
+  // ============================ 控件 ============================
+  $('btnTake').onclick = takeOver;
+  $('btnPause').onclick = function () { auto = !auto; this.textContent = auto ? '暂停' : '继续'; };
+  $('btnStep').onclick = function () { auto = false; $('btnPause').textContent = '继续'; if (W) step(); };
+  $('btnSnap').onclick = function () { if (W) step(); };
+  $('btnJump').onclick = function () {
+    var n = Math.max(0, parseInt($('jump').value, 10) || 0);
+    if (!W) return; auto = false; $('btnPause').textContent = '继续';
+    var i = 0;
+    (function go() { if (i++ >= n) { step(); return; } requestAnimationFrame(function () { setTimeout(function () { step0(); go(); }, 0); }); })();
+    function step0() { frame++; }
+  };
+
+  // 暴露给自动化探针（只读：拿本次 enc）
+  window.__vtObsDebug = {
+    get last() { return { frame: frame, enc: enc, scene: scene, err: lastErr }; },
+    takeOver: takeOver, step: function () { auto = false; if (W) step(); return { frame: frame }; },
+    buildScene: function (e) { return W.VantageObserve.buildScene(e); }
+  };
+  $('s-status').textContent = '未接管（点左上「接管并开始跑」）';
+})();
+</script>
+</body>
+</html>
