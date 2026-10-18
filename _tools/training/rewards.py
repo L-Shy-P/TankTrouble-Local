@@ -554,6 +554,7 @@ CAMP_TILE_M = 4.0      # 格尺寸(米)【无出处、待拍：按 mapW=16 / sel
 CAMP_SEC = 3.0         # 主人原话：3 秒
 CAMP_FRAMES = int(round(CAMP_SEC / 0.02))   # =150 帧
 _CAMP = {"t": None, "tiles": {}}
+_KILLC = {"t": None, "n": 0}   # ⭐ 本局已击杀数（用于递增击杀奖励 + 胜利必须有击杀）
 
 
 def _camp_part(f, cfg):
@@ -668,7 +669,19 @@ def explain(f, cfg):
             STATS["hit_all_lethal_suppressed"] += int(hit)   # ⭐ 显式计数：这些 hit 全是"致命击杀"，不再另给 w_hit
     else:
         STATS["hit_nonlethal_events"] += int(nonlethal)
-    parts["kill"] = (kill, float(w("w_kill", 1.0)), float(w("w_kill", 1.0)) * kill)
+    # ⭐⭐⭐ 主人 2026-10-18：「同局内，击杀的得分逐渐提升，因为连杀越多难度越高」
+    #   口径：第 1 个 = w_kill（3.0），第 8 个 = w_kill_max（10.0），中间线性递增；超过 8 个按 10.0 封顶。
+    #   ⚠️ 主人原话举例"第二个给3.5分、第8个10分"，与端点线性(步长1.0)略有出入 ⟹ 以端点为准，【待主人确认】。
+    _kill_val = 0.0
+    if kill:
+        _k0 = float(w("w_kill", 3.0)); _k8 = float(w("w_kill_max", 10.0))
+        for _ in range(int(kill)):
+            _KILL_N = _KILLC.get("n", 0) + 1
+            _KILLC["n"] = _KILL_N
+            _kk = min(max(_KILL_N, 1), 8)
+            _kill_val += _k0 + (_k8 - _k0) * (_kk - 1) / 7.0
+        STATS["kill_scored"] = STATS.get("kill_scored", 0) + int(kill)
+    parts["kill"] = (kill, _kill_val / kill if kill else float(w("w_kill", 3.0)), _kill_val)
     parts["kill_storm"] = (float(r.get("kill_storm", 0.0) or 0.0), float(w("w_kill_storm", 1.0)),
                            float(w("w_kill_storm", 1.0)) * float(r.get("kill_storm", 0.0) or 0.0))
     parts["hit_nonlethal"] = (nonlethal, float(w("w_hit", 0.2)), float(w("w_hit", 0.2)) * nonlethal)
@@ -680,7 +693,15 @@ def explain(f, cfg):
                             float(w("w_death_storm", -1.5)) * float(r.get("death_storm", 0.0) or 0.0))
 
     # 3) 胜负平
-    parts["win"] = (win, float(w("w_win", 3.0)), float(w("w_win", 3.0)) * win)
+    # ⭐⭐⭐ 主人 2026-10-18：「没击杀就直接胜利 ⟹ 不加任何分；有击杀时胜利加少量分」
+    _win_val = 0.0
+    if win:
+        _kc = _KILLC.get("n", 0)
+        if _kc <= 0:
+            STATS["win_no_kill_zeroed"] = STATS.get("win_no_kill_zeroed", 0) + 1
+        else:
+            _win_val = float(w("w_win", 3.0))
+    parts["win"] = (win, (float(w("w_win", 3.0)) if _win_val else 0.0), _win_val)
     parts["lose"] = (lose, float(w("w_lose", -1.0)), float(w("w_lose", -1.0)) * lose)
     parts["draw"] = (draw_val, float(w("w_draw", -0.5)), float(w("w_draw", -0.5)) * draw_val)
 
@@ -741,6 +762,12 @@ def explain(f, cfg):
     _prog = _progress_part(f, cfg)
     parts["progress"] = (_prog, float(w("w_progress", EXTRA_DEFAULTS["w_progress"])),
                          float(w("w_progress", EXTRA_DEFAULTS["w_progress"])) * _prog)
+    # ⭐ 本局击杀计数：新的一局（t 回退）就清零
+    _t_now = f.get("t")
+    if _KILLC["t"] is None or (isinstance(_t_now, int) and _t_now <= _KILLC["t"]):
+        _KILLC["n"] = 0
+    if isinstance(_t_now, int):
+        _KILLC["t"] = _t_now
     parts["camp"] = _camp_part(f, cfg)   # ⭐ 主人 2026-10-18：同格待超 3 秒持续扣分（per-tile 累计，回来继续扣）
     if bool(f.get("done")):          # ⭐ 局末 ⟹ 断链（下一局第一帧绝不跨局相减）
         _PREV["t"] = None
