@@ -192,12 +192,14 @@ class Srv {
 /* ---------------- 单场景 ---------------- */
 async function runScene(scene, srv, cap) {
   const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
-  let s30segs = null, s30p = null, s30n = 0;   // ⭐ S30_DUMP：本帧 segs/p + 原始帧计数
+  let s30segs = null, s30p = null, s30n = 0, s30pA = null;   // ⭐ S30_DUMP：本帧 segs/p + 原始帧计数
   // ⭐ 稠密奖励用的上一帧状态（父代理 2026-10-18：终局 ±3 太稀 ⟹ 需逐帧信号）
   let dLastFired = null, dLastKill = 0, dLastDeath = 0, dLastPose = null;
   let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
+  let growOkFrames = 0;    // ⭐ A 相拿到 grow 决策的帧数（验证 A 数据真的进来了）
+  let s30AErr = null;
   const r = {
     scene_id: scene.id, ok: false, win: null, result: 'unknown', frames: 0,
     players: scene.players, mapW: null, mapH: null, storm: !!scene.storm, crates_on: !!scene.crates_on, err: null,
@@ -321,6 +323,32 @@ async function runScene(scene, srv, cap) {
             }
           }
         }
+        // ⭐⭐⭐ A 相请求（父代理 2026-10-18）：评测路径原来【只问 B 相】⟹ dump 里没有 act.grow
+        //   ⟹ A 网（生长）永远没有梯度（ent_grow 恒 0）。这里补上 A 相：
+        //   从节点 token 算 grow_ok（叶子 且 hasGrown=0），带 phase:'A' 问一次。
+        let pA = null;
+        try {
+          const _nk = (segs && segs.node) ? segs.node : null;
+          if (_nk && _nk.length > 1) {
+            const _isParent = new Array(_nk.length).fill(0);
+            for (let qi = 1; qi < _nk.length; qi++) {
+              const _pi = _nk[qi][1] | 0;
+              if (_pi > 0 && _pi < _nk.length) _isParent[_pi] = 1;
+            }
+            const _gok = new Array(_nk.length).fill(0);
+            let _cnt = 0;
+            for (let qi = 1; qi < _nk.length; qi++) {
+              const _hg = _nk[qi][9] | 0;
+              if (!_isParent[qi] && !_hg) { _gok[qi] = 1; _cnt++; }
+            }
+            if (_cnt > 0) {
+              pA = await srv.askTO({ N: o.N, seed: seedFor(scene.id, f) + 1, mem_on: 0,
+                                      phase: 'A', grow_ok: _gok, segs: segs }, askStat);
+              s30pA = pA;
+              if (pA && pA.grow) growOkFrames++;
+            }
+          }
+        } catch (eA) { if (!s30AErr) s30AErr = String((eA && eA.message) || eA).slice(0, 160); }
         let p = null;
         try { p = await srv.askTO({ N: o.N, seed: seedFor(scene.id, f), segs: segs }, askStat); lpTot++; }
         catch (eA) {
@@ -392,7 +420,14 @@ async function runScene(scene, srv, cap) {
         s30dense = { spawn: dSpawn, kill: dKill, death: dDeath, aim: dAim };
         dumpFrames.push({
           t: f, N: o.N, obs: segs,
-          act: { nodeId: nodeId, fire: _fire, picks: [{ nodeId: nodeId, back: 0 }] },
+          act: (function () {
+            const a = { nodeId: nodeId, fire: _fire, picks: [{ nodeId: nodeId, back: 0 }] };
+            // ⭐ A 相动作（生长位置 + 其 logprob）；无 A 相结果时【不写】，由训练侧计数 missing（⛔ 不假造）
+            if (s30pA && s30pA.grow && typeof s30pA.grow.grow_nodeId === 'number' && typeof s30pA.grow.lp_grow === 'number') {
+              a.grow = { nodeId: s30pA.grow.grow_nodeId, lp_grow: s30pA.grow.lp_grow, back: 0 };
+            }
+            return a;
+          })(),
           lp: (s30p && typeof s30p.lp === 'number' && isFinite(s30p.lp)) ? s30p.lp : null,
           v: (s30p && typeof s30p.v === 'number' && isFinite(s30p.v)) ? s30p.v : null,
           execByPolicy: true, execStill: (o.sub ? (!o.sub.f && !o.sub.b && !o.sub.l && !o.sub.r) : null),
@@ -466,6 +501,8 @@ async function runScene(scene, srv, cap) {
     r.server_errors = srvErr;
     r.lp_finite = lpFin + '/' + lpTot;
     r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
+    r.grow_ok_frames = growOkFrames;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
+    r.ask_a_err = s30AErr;
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
     r.opp_rows_max = oppBlocksSeen;
     r.opp_over = oppOver;
