@@ -500,6 +500,18 @@ async function runScene(scene, srv, cap) {
     r.nodeid_oob = oob;
     r.server_errors = srvErr;
     r.lp_finite = lpFin + '/' + lpTot;
+    // ⭐⭐ 防混版（父代理 2026-10-18 两次踩坑后加的保险）：
+    //   采集/评测期间若 `game_core` 或注入器被改动，这批数据就混了两代行为 ⟹ 作废。
+    //   每场落一次源文件 md5，事后可核。
+    try {
+      const _crypto2 = require('crypto');
+      const _md5of = (p2) => { try { return _crypto2.createHash('md5').update(require('fs').readFileSync(p2)).digest('hex').slice(0, 16); } catch (e) { return null; } };
+      r.src_md5 = {
+        vantage_tree: _md5of('game_core/js/vantage_tree.js'),
+        injector: _md5of('_tools/headless/_g1_inject.js'),
+        runner: _md5of('_tools/eval/run_scenes_30.js')
+      };
+    } catch (eMD5) { r.src_md5 = null; }
     r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
     r.grow_ok_frames = growOkFrames;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
     r.ask_a_err = s30AErr;
@@ -548,7 +560,7 @@ async function runScene(scene, srv, cap) {
           ep: (typeof r.ep === 'number' ? r.ep : 1),
           scene: { players: scene.players, mapW: r.mapW, mapH: r.mapH, storm: !!scene.storm,
                    crates: (scene.crates === undefined ? [] : scene.crates) },
-          frames: dumpFrames, win: r.win
+          frames: dumpFrames, win: r.win, src_md5: r.src_md5 || null
         };
         fsd.appendFileSync(DUMP_DIR + '/episodes.jsonl', JSON.stringify(epObj) + String.fromCharCode(10));
         r.dump_frames = dumpFrames.length; r.dump_win = r.win; r.dump_raw = s30n;
