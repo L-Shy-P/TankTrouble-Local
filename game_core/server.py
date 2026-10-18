@@ -42,7 +42,10 @@ VT_LEARN_DIR = os.environ.get('VT_LEARN_DIR') or 'D:/vt_run/panel_learn'
 #   全部来自它；今晚训练的 t9/t10/t12/learn3..learn9 一次都没进过游戏。
 # ⚠️ 2026-10-18 回退：learn9/learnA 是【单网】训的（model_a=None，A 网权重丢失）⟹ 不能当默认。
 #   指向 t12（model_a 有效）。等用 VT_NET_SPLIT=1 重训出新 ckpt 后再换。
-VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/t12/ckpt/last.pt'
+# ⭐ 2026-10-18 19:5x：切到最新训练产物 loop/r10（主人："肯定切，管他好不好，我要看效果"）。
+#   ⚠️ 改这里之后【必须重启 game_core/server.py】（服务端启动时把权重读进内存，不会热加载）。
+#   核对方式：打开面板「检查点」看 md5，应为 df9db1f8...
+VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/loop/r10/ckpt/last.pt'
 _VT_LEARN_LOCK = threading.Lock()
 _VT_LEARN_COUNT = {}
 
