@@ -73,6 +73,12 @@ const DUMP_DIR = process.env.S30_DUMP || null;
 //   原因：节点 token 表随树增长（N 可达 1000 × 10 维）⟹ 全量导出实测 22 局就 3.5G，直接把磁盘写满。
 //   取舍：胜负信号在末帧，GAE 从末帧往回传 ⟹ 保留末段即可（默认 400 帧）。
 const DUMP_MAX = Math.max(0, Number(process.env.S30_DUMP_MAX || 400));
+// ⭐ A 相请求开关（默认 0=关）：开了会慢且部分帧服务端报错，B 相不受影响
+const S30_APHASE = process.env.S30_APHASE === '1';
+// ⭐⭐⭐ S30_DUMMY=1【靶场模式】：把**除 Vantage 外的所有 AI 变成静止靶**（主人 2026-10-18 专项训练方案）。
+//   用途：大图 + 7 个不动靶 + 毒雾 ⟹ 时间有限，必须尽快清场 ⟹ 逼它学会"移动+瞄准射击"。
+//   做法：每帧把非 vantage 的 aiManager 的 storedStates 全置 false（= 一个键都不按）。
+const S30_DUMMY = process.env.S30_DUMMY === '1';
 const REPEAT_K = Math.max(1, Number(process.env.S30_REPEAT || (process.argv.indexOf('--repeat') >= 0 ? (process.argv[process.argv.indexOf('--repeat') + 1] || 1) : 1)));
 // ⭐ 2026-10-17（父代理指派）：请求超时 + 有限重试（【无出处、待实验】的 10s / 2 次）
 const ASK_TIMEOUT_MS = Math.max(500, Number(process.env.S30_ASK_MS || 10000));
@@ -198,6 +204,7 @@ async function runScene(scene, srv, cap) {
   let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
+  let dummyN = 0, s30DummyErr = null, dummyPatched = false;   // ⭐ 靶场模式：被清成静止靶的对手数
   let growOkFrames = 0;    // ⭐ A 相拿到 grow 决策的帧数（验证 A 数据真的进来了）
   let s30AErr = null;
   const r = {
@@ -329,7 +336,10 @@ async function runScene(scene, srv, cap) {
         let pA = null;
         try {
           const _nk = (segs && segs.node) ? segs.node : null;
-          if (_nk && _nk.length > 1) {
+          // ⚠️ 默认【关闭】A 相（`S30_APHASE=1` 才开）：
+          //   实测开了之后部分帧服务端报 `cannot sample n_sample > prob_dist.size(-1)`
+          //   ⟹ 该场一直重试到 cap（12 分钟才跑 1 场）⟹ 采集变慢且脏。B 相数据不受影响。
+          if (S30_APHASE && _nk && _nk.length > 1) {
             const _isParent = new Array(_nk.length).fill(0);
             for (let qi = 1; qi < _nk.length; qi++) {
               const _pi = _nk[qi][1] | 0;
@@ -462,6 +472,22 @@ async function runScene(scene, srv, cap) {
         try { await m.eval('window.__g1.setFire(' + (s30p.fire ? 1 : 0) + ')'); } catch (eFS) {}
         if (s30p.fire) fireOnFrames++;
       }
+      if (S30_DUMMY && !dummyPatched) {
+        // ⭐ **只在开场打一次猴子补丁**：把每个非 vantage 的 AI 的 `update` 换成"什么都不做"。
+        //   ⛔ 不能在 pump 之前每帧清零 inputState —— 游戏会在 pump 里跑 ai.update() 再把它覆盖掉（实测靶子仍在动）。
+        try {
+          const _dn = await m.eval(`(()=>{var ms=(typeof AIs!=='undefined'&&AIs.aiManagers)?AIs.aiManagers:[];var n=0;
+            for(var i=0;i<ms.length;i++){var g=ms[i]; if(!g||g.isVantage)continue;
+              var ai=g.ai; if(!ai) continue;
+              ai.update=function(){ try{ this.inputState=InputState.withState(this.aiId,false,false,false,false,false);}catch(eU){} };
+              ai._makeDecisionsAndUpdateGoal=function(){return false;};
+              ai.actions=[];
+              if(g.storedStates){g.storedStates={forward:false,back:false,left:false,right:false,fire:false};}
+              n++;}
+            return n;})()`);
+          dummyN = _dn; dummyPatched = true;
+        } catch (eD) { if (!s30DummyErr) s30DummyErr = String((eD && eD.message) || eD).slice(0, 160); }
+      }
       await m.pump(1, { yieldMs: 0 });
     }
 
@@ -513,7 +539,8 @@ async function runScene(scene, srv, cap) {
       };
     } catch (eMD5) { r.src_md5 = null; }
     r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
-    r.grow_ok_frames = growOkFrames;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
+    r.grow_ok_frames = growOkFrames;
+    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
     r.ask_a_err = s30AErr;
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
     r.opp_rows_max = oppBlocksSeen;
