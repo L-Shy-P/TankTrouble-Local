@@ -204,7 +204,7 @@ async function runScene(scene, srv, cap) {
   let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
-  let dummyN = 0, s30DummyErr = null, dummyPatched = false;   // ⭐ 靶场模式：被清成静止靶的对手数
+  let dummyN = 0, s30DummyErr = null, dummyPatched = false, vidOfScene = 'vantage_1', vantageDeadAt = null;   // ⭐ 靶场模式：被清成静止靶的对手数
   let growOkFrames = 0;    // ⭐ A 相拿到 grow 决策的帧数（验证 A 数据真的进来了）
   let s30AErr = null;
   const r = {
@@ -486,7 +486,15 @@ async function runScene(scene, srv, cap) {
               n++;}
             return n;})()`);
           dummyN = _dn; dummyPatched = true;
+          try { const _v = await m.eval('window.__g1.vantageId()'); vidOfScene = _v || 'vantage_1'; } catch (eV) { vidOfScene = 'vantage_1'; }
         } catch (eD) { if (!s30DummyErr) s30DummyErr = String((eD && eD.message) || eD).slice(0, 160); }
+      }
+      if (S30_DUMMY && dummyPatched && vantageDeadAt === null) {
+        // ⭐ 靶场：Vantage 一死就结束本场 —— 否则空转几千帧，而滚动缓冲存的是【末帧】⟹ 全是"死后空帧"（selfX=selfY=0）。
+        try {
+          const _al = JSON.parse(await m.eval(`(()=>{var gc=GameManager.getGameController();var t=gc&&gc.getTanks?gc.getTanks():{};return JSON.stringify(Object.keys(t||{}));})()`));
+          if (Array.isArray(_al) && _al.length && _al.indexOf(vidOfScene) < 0) { vantageDeadAt = f; break; }
+        } catch (eAD) {}
       }
       await m.pump(1, { yieldMs: 0 });
     }
@@ -540,7 +548,7 @@ async function runScene(scene, srv, cap) {
     } catch (eMD5) { r.src_md5 = null; }
     r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
     r.grow_ok_frames = growOkFrames;
-    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
+    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
     r.ask_a_err = s30AErr;
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
     r.opp_rows_max = oppBlocksSeen;

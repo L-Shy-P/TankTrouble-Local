@@ -106,7 +106,7 @@ INFERRED = OrderedDict([
 ITEMS = ("result", "kill", "kill_storm", "hit_nonlethal", "selfkill", "death", "death_storm",
          "win", "lose", "draw", "crate", "speed", "fast_death",
          "survive", "legal", "empty_fire", "spawn", "aim",
-         "still", "progress")   # ⭐ 稠密两项（新增在末尾 ⇒ 不影响既有求和顺序）
+         "still", "progress", "camp")   # ⭐ camp=同格待超3秒持续扣分（主人 2026-10-18）
 
 SUMMARY_EVERY = 5000      # 【无出处、工程默认】stderr 摘要的打印节律（只影响日志，不影响数值）
 
@@ -549,6 +549,43 @@ def _progress_part(f, cfg):
     return prog
 
 
+# ⭐⭐⭐ 主人 2026-10-18：「在同一格待超过 3 秒就开始持续扣分，离开后再回来依然继续扣，防止它在几格内刷分。」
+CAMP_TILE_M = 4.0      # 格尺寸(米)【无出处、待拍：按 mapW=16 / selfX≈65 推算 ≈4m/格】
+CAMP_SEC = 3.0         # 主人原话：3 秒
+CAMP_FRAMES = int(round(CAMP_SEC / 0.02))   # =150 帧
+_CAMP = {"t": None, "tiles": {}}
+
+
+def _camp_part(f, cfg):
+    """同格【累计】超时持续扣分（per-tile 累计 ⟹ 离开再回来继续扣，刷不了分）。"""
+    w0 = float(cfg.get("w_camp", -0.05))
+    try:
+        obs = f.get("obs") or {}
+        g = obs.get("global")
+        if not g:
+            return (0.0, w0, 0.0)
+        row = g[0] if (isinstance(g, (list, tuple)) and g and isinstance(g[0], (list, tuple))) else g
+        sx, sy = float(row[6] or 0.0), float(row[7] or 0.0)
+        if sx == 0.0 and sy == 0.0:
+            STATS["camp_no_self"] = STATS.get("camp_no_self", 0) + 1
+            return (0.0, w0, 0.0)
+        t = f.get("t")
+        if _CAMP["t"] is None or (isinstance(t, int) and t <= _CAMP["t"]):
+            _CAMP["tiles"] = {}
+        if isinstance(t, int):
+            _CAMP["t"] = t
+        tile = (int(sx // CAMP_TILE_M), int(sy // CAMP_TILE_M))
+        n = _CAMP["tiles"].get(tile, 0) + 1
+        _CAMP["tiles"][tile] = n
+        if n > CAMP_FRAMES:
+            STATS["camp_frames"] = STATS.get("camp_frames", 0) + 1
+            return (1.0, w0, w0)
+        return (0.0, w0, 0.0)
+    except Exception as e:
+        STATS["camp_err"] = str(e)[:80]
+        return (0.0, w0, 0.0)
+
+
 def explain(f, cfg):
     """把一帧拆成【逐项：(原始量, 权重, 贡献)】。`reward_of` 就是按 `ITEMS` 顺序把贡献加起来。
 
@@ -704,6 +741,7 @@ def explain(f, cfg):
     _prog = _progress_part(f, cfg)
     parts["progress"] = (_prog, float(w("w_progress", EXTRA_DEFAULTS["w_progress"])),
                          float(w("w_progress", EXTRA_DEFAULTS["w_progress"])) * _prog)
+    parts["camp"] = _camp_part(f, cfg)   # ⭐ 主人 2026-10-18：同格待超 3 秒持续扣分（per-tile 累计，回来继续扣）
     if bool(f.get("done")):          # ⭐ 局末 ⟹ 断链（下一局第一帧绝不跨局相减）
         _PREV["t"] = None
         _PREV["dist"] = None
