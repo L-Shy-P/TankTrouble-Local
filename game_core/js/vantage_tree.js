@@ -4280,6 +4280,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
      *   · 同一 `_timeAcc`（同一帧）内多次取操作 → 不重复推进；
      *   · B 目标不变 → 游标 +1（逐帧推进）；目标变了/断链 → 重置 0（下帧走新路线）。
      */
+    // ⭐ 主人 2026-10-18 裁定：B 每帧给出新路 ⟹ 每帧都必须应用（默认开）
+    var AGENT_ROUTE_1FRAME = (typeof window !== 'undefined' && window.__vtRoute1Frame === 0) ? 0 : 1;
+
     function agentExecEnsure(tree) {
         if (!tree) return null;
         if (tree._agentExecSyncedTick === _timeAcc && tree._agentExecPath) return tree._agentExecPath;
@@ -4302,12 +4305,22 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             }
             if (found && cmt) {
                 var Lc = Math.max(1, agentExecLenOf(cmt));
-                var elapsedInCmt = 0;
-                if (typeof cmt.tEndSec === 'number') {
-                    elapsedInCmt = Math.round((Lc * FRAME_DT - (cmt.tEndSec - _timeAcc)) / FRAME_DT);
+                // ⭐⭐⭐ 主人 2026-10-18 裁定：「**每个操作路线的有效期有且仅有 1 帧，
+                //   每帧 B 都在给出新路，必须让每帧 B 给出的新路都应用**」
+                //   ⟹ 原来这里用 `cum + elapsedInCmt`（停在 commitNode 段【中间】）⟹ 新路线的
+                //      头几个 hop 要等这一段走完才生效 ⟹ 表现为"同一个操作持续几十帧、换不了"。
+                //   ⟹ 改成把游标推到 commitNode 段的【末尾】⟹ 新路线的**第一个 hop 当帧生效**。
+                //   （`AGENT_ROUTE_1FRAME=0` 可回退到旧行为，便于对照）
+                if (typeof AGENT_ROUTE_1FRAME !== 'undefined' && !AGENT_ROUTE_1FRAME) {
+                    var elapsedInCmt = 0;
+                    if (typeof cmt.tEndSec === 'number') {
+                        elapsedInCmt = Math.round((Lc * FRAME_DT - (cmt.tEndSec - _timeAcc)) / FRAME_DT);
+                    }
+                    elapsedInCmt = Math.max(0, Math.min(Lc - 1, elapsedInCmt));
+                    startFrame = cum + elapsedInCmt;
+                } else {
+                    startFrame = cum + Lc;    // ← 段末 = 下一个 hop 的首帧 = 本帧就按新路走
                 }
-                elapsedInCmt = Math.max(0, Math.min(Lc - 1, elapsedInCmt));   // 当前帧仍在段内
-                startFrame = cum + elapsedInCmt;
             } else {
                 startFrame = 0;    // commitNode 不在该路线上 → 从路线起点开始（B 给的是另一支）
             }
@@ -4569,12 +4582,14 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             }
             if (phase === 'B') {
                 var _route = (dec.picks && dec.picks.length) ? dec.picks[0].nodeId : dec.select;
-                tree._agentRoute = (_route === undefined) ? null : _route;
-                tree._agentFirePicks = (dec.picks && dec.picks.length > 1) ? dec.picks.slice(1) : [];
-                // v185（3-4）诊断（只读）：B 的路线/射击帧落位，供探针/面板读取
-                tree.stats.agentRouteId = tree._agentRoute;
-                tree.stats.agentFireFrames = tree._agentFirePicks.length;
-                tree.stats.agentFireFirstBack = tree._agentFirePicks.length ? tree._agentFirePicks[0].back : null;
+                // ★ 「本帧没给」≠「作废之前的」：只有真的给了目标才写，否则保留上一帧的路线与射击帧
+                if (_route !== undefined && _route !== null) {
+                    tree._agentRoute = _route;
+                    tree._agentFirePicks = (dec.picks && dec.picks.length > 1) ? dec.picks.slice(1) : [];
+                    tree.stats.agentRouteId = tree._agentRoute;
+                    tree.stats.agentFireFrames = tree._agentFirePicks.length;
+                    tree.stats.agentFireFirstBack = tree._agentFirePicks.length ? tree._agentFirePicks[0].back : null;
+                }
                 tree._agentCtxB = ctx;
                 tree.stats.agentBCalls = (tree.stats.agentBCalls || 0) + 1;
             } else {
