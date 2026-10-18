@@ -200,12 +200,28 @@ async function runScene(scene, srv, cap) {
   const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
   let s30segs = null, s30p = null, s30n = 0, s30pA = null;
   let s30still = 0, s30empty = 0;   // ⭐ 帧级作用域：静止帧 / 空放帧   // ⭐ S30_DUMP：本帧 segs/p + 原始帧计数
+  // ⭐⭐⭐ 2026-10-18（父代理派单「补齐 rewards.py 读取但 dump 里没有的奖惩字段」）：
+  //   下面这些**全部是帧级作用域**（⛔ 不能用块内 const/let —— 否则 dump 那侧引用不到；
+  //   上一轮 `still`/`empty_fire` 正是栽在这里：逐帧 `r` 里只有"终局覆盖"那 1 帧有值）。
+  let s30hit = 0;        // 我方子弹命中对手（内核里必然致死；证据见 `_g1_inject.js` 的 deadly 事件注释）
+  let s30crate = 0;      // 我方吃到道具（COLLECTIBLE_DESTROYED 且 picker=我方）
+  let s30selfhit = 0;    // 我方子弹打自己（= rewards 的 selfkill 数据源）
+  let s30shieldhit = 0;  // 我方子弹打【对手护盾】（只反弹、不致死）——诊断项，不是 rewards 的 hit
+  let s30spawn = 0, s30kill = 0, s30death = 0, s30oppFire = 0;
+  let s30aim = 0, s30aimDeg = null, s30tmin = null, s30tminD = null, s30tminLive = null, s30dbg = null;
+  const dFiredBy = {};                       // 每个玩家的 `_bulletsFired`（累计值）上一帧快照
+  let tminShot = null, tminDeath = null, mperSticky = null;   // t_min 口径用的粘住值（口径见下面的注释）
+  let s30lastOppFirePid = null, dOppFire3 = false, s30spawnTmin = null, mperSrc = null;
+  const evTot = { evN: 0, evOver: 0, deadlyAll: 0, deadlyMine: 0, deadlySelf: 0, deadlyOppOnMe: 0,
+                  deadlyOppSelf: 0, killEv: 0, pickAll: 0, pickMine: 0, shieldMine: 0 };
   // ⭐ 稠密奖励用的上一帧状态（父代理 2026-10-18：终局 ±3 太稀 ⟹ 需逐帧信号）
-  let dLastFired = null, dLastKill = 0, dLastDeath = 0, dLastPose = null;
-  let s30dense = { spawn: 0, kill: 0, death: 0, aim: 0 };
+  // ⚠️ 2026-10-18：旧的 4 个"上一帧"标量（`dLastFired`/`dLastKill`/`dLastDeath`/`dLastPose`）与 `s30dense`
+  //   已被下面的 `dFiredBy`（逐玩家累计开火快照）+ `dPrevAlive`（存活集合）取代，删掉以免有人以为它们还在生效。
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
   let stillFrames = 0, emptyFireFrames = 0;   // ⭐ 静止帧 / 空放帧（验证两个惩罚真的在生效）
+  let emptyFireUnknown = 0;   // ⭐ "想开火但 ammoLeft 是 -1（取不到）" 的帧数 —— ⛔ 不当空放，只计数
+  let ammoMin = null, ammoMax = null;   // ⭐ ammoLeft（global[15]）的取值范围，用于核"空放=0 是不是真的没有" 
   let dummyN = 0, s30DummyErr = null, dummyPatched = false, vidOfScene = 'vantage_1', vantageDeadAt = null;   // ⭐ 靶场模式：被清成静止靶的对手数
   let growOkFrames = 0;    // ⭐ A 相拿到 grow 决策的帧数（验证 A 数据真的进来了）
   let s30AErr = null;
@@ -273,6 +289,9 @@ async function runScene(scene, srv, cap) {
     await m.eval('window.__g1.setFire(' + (FIRE_ON ? 1 : 0) + ')');
     const meta = JSON.parse(await m.eval('JSON.stringify(window.__g1.meta())'));
     const vid = meta.vid;
+    // ⭐ 算 `t_min`（子弹最短飞行帧数）要用的物理常数（由页面 `Constants` 只读导出，⛔ 不在采集侧写死）
+    const K = (meta && meta.k) || {};
+    r.k = K;
     if (!vid) throw new Error('场上没有 VantageAIManager（meta.vid=null）');
     r.vantage_id = vid;
     const inRound = (meta.states && meta.states.IN_ROUND) || 'in round';
@@ -397,57 +416,169 @@ async function runScene(scene, srv, cap) {
         const _gg = (s30segs && s30segs.global && s30segs.global[0]) || null;
         const _ammo = _gg ? _gg[15] : null;          // global[15] = ammoLeft
         const _ft = (s30p && s30p.fire) ? 1 : 0;
-        s30empty = (_ft && typeof _ammo === 'number' && _ammo <= 0) ? 1 : 0;
+        // ⚠️ 2026-10-18 修：`ammoLeft` 的 **-1 是"取不到"的哨兵**（`vantage_observe.js` 武器段：
+        //   取不到先给 -1，不是 0）⟹ 旧写法 `_ammo <= 0` 会把"取不到"当成"真没子弹"，
+        //   凭空多记一次空放（正是 AGENTS.md 里「读不到 ≠ 真的没有」那类坑）。
+        //   现在只认 `_ammo === 0`（= 真的空），`-1` 单独计 `emptyFireUnknown`（⛔ 不当空放）。
+        s30empty = (_ft && _ammo === 0) ? 1 : 0;
+        if (_ft && typeof _ammo === 'number' && _ammo < 0) emptyFireUnknown++;
+        if (typeof _ammo === 'number' && _ammo >= 0) {
+          if (ammoMin === null || _ammo < ammoMin) ammoMin = _ammo;
+          if (ammoMax === null || _ammo > ammoMax) ammoMax = _ammo;
+        }
       } catch (eEF) { s30empty = 0; }
       if (s30still) stillFrames++;
       if (s30empty) emptyFireFrames++;
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // ⭐⭐⭐ 2026-10-18（父代理派单）：**逐帧奖励字段**——全部来自只读遥测，算不出就 null
+      //   ① `hit`      : 本帧我方子弹命中对手的次数（`TANK_DEADLY_COLLISION` 且 shooter=我方、victim≠我方）
+      //                  ⚠️ 内核里这条事件**必然**紧跟 `killTank` + `destroyProjectile` ⟹ **每次命中都致死**
+      //                     ⟹ `hit == kill` ⟹ `rewards` 的 `hit_nonlethal = hit-kill = 0`（结构性的 0，不是没采到）
+      //   ② `crate`    : 本帧我方吃到道具（`COLLECTIBLE_DESTROYED` 且 `Pickup.playerId`=我方）——归属由游戏给
+      //   ③ `t_min`    : 口径=「从**炮口**到**最近存活对手外壳**的直线距离 ÷ **实测子弹每帧位移**」，向上取整；
+      //                  取**最近一次真发射那一帧**算出的值（`rewards._speed_part` 的 `T_kill` 也是从"最近一次真发射"起算，
+      //                  两者必须同一起点）。本帧算不了（如对手刚死）⟹ 沿用最近一次实测值；从没测到 ⟹ null。
+      //                  `t_min_death` 用同一公式，但起点是**对手炮口**、终点是**我方外壳**（距离对称）。
+      //   ④ `aim`      : 最近存活对手是否在**炮口方向 ±20°** 内（0/1）。⚠️ 炮口方向 = `rot − π/2`，**不是** `rot`
+      //                  （出处：`game_core/js/7b2ed8ad…js` 坦克速度 `speedX=Math.sin(rot)*speed, speedY=-Math.cos(rot)*speed`
+      //                    + `game_core/js/vantage_tree.js:4397` 炮口 `dx=Math.sin(rot), dy=-Math.cos(rot)`）
+      //                  ⟹ 旧代码 `atan2(dy,dx)-rot` **恒偏 90°** ⟹ 这就是 `aim` 恒 0 的根因（本轮回测给数字）。
+      //   ⑤ `still` / `empty_fire`：修 `2026-10-18` 的"结果行=81/97、dump 只有 1 帧"不一致 —— 见下面 `r` 里逐帧写。
+      // ═══════════════════════════════════════════════════════════════════════════════
+      s30hit = 0; s30crate = 0; s30selfhit = 0; s30shieldhit = 0;
+      s30spawn = 0; s30kill = 0; s30death = 0; s30oppFire = 0;
+      s30aim = 0; s30aimDeg = null; s30tminLive = null; s30dbg = null;
+      try {
+        const _vid2 = o.vid;
+        // ── ①+②+④ 事件清点（事件归属由游戏自己给，⛔ 不按格子/位姿猜）──
+        const _ev = (o && o.ev) || [];
+        evTot.evN += _ev.length;
+        let _deathByOther = 0, _deathSelf = 0, _oppDeadByMe = 0, _oppDeadByOther = 0;
+        for (let ei = 0; ei < _ev.length; ei++) {
+          const e2 = _ev[ei];
+          if (e2.k === 'deadly') {
+            evTot.deadlyAll++;
+            if (e2.shooter === _vid2 && e2.victim !== _vid2) { s30hit++; evTot.deadlyMine++; _oppDeadByMe++; }
+            if (e2.shooter === _vid2 && e2.victim === _vid2) { s30selfhit++; evTot.deadlySelf++; _deathSelf++; }
+            if (e2.shooter !== _vid2 && e2.victim === _vid2) { evTot.deadlyOppOnMe++; _deathByOther++; }
+            if (e2.shooter !== _vid2 && e2.victim !== _vid2) { _oppDeadByOther++; }
+            if (e2.shooter !== _vid2 && e2.shooter === e2.victim) { evTot.deadlyOppSelf++; }
+          } else if (e2.k === 'pickup') {
+            evTot.pickAll++;
+            if (e2.picker === _vid2) { s30crate++; evTot.pickMine++; }
+          } else if (e2.k === 'shield') {
+            if (e2.shooter === _vid2 && e2.shieldOwner !== _vid2) { s30shieldhit++; evTot.shieldMine++; }
+          } else if (e2.k === 'kill') {
+            if (e2.shooter === _vid2 && e2.victim !== _vid2) evTot.killEv++;
+          }
+        }
+        if (o && typeof o.evOverflow === 'number') evTot.evOver = o.evOverflow;
+        // ── ③ 真发射（`_bulletsFired` 是累计值 ⟹ 取差分；我 + 每个对手都取）──
+        const _wep = (o && o.wep) || {};
+        const _wkeys = Object.keys(_wep);
+        for (let wi = 0; wi < _wkeys.length; wi++) {
+          const pid3 = _wkeys[wi], w3 = _wep[pid3];
+          if (!w3 || typeof w3.fired !== 'number') continue;
+          const prev3 = (dFiredBy[pid3] === undefined) ? null : dFiredBy[pid3];
+          const inc3 = (prev3 === null) ? 0 : Math.max(0, w3.fired - prev3);
+          dFiredBy[pid3] = w3.fired;
+          if (pid3 === _vid2) { s30spawn = inc3; }
+          else if (inc3 > 0) { s30oppFire += inc3; s30lastOppFirePid = pid3; dOppFire3 = true; }
+        }
+        const _firstFrame = (dPrevAlive === null);   // 首帧没有"上一帧"可比 ⟹ 不产生发射/击杀差分
+        if (_firstFrame) s30spawn = 0;
+        // ── 存活集合（⭐ 关键修正：`getActivePlayerIds()` 是**游戏里在场玩家**，死掉的坦克仍在里面、
+        //    只是 `gc.getTank(id)` 返回 null ⟹ `o.pl[id] === null`。旧代码用 `Object.keys(o.pl)` 数存活，
+        //    ⟹ 8 人靶场里打死了靶子也数不出 `kill`（恒 0）。这里改成**只数位姿非 null 的**。）──
+        const _pl = (o && o.pl) || {};
+        const _plKeys = Object.keys(_pl);
+        const _aliveIds = _plKeys.filter(function (k) { return !!_pl[k]; });
+        const _meAlive = (_aliveIds.indexOf(_vid2) >= 0) ? 1 : 0;
+        const _oppPoses = _aliveIds.filter(function (k) { return k !== _vid2; }).map(function (k) { return _pl[k]; });
+        const _me = _meAlive ? _pl[_vid2] : null;
+        if (dPrevAlive !== null) {
+          // ⭐ 死因归属（2026-10-18 修 double-count）：
+          //   `selfkill`（我方子弹打自己）与 `death`（被他人子弹打死）是**两个互斥的项**，
+          //   旧写法在"自爆"那一帧会同时置 1 ⟹ 同一件事实扣 -1.5 + -1.0 = -2.5（虚高）。
+          if (_deathByOther > 0) s30death = _deathByOther;
+          else if (_deathSelf > 0) s30death = 0;            // ⭐ 自爆：交给 selfkill 项，⛔ 不再记 death
+          else if (dPrevAlive.me === 1 && _meAlive === 0) s30death = 1;   // 死因未知（毒雾等）兜底
+          // ⭐ `kill` 的归属（2026-10-18 修）：`w_kill` 的语义是「**我方子弹**击杀」。
+          //   旧写法只看"对手数量少了"⟹ **对手自爆也算我击杀**（实测 p2_clear_crates_20101 就是这种：
+          //   `deadly` 事件是 `shooter=对手 / victim=对手` 的自爆，却被记成我 kill=1、白拿 +1.0）。
+          //   现在：有 `deadly` 事件就用事件归属；一个 `deadly` 事件都没有（毒雾/退出）才退回数量差分。
+          if (_oppPoses.length < dPrevAlive.opp) {
+            if (_oppDeadByMe + _oppDeadByOther > 0) s30kill = _oppDeadByMe;
+            else s30kill = dPrevAlive.opp - _oppPoses.length;
+          }
+        }
+        dPrevAlive = { me: _meAlive, opp: _oppPoses.length };
+        // ── ④ aim：炮口方向 = rot − π/2（修 90° 偏差）──
+        let _near = null, _nearD = Infinity;
+        if (_me) {
+          for (let qi = 0; qi < _oppPoses.length; qi++) {
+            const _q = _oppPoses[qi];
+            const dd = (_q.x - _me.x) * (_q.x - _me.x) + (_q.y - _me.y) * (_q.y - _me.y);
+            if (dd < _nearD) { _nearD = dd; _near = _q; }
+          }
+          if (_near) {
+            let da = Math.atan2(_near.y - _me.y, _near.x - _me.x) - (_me.rot - Math.PI / 2);
+            while (da > Math.PI) da -= 2 * Math.PI;
+            while (da <= -Math.PI) da += 2 * Math.PI;
+            s30aimDeg = da * 180 / Math.PI;
+            s30aim = (Math.abs(s30aimDeg) <= 20) ? 1 : 0;      // 阈值 ±20° 沿用原口径（父代理 2026-10-18 派单）
+          }
+        }
+        // ── ③ t_min 的"米/帧"：**子弹速度(m/s) × 每帧秒数**（都由游戏/时钟自报，⛔ 不写死常数）
+        //   主口径来自注入器 `o.mper`（= 我方子弹速度 × `window.__vt.dt`）；
+        //   交叉核对值 `o.mperMineDisp`（同一颗子弹相邻帧实测位移）只记进 dbg，不参与取值。
+        //   从来测不到（整局我方没有过子弹）⟹ 保持 null ⟹ `t_min` 也是 null（⛔ 不拿常数顶）
+        if (o && typeof o.mper === 'number' && o.mper > 0) { mperSticky = o.mper; mperSrc = o.mperFrom || 'speed'; }
+        const OFF = (typeof K.bulletOffset === 'number') ? K.bulletOffset : null;
+        const BR = (typeof K.bulletRadius === 'number') ? K.bulletRadius : 0;
+        const TH = (typeof K.tankHalfH === 'number') ? K.tankHalfH : 0;
+        const _tminOf = function (fromPose, toPose, mper) {
+          if (!fromPose || !toPose || !(mper > 0) || OFF === null) return null;
+          const fx = Math.sin(fromPose.rot), fy = -Math.cos(fromPose.rot);
+          const mx = fromPose.x + fx * OFF, my = fromPose.y + fy * OFF;
+          const dh = Math.hypot(toPose.x - mx, toPose.y - my) - (TH + BR);   // 到"外壳"的直线距离（米）
+          if (!isFinite(dh)) return null;
+          return Math.max(1, Math.ceil(Math.max(0, dh) / mper));
+        };
+        s30tminLive = _tminOf(_me, _near, mperSticky);                    // 本帧几何值（诊断用）
+        if (s30spawn > 0) {                                               // 真发射那一帧 ⟹ 定"本发子弹"的 T_min
+          const _t = _tminOf(_me, _near, mperSticky);
+          if (_t !== null) tminShot = _t;
+          s30spawnTmin = _t;
+        }
+        if (dOppFire3 && _me) {                                            // 对手真发射那一帧 ⟹ 定"这发来袭弹"的 T_min'
+          const _op = _pl[s30lastOppFirePid] || null;
+          const _t2 = _tminOf(_op, _me, mperSticky);
+          if (_t2 !== null) tminDeath = _t2;
+        }
+        dOppFire3 = false;
+        s30tmin = (tminShot !== null) ? tminShot : s30tminLive;
+        s30tminD = tminDeath;
+        s30dbg = {
+          na: _oppPoses.length, me: _meAlive, plN: _plKeys.length, deadSlots: _plKeys.length - _aliveIds.length,
+          mper: (typeof mperSticky === 'number') ? +mperSticky.toFixed(4) : null,
+          mperSrc: mperSrc,
+          mperMineDisp: (o && typeof o.mperMineDisp === 'number') ? +o.mperMineDisp.toFixed(4) : null,
+          spdMine: (o && typeof o.spdMine === 'number') ? o.spdMine : null,
+          dtMs: (o && typeof o.dtMs === 'number') ? o.dtMs : null,
+          mperN: (o && typeof o.mperN === 'number') ? o.mperN : null,
+          projN: (o && typeof o.projN === 'number') ? o.projN : null,
+          bOff: OFF, tHalf: TH, evN: _ev.length, evOver: (o && o.evOverflow) || 0,
+          tminLive: s30tminLive, tminShot: tminShot, tminDeath: tminDeath,
+          aimDeg: (s30aimDeg === null) ? null : +s30aimDeg.toFixed(1),
+          spawn: s30spawn, oppFire: s30oppFire, hit: s30hit, crate: s30crate, shieldHit: s30shieldhit,
+          still: s30still, empty: s30empty
+        };
+      } catch (eDense) { s30dbg = { err: String((eDense && eDense.message) || eDense).slice(0, 200) }; }
       if (DUMP_DIR && s30segs && o && o.N) {
         const segs = s30segs;
         s30n++;
         const _fire = (s30p && typeof s30p.fire === 'number') ? (s30p.fire ? 1 : 0) : 0;
-        // ── 稠密奖励（逐帧真实信号，来自评测已有遥测；⛔ 不用"假设值"）
-        //    spawn : 本帧真实发射数增量（`o.wep[vid].fired` 是累计值 ⟹ 取差分）
-        //    kill  : 本帧击杀事件增量（`o.kills` 是累计数组 ⟹ 取长度/事件差分）
-        //    death : 本帧我方死亡事件增量
-        //    aim   : 最近存活对手是否在车头 ±20°（0/1）
-        let dSpawn = 0, dKill = 0, dDeath = 0, dAim = 0;
-        try {
-          const _vid2 = o.vid;
-          const _w = o.wep && o.wep[_vid2];
-          if (_w && typeof _w.fired === 'number') {
-            if (dLastFired !== null && _w.fired > dLastFired) dSpawn = _w.fired - dLastFired;
-            dLastFired = _w.fired;
-          }
-          // ⚠️ 实测 `o.kills` 在"我方获胜但 killsN=0"时抓不到事件 ⟹ 改用【存活玩家集合变化】判死
-          //   （与 `alive_trace` 同源：`gc.getTanks()` 的 id 集合）
-          const _ids = o.pl ? Object.keys(o.pl) : [];
-          const _meAlive = (_ids.indexOf(_vid2) >= 0) ? 1 : 0;
-          const _oppAlive = _ids.filter(function (k) { return k !== _vid2; }).length;
-          if (dPrevAlive !== null) {
-            if (dPrevAlive.me === 1 && _meAlive === 0) dDeath = 1;
-            if (_oppAlive < dPrevAlive.opp) dKill = dPrevAlive.opp - _oppAlive;
-          }
-          dPrevAlive = { me: _meAlive, opp: _oppAlive };
-          // aim：用双方位姿算角差
-          const _me = o.pl && o.pl[_vid2];
-          const _op = o.pl ? Object.keys(o.pl).filter(function (k) { return k !== _vid2; }).map(function (k) { return o.pl[k]; }) : [];
-          if (_me && _op.length) {
-            let bi = -1, bd = Infinity;
-            for (let qi = 0; qi < _op.length; qi++) {
-              const _q = _op[qi]; if (!_q) continue;
-              const dd = (_q.x - _me.x) * (_q.x - _me.x) + (_q.y - _me.y) * (_q.y - _me.y);
-              if (dd < bd) { bd = dd; bi = qi; }
-            }
-            if (bi >= 0) {
-              const _t2 = _op[bi];
-              let da = Math.atan2(_t2.y - _me.y, _t2.x - _me.x) - (_me.rot || 0);
-              while (da > Math.PI) da -= 2 * Math.PI;
-              while (da < -Math.PI) da += 2 * Math.PI;
-              if (Math.abs(da) * 180 / Math.PI <= 20) dAim = 1;
-            }
-          }
-        } catch (eDense) { }
-        s30dense = { spawn: dSpawn, kill: dKill, death: dDeath, aim: dAim };
         dumpFrames.push({
           t: f, N: o.N, obs: segs,
           act: (function () {
@@ -461,9 +592,14 @@ async function runScene(scene, srv, cap) {
           lp: (s30p && typeof s30p.lp === 'number' && isFinite(s30p.lp)) ? s30p.lp : null,
           v: (s30p && typeof s30p.v === 'number' && isFinite(s30p.v)) ? s30p.v : null,
           execByPolicy: true, execStill: (o.sub ? (!o.sub.f && !o.sub.b && !o.sub.l && !o.sub.r) : null),
+          // ⭐⭐ 逐帧 `r`：`rewards.py` 真正读的就是这里。`null` = 【算不出来】（reward 侧会显式计数并置 0，⛔ 不编常数）
           r: { total: 0, result: 0, survive: 0.01, legal: 0,
-               spawn: s30dense.spawn, kill: s30dense.kill, death: s30dense.death, aim: s30dense.aim,
-               selfkill: 0, kill_storm: 0, death_storm: 0 }, done: false
+               spawn: s30spawn, kill: s30kill, death: s30death,
+               hit: s30hit, crate: s30crate, selfkill: s30selfhit, kill_storm: 0, death_storm: 0,
+               aim: s30aim, t_min: s30tmin, t_min_death: s30tminD,
+               still: s30still, empty_fire: s30empty }, done: false,
+          // ⭐ 诊断（不进奖励；用来证明"算出来的数是怎么来的"）
+          dbg: s30dbg
         });
         // 滚动裁剪：只保留最后 DUMP_MAX 帧（0=不裁）
         if (DUMP_MAX > 0 && dumpFrames.length > DUMP_MAX * 2) dumpFrames.splice(0, dumpFrames.length - DUMP_MAX);
@@ -567,6 +703,8 @@ async function runScene(scene, srv, cap) {
       };
     } catch (eMD5) { r.src_md5 = null; }
     r.fire_on_frames = fireOnFrames;   // ⭐ 策略开火帧数（与 fire 常量对照）
+    r.empty_fire_unknown_ammo = emptyFireUnknown;   // ⭐ ammoLeft=-1（取不到）而 fire=1 的帧数（不算空放）
+    r.ammo_left_range = [ammoMin, ammoMax];         // ⭐ ammoLeft 的实测范围（证明"空放=0"是不是真没子弹）
     r.grow_ok_frames = growOkFrames;
     r.still_frames = stillFrames; r.empty_fire_frames = emptyFireFrames;
     r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
@@ -602,16 +740,61 @@ async function runScene(scene, srv, cap) {
                    : (r.win === 0 ? -1.0
                    : (_isTimeout ? -2.0 : 0.0));
         // 终局帧之前若曾裁剪，t 仍严格递增（保留的是尾部连续段）⟹ 合规
-        dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
-                                                 survive: 0.01, legal: 0, still: s30still, empty_fire: s30empty,
-                                                 win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
-                                                 // ⭐ 父代理 2026-10-18：死亡发生在【最后一帧】⟹ 逐帧 pl 集合变化采不到
-                                                 //   ⟹ 终局帧按胜负反推：win=1 ⟹ 我方击杀；win=0 ⟹ 我方死亡。
-                                                 //   ⚠️ 局限：赢也可能是对手自爆（无法从现有遥测区分），已在台账标注
-                                                 kill: (r.win === 1 ? 1 : 0),
-                                                 death: (r.win === 0 ? 1 : 0),
-                                                 selfkill: 0 };
+        // ⭐ 2026-10-18 修：原来这里**整块替换** `r` ⟹ 除了这最后一帧，其它帧的 `still`/`empty_fire`
+        //   /`hit`/`crate`/`t_min`/`aim` 全丢了（结果行 `still_frames=81 / empty_fire_frames=97`，
+        //   而 dump 逐帧 `r` 里只有 **1 帧**为 1 —— 就是被这里覆盖的那一帧）。
+        //   现在改成 **Object.assign 增量覆盖**：保留该帧已算出的逐帧值，只补终局量。
+        const _lastR = dumpFrames[dumpFrames.length - 1].r || {};
+        // ⭐ 终局帧的 kill/death 原来是"按胜负反推"（win⇒kill=1 / lose⇒death=1）。
+        //   现在事件录里有证据，就先看证据（⛔ 不再用胜负盖住"对手自爆"这种真实情况）：
+        //   · `evTot.deadlyMine>0`    ⟹ 我方子弹确实命中过对手 ⟹ kill=1 有据
+        //   · `evTot.deadlyOppSelf>0` ⟹ 对手子弹打的是对手自己（自爆）⟹ kill 必须为 0
+        //   · `evTot.deadlySelf>0`    ⟹ 我方自爆 ⟹ death 归 selfkill 项，death=0
+        const _killByEv = (evTot.deadlyMine > 0) ? 1 : 0;
+        const _oppSelfEv = (evTot.deadlyOppSelf > 0) ? 1 : 0;
+        const _selfEv = (evTot.deadlySelf > 0) ? 1 : 0;
+        let _termKill = 0, _killDerived = 0;
+        if (r.win === 1) {
+          if (_killByEv) _termKill = 1;
+          else if (_oppSelfEv) _termKill = 0;            // 赢是对手自爆：我方没击杀
+          else { _termKill = 1; _killDerived = 1; }      // 无事件证据 ⟹ 维持旧口径（显式标 derived）
+        }
+        let _termDeath = 0, _deathDerived = 0;
+        if (r.win === 0) {
+          if (_selfEv) _termDeath = 0;                   // 自爆 ⟹ 只记 selfkill
+          else if (evTot.deadlyOppOnMe > 0) _termDeath = 1;
+          else { _termDeath = 1; _deathDerived = 1; }
+        }
+        dumpFrames[dumpFrames.length - 1].r = Object.assign({}, _lastR, {
+          total: term,
+          result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
+          survive: 0.01, legal: 0,
+          win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
+          // ⭐ `draw`：双死局（`result==='dbl_death'`）。`rewards._crate_and_draw_parts` 见到 `draw>0` 就直供，
+          //   并且会把 `result` 权重项抑制掉（D4：双死只走 draw，⚠️不 double-count）。
+          draw: (r.result === 'dbl_death' ? 1 : 0),
+          // ⭐ 父代理 2026-10-18：死亡发生在【最后一帧】⟹ 逐帧 pl 集合变化采不到
+          //   ⟹ 终局帧按胜负反推：win=1 ⟹ 我方击杀；win=0 ⟹ 我方死亡。
+          //   ⚠️ 局限：赢也可能是对手自爆（无法从现有遥测区分），已在台账标注
+          kill: Math.max(_lastR.kill || 0, _termKill),
+          death: Math.max(_lastR.death || 0, _termDeath),
+          // ⚠️ 契约：`rewards.py` 里 `hit >= kill`（hit 含致命命中），否则它会**主动抛错**。
+          //   终局帧的 kill 是从胜负反推的（那一击常常发生在被 break 掉的、没 dump 的那一帧）⟹ 这里把 hit 顶到 kill，
+          //   并用 `hit_term_derived` 显式标出来源（⛔ 不是凭空多给一枪）。
+          hit: Math.max(_lastR.hit || 0, _termKill),
+          hit_term_derived: (_termKill && !(_lastR.hit > 0)) ? 1 : 0,
+          kill_term_derived: _killDerived,
+          death_term_derived: _deathDerived,
+          opp_selfkill_ev: _oppSelfEv,
+          selfkill: _lastR.selfkill || 0,
+          kill_storm: 0, death_storm: 0,
+          still: s30still, empty_fire: s30empty,
+          t_min: (_lastR.t_min === undefined ? null : _lastR.t_min),
+          t_min_death: (_lastR.t_min_death === undefined ? null : _lastR.t_min_death)
+        });
         dumpFrames[dumpFrames.length - 1].done = true;
+        // ⭐ 事件总量落进结果行（证明"这些 0 是真测出来的 0"，不是没采）
+        r.ev_total = evTot;
         const epObj = {
           ep: (typeof r.ep === 'number' ? r.ep : 1),
           scene: { players: scene.players, mapW: r.mapW, mapH: r.mapH, storm: !!scene.storm,

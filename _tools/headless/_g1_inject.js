@@ -49,6 +49,32 @@
     return 'ok';
   };
 
+  // ==========================================================================
+  // ⭐ 2026-10-18（奖励字段补齐）：**逐帧事件录**（只读导出，不改游戏逻辑）
+  //   为什么必须走事件而不是"按格子猜"：`rewards.py` 要的 `hit`/`crate` 都有**游戏自己给出的归属**，
+  //   比"我方格子里的道具消失了"这种推断准得多。四种事件（出处：`game_core/js/82e43ebf…js`
+  //   的 RoundModel 事件分发 switch）：
+  //     · `deadly` = `TANK_DEADLY_COLLISION`：坦克↔子弹接触。⚠️内核里它【必然】紧接着
+  //                  `killTank(...)` + `destroyProjectile(...)`（同一个 case 分支、无 if）
+  //                  ⟹ 这是"我方子弹命中对手"的**唯一真信号**，且**每次命中都致死**。
+  //     · `pickup` = `COLLECTIBLE_DESTROYED`：道具被吃掉。`Pickup` 只带 `playerId/collectibleId`
+  //                  ⟹ 归属由游戏自己给，不用按格子推。
+  //     · `shield` = `PROJECTILE_SHIELD_COLLISION`：子弹打护盾（只反弹、不致死）。
+  //     · `kill`   = `TANK_KILLED`（原有）。
+  //   帧号 `n` 的口径：`G.n` 在 `G.step()` 开头自增，`pump(1)` 期间派发的事件带着"刚自增完"的 `n`
+  //   ⟹ 采集侧取 `n <= G.n-1` 的事件，正好是【产生本帧状态】的那一次世界步。
+  // ==========================================================================
+  G.ev = []; G.evOut = 0; G.evOverflow = 0; G.evMax = 20000;
+  function pushEv(o) { if (G.ev.length - G.evOut < G.evMax) { G.ev.push(o); } else { G.evOverflow++; } }
+  function drainEv(upto) {
+    var out = [];
+    while (G.evOut < G.ev.length && G.ev[G.evOut].n <= upto) { out.push(G.ev[G.evOut]); G.evOut++; }
+    if (G.evOut > 2048) { G.ev = G.ev.slice(G.evOut); G.evOut = 0; }   // 防无界增长（每帧都抽干，不会丢）
+    return out;
+  }
+  G.drainEv = drainEv;
+  function sid(x) { return (x === null || x === undefined) ? null : String(x); }
+
   /** 订阅回合事件：把 TANK_KILLED 等记下来（胜负的直接证据） */
   G.kills = [];
   G.subscribe = function () {
@@ -62,6 +88,37 @@
           G.kills.push({ n: G.n, evt: nameOf[evt] || String(evt),
             killer: (data && data.getKillerPlayerId) ? data.getKillerPlayerId() : null,
             victim: (data && data.getVictimPlayerId) ? data.getVictimPlayerId() : null });
+          pushEv({ n: G.n, k: 'kill',
+            shooter: sid(data && data.getKillerPlayerId ? data.getKillerPlayerId() : null),
+            victim: sid(data && data.getVictimPlayerId ? data.getVictimPlayerId() : null) });
+        } else if (evt === RE.TANK_DEADLY_COLLISION) {
+          pushEv({ n: G.n, k: 'deadly',
+            victim: sid(data && data.tankA && typeof data.tankA.getPlayerId === 'function' ? data.tankA.getPlayerId() : null),
+            shooter: sid(data && data.projectile && typeof data.projectile.getPlayerId === 'function' ? data.projectile.getPlayerId() : null),
+            proj: sid(data && data.projectile && typeof data.projectile.getId === 'function' ? data.projectile.getId() : null),
+            ptype: (data && data.projectile && typeof data.projectile.getType === 'function') ? data.projectile.getType() : null });
+        } else if (evt === RE.COLLECTIBLE_DESTROYED) {
+          var cid = sid(data && typeof data.getCollectibleId === 'function' ? data.getCollectibleId() : null);
+          var ctp = null, cx = null, cy = null;
+          try {
+            var col = (cid && gc.getCollectible) ? gc.getCollectible(cid) : null;
+            if (col) {
+              if (typeof col.getType === 'function') ctp = col.getType();
+              if (typeof col.getX === 'function') cx = col.getX();
+              if (typeof col.getY === 'function') cy = col.getY();
+            }
+          } catch (eC) { }
+          pushEv({ n: G.n, k: 'pickup',
+            picker: sid(data && typeof data.getPlayerId === 'function' ? data.getPlayerId() : null),
+            col: cid, ctype: ctp, x: cx, y: cy });
+        } else if (evt === RE.PROJECTILE_SHIELD_COLLISION) {
+          pushEv({ n: G.n, k: 'shield',
+            shooter: sid(data && data.projectile && typeof data.projectile.getPlayerId === 'function' ? data.projectile.getPlayerId() : null),
+            shieldOwner: sid(data && data.shieldA && typeof data.shieldA.getPlayerId === 'function' ? data.shieldA.getPlayerId() : null),
+            proj: sid(data && data.projectile && typeof data.projectile.getId === 'function' ? data.projectile.getId() : null) });
+        } else if (evt === RE.PROJECTILE_DESTROYED || evt === RE.PROJECTILE_TIMEOUT) {
+          // 子弹"被销毁（击杀那一发）"/"正常超时" —— 只做客数交叉核对
+          pushEv({ n: G.n, k: (evt === RE.PROJECTILE_TIMEOUT) ? 'ptimeout' : 'pdestroy', proj: sid(data) });
         } else if (evt === RE.ROUND_ENDED) {
           var pids = null;
           try { pids = (data && data.getPlayerIds) ? __vtArr(data.getPlayerIds()) : null; } catch (eP) { }
@@ -78,6 +135,18 @@
   /** 开局元信息：状态名表 / 玩家 / 地图 / 面板档位 / 依赖是否在 */
   G.meta = function () {
     var out = { vid: G.vantageId() };
+  // ⭐ 2026-10-18：把"算 `t_min`（子弹最短飞行帧数）要用的物理常数"一次报出来（⛔ 不写死在采集侧）
+  //   出处：`game_core/js/b714588dc4621fe104113111ba90b1a7.js` `Constants.classFields({... BULLET:{RADIUS:{px:5,m:5/20},SPEED:{px:360,m:18},OFFSET:{px:50,m:2.5}} ... TANK:{HEIGHT:{px:80,m:4}} ...})`
+  try {
+    var C = (typeof Constants !== 'undefined') ? Constants : null;
+    out.k = C ? {
+      bulletSpeed: (C.BULLET && C.BULLET.SPEED) ? C.BULLET.SPEED.m : null,      // 米/秒
+      bulletOffset: (C.BULLET && C.BULLET.OFFSET) ? C.BULLET.OFFSET.m : null,  // 炮口离坦克中心（米）
+      bulletRadius: (C.BULLET && C.BULLET.RADIUS) ? C.BULLET.RADIUS.m : null,
+      tankHalfH: (C.TANK && C.TANK.HEIGHT) ? (C.TANK.HEIGHT.m / 2) : null,     // 坦克半高（米）
+      tileM: (C.MAZE_TILE_SIZE && C.MAZE_TILE_SIZE.m) ? C.MAZE_TILE_SIZE.m : null
+    } : null;
+  } catch (eK) { out.kErr = String((eK && eK.message) || eK); }
     try { out.states = (typeof GameModel !== 'undefined' && GameModel._STATES) ? GameModel._STATES : null; }
     catch (e) { out.statesErr = String((e && e.message) || e); }
     try { out.players = __vtArr(GameManager.getGameController().getActivePlayerIds()); } catch (e) { }
@@ -228,6 +297,49 @@
       var d = __vtData(gc.getRoundState()) || {};
       var ps = d.projectileStates || [];
       for (var k = 0; k < ps.length; k++) { var o = String(ps[k].playerId); projBy[o] = (projBy[o] || 0) + 1; }
+      // ⭐ 2026-10-18：**子弹每帧走多少米（`mper`）**——`t_min`（最短飞行帧数）的口径要用它。
+      //   主口径 `mperSpeed` = **我当前这颗子弹的速度(m/s) × 每帧秒数**：
+      //     · 速度：`projectileStates[].speedX/speedY`（游戏自己给，米/秒，实测 BULLET=18.0）
+      //     · 每帧秒数：页面虚拟时钟自报的 `window.__vt.dt`（`_tools/headless/clock.js:14` `const DT = 1000/60`）
+      //       ⟹ 18 × (16.667/1000) = 0.3000 米/帧
+      //   交叉核对 `mperMineDisp` = 同一颗子弹相邻两帧的位移（实测 0.2999，见报告）——只做核对，不参与取值。
+      //   ⚠️ 不同武器速度差很多（BULLET 18 / LASER 180 / SHOTGUN 30~35）⟹ 优先用【我方】子弹的速度；
+      //      我方这帧没子弹时才退到"场上任意子弹"（并在 `mperFrom` 里标明来源）。
+      var prevProj = G.lastProj || {};
+      var projNow = {}, nShared = 0;
+      var mperDispAll = null, mperMineDisp = null, spdMine = null, spdAny = null;
+      for (var pk = 0; pk < ps.length; pk++) {
+        var pj = ps[pk];
+        if (!pj || typeof pj.x !== 'number' || typeof pj.y !== 'number') continue;
+        var pidS = String(pj.id);
+        var bMine = (String(pj.playerId) === String(vid));
+        projNow[pidS] = [pj.x, pj.y];
+        var spd = Math.sqrt((pj.speedX || 0) * (pj.speedX || 0) + (pj.speedY || 0) * (pj.speedY || 0));
+        if (isFinite(spd) && spd > 0) {
+          if (spdAny === null || spd > spdAny) spdAny = spd;
+          if (bMine && (spdMine === null || spd > spdMine)) spdMine = spd;
+        }
+        var pv = prevProj[pidS] || null;
+        if (pv) {
+          var dm = Math.sqrt((pj.x - pv[0]) * (pj.x - pv[0]) + (pj.y - pv[1]) * (pj.y - pv[1]));
+          if (isFinite(dm)) {
+            nShared++;
+            if (mperDispAll === null || dm > mperDispAll) mperDispAll = dm;
+            if (bMine && (mperMineDisp === null || dm > mperMineDisp)) mperMineDisp = dm;
+          }
+        }
+      }
+      var dtMs = null;
+      try { if (window.__vt && typeof window.__vt.dt === 'number' && window.__vt.dt > 0) dtMs = window.__vt.dt; } catch (eDT) { }
+      if (dtMs === null) {
+        try { var _g2 = GameManager.getGame(); if (_g2 && _g2.time && typeof _g2.time.physicsElapsedMS === 'number') dtMs = _g2.time.physicsElapsedMS; } catch (eDT2) { }
+      }
+      var mperSpeed = null, mperFrom = null;
+      if (dtMs !== null && dtMs > 0) {
+        if (spdMine !== null) { mperSpeed = spdMine * dtMs / 1000; mperFrom = 'mine:speed'; }
+        else if (spdAny !== null) { mperSpeed = spdAny * dtMs / 1000; mperFrom = 'any:speed'; }
+      }
+      G.lastProj = projNow;
       var wss = d.weaponStates || [];
       for (var w = 0; w < wss.length; w++) {
         var f = {}; try { f = JSON.parse(wss[w].fieldsJSON || '{}'); } catch (eW) { }
@@ -236,6 +348,13 @@
           num: (f._numBullets === undefined ? null : f._numBullets) };
       }
       out.pl = pl; out.projBy = projBy; out.projN = ps.length; out.wep = wep;
+      out.mper = mperSpeed; out.mperFrom = mperFrom; out.mperN = nShared;   // 米/帧（主口径：子弹速度×每帧秒数）
+      out.mperMineDisp = mperMineDisp;                                       // 米/帧（交叉核对：我方子弹相邻帧位移）
+      out.mperDispAll = mperDispAll;                                         // 米/帧（交叉核对：场上任意子弹位移）
+      out.dtMs = dtMs; out.spdMine = spdMine; out.spdAny = spdAny;
+      // ⭐ 逐帧事件（只读）：本帧状态由 `pump` 里 `G.n-1` 那一步产生，故取 `n <= G.n-1`
+      out.ev = drainEv(G.n - 1);
+      out.evOverflow = G.evOverflow;
       // ⑤-b 树/输入侧证据：
       //   · sub    = VantageAIManager【每帧无条件提交】给 setInputState 的那 5 个键（真实提交物）
       //   · tv     = 树的提交节点（commitNode）与进度
