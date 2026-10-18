@@ -396,7 +396,7 @@ async function runScene(scene, srv, cap) {
           lp: (s30p && typeof s30p.lp === 'number' && isFinite(s30p.lp)) ? s30p.lp : null,
           v: (s30p && typeof s30p.v === 'number' && isFinite(s30p.v)) ? s30p.v : null,
           execByPolicy: true, execStill: (o.sub ? (!o.sub.f && !o.sub.b && !o.sub.l && !o.sub.r) : null),
-          r: { total: 0, result: 0, survive: 1, legal: 0,
+          r: { total: 0, result: 0, survive: 0.01, legal: 0,
                spawn: s30dense.spawn, kill: s30dense.kill, death: s30dense.death, aim: s30dense.aim,
                selfkill: 0, kill_storm: 0, death_storm: 0 }, done: false
         });
@@ -492,7 +492,7 @@ async function runScene(scene, srv, cap) {
         const term = (r.win === 1) ? 3.0 : (r.win === 0 ? -1.0 : 0.0);
         // 终局帧之前若曾裁剪，t 仍严格递增（保留的是尾部连续段）⟹ 合规
         dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
-                                                 survive: 1, legal: 0,
+                                                 survive: 0.01, legal: 0,
                                                  win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
                                                  kill: 0, death: 0, selfkill: 0 };
         dumpFrames[dumpFrames.length - 1].done = true;
