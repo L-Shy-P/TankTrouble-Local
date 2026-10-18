@@ -40,7 +40,9 @@ VT_LEARN_DIR = os.environ.get('VT_LEARN_DIR') or 'D:/vt_run/panel_learn'
 # ⭐⭐⭐ 2026-10-18（父代理）：默认权重换成【今晚真正训练过的 ckpt】。
 #   旧默认 `smoke_mem2` 是只训过 186 帧的 smoke 权重 ⟹ 主人上机看到的"几乎不动、打莫名其妙的子弹"
 #   全部来自它；今晚训练的 t9/t10/t12/learn3..learn9 一次都没进过游戏。
-VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/learn9/ckpt/last.pt'
+# ⚠️ 2026-10-18 回退：learn9/learnA 是【单网】训的（model_a=None，A 网权重丢失）⟹ 不能当默认。
+#   指向 t12（model_a 有效）。等用 VT_NET_SPLIT=1 重训出新 ckpt 后再换。
+VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/t12/ckpt/last.pt'
 _VT_LEARN_LOCK = threading.Lock()
 _VT_LEARN_COUNT = {}
 
