@@ -103,11 +103,11 @@ DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
                 value_head="out[0]", mem_mode="zeros", reward_mode="parts",
                 w_result=1.0, w_survive=1.0, w_legal=1.0, adv_norm=True,
                 w_spawn=0.02, w_hit=0.2, w_aim=0.01, max_updates=0,
-                w_kill=1.0, w_selfkill=-1.5, w_death=-1.0, w_death_storm=-1.5, w_kill_storm=1.0,
+                w_kill=5.0, w_selfkill=-1.5, w_death=-1.0, w_death_storm=-1.5, w_kill_storm=1.0,
                 w_crate=0.05, w_draw=-0.5, w_empty_fire=-0.10,
                 w_win=3.0, w_lose=-1.0, w_legal_pen=0.05,
                 fire_ent_coef=0.1,
-                w_fire_pg=0.0,
+                w_fire_pg=1.0,   # ⭐【无出处、待实验】恢复火头梯度（mask 会让 fire_p 永远 0.02 ⇒ 永远开不了枪）
                 w_still=0.01,   # ★【无出处、待拍】本帧执行 inputs 全 false ⇒ 惩罚（治"爱静止"）   # ⭐ 【射击维临时屏蔽（VT_FIRE_MODE=mask）】pg_fire 乘子；0=不参与梯度   # ⭐【无出处、待实验】=10×entropy_coef；目的把 head_fire 从饱和（p≈0.94）拉出来   # ⭐（无出处、待实验）单独给 head_fire 的熵权重；-1 = 随 entropy_coef（用于把 fire 头从饱和里拉出）   # ⭐ 奖惩 v2（主人 10 条）：权重全部【无出处、待主人拍】   # ⭐ 2026-10-17 父代理裁定 (B)+(A)2：真发射/命中奖励 + 小窗口更新上限（0=不限）
                 bootstrap="error")
 

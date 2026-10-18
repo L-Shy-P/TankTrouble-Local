@@ -489,7 +489,13 @@ async function runScene(scene, srv, cap) {
       try {
         const fsd = require('fs');
         fsd.mkdirSync(DUMP_DIR, { recursive: true });
-        const term = (r.win === 1) ? 3.0 : (r.win === 0 ? -1.0 : 0.0);
+        // ⭐⭐ 主人 2026-10-18 裁定：「如果它这么喜欢静止是训练出来的，那就反其道而行 ——
+        //     超时直接判【双倍失败】，高额惩罚。毒雾能很好地阻止它拖时间。」
+        //   ⟹ 超时 = -2.0（= 2 × lose 的 -1.0）；dbl_death（双死）= 0（draw，不奖不罚）。
+        const _isTimeout = (r.result === 'timeout');
+        const term = (r.win === 1) ? 3.0
+                   : (r.win === 0 ? -1.0
+                   : (_isTimeout ? -2.0 : 0.0));
         // 终局帧之前若曾裁剪，t 仍严格递增（保留的是尾部连续段）⟹ 合规
         dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
                                                  survive: 0.01, legal: 0,

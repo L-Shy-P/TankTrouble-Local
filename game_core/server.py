@@ -37,7 +37,10 @@ _VT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VT_POLICY_SCRIPT = os.path.join(_VT_ROOT, '_tools', 'training', 'policy_server_graph.py')
 VT_BRIDGE_JS = os.path.join(_VT_ROOT, '_tools', 'headless', 'inject_fire.js')
 VT_LEARN_DIR = os.environ.get('VT_LEARN_DIR') or 'D:/vt_run/panel_learn'
-VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/smoke_mem2/ckpt/last.pt'   # 2026-10-17 换掉 seed/last.pt（实测其开火头恒 0：fire1=0/12）
+# ⭐⭐⭐ 2026-10-18（父代理）：默认权重换成【今晚真正训练过的 ckpt】。
+#   旧默认 `smoke_mem2` 是只训过 186 帧的 smoke 权重 ⟹ 主人上机看到的"几乎不动、打莫名其妙的子弹"
+#   全部来自它；今晚训练的 t9/t10/t12/learn3..learn9 一次都没进过游戏。
+VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/learn9/ckpt/last.pt'
 _VT_LEARN_LOCK = threading.Lock()
 _VT_LEARN_COUNT = {}
 
