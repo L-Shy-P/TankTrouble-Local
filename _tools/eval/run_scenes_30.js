@@ -500,7 +500,12 @@ async function runScene(scene, srv, cap) {
         dumpFrames[dumpFrames.length - 1].r = { total: term, result: (r.win === 1 ? 1 : (r.win === 0 ? -1 : 0)),
                                                  survive: 0.01, legal: 0,
                                                  win: (r.win === 1 ? 1 : 0), lose: (r.win === 0 ? 1 : 0),
-                                                 kill: 0, death: 0, selfkill: 0 };
+                                                 // ⭐ 父代理 2026-10-18：死亡发生在【最后一帧】⟹ 逐帧 pl 集合变化采不到
+                                                 //   ⟹ 终局帧按胜负反推：win=1 ⟹ 我方击杀；win=0 ⟹ 我方死亡。
+                                                 //   ⚠️ 局限：赢也可能是对手自爆（无法从现有遥测区分），已在台账标注
+                                                 kill: (r.win === 1 ? 1 : 0),
+                                                 death: (r.win === 0 ? 1 : 0),
+                                                 selfkill: 0 };
         dumpFrames[dumpFrames.length - 1].done = true;
         const epObj = {
           ep: (typeof r.ep === 'number' ? r.ep : 1),
