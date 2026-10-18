@@ -221,7 +221,33 @@
     var gc = GameManager.getGameController();
     // ① 决策回填：上一帧策略给的 nodeId（A=生长位置 / B=路线目标，契约同 inject_sarl2）
     if (nodeId !== null && nodeId !== undefined && nodeId >= 0) {
-      var picks = [{ nodeId: nodeId, back: 0 }];              // picks[0] = 路线目标（A 相位=生长位置）
+      // ⭐⭐⭐ 2026-10-18 根因修复（本代理）：**行号 → uid 映射**。
+      //   服务端返回的 `nodeId` 是【观测节点 token 的行号】，而 `VantageTree.findNodeById` 找的是【节点的 uid】。
+      //   两者不相等 ⟹ 每帧 `B:重试超限(picks[0] 节点编号不存在)` ⟹ 树的 `_agentRoute` 永远是 null
+      //   ⟹ `getDesiredOperation()` 恒返回「树:静止」⟹ 坦克不动、不开枪、打不死靶（实测 giveUpB=145/120 帧）。
+      //   ✅ 正解同 `inject_fire.js:264`：uid = 节点 token 第 0 位（NODE_FIELDS[0]='uid'）。
+      //   ⚠️ 训练侧的 `act.nodeId` 仍记【行号】（策略分布要按行索引），只有喂给树的才换成 uid。
+      var _row = nodeId | 0;
+      var _uid = _row;
+      try {
+        if (nTok && nTok[_row] && typeof nTok[_row][0] === 'number') _uid = nTok[_row][0] | 0;
+      } catch (eMap) { G.mapErr = String((eMap && eMap.message) || eMap); }
+      // ⭐⭐⭐ 2026-10-18（本代理）：**剪枝兜底** —— 树每帧会重根/剪枝，上帧的节点这帧可能已经不存在。
+      //   面板侧同样的处理（`vantage_agent_panel.js:644-650`：nSlots 无效 ⟹ prevNodeId=0 复用 slot 路径）。
+      //   ⛔ 不做兜底 ⟹ 每帧 `B:重试超限(picks[0] 节点编号不存在)` ⟹ 树永远静止（实测 giveUpB=225/200 帧）。
+      //   ✅ 做法：uid 在树里找不到 ⟹ 退回 **当前 commitNode**（它一定存在），再不行退回根。
+      try {
+        var _tr0 = (typeof VantageTree !== 'undefined' && VantageTree.getTree) ? VantageTree.getTree() : null;
+        var _found = false;
+        if (_tr0 && _tr0.walk) { try { _tr0.walk(function (nd) { if (nd && nd.id === _uid) { _found = true; } }); } catch (eW2) {} }
+        if (!_found) {
+          var _cn = _tr0 && _tr0.commitNode ? _tr0.commitNode : null;
+          if (_cn && typeof _cn.id === 'number') { _uid = _cn.id | 0; G.mapFallback = (G.mapFallback || 0) + 1; G.mapFallbackTo = 'commitNode'; }
+          else if (_tr0 && _tr0.root && typeof _tr0.root.id === 'number') { _uid = _tr0.root.id | 0; G.mapFallback = (G.mapFallback || 0) + 1; G.mapFallbackTo = 'root'; }
+        }
+      } catch (eFb) { G.mapFallbackErr = String((eFb && eFb.message) || eFb); }
+      G.lastRowToUid = { row: _row, uid: _uid };
+      var picks = [{ nodeId: _uid, back: 0 }];              // picks[0] = 路线目标（A 相位=生长位置）—— ✅ 用 uid
       if (G.fire) {
         // ⭐⭐⭐ 父代理 2026-10-18 根因修复：原实现只发 `{nodeId: root, back: 1e9}`
         //   ⟹ `agentPickExecFrame` 把 back 钳到 L-1 ⟹ execFrame = start(root)+0 = **0**
