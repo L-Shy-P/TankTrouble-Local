@@ -200,6 +200,34 @@ class Srv {
 //   （= 同一个 browser + 同一个 server）⟹ 每场只关旧页/开新页，不再 12 次冷启动。
 let _SHARED_MATCH = null;
 
+// ⭐⭐⭐ 2026-10-19 主人：「要注意保留每局的数据，让这个地图用完后也能再练」
+//   ⛔ 原来回合结束只 `dumpFrames.length=0` 重置 ⟹ 一场 90 局里【89 局被丢】
+//   ✅ 现在每局结束立刻落盘一局（回放格式，几 KB/局）
+function _flushRound(ctx) {
+  const { scene, r, dumpFrames, DUMP_DIR } = ctx;
+  const _fs = require('fs');   // ⛔ 不依赖外层 fsd（runScene 作用域里没有它）
+  if (!DUMP_DIR || !dumpFrames.length) return null;
+  const compact = (process.env.S30_COMPACT === '1');
+  try {
+    const acts = dumpFrames.map(function (x) {
+      const a = x.act || {};
+      return [(typeof a.nodeId === 'number' ? a.nodeId : -1), (a.fire ? 1 : 0)];
+    });
+    if (compact) {
+      const rep = {
+        scene: scene.id, players: scene.players, storm: !!scene.storm,
+        crates: (scene.crates === undefined ? [] : scene.crates),
+        epoch: scene.epoch, mazeSeed: ctx.mazeSeed, rngSeqLen: ctx.rngSeqLen,
+        seedMode: ctx.seedMode, ckpt: r.ckpt_md5 || null, src_md5: r.src_md5 || null,
+        round: ctx.roundNo, frames: dumpFrames.length,
+        win: ctx.roundWin, result: ctx.roundResult, acts: acts
+      };
+      _fs.appendFileSync(DUMP_DIR + '/replay.jsonl', JSON.stringify(rep) + String.fromCharCode(10));
+    }
+    return acts.length;
+  } catch (eF) { logErr('FLUSH_ERR ' + ((eF && eF.message) || eF)); return null; }
+}
+
 async function runScene(scene, srv, cap) {
   const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
   let s30segs = null, s30p = null, s30n = 0, s30pA = null;
@@ -223,7 +251,7 @@ async function runScene(scene, srv, cap) {
   //   已被下面的 `dFiredBy`（逐玩家累计开火快照）+ `dPrevAlive`（存活集合）取代，删掉以免有人以为它们还在生效。
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
-  let roundsDone = 0;   // ⭐ 本场里跑完了几局（死了就换地图，不重载页面）
+  let roundsDone = 0, roundsSaved = 0;   // ⭐ 本场里跑完了几局（死了就换地图，不重载页面）
   let stillFrames = 0, emptyFireFrames = 0;   // ⭐ 静止帧 / 空放帧（验证两个惩罚真的在生效）
   let emptyFireUnknown = 0;   // ⭐ "想开火但 ammoLeft 是 -1（取不到）" 的帧数 —— ⛔ 不当空放，只计数
   let ammoMin = null, ammoMax = null;   // ⭐ ammoLeft（global[15]）的取值范围，用于核"空放=0 是不是真的没有" 
@@ -315,7 +343,13 @@ async function runScene(scene, srv, cap) {
       //      整段【页面不重载】。等到了就重置本局缓冲、继续在同一场里跑下一局。
       if (f > 5 && o.state && o.state !== inRound) {
         roundsDone++;
-        // 重置本局缓冲（⛔ 不调不存在的 flushEpisode —— 上面那一版引用了没定义的函数）
+        // ⭐ 先把这一局写出去（否则 90 局只存最后 1 局）
+        try {
+          const _n = _flushRound({ scene: scene, r: r, dumpFrames: dumpFrames, DUMP_DIR: DUMP_DIR,
+            mazeSeed: r.mazeSeed, rngSeqLen: r.rngSeqLen, seedMode: r.seedMode,
+            roundNo: roundsDone, roundWin: r.win, roundResult: r.result });
+          if (_n) roundsSaved++;
+        } catch (eFL) { logErr('FLUSH_CALL_ERR ' + eFL); }
         dumpFrames.length = 0; s30n = 0; nodeId = 0;
         // 等新局：最多泵 900 帧；等不到就真的结束本场
         let backIn = false;
@@ -742,7 +776,7 @@ async function runScene(scene, srv, cap) {
     r.ammo_left_range = [ammoMin, ammoMax];         // ⭐ ammoLeft 的实测范围（证明"空放=0"是不是真没子弹）
     r.grow_ok_frames = growOkFrames;
     r.still_frames = stillFrames; r.empty_fire_frames = emptyFireFrames;
-    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt; r.deaths_seen = deathsSeen;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
+    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt; r.deaths_seen = deathsSeen; r.rounds_saved = roundsSaved;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
     r.ask_a_err = s30AErr;
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
     r.opp_rows_max = oppBlocksSeen;
