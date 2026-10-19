@@ -1340,8 +1340,9 @@
         springRopeEnabled: false,         // v57：弹簧绳修复后暂默认关；setSpringRopeEnabled
         rustMinimalEnabled: false,         // v69：Rust 最小决策选择 next；默认关。
                                           // 会写入 tree.cfg。
-        growWithoutThreats: false,        // v77：无子弹也生长树实验开关；默认关，
-                                          // 保持 v57 grow-no-threat 行为。
+        // 2026-10-19 主人裁定：「A必须时刻操控树的生长，除了根的9分支兜底，不能有任何A意料之外的生长。」
+        //   ⛔ 原默认 false ⟹ 无威胁时 growStep 早退(grow-no-threat) ⟹ 移动分支永远只有1层深 ⟹ 网络只能选静止
+        growWithoutThreats: true,
         alignPosTol: 0.5,                 // 段末软对齐提示阈值（米）
         alignRotTol: 5 * Math.PI / 180,   // 段末软对齐提示阈值（弧度）
         alignHardPosTol: 3.0,             // 超过才整树重建；软超差只保留结构继续跑
