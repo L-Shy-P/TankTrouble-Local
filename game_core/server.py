@@ -45,7 +45,11 @@ VT_LEARN_DIR = os.environ.get('VT_LEARN_DIR') or 'D:/vt_run/panel_learn'
 # ⭐ 2026-10-18 19:5x：切到最新训练产物 loop/r10（主人："肯定切，管他好不好，我要看效果"）。
 #   ⚠️ 改这里之后【必须重启 game_core/server.py】（服务端启动时把权重读进内存，不会热加载）。
 #   核对方式：打开面板「检查点」看 md5，应为 df9db1f8...
-VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/loop/r10/ckpt/last.pt'
+# ⭐⭐⭐ 2026-10-19 20:xx：**默认权重必须指向一个【真实存在】的文件。**
+#   事故：原来指向 `D:/vt_run/loop/r10/ckpt/last.pt`，而那个目录在清盘时被删了
+#   ⟹ 权重加载失败 ⟹ 策略没有输出 ⟹ 树退回「树:静止」⟹ 主人看到"不动、不躲、不打、看不见"。
+#   ⛔ 以后改这里必须 md5sum 一次确认文件存在。
+VT_DEFAULT_CKPT = os.environ.get('VT_CKPT') or 'D:/vt_run/learnH/ckpt/last.pt'   # step=46, model_a 有效
 _VT_CKPT_RE = re.compile(r'"ckpt"\s*:\s*"([^"]*)"')   # ⭐ 透传路径只靠它取 ckpt（不整包解析；2026-10-18 性能代理）
 _VT_LEARN_LOCK = threading.Lock()
 _VT_LEARN_COUNT = {}
@@ -133,6 +137,14 @@ class PolicyBridge(object):
             self._log('解析诊断行失败: %r (%s)' % (e, line[:120]))
 
     def start(self, ckpt):
+        # ⭐ 2026-10-19：权重文件不存在就【立刻大声报错】，不许静默跑一个没权重的策略
+        try:
+            import os as _os
+            if ckpt and not _os.path.exists(ckpt):
+                print('[VT][FATAL] 权重文件不存在: %s' % ckpt, flush=True)
+                self._ckpt_state = 'missing'
+        except Exception:
+            pass
         self.stop()
         if not os.path.exists(VT_POLICY_SCRIPT):
             raise RuntimeError('策略脚本不存在: ' + VT_POLICY_SCRIPT)
