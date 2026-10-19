@@ -36,7 +36,12 @@
     //                 代价 = 每帧串行花掉 RTT（实测见 `_tools/perf/pm_panel.js` 报告）；
     //                 收益 = 决策延迟恒定 1 帧、覆盖率 100%（async 版本按"在飞就跳过"丢决策 ⟹ 延迟 ≥1 帧且抖动）。
     //   sync=false ⟹ 退回旧行为（丢帧），只用于对照测量。`window.__vtConfig.sync = false` 可关。
-    var _syncDefault = (typeof CFG.sync === 'boolean') ? CFG.sync : true;
+    // ⭐⭐⭐ 2026-10-19（父代理）：**默认改成 false（异步）**。
+    //   主人实测反馈：「按住移动键只移动一次，之后得重新按才能移动；帧率很不稳定」
+    //   根因：sync 模式下每帧 `game.paused=true → 回包 → game.paused=false` ⟹ **整个游戏每帧被暂停一次**
+    //        ⟹ 按住的方向键被反复重置（只有按下那一刻算数）⟹ 连续移动失效、画面抖动。
+    //   ⟹ sync 只适合"纯观测/基准测量"，不适合交互操作。需要时用 `window.__vtConfig.sync = true` 再开。
+    var _syncDefault = (typeof CFG.sync === 'boolean') ? CFG.sync : false;
     CFG.sync = _syncDefault;
 
     var S = {
