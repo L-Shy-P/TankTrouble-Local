@@ -196,6 +196,10 @@ class Srv {
 }
 
 /* ---------------- 单场景 ---------------- */
+// ⭐⭐⭐ 2026-10-19 主人要"一个窗口连播、不闪"：**跨场复用同一个 Match**
+//   （= 同一个 browser + 同一个 server）⟹ 每场只关旧页/开新页，不再 12 次冷启动。
+let _SHARED_MATCH = null;
+
 async function runScene(scene, srv, cap) {
   const dumpFrames = [];      // ⭐ S30_DUMP 缓冲（本场）
   let s30segs = null, s30p = null, s30n = 0, s30pA = null;
@@ -239,7 +243,8 @@ async function runScene(scene, srv, cap) {
   // ⭐ 2026-10-17：本场请求统计（超时/重试/最大耗时）—— 落进结果行
   const askStat = { ok: 0, timeouts: 0, retries: 0, maxMs: 0, fails: 0 };
   try {
-    m = new Match();
+    if (!_SHARED_MATCH) _SHARED_MATCH = new Match();
+    m = _SHARED_MATCH;
     // ⭐ 可复现：每场固定 RNG 序列（`--no-fix-rng` 关闭）⟹ 同一 scene 两次跑地图必须一致
     // ⭐ S30_SEED_SALT：给 scene.seed 加盐 ⟹ 同一场景出【全新地图】。
     //   用途：① 生成训练集市多样性（同一场景多盐 = 多个不同地图的对局）
@@ -844,7 +849,9 @@ async function runScene(scene, srv, cap) {
     if (r.result === 'unknown') r.win = null;
     logErr('SCENE_FAIL[' + scene.id + '] ' + (e && e.stack ? e.stack : e));
   } finally {
-    try { if (m) await m.close(); } catch (eC) { logErr('CLOSE_ERR[' + scene.id + '] ' + eC); }
+    // ⭐ 2026-10-19：**保留 browser+server**，下一场复用 ⟹ 一个窗口连播、不闪、不冷启动。
+    //   只有进程退出时（下面的 finally）才真正 close()。
+    try { if (m) await m.close(true); } catch (eC) { logErr('CLOSE_ERR[' + scene.id + '] ' + eC); }
   }
   r.wall_sec = +((Date.now() - t0) / 1000).toFixed(1);
   return r;
@@ -1018,6 +1025,9 @@ async function runScene(scene, srv, cap) {
     }
   } finally {
     try { fs.closeSync(fd); } catch (eC) {}
+    // ⭐ 2026-10-19：跨场复用的那套 browser+server 必须在**全部场次跑完之后**才关，
+    //   否则进程会一直挂着（实测 exit=124 超时）。
+    try { if (_SHARED_MATCH) await _SHARED_MATCH.close(); } catch (eSM) { logErr('SHARED_CLOSE_ERR ' + eSM); }
     try { await srv.close(); } catch (e) {}
   }
   logErr('SUMMARY scenes=' + scenes.length + ' ok=' + nOk + ' err=' + nErr + ' win=' +

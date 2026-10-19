@@ -227,8 +227,21 @@ class Match {
     //   一直开着的 127.0.0.1:8000 标签页自动连到了训练局 ⟹ 主人看到"满屏 8 个游客"。
     //   ⟹ 用 `VT_GAME_PORT` 指定训练专用端口（默认 8311），与主人游戏完全隔离。
     const _trainPort = Number(process.env.VT_GAME_PORT || 0) || 8311;
-    this.srv = await startPyServer({ port: _trainPort });
-    this.browser = await launch(opts.headless === false ? { headless: false } : {});   // ⭐ 透传"显示窗口"
+    // ⭐⭐⭐ 2026-10-19 主人要"一个窗口连播 12 场、不闪"：
+    //   复用 server + browser（`opts.reuse !== false` 时），每场只【关旧页 + 开新页】。
+    //   原来每场都 startPyServer + launch ⟹ 12 次冷启动 ⟹ 窗口反复关开、每次转圈好久。
+    if (!this.srv || this._srvPort !== _trainPort) {
+      this.srv = await startPyServer({ port: _trainPort });
+      this._srvPort = _trainPort;
+    }
+    if (!this.browser) {
+      this.browser = await launch(opts.headless === false ? { headless: false } : {});   // ⭐ 透传"显示窗口"
+    } else if (this.targetId) {
+      // 复用浏览器：先关掉上一场的页面，再开新的（避免 12 个标签页堆着）
+      try { await this.browser.closePage(this.targetId); } catch (eCP) {}
+      this.targetId = null; this.sessionId = null;
+      this.console.length = 0; this.pageErrors.length = 0;
+    }
     const np = await this.browser.newPage('about:blank');
     this.sessionId = np.sessionId; this.targetId = np.targetId;
     const sid = this.sessionId, b = this.browser;
@@ -682,10 +695,17 @@ class Match {
     return file;
   }
 
-  async close() {
+  /**
+   * 关掉本场。`keepAlive=true` 时【只关页面，保留 browser + server】——
+   * 供 run_scenes_30 一场接一场复用（一个窗口连播，不闪、不冷启动）。
+   */
+  async close(keepAlive) {
     try { if (this.targetId) await this.browser.closePage(this.targetId); } catch (e) {}
+    this.targetId = null; this.sessionId = null;
+    if (keepAlive) return;
     try { await this.browser.close(); } catch (e) {}
     try { await this.srv.close(); } catch (e) {}
+    this.browser = null; this.srv = null;
   }
 }
 
