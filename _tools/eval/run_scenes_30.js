@@ -805,7 +805,31 @@ async function runScene(scene, srv, cap) {
                    crates: (scene.crates === undefined ? [] : scene.crates) },
           frames: dumpFrames, win: r.win, src_md5: r.src_md5 || null
         };
-        fsd.appendFileSync(DUMP_DIR + '/episodes.jsonl', JSON.stringify(epObj) + String.fromCharCode(10));
+        // ⭐⭐⭐ 2026-10-19 主人要"低硬盘占用的训练历史"：**回放式**记录。
+        //   游戏是确定性的（同 mazeSeed + 同 rngSeq ⟹ 同地图同物理），
+        //   所以只存【种子 + 每帧动作序列】就能在回放时重跑出同一局 ⟹ 每局几 KB（完整观测要 ~9MB）。
+        //   `S30_COMPACT=1` 时写 replay.jsonl；默认仍写完整 episodes.jsonl（便于直接训练）。
+        const _compact = (process.env.S30_COMPACT === '1');
+        if (_compact) {
+          try {
+            const acts = dumpFrames.map(function (x) {
+              const a = x.act || {};
+              return [ (typeof a.nodeId === 'number' ? a.nodeId : -1), (a.fire ? 1 : 0) ];
+            });
+            const rep = {
+              scene: scene.id, players: scene.players, storm: !!scene.storm,
+              crates: (scene.crates === undefined ? [] : scene.crates),
+              epoch: scene.epoch, mazeSeed: r.mazeSeed, rngSeqLen: r.rngSeqLen,
+              seedMode: r.seedMode, ckpt: r.ckpt_md5 || null, src_md5: r.src_md5 || null,
+              frames: dumpFrames.length, win: r.win, result: r.result,
+              acts: acts
+            };
+            fsd.appendFileSync(DUMP_DIR + '/replay.jsonl', JSON.stringify(rep) + String.fromCharCode(10));
+            r.compact_ok = true;
+          } catch (eR) { r.compact_err = String((eR && eR.message) || eR).slice(0, 160); }
+        } else {
+          fsd.appendFileSync(DUMP_DIR + '/episodes.jsonl', JSON.stringify(epObj) + String.fromCharCode(10));
+        }
         r.dump_frames = dumpFrames.length; r.dump_win = r.win; r.dump_raw = s30n;
         logErr('DUMP_OK[' + scene.id + '] frames=' + dumpFrames.length + '/' + s30n + ' win=' + r.win);
       } catch (eD) { r.dump_err = String((eD && eD.message) || eD).slice(0, 200); logErr('DUMP_ERR ' + r.dump_err); }
