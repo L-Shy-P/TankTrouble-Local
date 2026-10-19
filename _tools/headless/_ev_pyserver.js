@@ -28,7 +28,7 @@ function startPyServer(opts = {}) {
     try {
       proc = spawn(exe, ['-u', 'server.py'], {
         cwd: GAME_DIR,
-        env: Object.assign({}, process.env, { TT_NO_BROWSER: '1', PYTHONIOENCODING: 'utf-8' }),
+        env: Object.assign({}, process.env, { TT_NO_BROWSER: '1', PYTHONIOENCODING: 'utf-8', VT_PORT: String(port) }),   // ⭐把端口传给 server.py（server.py 读的是 VT_PORT）
         stdio: ['ignore', fd, fd],
         windowsHide: true,
       });

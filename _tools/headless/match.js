@@ -222,7 +222,12 @@ class Match {
   async open(opts = {}) {
     const page = opts.page || 'index.html';
     const verbose = !!opts.verbose;
-    this.srv = await startPyServer({});
+    // ⭐⭐⭐ 2026-10-19：**训练必须用独立端口，绝不碰主人游戏的 8000。**
+    //   事故：主人停掉自己的 server.py 后，训练服务器占了 8000 ⟹ 主人浏览器里那个
+    //   一直开着的 127.0.0.1:8000 标签页自动连到了训练局 ⟹ 主人看到"满屏 8 个游客"。
+    //   ⟹ 用 `VT_GAME_PORT` 指定训练专用端口（默认 8311），与主人游戏完全隔离。
+    const _trainPort = Number(process.env.VT_GAME_PORT || 0) || 8311;
+    this.srv = await startPyServer({ port: _trainPort });
     this.browser = await launch(opts.headless === false ? { headless: false } : {});   // ⭐ 透传"显示窗口"
     const np = await this.browser.newPage('about:blank');
     this.sessionId = np.sessionId; this.targetId = np.targetId;
