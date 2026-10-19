@@ -223,10 +223,11 @@ async function runScene(scene, srv, cap) {
   //   已被下面的 `dFiredBy`（逐玩家累计开火快照）+ `dPrevAlive`（存活集合）取代，删掉以免有人以为它们还在生效。
   let dPrevAlive = null;   // ⭐ 上一帧 {me, opp} 存活计数（判死用）
   let fireOnFrames = 0;    // ⭐ 策略说"开火"的帧数（验证真的策略驱动）
+  let roundsDone = 0;   // ⭐ 本场里跑完了几局（死了就换地图，不重载页面）
   let stillFrames = 0, emptyFireFrames = 0;   // ⭐ 静止帧 / 空放帧（验证两个惩罚真的在生效）
   let emptyFireUnknown = 0;   // ⭐ "想开火但 ammoLeft 是 -1（取不到）" 的帧数 —— ⛔ 不当空放，只计数
   let ammoMin = null, ammoMax = null;   // ⭐ ammoLeft（global[15]）的取值范围，用于核"空放=0 是不是真的没有" 
-  let dummyN = 0, s30DummyErr = null, dummyPatched = false, vidOfScene = 'vantage_1', vantageDeadAt = null;   // ⭐ 靶场模式：被清成静止靶的对手数
+  let dummyN = 0, s30DummyErr = null, dummyPatched = false, vidOfScene = 'vantage_1', vantageDeadAt = null, deathsSeen = 0;   // ⭐ 靶场模式：被清成静止靶的对手数
   let growOkFrames = 0;    // ⭐ A 相拿到 grow 决策的帧数（验证 A 数据真的进来了）
   let s30AErr = null;
   const r = {
@@ -308,7 +309,25 @@ async function runScene(scene, srv, cap) {
     for (f = 0; f < cap; f++) {
       const o = JSON.parse(await m.eval('window.__g1.step(' + nodeId + ')'));
       if (o.err) { r.step_err = String(o.err).slice(0, 400); break; }
-      if (f > 5 && o.state && o.state !== inRound) { ended = true; break; }
+      // ⭐⭐⭐ 2026-10-19 主人：「死了只是换地图，不是重新加载整个靶场浪费时间」
+      //   ⛔ 原来是 `ended=true; break;` ⟹ 一死就结束整场 ⟹ 下一场要【重新加载页面】（转圈）
+      //   ✅ 现在：回合结束 ⟹ **就地等游戏自己开新局**（Phaser: round over → celebration → 新 round）
+      //      整段【页面不重载】。等到了就重置本局缓冲、继续在同一场里跑下一局。
+      if (f > 5 && o.state && o.state !== inRound) {
+        roundsDone++;
+        // 重置本局缓冲（⛔ 不调不存在的 flushEpisode —— 上面那一版引用了没定义的函数）
+        dumpFrames.length = 0; s30n = 0; nodeId = 0;
+        // 等新局：最多泵 900 帧；等不到就真的结束本场
+        let backIn = false;
+        for (let w = 0; w < 900; w++) {
+          await m.pump(1, { yieldMs: 0 });
+          const st = await m.eval(`(function(){try{var gc=GameManager.getGameController();return gc?gc.getState():null;}catch(e){return null;}})()`);
+          if (st === inRound) { backIn = true; break; }
+        }
+        if (!backIn) { ended = true; break; }
+        r.rounds_done = roundsDone;
+        continue;
+      }
       if (o.N >= 1) {
         // ⭐ 【多对手：送全量】（2026-10-17 派单①）：
         //   `vantage_observe.js` 的 oppTok 是【每个对手 15 维】拼起来的（1v1=15，4人=45，8人=105；
@@ -658,7 +677,14 @@ async function runScene(scene, srv, cap) {
         // ⭐ 靶场：Vantage 一死就结束本场 —— 否则空转几千帧，而滚动缓冲存的是【末帧】⟹ 全是"死后空帧"（selfX=selfY=0）。
         try {
           const _al = JSON.parse(await m.eval(`(()=>{var gc=GameManager.getGameController();var t=gc&&gc.getTanks?gc.getTanks():{};return JSON.stringify(Object.keys(t||{}));})()`));
-          if (Array.isArray(_al) && _al.length && _al.indexOf(vidOfScene) < 0) { vantageDeadAt = f; break; }
+          if (Array.isArray(_al) && _al.length && _al.indexOf(vidOfScene) < 0) {
+            // ⭐⭐⭐ 2026-10-19 主人：「死了只是换地图，不是重新加载整个靶场浪费时间」
+            //   ⟹ **不再 break（不结束本场、不重载页面）**；只记一次死亡，然后继续泵帧。
+            //   Phaser 在 round over 后会走 endRound → celebration → 自动开新局（新地图），
+            //   整个过程中【页面不重载】。cap 帧里可以覆盖好几局。
+            if (vantageDeadAt === null) vantageDeadAt = f;
+            deathsSeen++;
+          }
         } catch (eAD) {}
       }
       await m.pump(1, { yieldMs: 0 });
@@ -716,7 +742,7 @@ async function runScene(scene, srv, cap) {
     r.ammo_left_range = [ammoMin, ammoMax];         // ⭐ ammoLeft 的实测范围（证明"空放=0"是不是真没子弹）
     r.grow_ok_frames = growOkFrames;
     r.still_frames = stillFrames; r.empty_fire_frames = emptyFireFrames;
-    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
+    r.dummy_mode = S30_DUMMY; r.dummy_opponents = dummyN; r.dummy_err = s30DummyErr; r.vantage_dead_at = vantageDeadAt; r.deaths_seen = deathsSeen;   // ⭐ A 相 grow 决策帧数（>0 才说明 A 数据进来了）
     r.ask_a_err = s30AErr;
     r.opp_input = (oppMultiFrames > 0) ? ('full(' + oppBlocksSeen + '->8)') : 'native(1->8)';   // ⭐ 全量送 8 行（派单①）：不再 nearestAlive 裁剪
     r.opp_rows_max = oppBlocksSeen;
