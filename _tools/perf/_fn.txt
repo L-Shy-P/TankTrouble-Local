@@ -1,0 +1,109 @@
+  /**
+   * 造本帧 bundle。`row` = 上一帧策略给的【观测行号】；`tokIn` = 本帧观测节点 token。
+   * ⛔ 只做三件事：① 行号→uid；② 剪枝兜底（目标已不在活动树 ⟹ commitNode）；
+   *    ③ 把「本帧要开火」翻译成一个**合法**的射击帧。
+   * ⛔ **绝不改选**：目标永远是策略选的那一行对应的 uid（只有在它已经不存在/不可达时才兜底）。
+   */
+  function buildBundle(row, tokIn) {
+    var tr = (typeof VantageTree !== 'undefined' && VantageTree.getTree) ? VantageTree.getTree() : null;
+    var N = tokIn ? tokIn.length : 0;
+    if (row === null || row === undefined || !(row >= 0)) return null;
+    row = row | 0;
+    var uid = row, mapped = false;
+    if (N > 0 && tokIn[row] && typeof tokIn[row][0] === 'number') {
+      uid = tokIn[row][0] | 0;                          // ★ NODE_FIELDS[0] = 'uid'
+      mapped = true;
+      G.mapApplied = (G.mapApplied || 0) + 1;
+    } else if (N > 0) {
+      G.rowOutOfRange = (G.rowOutOfRange || 0) + 1;     // 行号越界（树这帧变小了）
+    } else {
+      G.mapNoTokN = (G.mapNoTokN || 0) + 1;             // 本帧没有观测（树还没建/已重置）
+    }
+
+    // ---- 目标必须在【活动树】里并且能从 root 走到 ----
+    //   `routeChainOf` 与树侧 `agentRoutePathOf()` 同口径（从 tree.root 顺 .parent 上溯）。
+    //   为什么不能用观测 token 的 parentIdx 当路线：树每帧重根/坍缩/rebase，
+    //   观测只代表【编码那一刻】的父子关系，而校验用的是【decision 那一刻】的真树。
+    var inTree = false;
+    try { if (tr && tr.walk) tr.walk(function (nd) { if (nd && nd.id === uid) inTree = true; }); } catch (eW) { }
+    var rc = inTree ? routeChainOf(tr, uid) : null;
+    if (inTree && !rc) G.routeUnreachable = (G.routeUnreachable || 0) + 1;   // 在树里但链断（目标=新根等）
+    if (!inTree) G.pickNotFound = (G.pickNotFound || 0) + 1;
+    if (!rc) {
+      // 剪枝兜底（父代理做法，保留）：commitNode（一定在 root 下）→ root
+      var cn = tr && tr.commitNode ? tr.commitNode : null;
+      var rootN = tr && tr.root ? tr.root : null;
+      if (cn && typeof cn.id === 'number') { uid = cn.id | 0; G.mapFallbackTo = 'commitNode'; }
+      else if (rootN && typeof rootN.id === 'number') { uid = rootN.id | 0; G.mapFallbackTo = 'root'; }
+      G.mapFallback = (G.mapFallback || 0) + 1;
+      rc = routeChainOf(tr, uid);
+    }
+    if (rc) G.pickFound = (G.pickFound || 0) + 1;
+    G.lastRowToUid = { row: row, uid: uid, mapped: mapped };
+    G.lastChainLen = rc ? rc.length : 0;
+
+    var picks = [{ nodeId: uid, back: 0 }];       // picks[0] = 路线目标（A 相位 = 生长位置）
+
+    // ----------------------------------------------------------------------
+    // 射击帧（只在 G.fire 为真的帧才发）
+    //   历史两代都错，实测都是 B 被拒 ⟹ 坦克静止：
+    //     · 父代：照 commitNode 整段 [0,L) ⟹ 与选中目标的路线无关
+    //       ⟹ `picks[#] 不在路线上` 303 次（实测 before2）⟹ giveUpB 133/150
+    //     · 本代 v1：整条路线每跳 [0,L) ⟹ 只要路线上任一帧「炮口贴墙」就整包被拒
+    //       ⟹ `0帧自杀(炮口贴墙)` 210 次（实测 after2）
+    //   ✅ 现在：按树自己的游标口径**精确算出本帧执行帧**，只在那一帧（±1）上插射击帧。
+    //     口径照抄 `agentExecEnsure()`：新目标 ⟹ 游标 = commitNode 在新路线上的**尾帧**；
+    //     commitNode 不在新路线上 ⟹ 0；路线**不含 root**；跑完 ⟹ 末帧。
+    //     `back = L - (frame - hopStart) - 1`（`agentPickExecFrame` 的逆运算），必在 [0,L)。
+    //   ⚠️ 若该帧本身「炮口贴墙」，树会拒绝 ⟹ 桥接层按树自己的契约
+    //      「拒绝该射击帧（B 帧内重试）」只丢掉射击帧、**保留 picks[0]**（见 G.mk）。
+    // ----------------------------------------------------------------------
+    if (G.fire) {
+      var added = 0, wantFrame = -1, wantHop = null, wantStart = 0;
+      try {
+        if (rc && rc.length > 1) {
+          var hops = [], k;
+          for (k = 1; k < rc.length; k++) hops.push({ id: rc[k].id | 0, L: Math.max(1, Math.min(512, execLenOf(rc[k]))) });
+          var totalF = 0;
+          for (k = 0; k < hops.length; k++) totalF += hops[k].L;
+          if (hops.length && totalF > 0) {
+            var startFrame = 0;
+            var cmtId = (tr && tr.commitNode && typeof tr.commitNode.id === 'number') ? (tr.commitNode.id | 0) : null;
+            if (cmtId !== null) {
+              var acc = 0, found = false;
+              for (k = 0; k < hops.length; k++) {
+                acc += hops[k].L;
+                if (hops[k].id === cmtId) { startFrame = acc; found = true; break; }
+              }
+              if (!found) startFrame = 0;              // commitNode 不在该路线上 ⟹ 从路线起点开始
+            }
+            wantFrame = (startFrame >= totalF) ? (totalF - 1) : startFrame;
+            var s2 = 0;
+            for (k = 0; k < hops.length; k++) {
+              if (wantFrame < s2 + hops[k].L) { wantHop = hops[k]; wantStart = s2; break; }
+              s2 += hops[k].L;
+            }
+            if (wantHop) {
+              var back = wantHop.L - (wantFrame - wantStart) - 1;
+              if (back < 0) back = 0;
+              if (back > wantHop.L - 1) back = wantHop.L - 1;
+              // ±1 容错：同一目标连续两帧时树侧游标会 +1 滑动一格
+              var seenB = {}, cands = [back - 1, back, back + 1];
+              for (var ci = 0; ci < cands.length; ci++) {
+                var bb = cands[ci];
+                if (bb < 0 || bb > wantHop.L - 1) continue;
+                if (seenB[bb]) continue;
+                seenB[bb] = 1;
+                picks.push({ nodeId: wantHop.id, back: bb });
+                added++;
+              }
+            }
+          }
+        }
+      } catch (eFR) { G.fireErr = String((eFR && eFR.message) || eFR); }
+      G.fireFrame = wantFrame; G.fireAdded = added;
+      if (!added) G.firePicksEmpty = (G.firePicksEmpty || 0) + 1;   // 诊断：想开火但没造出合法射击帧
+      G.firePicksN = (G.firePicksN || 0) + added;
+    }
+    return { picks: picks, memory: {} };
+  }

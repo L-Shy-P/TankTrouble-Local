@@ -24,7 +24,20 @@
 
   G.mk = function (tag) {
     return { name: 'g1bridge' + tag, isReady: function () { return true; },
-             decide: function () { return (tag === 'B' ? G.bundleB : G.bundleA) || null; } };
+             // ⭐ 2026-10-19：树自己的契约就是「拒绝该射击帧（B 帧内重试）」
+             //   （`agentFireSelfHitCheck` 与 `picks[#] 不在路线上` 都会让 agentSeam 带着 reason 重新要一包）。
+             //   ⇙ 重试时**只丢射击帧**，`picks[0]`（= B 的选路）一个字不动 ⇙ 合法的路线被接受、
+             //   违法的那一帧不开火（而不是让整个 B 决策作废 ⇙ 坦克退化成静止）。
+             decide: function (ctx, retry) {
+               var b = (tag === 'B' ? G.bundleB : G.bundleA);
+               if (!b) return null;
+               if (retry && retry.reason && /(自杀|不在路线上|越界)/.test(String(retry.reason))
+                   && b.picks && b.picks.length > 1) {
+                 G.fireDropN = (G.fireDropN || 0) + 1;
+                 return { picks: [b.picks[0]], memory: {} };
+               }
+               return b;
+             } };
   };
 
   /** 场上 Vantage 玩家的 id（由 AIManager 自己报，不靠我们猜） */
@@ -217,59 +230,200 @@
     return out;
   }
 
+  // ==========================================================================
+  // ⭐⭐⭐ 2026-10-19 根因修复（本代理）：「B 决策被拒 ⟹ 坦克退化成静止」
+  // --------------------------------------------------------------------------
+  // 实测（修前，150 帧 1v1，探针 `_tools/perf/treefix_probe.js --tag=before2`）：
+  //   · `G.mapNoTokN = 150/150`、`G.mapApplied = 0/150`
+  //     ⟹ **行号→uid 映射从未生效**：旧代码在 `G.step` 顶部读 `nTok`，而 `var nTok`
+  //       是本函数后半段才赋值的（var 提升）⟹ 那一刻永远是 `undefined`。
+  //   · 于是 `picks[0]` 直接用了**原始行号**；行号 0..N-1 与节点 uid（单调递增）大量重合
+  //     ⟹ `pickFound = 144/150` —— **96% 的帧里"被接受"的目标是个和网络选择无关的节点**
+  //     （不是报错，是**静默改选**，比报错更坏）。
+  //   · 又因为父代理的射击帧是照 `commitNode` 造的，而这个"蒙对"的目标几乎不在
+  //     root→commitNode 的链上 ⟹ `checkBundleSemantics` 逐条命中
+  //     **`B | picks[#] 不在路线上` = 303 次** ⟹ `giveUpB = 133/150`（89%）
+  //     ⟹ `_agentRoute = null` ⟹ `getDesiredOperation()` 退回 `树:<commitNode 的 op>`
+  //     ⟹ 主人看到的「树:静止」/「树:后左」等。
+  // --------------------------------------------------------------------------
+  // 本修复两条（都在【采集侧】，⛔ 一个字都没改树的判定，也⛔ 没改选）：
+  //   ① `picks` 的构造**挪到观测编码之后**（`buildBundle()` 由 `G.step` 末尾调用）
+  //      ⟹ 拿到本帧真正的 `nTok` ⟹ `uid = nTok[row][0]`（`NODE_FIELDS[0]='uid'`）。
+  //   ② 射击帧：按树自己的游标口径算出**本帧执行帧**，只在那一帧（±1）上插
+  //      （路线用**真树的 .parent/.children**求，L 用 `agentExecLenOf()` 同口径。
+  //        v1 写成「整条路线每跳 [0,L) 全覆盖」实测被 `0帧自杀(炮口贴墙)` 拒了 210 次。）
+  //   ③ 若那一帧真的炮口贴墙，树会拒掉这一包；桥接层按树自己的契约
+  //      「拒绝该射击帧（B 帧内重试）」**只丢射击帧、保留 picks[0]**。
+  // ==========================================================================
+  /** 树侧 `agentExecLenOf()` 的只读复制（口径必须一致，否则 back 会越界）。 */
+  function execLenOf(n) {
+    if (!n) return 0;
+    if (typeof n.validFrames === 'number' && n.validFrames > 0) return n.validFrames | 0;
+    if (!n.fullDead) {
+      var ev = (typeof VantageTree !== 'undefined' && typeof VantageTree.EVAL_FRAMES === 'number') ? VantageTree.EVAL_FRAMES : 75;
+      return Math.max(1, Math.round(ev));
+    }
+    return (typeof n.fullDeathFrame === 'number' && n.fullDeathFrame >= 2) ? (n.fullDeathFrame - 1) : 0;
+  }
+
+  /**
+   * 在【真树】里求 root→uid 的链（用真的 `.parent`/`.children`，不用观测的 parentIdx）。
+   * 为什么：树每帧会重根/抛缩（collapse/rebase），观测 token 的 parentIdx 只代表【编码那一刻】；
+   * 而 `checkBundleSemantics` 用的是 `agentRoutePathOf()`（从 `tree.root` 顺 `.parent` 上溯）。
+   * 返回 [root, …, uid]（含两端）；root 本身 / 不在 root 下 ⇙ null。
+   */
+  function routeChainOf(tree, uid) {
+    if (!tree || !tree.root || uid === null || uid === undefined) return null;
+    var root = tree.root;
+    if (root.id === uid) return null;              // 目标 = root ⇙ 树侧 `agentRoutePathOf` 返回 null
+    var stack = [[root, [root]]], guard = 0;
+    while (stack.length && guard++ < 40000) {
+      var it = stack.pop(), n = it[0], ch = it[1];
+      if (n.id === uid) return ch;
+      var kids = n.children || [];
+      for (var i = kids.length - 1; i >= 0; i--) {
+        if (!kids[i]) continue;
+        stack.push([kids[i], ch.concat([kids[i]])]);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 造本帧 bundle。`row` = 上一帧策略给的【观测行号】；
+   * `tokIn` = **策略当时看到的那份**观测（`G.prevTok`）。
+   * ⛔ 不能用本帧的 nTok：树每帧都可能长/缩，行号在两帧之间不稳定
+   *   （实测：用本帧 nTok 时 `rowOutOfRange = 121/150`、`mapFallback = 122/150`）。
+   * ⛔ 只做三件事：① 行号→uid；② 剪枝兜底（目标已不在活动树 ⟹ commitNode）；
+   *    ③ 把「本帧要开火」翻译成一个**合法**的射击帧。
+   * ⛔ **绝不改选**：目标永远是策略选的那一行对应的 uid（只有在它已经不存在/不可达时才兜底）。
+   */
+  function buildBundle(row, tokIn) {
+    var tr = (typeof VantageTree !== 'undefined' && VantageTree.getTree) ? VantageTree.getTree() : null;
+    var N = tokIn ? tokIn.length : 0;
+    if (row === null || row === undefined || !(row >= 0)) return null;
+    row = row | 0;
+    var uid = row, mapped = false;
+    if (N > 0 && tokIn[row] && typeof tokIn[row][0] === 'number') {
+      uid = tokIn[row][0] | 0;                          // ★ NODE_FIELDS[0] = 'uid'
+      mapped = true;
+      G.mapApplied = (G.mapApplied || 0) + 1;
+    } else if (N > 0) {
+      G.rowOutOfRange = (G.rowOutOfRange || 0) + 1;     // 行号越界（树这帧变小了）
+    } else {
+      G.mapNoTokN = (G.mapNoTokN || 0) + 1;             // 本帧没有观测（树还没建/已重置）
+    }
+
+    // ---- 目标必须在【活动树】里并且能从 root 走到 ----
+    //   `routeChainOf` 与树侧 `agentRoutePathOf()` 同口径（从 tree.root 顺 .parent 上溯）。
+    //   为什么不能用观测 token 的 parentIdx 当路线：树每帧重根/坍缩/rebase，
+    //   观测只代表【编码那一刻】的父子关系，而校验用的是【decision 那一刻】的真树。
+    var inTree = false;
+    try { if (tr && tr.walk) tr.walk(function (nd) { if (nd && nd.id === uid) inTree = true; }); } catch (eW) { }
+    var rc = inTree ? routeChainOf(tr, uid) : null;
+    if (inTree && !rc) G.routeUnreachable = (G.routeUnreachable || 0) + 1;   // 在树里但链断（目标=新根等）
+    if (!inTree) G.pickNotFound = (G.pickNotFound || 0) + 1;
+    if (!rc) {
+      // 剪枝兜底（父代理做法，保留）：commitNode（一定在 root 下）→ root
+      var cn = tr && tr.commitNode ? tr.commitNode : null;
+      var rootN = tr && tr.root ? tr.root : null;
+      if (cn && typeof cn.id === 'number') { uid = cn.id | 0; G.mapFallbackTo = 'commitNode'; }
+      else if (rootN && typeof rootN.id === 'number') { uid = rootN.id | 0; G.mapFallbackTo = 'root'; }
+      G.mapFallback = (G.mapFallback || 0) + 1;
+      rc = routeChainOf(tr, uid);
+    }
+    if (rc) G.pickFound = (G.pickFound || 0) + 1;
+    G.lastRowToUid = { row: row, uid: uid, mapped: mapped };
+    G.lastChainLen = rc ? rc.length : 0;
+
+    var picks = [{ nodeId: uid, back: 0 }];       // picks[0] = 路线目标（A 相位 = 生长位置）
+
+    // ----------------------------------------------------------------------
+    // 射击帧（只在 G.fire 为真的帧才发）
+    //   历史两代都错，实测都是 B 被拒 ⟹ 坦克静止：
+    //     · 父代：照 commitNode 整段 [0,L) ⟹ 与选中目标的路线无关
+    //       ⟹ `picks[#] 不在路线上` 303 次（实测 before2）⟹ giveUpB 133/150
+    //     · 本代 v1：整条路线每跳 [0,L) ⟹ 只要路线上任一帧「炮口贴墙」就整包被拒
+    //       ⟹ `0帧自杀(炮口贴墙)` 210 次（实测 after2）
+    //   ✅ 现在：按树自己的游标口径**精确算出本帧执行帧**，只在那一帧（±1）上插射击帧。
+    //     口径照抄 `agentExecEnsure()`：新目标 ⟹ 游标 = commitNode 在新路线上的**尾帧**；
+    //     commitNode 不在新路线上 ⟹ 0；路线**不含 root**；跑完 ⟹ 末帧。
+    //     `back = L - (frame - hopStart) - 1`（`agentPickExecFrame` 的逆运算），必在 [0,L)。
+    //   ⚠️ 若该帧本身「炮口贴墙」，树会拒绝 ⟹ 桥接层按树自己的契约
+    //      「拒绝该射击帧（B 帧内重试）」只丢掉射击帧、**保留 picks[0]**（见 G.mk）。
+    // ----------------------------------------------------------------------
+    // ⭐ 2026-10-19 诊断：路线/游标/执行跳 **无论开不开火都算**，
+    //   否则看不到「目标 op」与「真正执行的那一跳 op」的差异。
+    {
+      var added = 0, wantFrame = -1, wantHop = null, wantStart = 0;
+      try {
+        if (rc && rc.length > 1) {
+          G.dbgTargetOp = (rc[rc.length - 1] && rc[rc.length - 1].opName) || '(?)';
+          G.dbgTargetId = rc[rc.length - 1] ? rc[rc.length - 1].id : null;
+          var hops = [], k;
+          for (k = 1; k < rc.length; k++) hops.push({ id: rc[k].id | 0, L: Math.max(1, Math.min(512, execLenOf(rc[k]))) });
+          var totalF = 0;
+          for (k = 0; k < hops.length; k++) totalF += hops[k].L;
+          if (hops.length && totalF > 0) {
+            var startFrame = 0;
+            var cmtId = (tr && tr.commitNode && typeof tr.commitNode.id === 'number') ? (tr.commitNode.id | 0) : null;
+            if (cmtId !== null) {
+              var acc = 0, found = false;
+              for (k = 0; k < hops.length; k++) {
+                acc += hops[k].L;
+                if (hops[k].id === cmtId) { startFrame = acc; found = true; break; }
+              }
+              if (!found) startFrame = 0;              // commitNode 不在该路线上 ⟹ 从路线起点开始
+            }
+            wantFrame = (startFrame >= totalF) ? (totalF - 1) : startFrame;
+            G.dbgHopsN = hops.length;
+            G.dbgTotalF = totalF;
+            G.dbgStartFrame = startFrame;
+            var s2 = 0;
+            for (k = 0; k < hops.length; k++) {
+              if (wantFrame < s2 + hops[k].L) { wantHop = hops[k]; wantStart = s2; break; }
+              s2 += hops[k].L;
+            }
+            if (wantHop) {
+              G.dbgHopId = wantHop.id; G.dbgHopL = wantHop.L; G.dbgHopStart = wantStart;
+              try { var _hn = null; tr.walk(function (nd) { if (nd && nd.id === wantHop.id) _hn = nd; });
+                    G.dbgHopOp = _hn ? (_hn.opName || '(?)') : '(missing)'; } catch (eHO) { }
+              var back = wantHop.L - (wantFrame - wantStart) - 1;
+              if (back < 0) back = 0;
+              if (back > wantHop.L - 1) back = wantHop.L - 1;
+              // ±1 容错：同一目标连续两帧时树侧游标会 +1 滑动一格
+              G.dbgBack = back;
+              if (G.fire) {
+                var seenB = {}, cands = [back - 1, back, back + 1];
+                for (var ci = 0; ci < cands.length; ci++) {
+                  var bb = cands[ci];
+                  if (bb < 0 || bb > wantHop.L - 1) continue;
+                  if (seenB[bb]) continue;
+                  seenB[bb] = 1;
+                  picks.push({ nodeId: wantHop.id, back: bb });
+                  added++;
+                }
+              }
+            }
+          }
+        }
+      } catch (eFR) { G.fireErr = String((eFR && eFR.message) || eFR); }
+      G.fireFrame = wantFrame; G.fireAdded = added;
+      if (G.fire && !added) G.firePicksEmpty = (G.firePicksEmpty || 0) + 1;   // 诊断：想开火但没造出合法射击帧
+      if (G.fire) G.firePicksN = (G.firePicksN || 0) + added;
+    }
+    return { picks: picks, memory: {} };
+  }
+
+  G.buildBundle = buildBundle;      // 只读调试钩子（探针可手动重放）
+
   G.step = function (nodeId) {
     var gc = GameManager.getGameController();
-    // ① 决策回填：上一帧策略给的 nodeId（A=生长位置 / B=路线目标，契约同 inject_sarl2）
-    if (nodeId !== null && nodeId !== undefined && nodeId >= 0) {
-      // ⭐⭐⭐ 2026-10-18 根因修复（本代理）：**行号 → uid 映射**。
-      //   服务端返回的 `nodeId` 是【观测节点 token 的行号】，而 `VantageTree.findNodeById` 找的是【节点的 uid】。
-      //   两者不相等 ⟹ 每帧 `B:重试超限(picks[0] 节点编号不存在)` ⟹ 树的 `_agentRoute` 永远是 null
-      //   ⟹ `getDesiredOperation()` 恒返回「树:静止」⟹ 坦克不动、不开枪、打不死靶（实测 giveUpB=145/120 帧）。
-      //   ✅ 正解同 `inject_fire.js:264`：uid = 节点 token 第 0 位（NODE_FIELDS[0]='uid'）。
-      //   ⚠️ 训练侧的 `act.nodeId` 仍记【行号】（策略分布要按行索引），只有喂给树的才换成 uid。
-      var _row = nodeId | 0;
-      var _uid = _row;
-      try {
-        if (nTok && nTok[_row] && typeof nTok[_row][0] === 'number') _uid = nTok[_row][0] | 0;
-      } catch (eMap) { G.mapErr = String((eMap && eMap.message) || eMap); }
-      // ⭐⭐⭐ 2026-10-18（本代理）：**剪枝兜底** —— 树每帧会重根/剪枝，上帧的节点这帧可能已经不存在。
-      //   面板侧同样的处理（`vantage_agent_panel.js:644-650`：nSlots 无效 ⟹ prevNodeId=0 复用 slot 路径）。
-      //   ⛔ 不做兜底 ⟹ 每帧 `B:重试超限(picks[0] 节点编号不存在)` ⟹ 树永远静止（实测 giveUpB=225/200 帧）。
-      //   ✅ 做法：uid 在树里找不到 ⟹ 退回 **当前 commitNode**（它一定存在），再不行退回根。
-      try {
-        var _tr0 = (typeof VantageTree !== 'undefined' && VantageTree.getTree) ? VantageTree.getTree() : null;
-        var _found = false;
-        if (_tr0 && _tr0.walk) { try { _tr0.walk(function (nd) { if (nd && nd.id === _uid) { _found = true; } }); } catch (eW2) {} }
-        if (!_found) {
-          var _cn = _tr0 && _tr0.commitNode ? _tr0.commitNode : null;
-          if (_cn && typeof _cn.id === 'number') { _uid = _cn.id | 0; G.mapFallback = (G.mapFallback || 0) + 1; G.mapFallbackTo = 'commitNode'; }
-          else if (_tr0 && _tr0.root && typeof _tr0.root.id === 'number') { _uid = _tr0.root.id | 0; G.mapFallback = (G.mapFallback || 0) + 1; G.mapFallbackTo = 'root'; }
-        }
-      } catch (eFb) { G.mapFallbackErr = String((eFb && eFb.message) || eFb); }
-      G.lastRowToUid = { row: _row, uid: _uid };
-      var picks = [{ nodeId: _uid, back: 0 }];              // picks[0] = 路线目标（A 相位=生长位置）—— ✅ 用 uid
-      if (G.fire) {
-        // ⭐⭐⭐ 父代理 2026-10-18 根因修复：原实现只发 `{nodeId: root, back: 1e9}`
-        //   ⟹ `agentPickExecFrame` 把 back 钳到 L-1 ⟹ execFrame = start(root)+0 = **0**
-        //   ⟹ 只有"游标恰好=0"时命中 ⟹ **实测 50 局 ammoLeft 恒 5 ⟹ 一枪未放**（60~70% 的胜率全是熬到对手自爆）。
-        //   正解：射击帧要覆盖【commitNode 这一整段】——`agentExecEnsure` 新目标时把游标置为
-        //        commitNode 段起点 + 段内已过帧 ⟹ 游标必在 commitNode 段内 ⟹ 覆盖该段 [0,L) 必命中。
-        try {
-          var _t = VantageTree.getTree();
-          var _cmt = _t && _t.commitNode ? _t.commitNode : null;
-          if (_cmt && typeof _cmt.id === 'number' && _cmt.id >= 0) {
-            var _L = 1;
-            if (typeof _cmt.segmentFrames === 'number' && _cmt.segmentFrames > 0) _L = _cmt.segmentFrames | 0;
-            else if (typeof _cmt.tEndSec === 'number' && typeof _cmt.tStartSec === 'number')
-              _L = Math.max(1, Math.round((_cmt.tEndSec - _cmt.tStartSec) / 0.02));
-            for (var _b = 0; _b < _L; _b++) picks.push({ nodeId: _cmt.id, back: _b });
-            G.firePicksN = (G.firePicksN || 0) + _L; G.fireCommitId = _cmt.id; G.fireCommitL = _L;
-          }
-        } catch (eR) { G.fireErr = String((eR && eR.message) || eR); }
-      }
-      G.bundleA = { picks: picks, memory: {} };
-      G.bundleB = G.bundleA;
-    }
+    // ① 决策回填**延迟**到观测编码之后（见上方 buildBundle 的注释①）：
+    //    这里只记下"本帧要喂给树的行号"，真正的 picks 在 out.segs 造好之后构造。
+    //    ⛔ 旧的实现在这里读 `nTok`，而 `var nTok` 是后面才赋值的（var 提升）⟹ 读到 undefined。
+    var _pendRow = (nodeId !== null && nodeId !== undefined && nodeId >= 0) ? (nodeId | 0) : null;
+    G.pendRow = _pendRow;
     G.n++;
     var out = { f: G.n, r: null, err: null };
     try {
@@ -302,6 +456,10 @@
       if (e.nodes && e.nodes.err) out.nodeEncErr = e.nodes.err;
       if (!nTok.length || !gArr.length) {
         // 树还没建（回合创建前）⟹ 不做假动作，显式标记
+        // ⭐ 2026-10-19：这种帧也要把 bundle 造出来（无 nTok ⟹ 旧行为兼容），
+        //   否则 A/B 会拿到 null ⟹ `重试超限(no-output)`。
+        G.bundleA = buildBundle(_pendRow, G.prevTok || null);
+        G.bundleB = G.bundleA;
         out.r = { nRows: 0 };
         return JSON.stringify(out);
       }
@@ -415,6 +573,14 @@
       out.itemNonZero = itemSeg.reduce(function (n, r) { for (var i = 0; i < r.length; i++) if (r[i]) n++; return n; }, 0);
       if (G.memOn && G.lastMemEcho) { out.segs.mem = G.lastMemEcho; out.memSent = G.lastMemEcho.length; }   // mem_on=1 才发
       out.payloadN = nTok.length;
+      // ⭐⭐⭐ 2026-10-19 根因修复①：**在这里**才能拿到本帧真的 nTok
+      //   （旧代码在函数开头读，var 提升 ⟹ 永远 undefined ⟹ 行号→uid 从未生效）。
+      //   bundle 只会在接下来的 pump(1) 里被树消费 ⟹ 移到这里造不改变交付时机。
+      G.bundleA = buildBundle(_pendRow, G.prevTok || null);   // 行号属于**上一帧上行的那份观测**
+      G.bundleB = G.bundleA;
+      G.prevTok = nTok;                      // ⭐ 下一帧要用它把策略的行号译回 uid
+      out.picks0 = (G.bundleA && G.bundleA.picks && G.bundleA.picks.length) ? G.bundleA.picks[0].nodeId : null;
+      out.picksN = (G.bundleA && G.bundleA.picks) ? G.bundleA.picks.length : 0;
       return JSON.stringify(out);
     } catch (e) {
       out.err = String((e && e.stack) || e);

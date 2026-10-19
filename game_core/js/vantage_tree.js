@@ -4437,7 +4437,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             }
             if (targetId !== null && targetId !== undefined) {
                 var n = findNodeById(tree, targetId);
-                if (!n) { illegal.push('生长'); reason = targetField + ' 节点编号不存在'; }
+                if (!n) { illegal.push('生长'); reason = targetField + ' 节点编号不存在'; _diagNoteNotFound(tree, targetId, phase, targetField); }
                 else if (n.invalid) {
                     illegal.push('生长'); reason = targetField + ' 在结构失效的节点上生长';
                 } else if (targetBack !== null) {
@@ -4460,7 +4460,7 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
             else if (clean.select !== undefined && clean.select !== null) { routeId = clean.select; routeField = 'select'; }
             if (routeId !== null && routeId !== undefined) {
                 var rn = findNodeById(tree, routeId);
-                if (!rn) { illegal.push('选路'); reason = routeField + ' 节点编号不存在'; }
+                if (!rn) { illegal.push('选路'); reason = routeField + ' 节点编号不存在'; _diagNoteNotFound(tree, routeId, phase, routeField); }
                 else if (rn.invalid || rn.exhausted) {
                     illegal.push('选路'); reason = routeField + ' 失效节点';
                 } else if (VantageTreeInterface.Invariants.isTrueDead(rn)) {
@@ -4519,12 +4519,101 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
     var _ifaceStats = { calls: 0, skipped: '', lastCtx: null, lastDecision: null,
                         callsA: 0, callsB: 0, giveUpA: 0, giveUpB: 0,
                         growAt: 0, picks: 0, pickExtras: 0, growAtExtras: 0, rejected: 0, nonRedRetarget: 0,
-                        tickSkippedFull: 0 };   // v179：树满（数量闸门）导致本帧不调 A 的次数
+                        tickSkippedFull: 0,
+                        // ⭐ 2026-10-19 只读诊断（「B 决策被拒 ⟹ 静止」代理）：
+                        //   `skipped` 只留【最后一条】⟹ 看不到分布。这里按【归一化理由】分项计数。
+                        //   ⛔ 只加计数，不改任何判定/返回值。
+                        rejectReasons: {},      // "A | 生长picks[#] 节点编号不存在" → 次数
+                        giveUpReasons: {},      // 同上，但只统计"重试超限 ⟹ 本帧放弃"的
+                        notFound: 0,            // checkBundleSemantics 里 findNodeById=null 的次数（A+B 合计）
+                        notFoundA: 0, notFoundB: 0,
+                        notFoundInReserve: 0,   // 其中"节点其实在 tree.reserve（被坍缩/换道拆下来）"的次数
+                        notFoundEverSeen: 0,    // 其中"该 uid 以前在活动树里出现过"（= 被剪掉）的次数
+                        notFoundSample: null,   // 最近一次未命中的样本
+                        rejectLog: []           // 明细环（仅 window.__vtDiag 打开时记）
+                      };   // v179：树满（数量闸门）导致本帧不调 A 的次数
     if (typeof window !== 'undefined') window.__vantageIface = _ifaceStats;
+
+    /** 诊断用：把理由串里的数字抹掉（每个节点 id 不同 ⟹ 否则直方图全是"1 次"的分桶）。 */
+    function _diagKey(s) {
+        return String(s === null || s === undefined ? '' : s).replace(/-?\d+(\.\d+)?/g, '#');
+    }
+    /** 诊断用：按 id 找节点，并回答"它在活动树里还是在 reserve 里"（只读）。 */
+    function _diagFindAnywhere(tree, id) {
+        try {
+            if (tree && tree.root) {
+                var stack = [tree.root], guard = 0;
+                while (stack.length && guard++ < 4000) {
+                    var n = stack.pop();
+                    if (!n) continue;
+                    if (n.id === id) return 'root';
+                    if (n.children) for (var i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+                }
+            }
+            // reserve：被坍缩/换道拆下来的子树（不在 root 下 ⟹ findNodeById 找不到）
+            var res = (tree && tree.reserve) || [];
+            for (var r = 0; r < res.length; r++) {
+                var st2 = [res[r]], g2 = 0;
+                while (st2.length && g2++ < 4000) {
+                    var m = st2.pop();
+                    if (!m) continue;
+                    if (m.id === id) return 'reserve';
+                    if (m.children) for (var j = 0; j < m.children.length; j++) st2.push(m.children[j]);
+                }
+            }
+        } catch (e) { }
+        return null;
+    }
+    /** 诊断用：记录一次"节点编号不存在"。 */
+    function _diagNoteNotFound(tree, id, phase, field) {
+        try {
+            _ifaceStats.notFound++;
+            if (phase === 'B') _ifaceStats.notFoundB++; else _ifaceStats.notFoundA++;
+            var where = _diagFindAnywhere(tree, id);
+            if (where === 'reserve') _ifaceStats.notFoundInReserve++;
+            var seen = _ifaceStats._seenIds || (_ifaceStats._seenIds = {});
+            if (seen[id]) _ifaceStats.notFoundEverSeen++;
+            _ifaceStats.notFoundSample = { t: +(+(_timeAcc || 0)).toFixed(3), phase: phase, field: field,
+                id: id, where: where || 'nowhere', seenBefore: !!seen[id],
+                commitId: (tree && tree.commitNode) ? tree.commitNode.id : null,
+                rootId: (tree && tree.root) ? tree.root.id : null,
+                nodeCount: tree ? tree.nodeCount : null,
+                reserveCount: tree ? (tree.reserveCount || 0) : null };
+        } catch (e) { }
+    }
+    /** 诊断用：把活动树里所有 id 记进 _seenIds（⟹ 能回答"这个 uid 是不是被剪掉的"）。 */
+    function _diagMarkSeen(tree) {
+        try {
+            var seen = _ifaceStats._seenIds || (_ifaceStats._seenIds = {});
+            if (!tree || !tree.root) return;
+            var stack = [tree.root], guard = 0;
+            while (stack.length && guard++ < 4000) {
+                var n = stack.pop();
+                if (!n) continue;
+                seen[n.id] = 1;
+                if (n.children) for (var i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+            }
+        } catch (e) { }
+    }
+    /** 诊断用：分项记录一次拒绝（sem 层 / format 层都走这里）。 */
+    function _diagNoteReject(phase, why, illegal) {
+        try {
+            var r = _ifaceStats.rejectReasons;
+            var k = phase + ' | ' + _diagKey(why);
+            r[k] = (r[k] || 0) + 1;
+            if (typeof window !== 'undefined' && window.__vtDiag) {
+                var lg = _ifaceStats.rejectLog;
+                if (lg.length < 4000) lg.push({ t: +(+(_timeAcc || 0)).toFixed(3), phase: phase,
+                    why: String(why || ''), illegal: (illegal || []).join('/') });
+            }
+        } catch (e) { }
+    }
 
     function agentSeam(tree, adapter, simState, threats, ops, phase) {
         // v185（3-4）：同一 tick 两次调用 —— phase='A'（生长）/ 'B'（路线+射击帧）。
         phase = (phase === 'B') ? 'B' : 'A';
+        // ⭐ 2026-10-19 只读诊断：每 tick 记一次活动树 id 集合（回答“这个 uid 是不是被剪掉的”）
+        if (phase === 'B' && typeof window !== 'undefined' && window.__vtDiag) _diagMarkSeen(tree);
         var slot = (phase === 'B') ? '_agentDecisionB' : '_agentDecision';
         function _clearSeamSlot() {
             if (!tree) return;
@@ -4585,9 +4674,9 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
                 var raw = agent.decide(ctx, _at > 1
                     ? { attempt: _at, rejected: rej, reason: why, phase: phase } : null);
                 var bundle = VantageTreeInterface.validateBundle(raw);
-                if (!bundle.ok) { rej = bundle.illegal; why = bundle.reason; continue; }
+                if (!bundle.ok) { rej = bundle.illegal; why = bundle.reason; _diagNoteReject(phase, 'format:' + why, bundle.illegal); continue; }
                 var sem = checkBundleSemantics(tree, bundle.clean, ctx);
-                if (!sem.ok) { rej = sem.illegal; why = sem.reason; continue; }
+                if (!sem.ok) { rej = sem.illegal; why = sem.reason; _diagNoteReject(phase, why, sem.illegal); continue; }
                 // v187（3-5）：B 的射击帧做 0 帧自杀检测（执行层硬约束；失败 → 帧内重试）
                 if (phase === 'B') {
                     var _fh = agentFireSelfHitCheck(tree, adapter, bundle.clean);
@@ -4604,6 +4693,10 @@ function ensureThreatTracks(tree, adapter, threats, onlyIds, callerTag) {
                 else _ifaceStats.giveUpA = (_ifaceStats.giveUpA || 0) + 1;
                 _clearSeamSlot();
                 _ifaceStats.skipped = (phase === 'B' ? 'B:' : 'A:') + '重试超限(' + why + ')';
+                try {   // ⭐ 2026-10-19 只读诊断：放弃理由分项
+                    var _gk = phase + ' | ' + _diagKey(why);
+                    _ifaceStats.giveUpReasons[_gk] = (_ifaceStats.giveUpReasons[_gk] || 0) + 1;
+                } catch (eGU) { }
                 return;
             }
             tree[slot] = dec || null;
@@ -8450,12 +8543,18 @@ return count;
     }
 
     function tick(ai, dt) {
+        // ⭐ 2026-10-19 只读诊断：tick 入口与各早退分项（回答「树到底有没有每帧都评估 B」）
+        if (typeof _ifaceStats !== 'undefined') {
+            _ifaceStats.tickEnter = (_ifaceStats.tickEnter || 0) + 1;
+            _ifaceStats.tickBail = _ifaceStats.tickBail || { noAdapter: 0, noState: 0, frozen: 0, worldDt: 0 };
+        }
         var adapter = ai._vantageAdapter;
-        if (!adapter) return;
+        if (!adapter) { if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickBail.noAdapter++; return; }
         var tankState = adapter.getTankState();
-        if (!tankState) return;
+        if (!tankState) { if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickBail.noState++; return; }
         // v132：死亡定格——树不再生长/提交/重建，只让执行轨迹再走一帧就永久停住。
         if (_frozen) {
+            if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickBail.frozen++;
             if (_frozenFrame < 1 && _tree) {
                 _frozenFrame++;
                 // 再走一帧执行轨迹（视觉上路线多走一步），然后永久定格。
@@ -8539,6 +8638,7 @@ return count;
         if (worldDt > 0) _lastWorldDt = worldDt;
         _timeAcc += worldDt;    // 绝对时间轴推进（跨树连续，树图竖线不归零）
         if (worldDt <= 0) {
+            if (typeof _ifaceStats !== 'undefined') _ifaceStats.tickBail.worldDt++;
             // 世界这一帧没有 Step（暂停/倒计时/同一真实步的重复 tick）：
             // 坦克没动，树也不长、不提交，避免“时间没走但树在长”的错轴。
             perfEnd('idle');
@@ -9001,6 +9101,13 @@ return count;
                 if (!cur) { cur = path[path.length - 1]; frame = total - 1; }   // 路线走完：保持末节点（B 下帧会给新目标）
                 var inp = cur.inputs || {};
                 var fire = agentFireAt(_tree, path, frame);
+                // ⭐ 2026-10-19 只读回显（探针用）：记下“树最后一次实际交给 AI 的操作”。
+                //   ⏔ 不影响返回值/游戏逻辑；仅供探针读（避免探针再调一次 getDesiredOperation 把游标推进）。
+                try {
+                    _tree.stats.lastDesiredOp = 'B:' + (cur.opName || '?') + (fire ? '+fire' : '');
+                    _tree.stats.lastDesiredFrame = frame;
+                    _tree.stats.lastDesiredPathN = path.length;
+                } catch (eLD) { }
                 return {
                     inputs: { forward: !!inp.forward, back: !!inp.back, left: !!inp.left, right: !!inp.right, fire: fire },
                     fire: fire,
@@ -9011,6 +9118,7 @@ return count;
             }
         }
         if (!_tree.commitNode) return null;
+        try { _tree.stats.lastDesiredOp = '树:' + (_tree.commitNode.opName || '?'); } catch (eLD2) { }
         return {
             inputs: _tree.commitNode.inputs,
             opName: '树:' + (_tree.commitNode.opName || '?')
