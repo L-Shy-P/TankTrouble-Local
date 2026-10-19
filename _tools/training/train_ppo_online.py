@@ -101,7 +101,8 @@ DEFAULTS = dict(gamma=0.99, gae_lambda=0.95, clip=0.2, lr=3e-4, epochs=4,
                 entropy_coef=0.001, max_grad_norm=0.5,   # ⭐ entropy 0.01→0.001【无出处、待实验】
                 minibatch=32, min_episodes=20,
                 value_head="out[0]", mem_mode="zeros", reward_mode="parts",
-                w_result=1.0, w_survive=-0.0005,  # ⭐主人 2026-10-18：「每帧扣少量，但要以毒雾为基准」⟹ −0.01 太狠(长局会把55分清成−5) ⟹ 改 −0.0005(满局长局也只扣约1杀的份)   # ⭐主人 2026-10-18：「每帧都扣少量时间分」⟹ 【每帧负分】(原 +1.0 是错的) w_legal=1.0, adv_norm=True,
+                w_result=1.0, w_survive=-0.05,  # ⭐主人 2026-10-18：「每帧扣少量，以毒雾为基准」。⚠️2026-10-19 修正：数据里 `r.survive=0.01`（不是 1.0）
+                #   ⟹ 有效惩罚 = w_survive × 0.01。要得到 −0.0005/帧，w_survive 必须是 −0.05（原来写 −0.0005 ⟹ 实际 −0.000005，等于没开）   # ⭐主人 2026-10-18：「每帧都扣少量时间分」⟹ 【每帧负分】(原 +1.0 是错的) w_legal=1.0, adv_norm=True,
                 w_spawn=0.0, w_hit=0.0, w_aim=0.0,   # ⭐主人 2026-10-18：「我从未设定过开枪分和瞄准分」⟹ 全置 0（原是父代理自己编的） max_updates=0,
                 w_kill=3.0, w_kill_max=10.0,   # ⭐主人 2026-10-18：同局击杀递增，第1个3分→第8个10分 w_selfkill=-5.0, w_death=-5.0, w_death_storm=-6.0,  # ⭐死亡必须远重于任何时间惩罚，否则学会早死止损(原 −1.0 比'1杀慢局−57'还好) w_kill_storm=1.0,
                 w_crate=0.05, w_draw=-0.5, w_empty_fire=-0.10,
@@ -490,7 +491,7 @@ def prepare_targets(buffer, cfg):
     adv = np.concatenate(adv_l)
     ret = np.concatenate(ret_l)
     adv_std_raw = float(adv.std())
-    if cfg["adv_norm"]:
+    if cfg.get("adv_norm", True):
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
     # ⭐⭐ 数据保险（Phase1 父代理要求）：只保留「真由策略执行」的帧
     # ⭐ 只丢「明确 False」的；无字段（烟测/旧数据）保留并计数（⏔t 静默丢）
