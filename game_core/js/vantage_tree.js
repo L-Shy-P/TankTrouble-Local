@@ -820,7 +820,7 @@
     var _lanePenaltyRatio = 0;      // v47：树内车道压分开关状态（跨树保持）
     var _springRopeEnabled = false; // v57：弹簧绳修复后暂默认关，面板可开
     var _rustMinimalEnabled = false; // v69：Rust 最小决策实验开关（默认关）
-    var _growWithoutThreatsEnabled = false; // v77：无子弹也生长树实验开关（默认关）
+    var _growWithoutThreatsEnabled = true;  // 2026-10-19 主人裁定：A 必须时刻操控生长 ⟹ 默认开
     var _deathDurationRatio = 0.5;            // v80：软死节点执行时长不超过死亡帧的一半
     var _growLayersPerTick = 1;               // v80：每 tick 最多生长多少层（完整9候选）
     var _deepSelectEnabled = false;           // v81：深层选路实验开关（默认关）
