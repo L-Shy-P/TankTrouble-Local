@@ -248,6 +248,10 @@ async function runScene(scene, srv, cap) {
     const mazeSeed = (((Number(scene.seed) || 1) + SEED_SALT) * 100003 + 7) >>> 0;
     const openOpts = { humanIds: [], players: scene.players, storm: !!scene.storm,
                    crates: scene.crates, control: false, epoch: scene.epoch };
+    // ⭐⭐⭐ 2026-10-19 主人要"能看训练"：S30_VISIBLE=1 ⟹ 开【有头】浏览器窗口，直接看着它打。
+    //   `match.js:226` / `cdp.js:149` 已支持 headless:false。
+    //   窗口里你还能点地图（触发 debugTarget 点击寻路）来"干扰"它。
+    if (process.env.S30_VISIBLE === '1') openOpts.headless = false;
     if (RNG_FIX) openOpts.rngSeq = lcgSeq(mazeSeed, RNG_SEQ_LEN);
     await m.open(openOpts);
     r.mazeSeed = RNG_FIX ? mazeSeed : null;
