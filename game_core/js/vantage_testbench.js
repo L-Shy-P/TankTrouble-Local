@@ -149,7 +149,8 @@
 (function(global) {
     'use strict';
 
-    var TB_VERSION = 'v104';   // v104（2026-10-13）：DEFAULT_EXP 跟随阶段2 A1/A2（maxNodes/warmup 1000、nodeCap true、horizonSec 10、refineBeyond false）
+    var TB_VERSION = 'v104';   // v104（2026-10-13）：DEFAULT_EXP 跟随阶段2 A1/A2（nodeCap true、horizonSec 10、refineBeyond false）
+    //         ⚠️2026-10-19 订正：maxNodes/warmup 被误写成 1000；A1/A2 定案是 500（要主人拍板-一页纸:79、可调参数总表:79）→ 改回 500
     // v51（2026-08-23）：弹簧绳默认关。
     // v50（2026-08-23）：树事件标签补 lazy 系列。
     // v49（2026-08-23）：配合树 v53，面板新增弹簧绳开关并同步树配置。
@@ -198,7 +199,7 @@
         //   lane = 车道压分开关（主人 2026-08-16 要求；关 = lanePenaltyRatio 0）
         //   springRope = 弹簧绳距离评分开关（主人 2026-08-23 要求；默认开）
         //   evalFrames = 固定帧滑块值（默认 75，1~300，主人 2026-08-16 要求）
-        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 1000, warmupMaxNodes: 1000, nodeCap: true, horizonCap: true, horizonSec: 10, refineBeyond: false, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
+        exp: { fixed75: false, noDeath: true, lane: false, springRope: false, rustMinimal: false, rustPhysics: true, growWithoutThreats: true, growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: true, horizonCap: true, horizonSec: 10, refineBeyond: false, continuousRefine: false, pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3, retreatFrames: 200, targetMix: true, targetMixRatio: 0.5, killfieldEnabled: true, killfieldWeight: 2.75, emptyFieldSafety: false, emptyFieldLaziness: 0, occlusion: true, safeFilterK: 1, actionCost: 0, kfScaleWithK: true, scoreOnlyPlanned: false, autoPath: false, deepSelect: false, evalFrames: 75 },
         lastLive: null,       // AI 死亡前的 live 冻结（面板布局保留，主人 2026-08-16 要求）
         fps: 0,               // v7.7 游戏帧率（perfTick 间隔滑动平均）
         expandedSet: {},      // v7.7 多开折叠区（旧单值 expanded 退役）
@@ -2171,7 +2172,7 @@
     var DEFAULT_EXP = {
         fixed75: false, noDeath: true, lane: false, springRope: false,
         rustMinimal: false, rustPhysics: true, growWithoutThreats: true,
-        growLayers: 1, maxNodes: 1000, warmupMaxNodes: 1000, nodeCap: true,
+        growLayers: 1, maxNodes: 500, warmupMaxNodes: 500, nodeCap: true,
         horizonCap: true, horizonSec: 10, refineBeyond: false, continuousRefine: false,
         pruneCompensateLayers: 1, pruneCompensateFrames: 3, retreatCompensateLayers: 1, retreatCompensateFrames: 3, retreatNodes: 3,
         retreatFrames: 200, targetMix: true, targetMixRatio: 0.5,
